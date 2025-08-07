@@ -86,8 +86,8 @@ export async function generateSeoulParticlesWithBoundary(
         const colorIndex = (Math.random() * colorCount) | 0
         const color = COLOR_PALETTE[colorIndex]
         
-        // 크기 변화 (밀도가 높은 지역은 더 큰 파티클)
-        const baseSize = 50 + Math.random() * 150
+        // 크기 변화 (밀도가 높은 지역은 더 큰 파티클) - 50% 감소
+        const baseSize = 30 + Math.random() * 80
         const size = baseSize * (0.7 + density * 0.3)
         
         // 구 정보 추가 (애니메이션용)
@@ -144,8 +144,8 @@ export function generateSeoulParticles(count: number = 8000): ParticleData[] {
       const colorIndex = (Math.random() * colorCount) | 0
       const color = COLOR_PALETTE[colorIndex]
       
-      // 크기 변화 (밀도가 높은 지역은 더 큰 파티클)
-      const baseSize = 50 + Math.random() * 150
+      // 크기 변화 (밀도가 높은 지역은 더 큰 파티클) - 50% 감소
+      const baseSize = 25 + Math.random() * 75
       const size = baseSize * (0.7 + density * 0.3)
       
       particles.push({

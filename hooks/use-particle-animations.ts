@@ -264,7 +264,7 @@ export function useParticleAnimations(
     ]
   )
 
-  // Animation loop
+  // Animation loop with improved config dependency
   useEffect(() => {
     if (!animationState.isAnimating) return
 
@@ -273,13 +273,16 @@ export function useParticleAnimations(
       const deltaTime = currentTime - lastFrameTimeRef.current
       const elapsedTime = currentTime - startTimeRef.current
 
-      setAnimationState(prev => ({
-        ...prev,
-        time: elapsedTime,
-        frameCount: prev.frameCount + 1,
-      }))
+      // Only update if enough time has passed (performance optimization)
+      if (deltaTime >= 16) { // ~60fps max
+        setAnimationState(prev => ({
+          ...prev,
+          time: elapsedTime,
+          frameCount: prev.frameCount + 1,
+        }))
+        lastFrameTimeRef.current = currentTime
+      }
 
-      lastFrameTimeRef.current = currentTime
       animationFrameRef.current = requestAnimationFrame(animate)
     }
 
@@ -290,7 +293,7 @@ export function useParticleAnimations(
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [animationState.isAnimating])
+  }, [animationState.isAnimating, config.waveEnabled, config.pulseEnabled, config.colorCycleEnabled, config.fireflyEnabled])
 
   // Control functions
   const toggleAnimation = useCallback(() => {

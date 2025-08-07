@@ -3,36 +3,36 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import { Map } from "react-map-gl"
 import { DeckGL } from "@deck.gl/react"
-import { ScatterplotLayer, LineLayer, GeoJsonLayer } from "@deck.gl/layers"
+import { ScatterplotLayer, LineLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
 import "mapbox-gl/dist/mapbox-gl.css"
-import { generateSeoulParticles, generateSeoulParticlesWithBoundary, getGradientColor } from "@/utils/particle-data"
+import { generateSeoulParticles, generateSeoulParticlesWithBoundary } from "@/utils/particle-data"
 import type { ParticleData } from "@/utils/particle-data"
-import { loadSeoulBoundaries, getSeoulPolygons, getDistrictCenters } from "@/utils/seoul-boundaries"
+import { loadSeoulBoundaries } from "@/utils/seoul-boundaries"
 import type { SeoulBoundaryData } from "@/utils/seoul-boundaries"
 import useParticleAnimations, { defaultAnimationConfig } from "@/hooks/use-particle-animations"
 import type { AnimationConfig } from "@/hooks/use-particle-animations"
-import { AnimationControls } from "@/components/animation-controls"
+// Removed AnimationControls import - moved to Hero component
 
 // Mapbox access token
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA"
 
-// 성능 설정
+// 성능 설정 - 파티클 개수 2배 증가
 const PERFORMANCE_CONFIG = {
   high: {
-    particleCount: 8000,
+    particleCount: 10000,
     connectionCount: 300,
     fps: 60,
     glowLayers: 2,
   },
   medium: {
-    particleCount: 5000,
+    particleCount: 7000,
     connectionCount: 150,
     fps: 30,
     glowLayers: 1,
   },
   low: {
-    particleCount: 2000,
+    particleCount: 4000,
     connectionCount: 50,
     fps: 24,
     glowLayers: 0,
@@ -61,7 +61,19 @@ function detectPerformanceLevel(): keyof typeof PERFORMANCE_CONFIG {
 }
 
 
-export function SeoulMapOptimized() {
+interface SeoulMapOptimizedProps {
+  animationConfig: AnimationConfig
+  onAnimationConfigChange: (changes: Partial<AnimationConfig>) => void
+  mapStyle: string
+  onMapStyleChange: (style: string) => void
+}
+
+export function SeoulMapOptimized({
+  animationConfig,
+  onAnimationConfigChange,
+  mapStyle,
+  onMapStyleChange
+}: SeoulMapOptimizedProps) {
   // 성능 레벨 감지
   const [performanceLevel] = useState<keyof typeof PERFORMANCE_CONFIG>(() => detectPerformanceLevel())
   const config = PERFORMANCE_CONFIG[performanceLevel]
@@ -91,25 +103,16 @@ export function SeoulMapOptimized() {
     bearing: 0,
   })
 
-  // Animation configuration with state management
-  const [animationConfig, setAnimationConfig] = useState<AnimationConfig>(() => ({
-    ...defaultAnimationConfig,
-    waveEnabled: performanceLevel !== 'low',
-    pulseEnabled: performanceLevel === 'high',
-    colorCycleEnabled: performanceLevel !== 'low',
-    fireflyEnabled: performanceLevel === 'high',
-    trailEnabled: false, // Disabled for performance
-  }))
+  // Animation configuration now comes from props
 
   const { animationState, animateParticles } = useParticleAnimations(
     particles,
     animationConfig
   )
 
-  // Handle animation config changes
-  const handleAnimationConfigChange = useCallback((changes: Partial<AnimationConfig>) => {
-    setAnimationConfig(prev => ({ ...prev, ...changes }))
-  }, [])
+  // Map style now comes from props
+
+  // Animation config and map style changes handled by parent
 
   // Load Seoul boundary data and generate particles
   useEffect(() => {
@@ -223,24 +226,7 @@ export function SeoulMapOptimized() {
   const layers = useMemo(() => {
     const baseLayers = []
     
-    // Seoul boundary layer
-    if (boundaryData && performanceLevel !== 'low') {
-      baseLayers.push(
-        new GeoJsonLayer({
-          id: 'seoul-boundary',
-          data: boundaryData,
-          pickable: false,
-          stroked: true,
-          filled: true,
-          lineWidthScale: 1,
-          lineWidthMinPixels: 1,
-          lineWidthMaxPixels: 2,
-          getFillColor: [0, 0, 0, 0], // Transparent fill
-          getLineColor: [100, 150, 255, 100], // Subtle blue outline
-          getLineWidth: 1,
-        })
-      )
-    }
+    // Seoul boundary layer removed - no longer displaying boundary lines
     
     // 연결선 레이어 (중간 이상 성능에서만)
     if (config.connectionCount > 0) {
@@ -269,17 +255,17 @@ export function SeoulMapOptimized() {
         id: "particle-layer",
         data: animatedData,
         pickable: false,
-        opacity: 0.8,
+        opacity: 0.9, // Increased opacity for better visibility
         stroked: false,
         filled: true,
         radiusScale: 1,
-        radiusMinPixels: 0.5,
-        radiusMaxPixels: performanceLevel === 'high' ? 6 : 4,
+        radiusMinPixels: 2, // Increased for better visibility in pure black mode
+        radiusMaxPixels: performanceLevel === 'high' ? 8 : 6,
         getPosition: (d: any) => d.position,
         getRadius: (d: any) => d.size,
         getFillColor: (d: any) => {
           const color = d.color
-          return [...color, 200]
+          return [color[0], color[1], color[2], 255] // Increased alpha for better visibility
         },
         updateTriggers: {
           getPosition: animatedData,
@@ -307,7 +293,7 @@ export function SeoulMapOptimized() {
           radiusMaxPixels: 10,
           getPosition: (d: any) => d.position,
           getRadius: (d: any) => d.size * 1.5,
-          getFillColor: (d: any) => [...d.color, 80],
+          getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 80],
           parameters: {
             depthTest: false,
             blend: true,
@@ -345,15 +331,16 @@ export function SeoulMapOptimized() {
         controller={true}
         layers={layers}
         parameters={{
-          clearColor: [0, 0, 0.05, 1],
+          // Parameters for rendering optimization
         }}
         // 성능 최적화 옵션
         getCursor={() => 'grab'}
         getTooltip={() => null}
       >
+        {/* Render Map with fixed dark theme */}
         <Map
           mapboxAccessToken={MAPBOX_TOKEN}
-          mapStyle="mapbox://styles/mapbox/dark-v11"
+          mapStyle={mapStyle}
           reuseMaps={true}
           preserveDrawingBuffer={false}
           onLoad={(evt) => {
@@ -377,12 +364,7 @@ export function SeoulMapOptimized() {
         />
       </DeckGL>
 
-      {/* Animation Controls */}
-      <AnimationControls
-        config={animationConfig}
-        onConfigChange={handleAnimationConfigChange}
-        performanceLevel={performanceLevel}
-      />
+      {/* Animation controls moved to Hero component for proper z-index handling */}
 
       {/* 성능 정보 표시 (개발 모드에서만) */}
       {process.env.NODE_ENV === 'development' && (

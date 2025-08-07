@@ -3,21 +3,28 @@
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { AnimationConfig } from "@/hooks/use-particle-animations"
 
 interface AnimationControlsProps {
   config: AnimationConfig
   onConfigChange: (config: Partial<AnimationConfig>) => void
   performanceLevel: 'high' | 'medium' | 'low'
+  mapStyle: string
+  onMapStyleChange: (style: string) => void
 }
 
 export function AnimationControls({ 
   config, 
   onConfigChange,
-  performanceLevel 
+  performanceLevel,
+  mapStyle,
+  onMapStyleChange
 }: AnimationControlsProps) {
+  
+  // Removed map style options - keeping only dark theme
   return (
-    <div className="absolute top-4 left-4 bg-black/80 backdrop-blur-sm rounded-lg p-4 text-white/90 text-sm max-w-xs space-y-3">
+    <div className="absolute top-4 left-4 z-50 pointer-events-auto bg-black/80 backdrop-blur-sm rounded-lg p-4 text-white/90 text-sm max-w-xs space-y-3">
       <h3 className="font-semibold text-white mb-2">Animation Controls</h3>
       
       {/* Wave Animation */}
@@ -166,6 +173,8 @@ export function AnimationControls({
           )}
         </div>
       )}
+
+      {/* Background Style selector removed - using dark theme only */}
 
       {/* Performance Info */}
       <div className="pt-2 border-t border-white/20">

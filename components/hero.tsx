@@ -1,12 +1,15 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { TransitionLink } from "@/components/transition-link"
 import { ArrowRight } from "lucide-react"
+import { AnimationControls } from "@/components/animation-controls"
+import type { AnimationConfig } from "@/hooks/use-particle-animations"
+import { defaultAnimationConfig } from "@/hooks/use-particle-animations"
 
 // 동적으로 파티클 맵 로드 (SSR 비활성화) - 최적화된 버전 사용
 const SeoulMapOptimized = dynamic(
@@ -29,6 +32,38 @@ const SeoulMapOptimized = dynamic(
 
 export function Hero() {
   const container = useRef(null)
+  
+  // Animation configuration state management
+  const [animationConfig, setAnimationConfig] = useState<AnimationConfig>({
+    ...defaultAnimationConfig,
+    waveEnabled: true,
+    pulseEnabled: true,
+    colorCycleEnabled: true,
+    fireflyEnabled: true,
+    trailEnabled: false, // Disabled for performance
+  })
+  
+  // Map style set to pure black background
+  const mapStyle = {
+    version: 8,
+    sources: {},
+    layers: [
+      {
+        id: 'background',
+        type: 'background',
+        paint: {
+          'background-color': '#000000'
+        }
+      }
+    ]
+  }
+  
+  // Handle animation config changes
+  const handleAnimationConfigChange = useCallback((changes: Partial<AnimationConfig>) => {
+    setAnimationConfig(prev => ({ ...prev, ...changes }))
+  }, [])
+  
+  // Map style change handler removed - using fixed dark theme
 
   useGSAP(
     () => {
@@ -54,7 +89,7 @@ export function Hero() {
     { scope: container },
   )
 
-  const title = "Innovate. Create. Inspire."
+  const title = "Weather. Spending. Mobility."
   const splitTitle = title.split(" ").map((word, i) => (
     <span key={i} className="inline-block overflow-hidden">
       <span className="inline-block">{word}&nbsp;</span>
@@ -65,7 +100,12 @@ export function Hero() {
     <div ref={container} className="relative w-full h-screen overflow-hidden">
       {/* 파티클 맵 배경 */}
       <div className="absolute inset-0 z-0">
-        <SeoulMapOptimized />
+        <SeoulMapOptimized 
+          animationConfig={animationConfig}
+          onAnimationConfigChange={handleAnimationConfigChange}
+          mapStyle={mapStyle}
+          onMapStyleChange={() => {}} // No-op since style is fixed
+        />
       </div>
       
       {/* 그라데이션 오버레이 */}
@@ -89,7 +129,7 @@ export function Hero() {
           animate={{ opacity: 1 }}
           transition={{ delay: 1.5, duration: 1 }}
         >
-          We craft award-winning digital experiences that blend creativity with cutting-edge technology.
+          KAIST AI.
         </motion.p>
         <TransitionLink href="/#portfolio">
           <motion.button
@@ -97,9 +137,20 @@ export function Hero() {
             whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
             whileTap={{ scale: 0.95 }}
           >
-            Explore Our Work <ArrowRight size={20} />
+            Explore SEOUL <ArrowRight size={20} />
           </motion.button>
         </TransitionLink>
+      </div>
+      
+      {/* Animation Controls - positioned above all other elements */}
+      <div className="absolute top-4 left-4 z-[100]">
+        <AnimationControls
+          config={animationConfig}
+          onConfigChange={handleAnimationConfigChange}
+          performanceLevel="high"
+          mapStyle={mapStyle}
+          onMapStyleChange={() => {}} // No-op since style is fixed
+        />
       </div>
       
       {/* 애니메이션 스타일 */}
