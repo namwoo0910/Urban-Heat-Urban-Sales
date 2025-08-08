@@ -10,8 +10,9 @@ import { generateSeoulParticles, generateSeoulParticlesWithBoundary } from "@/ut
 import type { ParticleData } from "@/utils/particle-data"
 import { loadSeoulBoundaries } from "@/utils/seoul-boundaries"
 import type { SeoulBoundaryData } from "@/utils/seoul-boundaries"
-import useParticleAnimations, { defaultAnimationConfig } from "@/hooks/use-particle-animations"
+import useParticleAnimations from "@/hooks/use-particle-animations"
 import type { AnimationConfig } from "@/hooks/use-particle-animations"
+import { WaveLayer } from "@/components/wave-layer-integrated"
 // Removed AnimationControls import - moved to Hero component
 
 // Mapbox access token
@@ -325,6 +326,8 @@ export function SeoulMapOptimized({
 
   return (
     <div className="relative w-full h-full">
+      {/* Conditional rendering based on layer type */}
+      {animationConfig.layerType === 'particle' ? (
       <DeckGL
         viewState={viewState}
         onViewStateChange={handleViewStateChange}
@@ -363,6 +366,49 @@ export function SeoulMapOptimized({
           }}
         />
       </DeckGL>
+      ) : (
+        // Wave Layer with Mapbox background
+        <>
+          {/* Mapbox map as background */}
+          <Map
+            mapboxAccessToken={MAPBOX_TOKEN}
+            mapStyle={mapStyle}
+            {...viewState}
+            reuseMaps={true}
+            preserveDrawingBuffer={false}
+            onLoad={(evt) => {
+              const map = evt.target
+              
+              try {
+                // Same styling as particle layer
+                const layers = map.getStyle().layers
+                layers?.forEach((layer: any) => {
+                  if (layer.type === 'symbol') {
+                    map.setLayoutProperty(layer.id, 'visibility', 'none')
+                  }
+                  if (layer.type === 'line') {
+                    map.setPaintProperty(layer.id, 'line-opacity', 0.1)
+                  }
+                })
+              } catch (error) {
+                console.warn('Map styling failed:', error)
+              }
+            }}
+          />
+          
+          {/* Wave Layer on top */}
+          <WaveLayer 
+            animationConfig={animationConfig}
+            mapboxCameraPos={{
+              longitude: viewState.longitude || 126.978,
+              latitude: viewState.latitude || 37.5665,
+              zoom: viewState.zoom || 11.2,
+              pitch: viewState.pitch || 65,
+              bearing: viewState.bearing || 0
+            }}
+          />
+        </>
+      )}
 
       {/* Animation controls moved to Hero component for proper z-index handling */}
 

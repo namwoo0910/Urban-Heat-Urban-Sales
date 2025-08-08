@@ -2,6 +2,7 @@ import { useState, useCallback, useRef, useEffect } from 'react'
 import type { ParticleData } from '@/utils/particle-data'
 
 export interface AnimationConfig {
+  layerType: 'particle' | 'wave'
   waveEnabled: boolean
   waveSpeed: number
   waveAmplitude: number
@@ -43,6 +44,7 @@ interface AnimatedParticle {
 
 // Default animation configuration
 export const defaultAnimationConfig: AnimationConfig = {
+  layerType: 'particle',
   waveEnabled: true,
   waveSpeed: 0.001,
   waveAmplitude: 0.0008,

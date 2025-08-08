@@ -44,19 +44,7 @@ export function Hero() {
   })
   
   // Map style set to pure black background
-  const mapStyle = {
-    version: 8,
-    sources: {},
-    layers: [
-      {
-        id: 'background',
-        type: 'background',
-        paint: {
-          'background-color': '#000000'
-        }
-      }
-    ]
-  }
+  const mapStyle = "mapbox://styles/mapbox/dark-v11"
   
   // Handle animation config changes
   const handleAnimationConfigChange = useCallback((changes: Partial<AnimationConfig>) => {

@@ -27,8 +27,30 @@ export function AnimationControls({
     <div className="absolute top-4 left-4 z-50 pointer-events-auto bg-black/80 backdrop-blur-sm rounded-lg p-4 text-white/90 text-sm max-w-xs space-y-3">
       <h3 className="font-semibold text-white mb-2">Animation Controls</h3>
       
-      {/* Wave Animation */}
+      {/* Visualization Layer Selection */}
       <div className="space-y-2">
+        <Label className="text-xs">Visualization Layer</Label>
+        <Select
+          value={config.layerType}
+          onValueChange={(value: 'particle' | 'wave') => onConfigChange({ layerType: value })}
+        >
+          <SelectTrigger className="w-full bg-white/10 border-white/20 text-white">
+            <SelectValue placeholder="Select layer type" />
+          </SelectTrigger>
+          <SelectContent className="bg-black/90 border-white/20">
+            <SelectItem value="particle" className="text-white hover:bg-white/10">
+              Particle Layer
+            </SelectItem>
+            <SelectItem value="wave" className="text-white hover:bg-white/10">
+              Wave Layer
+            </SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      
+      {/* Wave Animation - Show for particle layer */}
+      {config.layerType === 'particle' && (
+        <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="wave" className="text-xs">Wave Motion</Label>
           <Switch
@@ -65,9 +87,10 @@ export function AnimationControls({
           </div>
         )}
       </div>
+      )}
 
-      {/* Pulse Animation */}
-      {performanceLevel === 'high' && (
+      {/* Pulse Animation - Show for particle layer */}
+      {performanceLevel === 'high' && config.layerType === 'particle' && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="pulse" className="text-xs">Pulse Effect</Label>
@@ -106,7 +129,8 @@ export function AnimationControls({
         </div>
       )}
 
-      {/* Color Cycle */}
+      {/* Color Cycle - Show for particle layer */}
+      {config.layerType === 'particle' && (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <Label htmlFor="color" className="text-xs">Color Cycle</Label>
@@ -133,9 +157,10 @@ export function AnimationControls({
           </div>
         )}
       </div>
+      )}
 
-      {/* Firefly Effect */}
-      {performanceLevel === 'high' && (
+      {/* Firefly Effect - Show for particle layer */}
+      {performanceLevel === 'high' && config.layerType === 'particle' && (
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label htmlFor="firefly" className="text-xs">Firefly Effect</Label>
@@ -171,6 +196,34 @@ export function AnimationControls({
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Wave Layer Controls - Show for wave layer */}
+      {config.layerType === 'wave' && (
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <Label htmlFor="wave-intensity" className="text-xs">Wave Intensity</Label>
+            <Slider
+              value={[config.waveAmplitude * 1000]}
+              onValueChange={([value]) => onConfigChange({ waveAmplitude: value / 1000 })}
+              max={3}
+              min={0.1}
+              step={0.1}
+              className="flex-1 ml-2"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="wave-flow" className="text-xs">Wave Flow Speed</Label>
+            <Slider
+              value={[config.waveSpeed * 1000]}
+              onValueChange={([value]) => onConfigChange({ waveSpeed: value / 1000 })}
+              max={5}
+              min={0.1}
+              step={0.1}
+              className="flex-1 ml-2"
+            />
+          </div>
         </div>
       )}
 
