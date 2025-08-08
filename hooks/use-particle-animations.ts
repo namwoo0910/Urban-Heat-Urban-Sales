@@ -34,6 +34,11 @@ export interface AnimationConfig {
   waveHeightMultiplier: number
   waveAnimationSpeed: number
   waveEdgeGlow: number
+  waveParticleOpacity: number
+  waveParticleSize: number
+  waveColorBrightness: number
+  waveParticleDensity: number
+  blackBackgroundEnabled: boolean
 }
 
 export interface AnimationState {
@@ -84,7 +89,12 @@ export const defaultAnimationConfig: AnimationConfig = {
   waveColorIntensity: 1.0,
   waveHeightMultiplier: 1.0,
   waveAnimationSpeed: 1.0,
-  waveEdgeGlow: 0.0  // Disabled by default
+  waveEdgeGlow: 0.0,  // Disabled by default
+  waveParticleOpacity: 0.8,  // Default opacity for particles
+  waveParticleSize: 1.0,     // Default size multiplier
+  waveColorBrightness: 1.2,  // Slightly brighter by default
+  waveParticleDensity: 100,   // Default 100x100 grid
+  blackBackgroundEnabled: false  // Black background off by default
 }
 
 /**

@@ -766,6 +766,25 @@ export function SeoulMapOptimized({
             }}
           />
           
+          {/* Black background overlay for Seoul area (conditional) */}
+          {animationConfig.blackBackgroundEnabled && (
+            <div 
+              className="absolute inset-0 z-10 pointer-events-none"
+              style={{
+                background: `
+                  radial-gradient(
+                    ellipse 40% 60% at 50% 50%, 
+                    transparent 0%, 
+                    transparent 30%, 
+                    rgba(0,0,0,0.7) 60%,
+                    rgba(0,0,0,0.9) 80%,
+                    rgba(0,0,0,1) 100%
+                  )
+                `
+              }}
+            />
+          )}
+
           {/* Wave Layer on top */}
           <WaveLayer 
             animationConfig={animationConfig}

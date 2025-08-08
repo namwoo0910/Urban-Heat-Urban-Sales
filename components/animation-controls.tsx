@@ -317,6 +317,69 @@ export function AnimationControls({
               />
             </div>
           </div>
+          
+          {/* Particle Visibility Controls */}
+          <div className="space-y-2 p-3 bg-white/5 rounded-lg">
+            <Label className="text-xs font-semibold text-cyan-400 mb-2">Particle Visibility</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="particle-opacity" className="text-xs">Particle Opacity</Label>
+              <Slider
+                value={[config.waveParticleOpacity * 100]}
+                onValueChange={([value]) => onConfigChange({ waveParticleOpacity: value / 100 })}
+                max={100}
+                min={10}
+                step={5}
+                className="flex-[1.5] min-w-[200px] ml-2"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="particle-size" className="text-xs">Particle Size</Label>
+              <Slider
+                value={[config.waveParticleSize * 100]}
+                onValueChange={([value]) => onConfigChange({ waveParticleSize: value / 100 })}
+                max={300}
+                min={50}
+                step={10}
+                className="flex-[1.5] min-w-[200px] ml-2"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="color-brightness" className="text-xs">Color Brightness</Label>
+              <Slider
+                value={[config.waveColorBrightness * 100]}
+                onValueChange={([value]) => onConfigChange({ waveColorBrightness: value / 100 })}
+                max={200}
+                min={50}
+                step={10}
+                className="flex-[1.5] min-w-[200px] ml-2"
+              />
+            </div>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="particle-density" className="text-xs">Particle Density</Label>
+              <Slider
+                value={[config.waveParticleDensity]}
+                onValueChange={([value]) => onConfigChange({ waveParticleDensity: value })}
+                max={200}
+                min={50}
+                step={10}
+                className="flex-[1.5] min-w-[200px] ml-2"
+              />
+              <span className="text-xs text-white/60 ml-2">{config.waveParticleDensity}x{config.waveParticleDensity}</span>
+            </div>
+          </div>
+          
+          {/* Map Background Control */}
+          <div className="space-y-2 p-3 bg-white/5 rounded-lg">
+            <Label className="text-xs font-semibold text-gray-400 mb-2">Map Background</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="black-background" className="text-xs">Black Background</Label>
+              <Switch
+                id="black-background"
+                checked={config.blackBackgroundEnabled}
+                onCheckedChange={(checked) => onConfigChange({ blackBackgroundEnabled: checked })}
+              />
+            </div>
+          </div>
         </>
       )}
 

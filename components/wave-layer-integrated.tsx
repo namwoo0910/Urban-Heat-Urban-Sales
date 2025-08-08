@@ -60,8 +60,10 @@ function generateHourlyPattern(baseWeight: number, hour: number): number {
   return baseWeight * multiplier * (0.7 + Math.random() * 0.6)
 }
 
-// Vertex shader with scaled heights for proper alignment
+// Particle vertex shader with wave displacement
 const vertexShader = `
+  attribute vec2 particleUV;
+  
   uniform float time;
   uniform sampler2D populationTexture;
   uniform float heightScale;
@@ -70,35 +72,24 @@ const vertexShader = `
   uniform float wavePattern; // 0: sine, 1: triangle, 2: sawtooth, 3: square
   uniform float animationSpeed;
   uniform float heightMultiplier;
+  uniform float particleSize;
+  uniform float particleOpacity;
   
   varying float vHeight;
   varying vec3 vNormal;
   varying vec2 vUv;
   varying float vMask;
-  varying float vEdge;
+  varying float vPointSize;
   
   void main() {
-    vUv = uv;
+    vUv = particleUV;
     
     // Read boundary mask from green channel of texture
-    vec4 populationData = texture2D(populationTexture, uv);
+    vec4 populationData = texture2D(populationTexture, vUv);
     vMask = populationData.g;
     
-    // Calculate edge detection for boundary glow
-    float texelSize = 1.0 / 64.0;
-    vec2 uvL = clamp(uv - vec2(texelSize, 0.0), 0.0, 1.0);
-    vec2 uvR = clamp(uv + vec2(texelSize, 0.0), 0.0, 1.0);
-    vec2 uvU = clamp(uv - vec2(0.0, texelSize), 0.0, 1.0);
-    vec2 uvD = clamp(uv + vec2(0.0, texelSize), 0.0, 1.0);
-    
-    float maskL = texture2D(populationTexture, uvL).g;
-    float maskR = texture2D(populationTexture, uvR).g;
-    float maskU = texture2D(populationTexture, uvU).g;
-    float maskD = texture2D(populationTexture, uvD).g;
-    vEdge = abs(vMask - maskL) + abs(vMask - maskR) + abs(vMask - maskU) + abs(vMask - maskD);
-    
     // Scale height based on zoom level for consistent appearance
-    float zoomScale = pow(2.0, (11.2 - zoomLevel) * 0.5); // Scale relative to default zoom 11.2
+    float zoomScale = pow(2.0, (11.2 - zoomLevel) * 0.5);
     float populationHeight = populationData.r * heightScale * 100.0 * zoomScale;
     
     if (vMask < 0.5) {
@@ -124,28 +115,28 @@ const vertexShader = `
       
       // Different wave patterns with increased amplitude for more undulation
       if (wavePattern < 0.5) {
-        // Sine wave (smooth) - increased amplitude for more dramatic movement
+        // Sine wave (smooth)
         wave1 = sin(freq1) * waveIntensity * 45.0 * zoomScale;
         wave2 = sin(freq2) * waveIntensity * 40.0 * zoomScale;
         wave3 = sin(freq3) * waveIntensity * 35.0 * zoomScale;
         wave4 = sin(freq4) * waveIntensity * 30.0 * zoomScale;
         baseOscillation = sin(animTime * 0.6) * 35.0 * zoomScale;
       } else if (wavePattern < 1.5) {
-        // Triangle wave (sharp) - increased amplitude
+        // Triangle wave (sharp)
         wave1 = (2.0 * abs(fract(freq1) - 0.5) - 0.5) * waveIntensity * 45.0 * zoomScale;
         wave2 = (2.0 * abs(fract(freq2) - 0.5) - 0.5) * waveIntensity * 40.0 * zoomScale;
         wave3 = (2.0 * abs(fract(freq3) - 0.5) - 0.5) * waveIntensity * 35.0 * zoomScale;
         wave4 = (2.0 * abs(fract(freq4) - 0.5) - 0.5) * waveIntensity * 30.0 * zoomScale;
         baseOscillation = (2.0 * abs(fract(animTime * 0.6) - 0.5) - 0.5) * 35.0 * zoomScale;
       } else if (wavePattern < 2.5) {
-        // Sawtooth wave (aggressive) - increased amplitude
+        // Sawtooth wave (aggressive)
         wave1 = (fract(freq1) * 2.0 - 1.0) * waveIntensity * 45.0 * zoomScale;
         wave2 = (fract(freq2) * 2.0 - 1.0) * waveIntensity * 40.0 * zoomScale;
         wave3 = (fract(freq3) * 2.0 - 1.0) * waveIntensity * 35.0 * zoomScale;
         wave4 = (fract(freq4) * 2.0 - 1.0) * waveIntensity * 30.0 * zoomScale;
         baseOscillation = (fract(animTime * 0.6) * 2.0 - 1.0) * 35.0 * zoomScale;
       } else {
-        // Square wave (digital) - increased amplitude
+        // Square wave (digital)
         wave1 = sign(sin(freq1)) * waveIntensity * 45.0 * zoomScale;
         wave2 = sign(sin(freq2)) * waveIntensity * 40.0 * zoomScale;
         wave3 = sign(sin(freq3)) * waveIntensity * 35.0 * zoomScale;
@@ -171,42 +162,56 @@ const vertexShader = `
     
     vHeight = newPosition.y;
     
-    vec2 texelSizeVec = vec2(1.0) / vec2(64.0);
-    float heightL = texture2D(populationTexture, clamp(uv - vec2(texelSizeVec.x, 0.0), 0.0, 1.0)).r * heightScale * 100.0 * zoomScale;
-    float heightR = texture2D(populationTexture, clamp(uv + vec2(texelSizeVec.x, 0.0), 0.0, 1.0)).r * heightScale * 100.0 * zoomScale;
-    float heightU = texture2D(populationTexture, clamp(uv - vec2(0.0, texelSizeVec.y), 0.0, 1.0)).r * heightScale * 100.0 * zoomScale;
-    float heightD = texture2D(populationTexture, clamp(uv + vec2(0.0, texelSizeVec.y), 0.0, 1.0)).r * heightScale * 100.0 * zoomScale;
-    
-    heightL = clamp(heightL, 0.0, 300.0 * zoomScale);
-    heightR = clamp(heightR, 0.0, 300.0 * zoomScale);
-    heightU = clamp(heightU, 0.0, 300.0 * zoomScale);
-    heightD = clamp(heightD, 0.0, 300.0 * zoomScale);
+    // Calculate normal for lighting (approximate from height gradient)
+    vec2 texelSize = vec2(1.0 / 64.0);
+    float heightL = texture2D(populationTexture, clamp(vUv - vec2(texelSize.x, 0.0), 0.0, 1.0)).r * heightScale * 100.0 * zoomScale;
+    float heightR = texture2D(populationTexture, clamp(vUv + vec2(texelSize.x, 0.0), 0.0, 1.0)).r * heightScale * 100.0 * zoomScale;
+    float heightU = texture2D(populationTexture, clamp(vUv - vec2(0.0, texelSize.y), 0.0, 1.0)).r * heightScale * 100.0 * zoomScale;
+    float heightD = texture2D(populationTexture, clamp(vUv + vec2(0.0, texelSize.y), 0.0, 1.0)).r * heightScale * 100.0 * zoomScale;
     
     vec3 tangentX = vec3(20.0, heightR - heightL, 0.0);
     vec3 tangentZ = vec3(0.0, heightD - heightU, 20.0);
     vNormal = normalize(cross(tangentX, tangentZ));
     
-    gl_Position = projectionMatrix * modelViewMatrix * vec4(newPosition, 1.0);
+    // Calculate particle size based on height, zoom, and size uniform
+    vec4 mvPosition = modelViewMatrix * vec4(newPosition, 1.0);
+    float heightFactor = 0.5 + (vHeight / (300.0 * zoomScale)) * 0.5;
+    vPointSize = (8.0 + heightFactor * 12.0) * zoomScale * particleSize * (300.0 / -mvPosition.z);
+    gl_PointSize = vPointSize;
+    
+    gl_Position = projectionMatrix * mvPosition;
   }
 `
 
-// Modern fragment shader with sharp design and no white boundaries
+// Particle fragment shader with color gradient
 const fragmentShader = `
   uniform float time;
   uniform float modernIntensity;
   uniform float colorIntensity;
   uniform float edgeGlow;
+  uniform float particleOpacity;
+  uniform float colorBrightness;
   varying float vHeight;
   varying vec3 vNormal;
   varying vec2 vUv;
   varying float vMask;
-  varying float vEdge;
+  varying float vPointSize;
   
   void main() {
-    // Hard boundary clipping - no soft edges
+    // Skip particles outside Seoul boundary
     if (vMask < 0.5) {
       discard;
     }
+    
+    // Create circular particle shape
+    vec2 coord = gl_PointCoord - vec2(0.5);
+    float dist = length(coord);
+    if (dist > 0.5) {
+      discard;
+    }
+    
+    // Soft edge for particles
+    float edgeFade = 1.0 - smoothstep(0.3, 0.5, dist);
     
     float heightNorm = clamp(vHeight / 500.0, 0.0, 1.0);
     
@@ -283,8 +288,8 @@ const fragmentShader = `
     float mainLight = NdotL1 * 0.5 + NdotL2 * 0.25;
     float totalLight = (ambient + mainLight + rimLight + specular1 + specular2 + subsurface) * occlusion;
     
-    // Apply lighting to base color
-    vec3 finalColor = baseColor * totalLight;
+    // Apply lighting to base color with brightness control
+    vec3 finalColor = baseColor * totalLight * colorBrightness;
     
     // Subtle iridescence for pastel shimmer
     vec3 iridescence = vec3(
@@ -312,13 +317,10 @@ const fragmentShader = `
       finalColor = mix(finalColor, glowColor, glowIntensity * 0.4);
     }
     
-    // Smooth boundary with gradient fade
-    float boundaryFade = smoothstep(0.2, 0.8, vMask);
+    // Particle alpha with edge fade and opacity control
+    float particleAlpha = (0.7 + heightNorm * 0.3) * edgeFade * particleOpacity;
     
-    // Dynamic alpha matching particle transparency
-    float alpha = (0.85 + heightNorm * 0.15) * boundaryFade;
-    
-    gl_FragColor = vec4(finalColor, alpha);
+    gl_FragColor = vec4(finalColor, particleAlpha);
   }
 `
 
@@ -349,7 +351,7 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
   const sceneRef = useRef<THREE.Scene | null>(null)
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null)
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null)
-  const surfaceRef = useRef<THREE.Mesh | null>(null)
+  const surfaceRef = useRef<THREE.Points | null>(null)
   const uniformsRef = useRef<any>(null)
   const populationTextureRef = useRef<THREE.DataTexture | null>(null)
   const animationIdRef = useRef<number | null>(null)
@@ -526,9 +528,28 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
     populationTexture.needsUpdate = true
     populationTextureRef.current = populationTexture
     
-    // Create surface geometry with size matching the base scale
-    const geometry = new THREE.PlaneGeometry(1000, 1000, textureSize - 1, textureSize - 1)
-    geometry.rotateX(-Math.PI / 2)
+    // Create particle geometry with grid positions
+    const particleCount = 100 // Grid size (100x100 = 10,000 particles)
+    const geometry = new THREE.BufferGeometry()
+    
+    const positions = []
+    const uvs = []
+    
+    // Generate grid of particles
+    for (let i = 0; i < particleCount; i++) {
+      for (let j = 0; j < particleCount; j++) {
+        // Position in 3D space (spread across the surface)
+        const x = (i / (particleCount - 1) - 0.5) * 1000
+        const z = (j / (particleCount - 1) - 0.5) * 1000
+        positions.push(x, 0, z)
+        
+        // UV coordinates for texture sampling
+        uvs.push(i / (particleCount - 1), j / (particleCount - 1))
+      }
+    }
+    
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geometry.setAttribute('particleUV', new THREE.Float32BufferAttribute(uvs, 2))
     
     // Create uniforms with modern design controls
     const uniforms = {
@@ -542,21 +563,26 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
       animationSpeed: { value: 1.0 },
       heightMultiplier: { value: 1.0 },
       colorIntensity: { value: 1.0 },
-      edgeGlow: { value: 1.0 }
+      edgeGlow: { value: 1.0 },
+      particleSize: { value: 1.0 },
+      particleOpacity: { value: 0.8 },
+      colorBrightness: { value: 1.2 }
     }
     uniformsRef.current = uniforms
     
-    // Create shader material
+    // Create shader material for particles
     const material = new THREE.ShaderMaterial({
       uniforms: uniforms,
       vertexShader: vertexShader,
       fragmentShader: fragmentShader,
       transparent: true,
-      side: THREE.DoubleSide
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+      vertexColors: false
     })
     
-    // Create mesh
-    const surface = new THREE.Mesh(geometry, material)
+    // Create particle system
+    const surface = new THREE.Points(geometry, material)
     surfaceRef.current = surface
     scene.add(surface)
     
@@ -650,7 +676,45 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
     uniformsRef.current.heightMultiplier.value = animationConfig.waveHeightMultiplier || 1.0
     uniformsRef.current.colorIntensity.value = animationConfig.waveColorIntensity || 1.0
     uniformsRef.current.edgeGlow.value = animationConfig.waveEdgeGlow || 1.0
+    
+    // Update particle visibility uniforms
+    uniformsRef.current.particleSize.value = animationConfig.waveParticleSize || 1.0
+    uniformsRef.current.particleOpacity.value = animationConfig.waveParticleOpacity || 0.8
+    uniformsRef.current.colorBrightness.value = animationConfig.waveColorBrightness || 1.2
   }, [isInitialized, animationConfig, mapboxState.zoom])
+  
+  // Update particle density when it changes
+  useEffect(() => {
+    if (!isInitialized || !surfaceRef.current || !sceneRef.current) return
+    
+    const particleCount = animationConfig.waveParticleDensity || 100
+    
+    // Create new geometry with updated particle count
+    const geometry = new THREE.BufferGeometry()
+    const positions = []
+    const uvs = []
+    
+    // Generate grid of particles
+    for (let i = 0; i < particleCount; i++) {
+      for (let j = 0; j < particleCount; j++) {
+        // Position in 3D space (spread across the surface)
+        const x = (i / (particleCount - 1) - 0.5) * 1000
+        const z = (j / (particleCount - 1) - 0.5) * 1000
+        positions.push(x, 0, z)
+        
+        // UV coordinates for texture sampling
+        uvs.push(i / (particleCount - 1), j / (particleCount - 1))
+      }
+    }
+    
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
+    geometry.setAttribute('particleUV', new THREE.Float32BufferAttribute(uvs, 2))
+    
+    // Update the particles geometry
+    const oldGeometry = surfaceRef.current.geometry
+    surfaceRef.current.geometry = geometry
+    oldGeometry.dispose()
+  }, [isInitialized, animationConfig.waveParticleDensity])
   
   return (
     <div 
