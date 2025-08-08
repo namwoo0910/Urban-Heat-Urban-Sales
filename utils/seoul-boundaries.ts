@@ -22,24 +22,74 @@ export interface SeoulBoundaryData {
 
 // Cache for loaded GeoJSON data
 let cachedBoundaryData: SeoulBoundaryData | null = null
+let loadingPromise: Promise<SeoulBoundaryData> | null = null
+
+// localStorage key for caching
+const CACHE_KEY = 'seoul_boundary_cache_v2' // v2: force refresh for new particle distribution
+const CACHE_EXPIRY = 24 * 60 * 60 * 1000 // 24 hours in milliseconds
 
 /**
- * Load Seoul boundary GeoJSON data
+ * Load Seoul boundary GeoJSON data with enhanced caching
  */
 export async function loadSeoulBoundaries(): Promise<SeoulBoundaryData> {
+  // Return cached data if available
   if (cachedBoundaryData) {
     return cachedBoundaryData
   }
 
-  try {
-    const response = await fetch('/seoul_boundary.geojson')
-    const data = await response.json()
-    cachedBoundaryData = data
-    return data
-  } catch (error) {
-    console.error('Failed to load Seoul boundaries:', error)
-    throw error
+  // Return existing loading promise to prevent duplicate requests
+  if (loadingPromise) {
+    return loadingPromise
   }
+
+  loadingPromise = (async () => {
+    try {
+      // Try to load from localStorage first
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem(CACHE_KEY)
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached)
+          const isExpired = Date.now() - timestamp > CACHE_EXPIRY
+          
+          if (!isExpired) {
+            cachedBoundaryData = data
+            return data
+          } else {
+            localStorage.removeItem(CACHE_KEY)
+          }
+        }
+      }
+
+      // Load from network
+      const response = await fetch('/seoul_boundary.geojson')
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
+      }
+      
+      const data = await response.json()
+      cachedBoundaryData = data
+
+      // Cache in localStorage for future visits
+      if (typeof window !== 'undefined') {
+        try {
+          localStorage.setItem(CACHE_KEY, JSON.stringify({
+            data,
+            timestamp: Date.now()
+          }))
+        } catch (e) {
+          console.warn('Failed to cache boundary data:', e)
+        }
+      }
+
+      return data
+    } catch (error) {
+      console.error('Failed to load Seoul boundaries:', error)
+      loadingPromise = null // Reset loading promise on error
+      throw error
+    }
+  })()
+
+  return loadingPromise
 }
 
 /**

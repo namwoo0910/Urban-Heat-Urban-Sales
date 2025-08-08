@@ -25,6 +25,15 @@ export interface AnimationConfig {
   attractionStrength: number
   morphEnabled: boolean
   morphSpeed: number
+  autoRotateEnabled: boolean
+  autoRotateSpeed: number
+  colorTheme: 'current' | 'ocean' | 'sunset' | 'forest' | 'aurora' | 'galaxy' | 'cyberpunk'
+  // Wave layer specific controls
+  wavePattern: 'sine' | 'triangle' | 'sawtooth' | 'square'
+  waveColorIntensity: number
+  waveHeightMultiplier: number
+  waveAnimationSpeed: number
+  waveEdgeGlow: number
 }
 
 export interface AnimationState {
@@ -42,31 +51,40 @@ interface AnimatedParticle {
   trail?: Array<[number, number]>
 }
 
-// Default animation configuration
+// Default animation configuration - balanced for smooth animations
 export const defaultAnimationConfig: AnimationConfig = {
   layerType: 'particle',
   waveEnabled: true,
-  waveSpeed: 0.001,
-  waveAmplitude: 0.0008,
+  waveSpeed: 0.002,       // Smooth wave motion
+  waveAmplitude: 0.001,   // Subtle wave amplitude
   pulseEnabled: true,
-  pulseSpeed: 0.002,
-  pulseIntensity: 0.3,
+  pulseSpeed: 0.003,      // Gentle pulsing
+  pulseIntensity: 0.3,    // Moderate intensity
   colorCycleEnabled: true,
-  colorCycleSpeed: 0.0005,
+  colorCycleSpeed: 0.0008, // Slow, subtle color shifting
   orbitalEnabled: false,
   orbitalSpeed: 0.001,
   orbitalRadius: 0.002,
   trailEnabled: false,
   trailLength: 5,
   fireflyEnabled: true,
-  fireflySpeed: 0.0015,
-  fireflyRandomness: 0.5,
+  fireflySpeed: 0.001,     // Gentle firefly motion
+  fireflyRandomness: 0.6,  // Moderate randomness
   flowFieldEnabled: false,
   flowFieldStrength: 0.001,
   attractionEnabled: false,
   attractionStrength: 0.0001,
   morphEnabled: false,
   morphSpeed: 0.001,
+  autoRotateEnabled: false,
+  autoRotateSpeed: 0.2,    // Rotation speed (degrees per frame)
+  colorTheme: 'current',   // Default to current color palette
+  // Wave layer defaults
+  wavePattern: 'sine',
+  waveColorIntensity: 1.0,
+  waveHeightMultiplier: 1.0,
+  waveAnimationSpeed: 1.0,
+  waveEdgeGlow: 0.0  // Disabled by default
 }
 
 /**
@@ -83,7 +101,7 @@ export function useParticleAnimations(
     particleHistory: new Map(),
   })
 
-  const animationFrameRef = useRef<number>()
+  const animationFrameRef = useRef<number | undefined>(undefined)
   const startTimeRef = useRef<number>(Date.now())
   const lastFrameTimeRef = useRef<number>(Date.now())
 
@@ -295,7 +313,7 @@ export function useParticleAnimations(
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [animationState.isAnimating, config.waveEnabled, config.pulseEnabled, config.colorCycleEnabled, config.fireflyEnabled])
+  }, [animationState.isAnimating, config])
 
   // Control functions
   const toggleAnimation = useCallback(() => {

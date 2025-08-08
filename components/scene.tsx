@@ -182,7 +182,8 @@ export function Scene() {
             attach="attributes-position" 
             count={size * size} 
             array={particlePositions} 
-            itemSize={3} 
+            itemSize={3}
+            args={[particlePositions, 3]}
           />
         </bufferGeometry>
         <primitive object={renderMaterial} attach="material" />

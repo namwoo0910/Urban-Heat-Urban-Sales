@@ -75,7 +75,7 @@ const CyberscapeMaterial = shaderMaterial(
 extend({ CyberscapeMaterial })
 
 const Scene = () => {
-  const materialRef = useRef<any>()
+  const materialRef = useRef<any>(null)
   const mousePos = useMemo(() => new THREE.Vector2(), [])
 
   useFrame((state, delta) => {

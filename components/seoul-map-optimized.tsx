@@ -18,29 +18,29 @@ import { WaveLayer } from "@/components/wave-layer-integrated"
 // Mapbox access token
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA"
 
-// 성능 설정 - 파티클 개수 2배 증가
+// 성능 설정 - 파티클 개수 1.5배 증가
 const PERFORMANCE_CONFIG = {
   high: {
-    particleCount: 10000,
+    particleCount: 15000,
     connectionCount: 300,
     fps: 60,
     glowLayers: 2,
   },
   medium: {
-    particleCount: 7000,
+    particleCount: 10500,
     connectionCount: 150,
     fps: 30,
     glowLayers: 1,
   },
   low: {
-    particleCount: 4000,
+    particleCount: 6000,
     connectionCount: 50,
     fps: 24,
     glowLayers: 0,
   },
 }
 
-// 디바이스 성능 감지
+// Enhanced performance detection with runtime monitoring
 function detectPerformanceLevel(): keyof typeof PERFORMANCE_CONFIG {
   // GPU 성능 체크 (간단한 휴리스틱)
   const canvas = document.createElement('canvas')
@@ -48,17 +48,86 @@ function detectPerformanceLevel(): keyof typeof PERFORMANCE_CONFIG {
   
   if (!gl) return 'low'
   
-  // 모바일 디바이스 체크
-  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
-  if (isMobile) return 'low'
+  let score = 0
   
-  // 화면 크기와 픽셀 밀도 체크
+  // 모바일 디바이스 체크 (-20 points)
+  const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent)
+  if (isMobile) score -= 20
+  
+  // 화면 크기와 픽셀 밀도 체크 (+10 to +30 points)
   const pixelRatio = window.devicePixelRatio || 1
   const screenSize = window.innerWidth * window.innerHeight * pixelRatio
   
-  if (screenSize > 4000000) return 'high' // 4K 이상
-  if (screenSize > 2000000) return 'medium' // FHD 이상
+  if (screenSize > 4000000) score += 30 // 4K 이상
+  else if (screenSize > 2000000) score += 20 // FHD 이상
+  else if (screenSize > 1000000) score += 10 // HD 이상
+  
+  // GPU 렌더러 정보 체크 (+0 to +25 points)
+  const debugInfo = gl.getExtension('WEBGL_debug_renderer_info')
+  if (debugInfo) {
+    const renderer = gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL).toLowerCase()
+    if (renderer.includes('nvidia') || renderer.includes('amd') || renderer.includes('radeon')) {
+      score += 25 // 전용 GPU
+    } else if (renderer.includes('intel') && !renderer.includes('hd')) {
+      score += 15 // 최신 Intel GPU
+    } else if (renderer.includes('apple') || renderer.includes('m1') || renderer.includes('m2')) {
+      score += 20 // Apple Silicon
+    }
+  }
+  
+  // CPU 코어 수 체크 (+0 to +15 points)
+  const cores = navigator.hardwareConcurrency || 1
+  if (cores >= 8) score += 15
+  else if (cores >= 4) score += 10
+  else if (cores >= 2) score += 5
+  
+  // 메모리 정보 (Chrome only) (+0 to +10 points)
+  if ('memory' in performance) {
+    const memory = (performance as any).memory
+    if (memory.jsHeapSizeLimit > 4000000000) score += 10 // >4GB
+    else if (memory.jsHeapSizeLimit > 2000000000) score += 5 // >2GB
+  }
+  
+  // Score to performance level mapping
+  if (score >= 50) return 'high'
+  if (score >= 20) return 'medium'
   return 'low'
+}
+
+// Runtime performance monitoring
+class PerformanceMonitor {
+  private frameCount = 0
+  private lastTime = performance.now()
+  private frameTimes: number[] = []
+  private readonly maxSamples = 60
+  
+  update(): { fps: number; frameTime: number; shouldDowngrade: boolean } {
+    const now = performance.now()
+    const frameTime = now - this.lastTime
+    this.lastTime = now
+    this.frameCount++
+    
+    this.frameTimes.push(frameTime)
+    if (this.frameTimes.length > this.maxSamples) {
+      this.frameTimes.shift()
+    }
+    
+    // Calculate average FPS over last 60 frames
+    const avgFrameTime = this.frameTimes.reduce((a, b) => a + b, 0) / this.frameTimes.length
+    const fps = 1000 / avgFrameTime
+    
+    // Check if we should downgrade performance (FPS consistently below 20)
+    const shouldDowngrade = this.frameTimes.length >= 30 && 
+      this.frameTimes.slice(-30).every(ft => 1000 / ft < 20)
+    
+    return { fps, frameTime: avgFrameTime, shouldDowngrade }
+  }
+  
+  reset() {
+    this.frameCount = 0
+    this.frameTimes = []
+    this.lastTime = performance.now()
+  }
 }
 
 
@@ -75,9 +144,12 @@ export function SeoulMapOptimized({
   mapStyle,
   onMapStyleChange
 }: SeoulMapOptimizedProps) {
-  // 성능 레벨 감지
-  const [performanceLevel] = useState<keyof typeof PERFORMANCE_CONFIG>(() => detectPerformanceLevel())
-  const config = PERFORMANCE_CONFIG[performanceLevel]
+  // 성능 레벨 감지 및 적응형 관리
+  const [performanceLevel, setPerformanceLevel] = useState<keyof typeof PERFORMANCE_CONFIG>(() => detectPerformanceLevel())
+  const [currentFPS, setCurrentFPS] = useState(0)
+  const performanceMonitorRef = useRef<PerformanceMonitor>(new PerformanceMonitor())
+  const adaptiveConfigRef = useRef(PERFORMANCE_CONFIG[performanceLevel])
+  const config = adaptiveConfigRef.current
   
   // Seoul boundary data
   const [boundaryData, setBoundaryData] = useState<SeoulBoundaryData | null>(null)
@@ -85,15 +157,43 @@ export function SeoulMapOptimized({
   const [animatedData, setAnimatedData] = useState<any[]>([])
   const [connections, setConnections] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadingProgress, setLoadingProgress] = useState(0)
+  const [loadingPhase, setLoadingPhase] = useState('Loading boundaries...')
+  const [error, setError] = useState<string | null>(null)
+  const [retryCount, setRetryCount] = useState(0)
+  const maxRetries = 3
   
   // 애니메이션 제어
-  const animationFrameRef = useRef<number>()
+  const animationFrameRef = useRef<number | undefined>(undefined)
   const lastFrameTimeRef = useRef<number>(0)
   const frameInterval = 1000 / config.fps
   
-  // 자동 회전 (성능 모드에서는 비활성화)
-  const [autoRotate] = useState(performanceLevel === 'high')
+  // 자동 회전 제어
   const rotationRef = useRef(0)
+  
+  // Object pooling for animation optimization
+  const animationPoolRef = useRef<{
+    positions: Float32Array
+    colors: Uint8Array
+    sizes: Float32Array
+    reusableObjects: Array<{position: [number, number], color: [number, number, number], size: number, opacity: number}>
+  }>({
+    positions: new Float32Array(0),
+    colors: new Uint8Array(0),
+    sizes: new Float32Array(0),
+    reusableObjects: []
+  })
+  
+  // Batch processing state
+  const batchStateRef = useRef<{
+    needsUpdate: boolean
+    lastBatchTime: number
+    batchInterval: number
+  }>({
+    needsUpdate: true,
+    lastBatchTime: 0,
+    batchInterval: 16 // ~60fps
+  })
   
   // 초기 뷰 상태
   const [viewState, setViewState] = useState<MapViewState>({
@@ -106,46 +206,222 @@ export function SeoulMapOptimized({
 
   // Animation configuration now comes from props
 
-  const { animationState, animateParticles } = useParticleAnimations(
+  const { animationState } = useParticleAnimations(
     particles,
     animationConfig
   )
+  
+  // Optimized batch animation function with config integration
+  const animateParticlesBatch = useCallback((particles: ParticleData[], time: number) => {
+    const pool = animationPoolRef.current
+    const particleCount = particles.length
+    
+    // Resize arrays if needed (object pooling)
+    if (pool.positions.length !== particleCount * 2) {
+      pool.positions = new Float32Array(particleCount * 2)
+      pool.colors = new Uint8Array(particleCount * 3)
+      pool.sizes = new Float32Array(particleCount)
+      
+      // Pre-allocate reusable objects
+      pool.reusableObjects = new Array(particleCount)
+      for (let i = 0; i < particleCount; i++) {
+        pool.reusableObjects[i] = {
+          position: [0, 0] as [number, number],
+          color: [0, 0, 0] as [number, number, number],
+          size: 0,
+          opacity: 0
+        }
+      }
+    }
+    
+    // Batch process particles using typed arrays for better performance
+    for (let i = 0; i < particleCount; i++) {
+      const particle = particles[i]
+      const obj = pool.reusableObjects[i]
+      
+      // Calculate animation offsets based on config
+      let offsetX = 0
+      let offsetY = 0
+      let sizePulse = 1
+      
+      // Wave animation
+      if (animationConfig.waveEnabled) {
+        offsetX += Math.sin(time * animationConfig.waveSpeed + particle.phase) * animationConfig.waveAmplitude
+        offsetY += Math.cos(time * animationConfig.waveSpeed * 0.7 + particle.phase) * animationConfig.waveAmplitude * 0.7
+      }
+      
+      // Pulse animation
+      if (animationConfig.pulseEnabled) {
+        sizePulse = 0.8 + Math.sin(time * animationConfig.pulseSpeed + particle.phase) * animationConfig.pulseIntensity
+      }
+      
+      // Firefly effect
+      if (animationConfig.fireflyEnabled) {
+        const fireflyPhase = time * animationConfig.fireflySpeed + particle.phase * animationConfig.fireflyRandomness
+        offsetX += Math.sin(fireflyPhase * 3.7) * 0.0005 * animationConfig.fireflyRandomness
+        offsetY += Math.cos(fireflyPhase * 2.3) * 0.0005 * animationConfig.fireflyRandomness
+      }
+      
+      // Update position
+      obj.position[0] = particle.position[0] + offsetX
+      obj.position[1] = particle.position[1] + offsetY
+      
+      // Update color with subtle color cycle animation
+      if (animationConfig.colorCycleEnabled) {
+        // Subtle color variation that preserves original palette
+        const hueShift = Math.sin(time * animationConfig.colorCycleSpeed) * 0.2 // -0.2 to 0.2 range
+        const brightnessShift = Math.cos(time * animationConfig.colorCycleSpeed * 0.7) * 0.1 // -0.1 to 0.1 range
+        
+        // Apply subtle color modulation while preserving original colors
+        obj.color[0] = Math.max(0, Math.min(255, particle.color[0] * (1 + hueShift + brightnessShift)))
+        obj.color[1] = Math.max(0, Math.min(255, particle.color[1] * (1 - hueShift * 0.5 + brightnessShift)))
+        obj.color[2] = Math.max(0, Math.min(255, particle.color[2] * (1 + hueShift * 0.3 + brightnessShift)))
+      } else {
+        obj.color[0] = particle.color[0]
+        obj.color[1] = particle.color[1]
+        obj.color[2] = particle.color[2]
+      }
+      
+      // Update size with pulsing effect
+      obj.size = particle.size * sizePulse
+      obj.opacity = 255
+      
+      // Store in typed arrays for deck.gl optimization
+      const idx2 = i * 2
+      const idx3 = i * 3
+      
+      pool.positions[idx2] = obj.position[0]
+      pool.positions[idx2 + 1] = obj.position[1]
+      
+      pool.colors[idx3] = obj.color[0]
+      pool.colors[idx3 + 1] = obj.color[1]
+      pool.colors[idx3 + 2] = obj.color[2]
+      
+      pool.sizes[i] = obj.size
+    }
+    
+    return pool.reusableObjects
+  }, [animationConfig])
 
   // Map style now comes from props
 
   // Animation config and map style changes handled by parent
 
-  // Load Seoul boundary data and generate particles
+  // Enhanced data loading with comprehensive error handling and retry logic
   useEffect(() => {
-    async function loadData() {
+    async function loadDataWithRetry(attempt: number = 0): Promise<void> {
       try {
         setIsLoading(true)
+        setError(null)
+        setLoadingProgress(0)
+        setLoadingPhase('Loading boundaries...')
+        
+        if (attempt > 0) {
+          setLoadingPhase(`Retrying... (${attempt}/${maxRetries})`)
+          await new Promise(resolve => setTimeout(resolve, 1000 * attempt)) // Exponential backoff
+        }
+        
         const boundaries = await loadSeoulBoundaries()
         setBoundaryData(boundaries)
         
-        // Generate particles within actual Seoul boundaries
+        setLoadingPhase('Generating particles...')
+        setLoadingProgress(10)
+        
+        // Generate particles within actual Seoul boundaries with progress tracking
         const particlesInSeoul = await generateSeoulParticlesWithBoundary(
           config.particleCount,
-          boundaries
+          boundaries,
+          (progress) => {
+            // Convert generation progress (0-100) to overall progress (10-90)
+            const overallProgress = 10 + (progress * 0.8)
+            setLoadingProgress(overallProgress)
+            
+            if (progress < 25) {
+              setLoadingPhase('Analyzing Seoul districts...')
+            } else if (progress < 50) {
+              setLoadingPhase('Generating high-density areas...')
+            } else if (progress < 75) {
+              setLoadingPhase('Creating particle network...')
+            } else {
+              setLoadingPhase('Finalizing particles...')
+            }
+          },
+          animationConfig.colorTheme
         )
+        
+        setLoadingPhase('Ready!')
+        setLoadingProgress(100)
         setParticles(particlesInSeoul)
+        setRetryCount(0) // Reset retry count on success
+        
       } catch (error) {
-        console.error('Failed to load Seoul boundaries, using fallback:', error)
-        // Fallback to approximate boundaries
-        setParticles(generateSeoulParticles(config.particleCount))
+        console.error(`Data loading attempt ${attempt + 1} failed:`, error)
+        
+        if (attempt < maxRetries) {
+          setRetryCount(attempt + 1)
+          await loadDataWithRetry(attempt + 1)
+        } else {
+          // Final fallback after all retries
+          console.warn('All retry attempts failed, using fallback data')
+          setError('Failed to load Seoul boundary data. Using approximate boundaries.')
+          setLoadingPhase('Using fallback data...')
+          setLoadingProgress(50)
+          
+          try {
+            // Even fallback can fail, so wrap in try-catch
+            const fallbackParticles = generateSeoulParticles(config.particleCount)
+            setParticles(fallbackParticles)
+            setLoadingProgress(100)
+            setLoadingPhase('Fallback data loaded')
+          } catch (fallbackError) {
+            console.error('Fallback data generation failed:', fallbackError)
+            setError('Critical error: Unable to generate particle data.')
+            setLoadingPhase('Error')
+            setLoadingProgress(0)
+          }
+        }
       } finally {
-        setIsLoading(false)
+        // Small delay to show completion state
+        setTimeout(() => {
+          setIsLoading(false)
+        }, 200)
       }
     }
     
-    loadData()
-  }, [config.particleCount])
+    // Start the loading process
+    loadDataWithRetry()
+  }, [config.particleCount, maxRetries, animationConfig.colorTheme])
 
-  // 연결선 생성 함수 (컴포넌트 내부에 정의)
+  // Connection pooling for optimized line generation
+  const connectionPoolRef = useRef<{
+    pool: Array<{
+      sourcePosition: [number, number],
+      targetPosition: [number, number],
+      color: [number, number, number, number]
+    }>
+    poolIndex: number
+  }>({
+    pool: [],
+    poolIndex: 0
+  })
+  
+  // 연결선 생성 함수 (최적화된 오브젝트 풀링 포함)
   const createConnectionsOptimized = useCallback(
     (particles: any[], maxConnections: number) => {
+      const connectionPool = connectionPoolRef.current
       const connections: any[] = []
       const step = Math.max(1, Math.floor(particles.length / 100))
+      
+      // Ensure pool is large enough
+      while (connectionPool.pool.length < maxConnections) {
+        connectionPool.pool.push({
+          sourcePosition: [0, 0] as [number, number],
+          targetPosition: [0, 0] as [number, number],
+          color: [0, 0, 0, 50] as [number, number, number, number]
+        })
+      }
+      
+      connectionPool.poolIndex = 0
       
       for (let i = 0; i < particles.length && connections.length < maxConnections; i += step) {
         for (let j = i + step; j < Math.min(i + step * 5, particles.length) && connections.length < maxConnections; j += step) {
@@ -154,16 +430,21 @@ export function SeoulMapOptimized({
           const distanceSq = dx * dx + dy * dy // 제곱근 계산 회피
           
           if (distanceSq < 0.0001) { // 0.01^2
-            connections.push({
-              sourcePosition: particles[i].position,
-              targetPosition: particles[j].position,
-              color: [
-                (particles[i].color[0] + particles[j].color[0]) >> 1, // 비트 연산으로 평균
-                (particles[i].color[1] + particles[j].color[1]) >> 1,
-                (particles[i].color[2] + particles[j].color[2]) >> 1,
-                50
-              ]
-            })
+            // Reuse pooled object
+            const connection = connectionPool.pool[connectionPool.poolIndex++]
+            
+            connection.sourcePosition[0] = particles[i].position[0]
+            connection.sourcePosition[1] = particles[i].position[1]
+            connection.targetPosition[0] = particles[j].position[0]
+            connection.targetPosition[1] = particles[j].position[1]
+            
+            // Optimized color averaging using bit operations
+            connection.color[0] = (particles[i].color[0] + particles[j].color[0]) >> 1
+            connection.color[1] = (particles[i].color[1] + particles[j].color[1]) >> 1
+            connection.color[2] = (particles[i].color[2] + particles[j].color[2]) >> 1
+            connection.color[3] = 50
+            
+            connections.push(connection)
           }
         }
       }
@@ -173,47 +454,92 @@ export function SeoulMapOptimized({
     []
   )
 
-  // 최적화된 애니메이션 루프
+  // Enhanced animation loop with adaptive performance
   useEffect(() => {
     if (particles.length === 0) return
     
     let frameCount = 0
+    let performanceCheckInterval = 0
+    const monitor = performanceMonitorRef.current
     
     const animate = (currentTime: number) => {
-      // FPS 제한
-      if (currentTime - lastFrameTimeRef.current >= frameInterval) {
-        // 파티클 애니메이션 적용
-        const animatedParticles = animateParticles(particles, animationState.time)
-        const updated = animatedParticles.map(p => ({
-          position: p.position,
-          color: p.color.slice(0, 3),
-          size: p.size,
-          opacity: p.opacity,
-        }))
-        setAnimatedData(updated)
-        
-        // 연결선 업데이트 (매 10프레임마다)
-        if (frameCount % 10 === 0 && config.connectionCount > 0) {
-          const nearbyParticles = updated.slice(0, Math.min(100, updated.length))
-          setConnections(createConnectionsOptimized(nearbyParticles, config.connectionCount))
+      try {
+        // Performance monitoring (every 10 frames)
+        if (frameCount % 10 === 0) {
+          const { fps, shouldDowngrade } = monitor.update()
+          setCurrentFPS(Math.round(fps))
+          
+          // Adaptive performance scaling every 60 frames
+          if (performanceCheckInterval++ % 60 === 0) {
+            if (shouldDowngrade && performanceLevel !== 'low') {
+              // Downgrade performance level
+              const newLevel = performanceLevel === 'high' ? 'medium' : 'low'
+              setPerformanceLevel(newLevel)
+              adaptiveConfigRef.current = PERFORMANCE_CONFIG[newLevel]
+              console.log(`Performance downgraded to ${newLevel} due to low FPS`)
+            } else if (fps > 50 && performanceLevel === 'medium') {
+              // Upgrade back to high if performance improves
+              setPerformanceLevel('high')
+              adaptiveConfigRef.current = PERFORMANCE_CONFIG['high']
+              console.log('Performance upgraded to high')
+            }
+          }
         }
+      
+      // Dynamic FPS limiting based on current performance
+      const dynamicInterval = adaptiveConfigRef.current.fps > 0 ? 1000 / adaptiveConfigRef.current.fps : frameInterval
+      const batchState = batchStateRef.current
+      
+        // Batch update strategy - only update when needed or interval passed
+        const shouldUpdate = currentTime - lastFrameTimeRef.current >= dynamicInterval
+        const shouldBatch = currentTime - batchState.lastBatchTime >= batchState.batchInterval || batchState.needsUpdate
         
-        // 자동 회전 (고성능 모드에서만)
-        if (autoRotate && frameCount % 2 === 0) {
-          rotationRef.current += 0.05
-          setViewState(prev => ({
-            ...prev,
-            bearing: rotationRef.current % 360
-          }))
+        if (shouldUpdate && shouldBatch) {
+          // Use optimized batch animation with time in seconds
+          const timeInSeconds = animationState.time * 0.001 // Convert ms to seconds
+          const updated = animateParticlesBatch(particles, timeInSeconds)
+          setAnimatedData(updated)
+          
+          // Update batch timing
+          batchState.lastBatchTime = currentTime
+          batchState.needsUpdate = false
+          
+          // 연결선 업데이트 (빈도를 성능에 따라 조정)
+          const connectionUpdateFreq = adaptiveConfigRef.current.fps > 30 ? 10 : 20
+          if (frameCount % connectionUpdateFreq === 0 && adaptiveConfigRef.current.connectionCount > 0) {
+            const nearbyParticles = updated.slice(0, Math.min(100, updated.length))
+            setConnections(createConnectionsOptimized(nearbyParticles, adaptiveConfigRef.current.connectionCount))
+          }
+          
+          // 자동 회전 (애니메이션 설정에 따라)
+          const rotationFreq = adaptiveConfigRef.current.fps > 30 ? 2 : 4
+          if (animationConfig.autoRotateEnabled && frameCount % rotationFreq === 0) {
+            rotationRef.current += animationConfig.autoRotateSpeed
+            setViewState((prev: any) => ({
+              ...prev,
+              bearing: rotationRef.current % 360
+            }))
+          }
+          
+          lastFrameTimeRef.current = currentTime
+          frameCount++
         }
-        
-        lastFrameTimeRef.current = currentTime
-        frameCount++
+      } catch (animationError) {
+        console.error('Animation frame error:', animationError)
+        // Downgrade performance on animation errors
+        if (performanceLevel !== 'low') {
+          const newLevel = performanceLevel === 'high' ? 'medium' : 'low'
+          setPerformanceLevel(newLevel)
+          adaptiveConfigRef.current = PERFORMANCE_CONFIG[newLevel]
+          console.log(`Performance downgraded to ${newLevel} due to animation error`)
+        }
       }
       
       animationFrameRef.current = requestAnimationFrame(animate)
     }
     
+    // Reset performance monitor when starting new animation
+    monitor.reset()
     animationFrameRef.current = requestAnimationFrame(animate)
     
     return () => {
@@ -221,7 +547,7 @@ export function SeoulMapOptimized({
         cancelAnimationFrame(animationFrameRef.current)
       }
     }
-  }, [particles, performanceLevel, config, autoRotate, frameInterval, createConnectionsOptimized, animateParticles, animationState.time])
+  }, [particles, performanceLevel, animationConfig.autoRotateEnabled, animationConfig.autoRotateSpeed, createConnectionsOptimized, animateParticlesBatch, animationState.time])
 
   // 레이어 생성 (성능 레벨에 따라 조정)
   const layers = useMemo(() => {
@@ -312,13 +638,57 @@ export function SeoulMapOptimized({
     setViewState(viewState)
   }, [])
 
-  // Show loading state
+  // Show loading state with progress
   if (isLoading) {
     return (
       <div className="relative w-full h-full flex items-center justify-center bg-[#000014]">
-        <div className="text-white/60">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white/60 mx-auto mb-4"></div>
-          Loading Seoul boundaries...
+        <div className="text-center text-white/60 max-w-md">
+          {/* Animated loader */}
+          <div className="relative w-16 h-16 mx-auto mb-6">
+            <div className="absolute inset-0 rounded-full border-2 border-purple-500/30 animate-ping"></div>
+            <div className="absolute inset-0 rounded-full border-2 border-blue-500/30 animate-ping animation-delay-200"></div>
+            <div className="absolute inset-0 rounded-full border-2 border-cyan-500/30 animate-ping animation-delay-400"></div>
+          </div>
+          
+          {/* Progress bar */}
+          <div className="w-full bg-white/10 rounded-full h-1.5 mb-4 overflow-hidden">
+            <div 
+              className="h-full bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 transition-all duration-300 ease-out"
+              style={{ width: `${loadingProgress}%` }}
+            />
+          </div>
+          
+          {/* Loading phase and percentage */}
+          <div className="space-y-2">
+            <div className="text-sm font-medium text-white/80">{loadingPhase}</div>
+            <div className="text-xs text-white/50">{Math.round(loadingProgress)}%</div>
+            
+            {/* Error message and retry button */}
+            {error && (
+              <div className="mt-4 p-3 bg-red-900/30 border border-red-500/30 rounded text-center">
+                <div className="text-xs text-red-200 mb-2">{error}</div>
+                <button
+                  onClick={() => {
+                    setError(null)
+                    setRetryCount(0)
+                    setIsLoading(true)
+                    // Trigger reload by changing a dependency
+                    setLoadingPhase('Retrying...')
+                  }}
+                  className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition-colors"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            
+            {/* Retry indicator */}
+            {retryCount > 0 && !error && (
+              <div className="text-xs text-yellow-300">
+                Retry attempt {retryCount}/{maxRetries}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     )
@@ -346,7 +716,7 @@ export function SeoulMapOptimized({
           mapStyle={mapStyle}
           reuseMaps={true}
           preserveDrawingBuffer={false}
-          onLoad={(evt) => {
+          onLoad={(evt: any) => {
             const map = evt.target
             
             try {
@@ -376,7 +746,7 @@ export function SeoulMapOptimized({
             {...viewState}
             reuseMaps={true}
             preserveDrawingBuffer={false}
-            onLoad={(evt) => {
+            onLoad={(evt: any) => {
               const map = evt.target
               
               try {
@@ -414,10 +784,15 @@ export function SeoulMapOptimized({
 
       {/* 성능 정보 표시 (개발 모드에서만) */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm rounded px-3 py-2 text-xs text-white/80">
+        <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm rounded px-3 py-2 text-xs text-white/80 space-y-1">
           <div>Performance: {performanceLevel.toUpperCase()}</div>
           <div>Particles: {config.particleCount}</div>
-          <div>FPS: {config.fps}</div>
+          <div>Target FPS: {config.fps}</div>
+          <div className={`${currentFPS < 25 ? 'text-red-400' : currentFPS < 45 ? 'text-yellow-400' : 'text-green-400'}`}>
+            Current FPS: {currentFPS}
+          </div>
+          <div>Connections: {config.connectionCount}</div>
+          <div>Glow: {config.glowLayers > 0 ? 'ON' : 'OFF'}</div>
         </div>
       )}
       
@@ -428,6 +803,24 @@ export function SeoulMapOptimized({
           background: `radial-gradient(circle at 50% 50%, transparent 40%, rgba(0, 0, 20, 0.4) 100%)`,
         }}
       />
+      
+      {/* Animation styles for loading indicators */}
+      <style jsx>{`
+        @keyframes ping {
+          75%, 100% {
+            transform: scale(2);
+            opacity: 0;
+          }
+        }
+        
+        .animation-delay-200 {
+          animation-delay: 0.2s;
+        }
+        
+        .animation-delay-400 {
+          animation-delay: 0.4s;
+        }
+      `}</style>
     </div>
   )
 }

@@ -67,6 +67,9 @@ const vertexShader = `
   uniform float heightScale;
   uniform float waveIntensity;
   uniform float zoomLevel;
+  uniform float wavePattern; // 0: sine, 1: triangle, 2: sawtooth, 3: square
+  uniform float animationSpeed;
+  uniform float heightMultiplier;
   
   varying float vHeight;
   varying vec3 vNormal;
@@ -102,40 +105,69 @@ const vertexShader = `
       populationHeight = 0.0;
     }
     
+    // Smoother height curve for better 3D appearance
+    populationHeight = pow(populationHeight / (300.0 * zoomScale), 0.85) * 300.0 * zoomScale;
     populationHeight = clamp(populationHeight, 0.0, 300.0 * zoomScale);
     
     float waveEffect = 0.0;
     if (vMask > 0.5) {
-      // Sharp, angular wave patterns
-      float freq1 = position.x * 0.015 + time * 3.0;
-      float freq2 = position.z * 0.012 + time * 2.5;
-      float freq3 = (position.x + position.z) * 0.008 + time * 4.0;
-      float freq4 = (position.x - position.z) * 0.02 + time * 3.5;
+      // Adjusted time with animation speed
+      float animTime = time * animationSpeed;
       
-      // Triangle wave functions for sharp motion
-      float wave1 = (2.0 * abs(fract(freq1) - 0.5) - 0.5) * waveIntensity * 25.0 * zoomScale;
-      float wave2 = (2.0 * abs(fract(freq2) - 0.5) - 0.5) * waveIntensity * 20.0 * zoomScale;
+      // Wave patterns based on uniform
+      float freq1 = position.x * 0.015 + animTime * 3.0;
+      float freq2 = position.z * 0.012 + animTime * 2.5;
+      float freq3 = (position.x + position.z) * 0.008 + animTime * 4.0;
+      float freq4 = (position.x - position.z) * 0.02 + animTime * 3.5;
       
-      // Sawtooth wave for more aggressive motion
-      float wave3 = (fract(freq3) * 2.0 - 1.0) * waveIntensity * 15.0 * zoomScale;
+      float wave1, wave2, wave3, wave4, baseOscillation;
       
-      // Square wave with smoothing for sharp edges
-      float wave4 = sign(sin(freq4)) * waveIntensity * 12.0 * zoomScale;
-      
-      // Sharp base oscillation with triangle wave
-      float baseOscillation = (2.0 * abs(fract(time * 0.8) - 0.5) - 0.5) * 18.0 * zoomScale;
+      // Different wave patterns with increased amplitude for more undulation
+      if (wavePattern < 0.5) {
+        // Sine wave (smooth) - increased amplitude for more dramatic movement
+        wave1 = sin(freq1) * waveIntensity * 45.0 * zoomScale;
+        wave2 = sin(freq2) * waveIntensity * 40.0 * zoomScale;
+        wave3 = sin(freq3) * waveIntensity * 35.0 * zoomScale;
+        wave4 = sin(freq4) * waveIntensity * 30.0 * zoomScale;
+        baseOscillation = sin(animTime * 0.6) * 35.0 * zoomScale;
+      } else if (wavePattern < 1.5) {
+        // Triangle wave (sharp) - increased amplitude
+        wave1 = (2.0 * abs(fract(freq1) - 0.5) - 0.5) * waveIntensity * 45.0 * zoomScale;
+        wave2 = (2.0 * abs(fract(freq2) - 0.5) - 0.5) * waveIntensity * 40.0 * zoomScale;
+        wave3 = (2.0 * abs(fract(freq3) - 0.5) - 0.5) * waveIntensity * 35.0 * zoomScale;
+        wave4 = (2.0 * abs(fract(freq4) - 0.5) - 0.5) * waveIntensity * 30.0 * zoomScale;
+        baseOscillation = (2.0 * abs(fract(animTime * 0.6) - 0.5) - 0.5) * 35.0 * zoomScale;
+      } else if (wavePattern < 2.5) {
+        // Sawtooth wave (aggressive) - increased amplitude
+        wave1 = (fract(freq1) * 2.0 - 1.0) * waveIntensity * 45.0 * zoomScale;
+        wave2 = (fract(freq2) * 2.0 - 1.0) * waveIntensity * 40.0 * zoomScale;
+        wave3 = (fract(freq3) * 2.0 - 1.0) * waveIntensity * 35.0 * zoomScale;
+        wave4 = (fract(freq4) * 2.0 - 1.0) * waveIntensity * 30.0 * zoomScale;
+        baseOscillation = (fract(animTime * 0.6) * 2.0 - 1.0) * 35.0 * zoomScale;
+      } else {
+        // Square wave (digital) - increased amplitude
+        wave1 = sign(sin(freq1)) * waveIntensity * 45.0 * zoomScale;
+        wave2 = sign(sin(freq2)) * waveIntensity * 40.0 * zoomScale;
+        wave3 = sign(sin(freq3)) * waveIntensity * 35.0 * zoomScale;
+        wave4 = sign(sin(freq4)) * waveIntensity * 30.0 * zoomScale;
+        baseOscillation = sign(sin(animTime * 0.6)) * 35.0 * zoomScale;
+      }
       
       // Combine waves with different phases for complexity
       waveEffect = wave1 + wave2 + wave3 + wave4 + baseOscillation;
       
+      // Add large-scale undulation for ocean-like movement
+      float oceanWave = sin(position.x * 0.005 + animTime * 0.5) * sin(position.z * 0.005 + animTime * 0.3) * waveIntensity * 50.0 * zoomScale;
+      waveEffect += oceanWave;
+      
       // Add noise-like sharp details
-      float noiseFreq = (position.x + position.z) * 0.03 + time * 5.0;
+      float noiseFreq = (position.x + position.z) * 0.03 + animTime * 5.0;
       float sharpNoise = (fract(noiseFreq) > 0.5 ? 1.0 : -1.0) * waveIntensity * 8.0 * zoomScale;
       waveEffect += sharpNoise;
     }
     
     vec3 newPosition = position;
-    newPosition.y = populationHeight + waveEffect;
+    newPosition.y = (populationHeight + waveEffect) * heightMultiplier;
     
     vHeight = newPosition.y;
     
@@ -162,6 +194,8 @@ const vertexShader = `
 const fragmentShader = `
   uniform float time;
   uniform float modernIntensity;
+  uniform float colorIntensity;
+  uniform float edgeGlow;
   varying float vHeight;
   varying vec3 vNormal;
   varying vec2 vUv;
@@ -176,58 +210,113 @@ const fragmentShader = `
     
     float heightNorm = clamp(vHeight / 500.0, 0.0, 1.0);
     
-    // Modern color palette - deep blues to electric cyans
-    vec3 deepNavy = vec3(0.02, 0.05, 0.15);
-    vec3 richBlue = vec3(0.1, 0.2, 0.4);
-    vec3 electricCyan = vec3(0.0, 0.6, 0.8);
-    vec3 brightCyan = vec3(0.2, 0.8, 1.0);
-    vec3 neonAccent = vec3(0.4, 0.7, 1.0);
+    // Pastel palette directly matching particle layer colors
+    vec3 blueViolet = vec3(0.541, 0.169, 0.886);      // Blue violet (138, 43, 226)
+    vec3 royalBlue = vec3(0.255, 0.412, 0.882);       // Royal blue (65, 105, 225)
+    vec3 deepSkyBlue = vec3(0.0, 0.749, 1.0);         // Deep sky blue (0, 191, 255)
+    vec3 mediumTurquoise = vec3(0.282, 0.82, 0.8);    // Medium turquoise (72, 209, 204)
+    vec3 mediumPurple = vec3(0.576, 0.439, 0.859);    // Medium purple (147, 112, 219)
+    vec3 cornflowerBlue = vec3(0.392, 0.584, 0.929);  // Cornflower blue (100, 149, 237)
+    vec3 powderBlue = vec3(0.69, 0.878, 0.902);       // Powder blue (176, 224, 230)
+    vec3 hotPink = vec3(1.0, 0.412, 0.706);           // Hot pink (255, 105, 180)
+    vec3 plum = vec3(0.867, 0.627, 0.867);            // Plum (221, 160, 221)
     
     vec3 baseColor;
-    if (heightNorm < 0.2) {
-      baseColor = mix(deepNavy, richBlue, heightNorm * 5.0);
-    } else if (heightNorm < 0.5) {
-      baseColor = mix(richBlue, electricCyan, (heightNorm - 0.2) * 3.33);
-    } else if (heightNorm < 0.8) {
-      baseColor = mix(electricCyan, brightCyan, (heightNorm - 0.5) * 3.33);
+    if (heightNorm < 0.15) {
+      baseColor = mix(blueViolet, royalBlue, heightNorm * 6.67);
+    } else if (heightNorm < 0.3) {
+      baseColor = mix(royalBlue, deepSkyBlue, (heightNorm - 0.15) * 6.67);
+    } else if (heightNorm < 0.45) {
+      baseColor = mix(deepSkyBlue, mediumTurquoise, (heightNorm - 0.3) * 6.67);
+    } else if (heightNorm < 0.6) {
+      baseColor = mix(mediumTurquoise, cornflowerBlue, (heightNorm - 0.45) * 6.67);
+    } else if (heightNorm < 0.75) {
+      baseColor = mix(cornflowerBlue, powderBlue, (heightNorm - 0.6) * 6.67);
+    } else if (heightNorm < 0.9) {
+      baseColor = mix(powderBlue, hotPink, (heightNorm - 0.75) * 6.67);
     } else {
-      baseColor = mix(brightCyan, neonAccent, (heightNorm - 0.8) * 5.0);
+      baseColor = mix(hotPink, plum, (heightNorm - 0.9) * 10.0);
     }
     
-    // Dynamic color shifting for modern effect
-    float colorShift = sin(time * 1.5 + vUv.x * 8.0 + vUv.y * 6.0) * 0.15 + 0.85;
-    float intensityBoost = 1.0 + heightNorm * 0.5; // Higher areas more vibrant
-    baseColor *= colorShift * intensityBoost;
+    // Dynamic color shifting matching particle animation
+    float wavePattern = sin(time * 1.5 + vUv.x * 6.0) * cos(time * 1.0 + vUv.y * 4.0);
+    float colorShift = wavePattern * 0.12 + 0.95;  // Slightly more vibrant for particle colors
+    float intensityBoost = 0.85 + heightNorm * 0.4; // More dynamic intensity gradient
     
-    // Modern lighting model with rim lighting
-    vec3 lightDir = normalize(vec3(1.0, 3.0, 1.0));
-    float NdotL = max(0.0, dot(vNormal, lightDir));
+    // Color oscillation for particle-like shimmer effect
+    vec3 oscillation = vec3(
+      sin(time * 2.0 + heightNorm * 3.14) * 0.05,
+      cos(time * 1.8 + heightNorm * 3.14) * 0.05,
+      sin(time * 1.5 + heightNorm * 2.0) * 0.06
+    );
     
-    // Ambient lighting
-    float ambient = 0.3;
+    baseColor = (baseColor + oscillation) * colorShift * intensityBoost * colorIntensity;
     
-    // Rim lighting for modern edge definition
-    vec3 viewDir = normalize(vec3(0.0, 1.0, 0.0)); // Simplified view direction
-    float rimPower = 1.0 - max(0.0, dot(vNormal, viewDir));
-    float rimLight = pow(rimPower, 2.0) * 0.6;
+    // Enhanced 3D lighting model for better depth perception
+    vec3 lightDir1 = normalize(vec3(1.0, 3.0, 0.5));  // Main light from above-front
+    vec3 lightDir2 = normalize(vec3(-0.5, 2.0, -0.3)); // Fill light from opposite side
     
-    // Combine lighting
-    float totalLight = ambient + NdotL * 0.7 + rimLight;
+    float NdotL1 = max(0.0, dot(vNormal, lightDir1));
+    float NdotL2 = max(0.0, dot(vNormal, lightDir2));
     
-    // NO edge glow - removed completely for clean boundaries
+    // Vibrant ambient matching particle layer brightness
+    float ambient = 0.5 + heightNorm * 0.15 - (1.0 - heightNorm) * 0.05; // Less contrast for softer look
     
-    // Final color with metallic properties
+    // Fresnel effect for translucent edges
+    vec3 viewDir = normalize(vec3(0.0, 1.0, 0.3));
+    float fresnel = pow(1.0 - max(0.0, dot(vNormal, viewDir)), 2.0);
+    float rimLight = fresnel * 0.4 * (0.8 + heightNorm * 0.4);
+    
+    // Softer specular for wet/glossy surface
+    vec3 halfVector1 = normalize(lightDir1 + viewDir);
+    vec3 halfVector2 = normalize(lightDir2 + viewDir);
+    float specular1 = pow(max(0.0, dot(vNormal, halfVector1)), 16.0) * 0.3;
+    float specular2 = pow(max(0.0, dot(vNormal, halfVector2)), 24.0) * 0.15;
+    
+    // Subsurface scattering approximation for translucent material
+    float subsurface = (1.0 - NdotL1) * 0.15 * heightNorm;
+    
+    // Shadow mapping for valleys (occlusion)
+    float occlusion = 1.0 - (1.0 - heightNorm) * 0.3; // Darker in low areas
+    
+    // Combine lighting with depth-aware weighting
+    float mainLight = NdotL1 * 0.5 + NdotL2 * 0.25;
+    float totalLight = (ambient + mainLight + rimLight + specular1 + specular2 + subsurface) * occlusion;
+    
+    // Apply lighting to base color
     vec3 finalColor = baseColor * totalLight;
     
-    // Add subtle iridescence based on viewing angle
-    float iridescence = sin(rimPower * 3.14159 + time * 2.0) * 0.1 + 0.9;
+    // Subtle iridescence for pastel shimmer
+    vec3 iridescence = vec3(
+      sin(fresnel * 3.14159 + time * 1.0) * 0.05 + 0.98,
+      sin(fresnel * 3.14159 + time * 1.0 + 2.094) * 0.05 + 0.98,
+      sin(fresnel * 3.14159 + time * 1.0 + 4.189) * 0.05 + 0.98
+    );
     finalColor *= iridescence;
     
-    // Hard boundary fade - much sharper than before
-    float boundaryFade = step(0.5, vMask); // Hard step instead of smooth
+    // Atmospheric perspective matching particle layer atmosphere
+    float fogDistance = 1.0 - heightNorm * 0.5; // Higher areas less foggy
+    vec3 fogColor = vec3(0.75, 0.78, 0.92); // Slightly purple-tinted fog to match particle palette
+    float fogAmount = fogDistance * 0.15; // Subtler fog for clearer colors
+    finalColor = mix(finalColor, fogColor, fogAmount);
     
-    // High contrast alpha for crisp definition
-    float alpha = (0.9 + heightNorm * 0.1) * boundaryFade;
+    // Depth-based saturation (distant/low areas less saturated)
+    float saturation = 0.7 + heightNorm * 0.3;
+    vec3 gray = vec3(dot(finalColor, vec3(0.299, 0.587, 0.114)));
+    finalColor = mix(gray, finalColor, saturation);
+    
+    // Vibrant glow for peaks matching particle shimmer
+    if (heightNorm > 0.7) {
+      float glowIntensity = (heightNorm - 0.7) * 3.33;
+      vec3 glowColor = mix(finalColor, vec3(0.95, 0.85, 1.0), 0.4); // Purple-pink glow
+      finalColor = mix(finalColor, glowColor, glowIntensity * 0.4);
+    }
+    
+    // Smooth boundary with gradient fade
+    float boundaryFade = smoothstep(0.2, 0.8, vMask);
+    
+    // Dynamic alpha matching particle transparency
+    float alpha = (0.85 + heightNorm * 0.15) * boundaryFade;
     
     gl_FragColor = vec4(finalColor, alpha);
   }
@@ -268,12 +357,12 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
   const timeRef = useRef(0)
   const [isInitialized, setIsInitialized] = useState(false)
   
-  // Convert mapbox camera position to state object
+  // Convert mapbox camera position to state object (no rotation for wave layer by default)
   const mapboxState = mapboxCameraPos ? {
     center: { lng: mapboxCameraPos.longitude, lat: mapboxCameraPos.latitude },
     zoom: mapboxCameraPos.zoom,
-    pitch: mapboxCameraPos.pitch,
-    bearing: mapboxCameraPos.bearing
+    pitch: 65,  // Fixed pitch
+    bearing: 0   // No rotation for wave layer (fixed)
   } : {
     center: { lng: 126.978, lat: 37.5665 },
     zoom: 11.2,
@@ -448,7 +537,12 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
       heightScale: { value: 3.0 },
       waveIntensity: { value: 1.5 },
       zoomLevel: { value: 11.2 },
-      modernIntensity: { value: 1.0 }
+      modernIntensity: { value: 1.0 },
+      wavePattern: { value: 0.0 }, // 0: sine, 1: triangle, 2: sawtooth, 3: square
+      animationSpeed: { value: 1.0 },
+      heightMultiplier: { value: 1.0 },
+      colorIntensity: { value: 1.0 },
+      edgeGlow: { value: 1.0 }
     }
     uniformsRef.current = uniforms
     
@@ -492,6 +586,7 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
         uniformsRef.current.waveIntensity.value = 1.5
         uniformsRef.current.zoomLevel.value = mapboxState.zoom || 11.2
         uniformsRef.current.modernIntensity.value = 1.0
+        // These will be updated in the effect below with animation config
       }
       
       // Update camera and surface
@@ -543,9 +638,18 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
     
     // Update the uniforms based on animation config with modern scaling
     uniformsRef.current.heightScale.value = animationConfig.waveEnabled ? animationConfig.waveAmplitude * 2.5 : 2.5
-    uniformsRef.current.waveIntensity.value = animationConfig.waveEnabled ? animationConfig.waveFrequency * 2.0 : 1.5
+    uniformsRef.current.waveIntensity.value = animationConfig.waveEnabled ? animationConfig.waveSpeed * 2000.0 : 1.5
     uniformsRef.current.zoomLevel.value = mapboxState.zoom || 11.2
     uniformsRef.current.modernIntensity.value = 1.2 // Enhanced modern effect
+    
+    // Update new wave animation uniforms
+    // Map wave pattern string to numeric value
+    const patternMap = { 'sine': 0, 'triangle': 1, 'sawtooth': 2, 'square': 3 }
+    uniformsRef.current.wavePattern.value = patternMap[animationConfig.wavePattern] || 0
+    uniformsRef.current.animationSpeed.value = animationConfig.waveAnimationSpeed || 1.0
+    uniformsRef.current.heightMultiplier.value = animationConfig.waveHeightMultiplier || 1.0
+    uniformsRef.current.colorIntensity.value = animationConfig.waveColorIntensity || 1.0
+    uniformsRef.current.edgeGlow.value = animationConfig.waveEdgeGlow || 1.0
   }, [isInitialized, animationConfig, mapboxState.zoom])
   
   return (

@@ -45,7 +45,7 @@ const fragmentShader = `
 `
 
 const Scene = () => {
-  const pointsRef = useRef<any>()
+  const pointsRef = useRef<any>(null)
   const count = 50000
 
   const particlesPosition = useMemo(() => {
@@ -81,6 +81,7 @@ const Scene = () => {
           count={particlesPosition.length / 3}
           array={particlesPosition}
           itemSize={3}
+          args={[particlesPosition, 3]}
         />
       </bufferGeometry>
       <shaderMaterial
