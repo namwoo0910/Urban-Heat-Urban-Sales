@@ -224,9 +224,9 @@ async function generateParticlesOptimized(
           position: [lng, lat],
           color: color as [number, number, number],
           size,
-          speed: 0.0001 + Math.random() * 0.0003,
+          speed: 0.0002 + Math.random() * 0.0005,
           phase: Math.random() * twoPi,
-          amplitude: 0.0005 + Math.random() * 0.001,
+          amplitude: 0.001 + Math.random() * 0.002,
           district: getDistrictName(lng, lat, boundaryData),
         })
       }
@@ -331,9 +331,9 @@ export function generateSeoulParticles(count: number = 8000): ParticleData[] {
         position: [lng, lat],
         color: color as [number, number, number],
         size,
-        speed: 0.0001 + Math.random() * 0.0003, // 애니메이션 속도
+        speed: 0.0002 + Math.random() * 0.0005, // 애니메이션 속도
         phase: Math.random() * twoPi, // 초기 위상
-        amplitude: 0.0005 + Math.random() * 0.001, // 움직임 진폭
+        amplitude: 0.001 + Math.random() * 0.002, // 움직임 진폭
       })
       generated++
     }

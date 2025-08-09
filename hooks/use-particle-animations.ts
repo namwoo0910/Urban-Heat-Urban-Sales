@@ -81,8 +81,8 @@ export const defaultAnimationConfig: AnimationConfig = {
   attractionStrength: 0.0001,
   morphEnabled: false,
   morphSpeed: 0.001,
-  autoRotateEnabled: false,
-  autoRotateSpeed: 0.2,    // Rotation speed (degrees per frame)
+  autoRotateEnabled: true,    // Auto rotation enabled by default
+  autoRotateSpeed: 0.2,     // Rotation speed (degrees per frame)
   colorTheme: 'current',   // Default to current color palette
   // Wave layer defaults
   wavePattern: 'sine',
