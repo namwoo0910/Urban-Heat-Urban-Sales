@@ -126,7 +126,51 @@ function getAreaDensity(lng: number, lat: number): number {
 }
 
 // Cache for pre-generated particles
-const PARTICLE_CACHE_KEY = 'seoul_particles_cache_v2' // v2: adjusted density distribution
+const PARTICLE_CACHE_KEY = 'seoul_particles_cache_v2'
+
+// Function to check and manage localStorage usage
+function checkStorageQuota(): { available: boolean, sizeUsed: number } {
+  if (typeof window === 'undefined') {
+    return { available: false, sizeUsed: 0 }
+  }
+  
+  let totalSize = 0
+  try {
+    // Calculate current localStorage usage
+    for (let key in localStorage) {
+      if (localStorage.hasOwnProperty(key)) {
+        totalSize += localStorage[key].length + key.length
+      }
+    }
+    
+    // Convert to MB for easier reading
+    const sizeInMB = (totalSize * 2) / (1024 * 1024) // 2 bytes per character estimate
+    
+    // If over 8MB total, clean up old caches
+    if (sizeInMB > 8) {
+      console.warn(`localStorage usage high: ${sizeInMB.toFixed(2)}MB, cleaning old caches...`)
+      
+      // Remove old cache versions and temporary data
+      const keysToRemove = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key && (
+          key.includes('seoul_particles_cache_v1') || 
+          key.includes('temp_') || 
+          key.includes('_old')
+        )) {
+          keysToRemove.push(key)
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key))
+    }
+    
+    return { available: true, sizeUsed: totalSize }
+  } catch (e) {
+    console.warn('Error checking storage quota:', e)
+    return { available: false, sizeUsed: 0 }
+  }
+} // v2: adjusted density distribution
 const PARTICLE_CACHE_EXPIRY = 12 * 60 * 60 * 1000 // 12 hours
 
 /**
@@ -138,23 +182,35 @@ export async function generateSeoulParticlesWithBoundary(
   onProgress?: (progress: number) => void,
   colorTheme: keyof typeof COLOR_THEMES = 'current'
 ): Promise<ParticleData[]> {
+  // Check storage quota before attempting to use cache
+  const storageStatus = checkStorageQuota()
+  
   // Try to load from cache first
-  if (typeof window !== 'undefined') {
-    const cached = localStorage.getItem(PARTICLE_CACHE_KEY)
-    if (cached) {
-      try {
-        const { particles, timestamp, cacheCount } = JSON.parse(cached)
-        const isExpired = Date.now() - timestamp > PARTICLE_CACHE_EXPIRY
-        
-        if (!isExpired && cacheCount >= count) {
-          onProgress?.(100)
-          return particles.slice(0, count)
-        } else {
+  if (typeof window !== 'undefined' && storageStatus.available) {
+    try {
+      const cached = localStorage.getItem(PARTICLE_CACHE_KEY)
+      if (cached) {
+        try {
+          const { particles, timestamp, cacheCount } = JSON.parse(cached)
+          const isExpired = Date.now() - timestamp > PARTICLE_CACHE_EXPIRY
+          
+          if (!isExpired && cacheCount >= count) {
+            console.log(`Using cached particles (${cacheCount} available)`)
+            onProgress?.(100)
+            
+            // Apply current color theme to cached particles
+            const themedParticles = updateParticleColors(particles.slice(0, count), colorTheme)
+            return themedParticles
+          } else {
+            localStorage.removeItem(PARTICLE_CACHE_KEY)
+          }
+        } catch (e) {
+          console.warn('Corrupted cache, removing:', e)
           localStorage.removeItem(PARTICLE_CACHE_KEY)
         }
-      } catch (e) {
-        localStorage.removeItem(PARTICLE_CACHE_KEY)
       }
+    } catch (e) {
+      console.warn('Failed to access localStorage:', e)
     }
   }
 
@@ -245,14 +301,66 @@ async function generateParticlesOptimized(
     }
   }
   
-  // Cache generated particles for future use
+  // Cache generated particles for future use with quota management
   if (typeof window !== 'undefined' && particles.length > 0) {
     try {
-      localStorage.setItem(PARTICLE_CACHE_KEY, JSON.stringify({
+      // Check available storage quota before caching
+      const cacheData = JSON.stringify({
         particles,
         timestamp: Date.now(),
         cacheCount: particles.length
-      }))
+      })
+      
+      // Estimate size of cache data (rough estimate: 2 bytes per character)
+      const estimatedSize = cacheData.length * 2
+      const maxSize = 5 * 1024 * 1024 // 5MB limit for particle cache
+      
+      if (estimatedSize > maxSize) {
+        // Try to cache a reduced set of particles instead of skipping entirely
+        const reducedCount = Math.floor(count * 0.5)
+        const reducedParticles = particles.slice(0, reducedCount)
+        const reducedCache = JSON.stringify({
+          particles: reducedParticles,
+          timestamp: Date.now(),
+          cacheCount: reducedParticles.length
+        })
+        
+        console.warn(`Particle cache too large (${(estimatedSize / 1024 / 1024).toFixed(2)}MB), caching reduced set (${reducedCount} particles)`)
+        
+        try {
+          localStorage.setItem(PARTICLE_CACHE_KEY, reducedCache)
+        } catch (e) {
+          console.warn('Even reduced cache failed:', e)
+        }
+        return particles.slice(0, count)
+      }
+      
+      // Try to clear old cache if quota exceeded
+      try {
+        localStorage.setItem(PARTICLE_CACHE_KEY, cacheData)
+      } catch (quotaError) {
+        // Clear old cache and retry once
+        console.warn('Storage quota exceeded, clearing old cache...')
+        localStorage.removeItem(PARTICLE_CACHE_KEY)
+        
+        // Also clear any other old caches from previous versions
+        const keysToRemove = []
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i)
+          if (key && (key.includes('particle') || key.includes('cache'))) {
+            keysToRemove.push(key)
+          }
+        }
+        keysToRemove.forEach(key => localStorage.removeItem(key))
+        
+        // Try one more time with cleared storage
+        try {
+          localStorage.setItem(PARTICLE_CACHE_KEY, cacheData)
+          console.log('Successfully cached particles after clearing old data')
+        } catch (finalError) {
+          console.warn('Unable to cache particles even after cleanup:', finalError)
+        }
+      }
     } catch (e) {
       console.warn('Failed to cache particles:', e)
     }
@@ -358,6 +466,26 @@ export function updateParticlePositions(
       ] as [number, number],
       color: particle.color,
       size: particle.size * (0.8 + Math.sin(time * 0.001 + particle.phase) * 0.2), // 크기 펄싱
+    }
+  })
+}
+
+// 파티클 색상 업데이트 (color theme 변경용 - 데이터 재생성 없이 색상만 변경)
+export function updateParticleColors(
+  particles: ParticleData[],
+  colorTheme: keyof typeof COLOR_THEMES = 'current'
+): ParticleData[] {
+  const selectedPalette = COLOR_THEMES[colorTheme]
+  const colorCount = selectedPalette.length
+  
+  return particles.map(particle => {
+    // 기존 파티클의 색상 인덱스를 유지하면서 새로운 테마 적용
+    const colorIndex = Math.floor(Math.random() * colorCount)
+    const newColor = selectedPalette[colorIndex] as [number, number, number]
+    
+    return {
+      ...particle,
+      color: newColor
     }
   })
 }

@@ -60,7 +60,7 @@ interface AnimatedParticle {
 export const defaultAnimationConfig: AnimationConfig = {
   layerType: 'particle',
   waveEnabled: true,
-  waveSpeed: 0.002,       // Smooth wave motion
+  waveSpeed: 1.0,         // Fastest wave motion as default
   waveAmplitude: 0.001,   // Subtle wave amplitude
   pulseEnabled: true,
   pulseSpeed: 0.003,      // Gentle pulsing
@@ -82,7 +82,7 @@ export const defaultAnimationConfig: AnimationConfig = {
   morphEnabled: false,
   morphSpeed: 0.001,
   autoRotateEnabled: true,    // Auto rotation enabled by default
-  autoRotateSpeed: 0.2,     // Rotation speed (degrees per frame)
+  autoRotateSpeed: 0.1,     // Rotation speed (degrees per frame)
   colorTheme: 'current',   // Default to current color palette
   // Wave layer defaults
   wavePattern: 'sine',
@@ -94,7 +94,7 @@ export const defaultAnimationConfig: AnimationConfig = {
   waveParticleSize: 1.0,     // Default size multiplier
   waveColorBrightness: 1.2,  // Slightly brighter by default
   waveParticleDensity: 100,   // Default 100x100 grid
-  blackBackgroundEnabled: false  // Black background off by default
+  blackBackgroundEnabled: true   // Black background on by default
 }
 
 /**

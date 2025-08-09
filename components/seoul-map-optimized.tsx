@@ -6,7 +6,7 @@ import { DeckGL } from "@deck.gl/react"
 import { ScatterplotLayer, LineLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
 import "mapbox-gl/dist/mapbox-gl.css"
-import { generateSeoulParticles, generateSeoulParticlesWithBoundary } from "@/utils/particle-data"
+import { generateSeoulParticles, generateSeoulParticlesWithBoundary, updateParticleColors } from "@/utils/particle-data"
 import type { ParticleData } from "@/utils/particle-data"
 import { loadSeoulBoundaries } from "@/utils/seoul-boundaries"
 import type { SeoulBoundaryData } from "@/utils/seoul-boundaries"
@@ -390,7 +390,15 @@ export function SeoulMapOptimized({
     
     // Start the loading process
     loadDataWithRetry()
-  }, [config.particleCount, maxRetries, animationConfig.colorTheme])
+  }, [config.particleCount, maxRetries])
+
+  // Separate effect for color theme changes - only update colors, don't reload data
+  useEffect(() => {
+    if (particles.length > 0 && animationConfig.layerType === 'particle') {
+      const updatedParticles = updateParticleColors(particles, animationConfig.colorTheme)
+      setParticles(updatedParticles)
+    }
+  }, [animationConfig.colorTheme, animationConfig.layerType])
 
   // Connection pooling for optimized line generation
   const connectionPoolRef = useRef<{
@@ -456,7 +464,7 @@ export function SeoulMapOptimized({
 
   // Enhanced animation loop with adaptive performance
   useEffect(() => {
-    if (particles.length === 0) return
+    if (particles.length === 0 || animationConfig.layerType !== 'particle') return
     
     let frameCount = 0
     let performanceCheckInterval = 0
@@ -545,9 +553,27 @@ export function SeoulMapOptimized({
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = undefined
       }
+      
+      // Clear animation pools and state when layer changes
+      animationPoolRef.current = {
+        positions: new Float32Array(0),
+        colors: new Uint8Array(0),
+        sizes: new Float32Array(0),
+        reusableObjects: []
+      }
+      
+      batchStateRef.current = {
+        needsUpdate: true,
+        lastBatchTime: 0,
+        batchInterval: 16
+      }
+      
+      // Reset performance monitor
+      performanceMonitorRef.current.reset()
     }
-  }, [particles, performanceLevel, animationConfig.autoRotateEnabled, animationConfig.autoRotateSpeed, createConnectionsOptimized, animateParticlesBatch, animationState.time])
+  }, [particles, performanceLevel, animationConfig.layerType, animationConfig.autoRotateEnabled, animationConfig.autoRotateSpeed, createConnectionsOptimized, animateParticlesBatch, animationState.time])
 
   // 레이어 생성 (성능 레벨에 따라 조정)
   const layers = useMemo(() => {
@@ -698,18 +724,18 @@ export function SeoulMapOptimized({
     <div className="relative w-full h-full">
       {/* Conditional rendering based on layer type */}
       {animationConfig.layerType === 'particle' ? (
-      <DeckGL
-        viewState={viewState}
-        onViewStateChange={handleViewStateChange}
-        controller={true}
-        layers={layers}
-        parameters={{
-          // Parameters for rendering optimization
-        }}
-        // 성능 최적화 옵션
-        getCursor={() => 'grab'}
-        getTooltip={() => null}
-      >
+        <DeckGL
+          viewState={viewState}
+          onViewStateChange={handleViewStateChange}
+          controller={true}
+          layers={layers}
+          parameters={{
+            // Parameters for rendering optimization
+          }}
+          // 성능 최적화 옵션
+          getCursor={() => 'grab'}
+          getTooltip={() => null}
+        >
         {/* Render Map with fixed dark theme */}
         <Map
           mapboxAccessToken={MAPBOX_TOKEN}
@@ -735,7 +761,26 @@ export function SeoulMapOptimized({
             }
           }}
         />
-      </DeckGL>
+        
+        {/* Black background overlay for Seoul area (conditional) - Particle Layer */}
+        {animationConfig.blackBackgroundEnabled && (
+          <div 
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              background: `
+                radial-gradient(
+                  ellipse 40% 60% at 50% 50%, 
+                  transparent 0%, 
+                  transparent 30%, 
+                  rgba(0,0,0,0.7) 60%,
+                  rgba(0,0,0,0.9) 80%,
+                  rgba(0,0,0,1) 100%
+                )
+              `
+            }}
+          />
+        )}
+        </DeckGL>
       ) : (
         // Wave Layer with Mapbox background
         <>
@@ -769,7 +814,7 @@ export function SeoulMapOptimized({
           {/* Black background overlay for Seoul area (conditional) */}
           {animationConfig.blackBackgroundEnabled && (
             <div 
-              className="absolute inset-0 z-10 pointer-events-none"
+              className="absolute inset-0 pointer-events-none"
               style={{
                 background: `
                   radial-gradient(

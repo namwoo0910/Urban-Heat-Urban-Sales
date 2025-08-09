@@ -383,6 +383,21 @@ export function AnimationControls({
         </>
       )}
 
+      {/* Map Background Control - Show for particle layer */}
+      {config.layerType === 'particle' && (
+        <div className="space-y-2 p-3 bg-white/5 rounded-lg">
+          <Label className="text-xs font-semibold text-gray-400 mb-2">Map Background</Label>
+          <div className="flex items-center justify-between">
+            <Label htmlFor="particle-black-background" className="text-xs">Black Background</Label>
+            <Switch
+              id="particle-black-background"
+              checked={config.blackBackgroundEnabled}
+              onCheckedChange={(checked) => onConfigChange({ blackBackgroundEnabled: checked })}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Color Theme Selector - Show for particle layer */}
       {config.layerType === 'particle' && (
         <div className="space-y-2">
