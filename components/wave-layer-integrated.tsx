@@ -359,6 +359,11 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
   const timeRef = useRef(0)
   const [isInitialized, setIsInitialized] = useState(false)
   
+  // Amplitude animation state
+  const [amplitudeAnimation, setAmplitudeAnimation] = useState(2.0) // Start at maximum
+  const amplitudeAnimationRef = useRef<number | null>(null)
+  const animationStartTimeRef = useRef<number | null>(null)
+  
   // Convert mapbox camera position to state object (no rotation for wave layer by default)
   const mapboxState = mapboxCameraPos ? {
     center: { lng: mapboxCameraPos.longitude, lat: mapboxCameraPos.latitude },
@@ -381,6 +386,49 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
       })
       .catch(err => console.warn('Failed to load Seoul boundaries:', err))
   }, [])
+  
+  // Amplitude animation effect - starts at max and gradually decreases to 0
+  useEffect(() => {
+    if (!isInitialized) return
+    
+    // Reset animation values
+    setAmplitudeAnimation(2.0) // Start at maximum amplitude
+    animationStartTimeRef.current = Date.now()
+    
+    const animationDuration = 8000 // 8 seconds for smooth transition
+    
+    const animate = () => {
+      const now = Date.now()
+      const elapsed = now - (animationStartTimeRef.current || now)
+      const progress = Math.min(elapsed / animationDuration, 1.0)
+      
+      // Use exponential easing for smooth decay
+      // Start at 2.0, end at 0.0
+      const easedProgress = 1.0 - Math.pow(1.0 - progress, 3) // Cubic easing out
+      const currentAmplitude = 2.0 * (1.0 - easedProgress) // From 2.0 to 0.0
+      
+      setAmplitudeAnimation(currentAmplitude)
+      
+      // Continue animation until complete
+      if (progress < 1.0) {
+        amplitudeAnimationRef.current = requestAnimationFrame(animate)
+      } else {
+        // Animation complete, amplitude is now 0
+        amplitudeAnimationRef.current = null
+      }
+    }
+    
+    // Start the animation
+    amplitudeAnimationRef.current = requestAnimationFrame(animate)
+    
+    // Cleanup on unmount
+    return () => {
+      if (amplitudeAnimationRef.current) {
+        cancelAnimationFrame(amplitudeAnimationRef.current)
+        amplitudeAnimationRef.current = null
+      }
+    }
+  }, [isInitialized]) // Run when component is initialized
   
   // Update population surface data
   const updatePopulationSurface = () => {
@@ -556,7 +604,7 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
       time: { value: 0 },
       populationTexture: { value: populationTexture },
       heightScale: { value: 3.0 },
-      waveIntensity: { value: 1.5 },
+      waveIntensity: { value: 2.0 }, // Start at maximum for initial animation
       zoomLevel: { value: 11.2 },
       modernIntensity: { value: 1.0 },
       wavePattern: { value: 0.0 }, // 0: sine, 1: triangle, 2: sawtooth, 3: square
@@ -609,7 +657,7 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
       if (uniformsRef.current) {
         uniformsRef.current.time.value = timeRef.current
         uniformsRef.current.heightScale.value = 3.0
-        uniformsRef.current.waveIntensity.value = 1.5
+        // waveIntensity will be updated by the effect that watches amplitudeAnimation
         uniformsRef.current.zoomLevel.value = mapboxState.zoom || 11.2
         uniformsRef.current.modernIntensity.value = 1.0
         // These will be updated in the effect below with animation config
@@ -664,7 +712,11 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
     
     // Update the uniforms based on animation config with modern scaling
     uniformsRef.current.heightScale.value = animationConfig.waveEnabled ? animationConfig.waveAmplitude * 2.5 : 2.5
-    uniformsRef.current.waveIntensity.value = animationConfig.waveEnabled ? animationConfig.waveSpeed * 2000.0 : 1.5
+    
+    // Use animated amplitude value for waveIntensity
+    // The amplitude animation overrides the config value
+    uniformsRef.current.waveIntensity.value = animationConfig.waveEnabled ? amplitudeAnimation : 0
+    
     uniformsRef.current.zoomLevel.value = mapboxState.zoom || 11.2
     uniformsRef.current.modernIntensity.value = 1.2 // Enhanced modern effect
     
@@ -681,7 +733,7 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
     uniformsRef.current.particleSize.value = animationConfig.waveParticleSize || 1.0
     uniformsRef.current.particleOpacity.value = animationConfig.waveParticleOpacity || 0.8
     uniformsRef.current.colorBrightness.value = animationConfig.waveColorBrightness || 1.2
-  }, [isInitialized, animationConfig, mapboxState.zoom])
+  }, [isInitialized, animationConfig, mapboxState.zoom, amplitudeAnimation]) // Added amplitudeAnimation dependency
   
   // Update particle density when it changes
   useEffect(() => {

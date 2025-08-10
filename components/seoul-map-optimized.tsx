@@ -171,6 +171,11 @@ export function SeoulMapOptimized({
   // 자동 회전 제어
   const rotationRef = useRef(0)
   
+  // Amplitude animation refs for initial effect
+  const amplitudeAnimationRef = useRef<number>(1.0) // Start at maximum amplitude
+  const animationStartTimeRef = useRef<number | null>(null)
+  const animationDurationRef = useRef<number>(15000) // 15 seconds animation
+  
   // Object pooling for animation optimization
   const animationPoolRef = useRef<{
     positions: Float32Array
@@ -244,10 +249,18 @@ export function SeoulMapOptimized({
       let offsetY = 0
       let sizePulse = 1
       
-      // Wave animation
+      // Wave animation with animated amplitude
       if (animationConfig.waveEnabled) {
-        offsetX += Math.sin(time * animationConfig.waveSpeed + particle.phase) * animationConfig.waveAmplitude
-        offsetY += Math.cos(time * animationConfig.waveSpeed * 0.7 + particle.phase) * animationConfig.waveAmplitude * 0.7
+        // Use the animated amplitude value instead of the config value
+        const currentAmplitude = amplitudeAnimationRef.current
+        
+        // Debug log amplitude every 100 particles
+        if (i === 0 && Math.random() < 0.01) {
+          console.log('Current amplitude:', currentAmplitude)
+        }
+        
+        offsetX += Math.sin(time * animationConfig.waveSpeed + particle.phase) * currentAmplitude
+        offsetY += Math.cos(time * animationConfig.waveSpeed * 0.7 + particle.phase) * currentAmplitude * 0.7
       }
       
       // Pulse animation
@@ -384,6 +397,10 @@ export function SeoulMapOptimized({
         // Small delay to show completion state
         setTimeout(() => {
           setIsLoading(false)
+          
+          // Initialize amplitude animation when particles are loaded
+          amplitudeAnimationRef.current = 1.0 // Reset to maximum amplitude
+          animationStartTimeRef.current = Date.now() // Start time for animation
         }, 200)
       }
     }
@@ -503,6 +520,25 @@ export function SeoulMapOptimized({
         const shouldBatch = currentTime - batchState.lastBatchTime >= batchState.batchInterval || batchState.needsUpdate
         
         if (shouldUpdate && shouldBatch) {
+          // Update amplitude animation
+          if (animationStartTimeRef.current !== null) {
+            const now = Date.now()
+            const elapsed = now - animationStartTimeRef.current
+            const progress = Math.min(elapsed / animationDurationRef.current, 1.0)
+            
+            // Use cubic easing out for smooth decay
+            const easedProgress = 1.0 - Math.pow(1.0 - progress, 3)
+            const currentAmplitude = 1.0 * (1.0 - easedProgress) // From 1.0 to 0.0
+            
+            amplitudeAnimationRef.current = currentAmplitude
+            
+            // Stop animation when complete
+            if (progress >= 1.0) {
+              amplitudeAnimationRef.current = 0
+              console.log('Amplitude animation complete, amplitude is now 0')
+            }
+          }
+          
           // Use optimized batch animation with time in seconds
           const timeInSeconds = animationState.time * 0.001 // Convert ms to seconds
           const updated = animateParticlesBatch(particles, timeInSeconds)
@@ -621,7 +657,7 @@ export function SeoulMapOptimized({
           return [color[0], color[1], color[2], 255] // Increased alpha for better visibility
         },
         updateTriggers: {
-          getPosition: animatedData,
+          getPosition: [animatedData, amplitudeAnimationRef.current],
         },
         parameters: {
           depthTest: false,

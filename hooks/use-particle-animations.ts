@@ -94,7 +94,7 @@ export const defaultAnimationConfig: AnimationConfig = {
   waveParticleSize: 1.0,     // Default size multiplier
   waveColorBrightness: 1.2,  // Slightly brighter by default
   waveParticleDensity: 100,   // Default 100x100 grid
-  blackBackgroundEnabled: true   // Black background on by default
+  blackBackgroundEnabled: false   // Black background off by default
 }
 
 /**
