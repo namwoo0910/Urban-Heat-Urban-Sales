@@ -109,25 +109,28 @@ export function Hero() {
           `,
         }}
       />
-      <div className="relative z-10 flex flex-col items-center justify-center h-full text-white text-center px-4">
-        <h1 className="hero-title font-bold text-5xl md:text-7xl lg:text-8xl mb-6">{splitTitle}</h1>
-        <motion.p
-          className="hero-subtitle text-lg md:text-xl lg:text-2xl max-w-3xl mb-8 text-neutral-300"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.5, duration: 1 }}
-        >
-          KAIST AI.
-        </motion.p>
-        <TransitionLink href="/#portfolio">
-          <motion.button
-            className="hero-button flex items-center gap-2 bg-white text-black font-semibold py-3 px-6 rounded-full transition-transform duration-300"
-            whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
-            whileTap={{ scale: 0.95 }}
+      {/* Top text elements and button */}
+      <div className="absolute top-40 left-0 right-0 z-10 flex flex-col items-center text-white text-center px-4">
+        <h1 className="hero-title font-bold text-5xl md:text-7xl lg:text-8xl mb-4">{splitTitle}</h1>
+        <div className="flex items-center gap-6">
+          <motion.p
+            className="hero-subtitle text-lg md:text-xl lg:text-2xl text-neutral-300"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.5, duration: 1 }}
           >
-            Explore SEOUL <ArrowRight size={20} />
-          </motion.button>
-        </TransitionLink>
+            KAIST AI.
+          </motion.p>
+          <TransitionLink href="/#portfolio">
+            <motion.button
+              className="hero-button flex items-center gap-2 bg-white text-black font-semibold py-2 px-4 md:py-3 md:px-6 rounded-full transition-transform duration-300 text-sm md:text-base"
+              whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
+              whileTap={{ scale: 0.95 }}
+            >
+              Explore SEOUL <ArrowRight size={20} />
+            </motion.button>
+          </TransitionLink>
+        </div>
       </div>
       
       {/* Animation Controls - positioned above all other elements */}

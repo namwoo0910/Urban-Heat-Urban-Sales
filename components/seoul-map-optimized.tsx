@@ -172,7 +172,7 @@ export function SeoulMapOptimized({
   const rotationRef = useRef(0)
   
   // Amplitude animation refs for initial effect
-  const amplitudeAnimationRef = useRef<number>(1.0) // Start at maximum amplitude
+  const amplitudeAnimationRef = useRef<number>(15.0) // Start at much higher amplitude for very dramatic scatter
   const animationStartTimeRef = useRef<number | null>(null)
   const animationDurationRef = useRef<number>(15000) // 15 seconds animation
   
@@ -251,13 +251,8 @@ export function SeoulMapOptimized({
       
       // Wave animation with animated amplitude
       if (animationConfig.waveEnabled) {
-        // Use the animated amplitude value instead of the config value
-        const currentAmplitude = amplitudeAnimationRef.current
-        
-        // Debug log amplitude every 100 particles
-        if (i === 0 && Math.random() < 0.01) {
-          console.log('Current amplitude:', currentAmplitude)
-        }
+        // Use the animated amplitude value multiplied by the config amplitude
+        const currentAmplitude = amplitudeAnimationRef.current * animationConfig.waveAmplitude
         
         offsetX += Math.sin(time * animationConfig.waveSpeed + particle.phase) * currentAmplitude
         offsetY += Math.cos(time * animationConfig.waveSpeed * 0.7 + particle.phase) * currentAmplitude * 0.7
@@ -365,6 +360,16 @@ export function SeoulMapOptimized({
         setLoadingPhase('Ready!')
         setLoadingProgress(100)
         setParticles(particlesInSeoul)
+        // Initialize animatedData with scattered positions for dramatic initial effect
+        setAnimatedData(particlesInSeoul.map(p => ({
+          position: [
+            p.position[0] + (Math.random() - 0.5) * 0.05,  // Random scatter offset
+            p.position[1] + (Math.random() - 0.5) * 0.05
+          ] as [number, number],
+          color: p.color,
+          size: p.size,
+          opacity: 255
+        })))
         setRetryCount(0) // Reset retry count on success
         
       } catch (error) {
@@ -384,6 +389,16 @@ export function SeoulMapOptimized({
             // Even fallback can fail, so wrap in try-catch
             const fallbackParticles = generateSeoulParticles(config.particleCount)
             setParticles(fallbackParticles)
+            // Initialize animatedData with scattered positions for fallback particles too
+            setAnimatedData(fallbackParticles.map(p => ({
+              position: [
+                p.position[0] + (Math.random() - 0.5) * 0.05,  // Random scatter offset
+                p.position[1] + (Math.random() - 0.5) * 0.05
+              ] as [number, number],
+              color: p.color,
+              size: p.size,
+              opacity: 255
+            })))
             setLoadingProgress(100)
             setLoadingPhase('Fallback data loaded')
           } catch (fallbackError) {
@@ -399,7 +414,7 @@ export function SeoulMapOptimized({
           setIsLoading(false)
           
           // Initialize amplitude animation when particles are loaded
-          amplitudeAnimationRef.current = 1.0 // Reset to maximum amplitude
+          amplitudeAnimationRef.current = 15.0 // Reset to much higher amplitude for very dramatic scatter effect
           animationStartTimeRef.current = Date.now() // Start time for animation
         }, 200)
       }
@@ -411,9 +426,16 @@ export function SeoulMapOptimized({
 
   // Separate effect for color theme changes - only update colors, don't reload data
   useEffect(() => {
-    if (particles.length > 0 && animationConfig.layerType === 'particle') {
+    if (particles.length > 0 && animationConfig.layerType === 'particle' && animatedData.length > 0) {
       const updatedParticles = updateParticleColors(particles, animationConfig.colorTheme)
       setParticles(updatedParticles)
+      // Update animatedData with new colors but keep current positions (no scatter)
+      setAnimatedData(prevAnimated => 
+        prevAnimated.map((a, i) => ({
+          ...a,
+          color: updatedParticles[i]?.color || a.color
+        }))
+      )
     }
   }, [animationConfig.colorTheme, animationConfig.layerType])
 
@@ -481,7 +503,13 @@ export function SeoulMapOptimized({
 
   // Enhanced animation loop with adaptive performance
   useEffect(() => {
-    if (particles.length === 0 || animationConfig.layerType !== 'particle') return
+    if (particles.length === 0 || animationConfig.layerType !== 'particle') {
+      // Clear animatedData when switching away from particle layer
+      if (animationConfig.layerType !== 'particle') {
+        setAnimatedData([])
+      }
+      return
+    }
     
     let frameCount = 0
     let performanceCheckInterval = 0
@@ -528,14 +556,14 @@ export function SeoulMapOptimized({
             
             // Use cubic easing out for smooth decay
             const easedProgress = 1.0 - Math.pow(1.0 - progress, 3)
-            const currentAmplitude = 1.0 * (1.0 - easedProgress) // From 1.0 to 0.0
+            const currentAmplitude = 15.0 - (14.8 * easedProgress) // From 15.0 to 0.2
             
             amplitudeAnimationRef.current = currentAmplitude
             
-            // Stop animation when complete
+            // Animation complete but keep minimum amplitude for continuous movement
             if (progress >= 1.0) {
-              amplitudeAnimationRef.current = 0
-              console.log('Amplitude animation complete, amplitude is now 0')
+              amplitudeAnimationRef.current = 0.2
+              console.log('Amplitude animation complete, maintaining minimum amplitude of 0.2 for continuous movement')
             }
           }
           
@@ -657,7 +685,9 @@ export function SeoulMapOptimized({
           return [color[0], color[1], color[2], 255] // Increased alpha for better visibility
         },
         updateTriggers: {
-          getPosition: [animatedData, amplitudeAnimationRef.current],
+          getPosition: animatedData,
+          getRadius: animatedData,
+          getFillColor: animatedData,
         },
         parameters: {
           depthTest: false,
