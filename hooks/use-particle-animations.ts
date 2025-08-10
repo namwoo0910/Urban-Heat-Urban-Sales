@@ -82,7 +82,7 @@ export const defaultAnimationConfig: AnimationConfig = {
   attractionStrength: 0.0001,
   morphEnabled: false,
   morphSpeed: 0.001,
-  autoRotateEnabled: true,    // Auto rotation enabled by default
+  autoRotateEnabled: false,    // Auto rotation disabled by default
   autoRotateSpeed: 0.15,    // Faster rotation for dynamics
   colorTheme: 'current',   // Default to current color palette
   // Wave layer defaults - reduced intensity values

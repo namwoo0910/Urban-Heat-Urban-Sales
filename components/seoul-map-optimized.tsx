@@ -593,6 +593,21 @@ export function SeoulMapOptimized({
             }))
           }
           
+          // Breathing effect - subtle zoom animation (지도가 숨쉬는 효과)
+          const breathingSpeed = 0.3 // Slow breathing rate
+          const breathingAmplitude = 0.15 // Subtle zoom change
+          const baseZoom = 11.2
+          const breathingOffset = Math.sin(timeInSeconds * breathingSpeed) * breathingAmplitude
+          const newZoom = baseZoom + breathingOffset
+          
+          // Apply breathing effect every few frames for smooth animation
+          if (frameCount % 2 === 0) {
+            setViewState((prev: any) => ({
+              ...prev,
+              zoom: newZoom
+            }))
+          }
+          
           lastFrameTimeRef.current = currentTime
           frameCount++
         }
