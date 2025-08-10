@@ -39,6 +39,7 @@ export interface AnimationConfig {
   waveColorBrightness: number
   waveParticleDensity: number
   blackBackgroundEnabled: boolean
+  waveColorScheme: 'neon' | 'particle'  // Color scheme selection
 }
 
 export interface AnimationState {
@@ -56,25 +57,25 @@ interface AnimatedParticle {
   trail?: Array<[number, number]>
 }
 
-// Default animation configuration - balanced for smooth animations
+// Default animation configuration - optimized for maximum visibility
 export const defaultAnimationConfig: AnimationConfig = {
   layerType: 'particle',
   waveEnabled: true,
-  waveSpeed: 1.0,         // Fastest wave motion as default
-  waveAmplitude: 0.001,   // Subtle wave amplitude
+  waveSpeed: 2.0,         // Faster wave motion for dynamics
+  waveAmplitude: 0.01,    // Much stronger wave amplitude for visibility
   pulseEnabled: true,
-  pulseSpeed: 0.003,      // Gentle pulsing
-  pulseIntensity: 0.3,    // Moderate intensity
+  pulseSpeed: 0.005,      // Faster pulsing
+  pulseIntensity: 0.5,    // Higher intensity
   colorCycleEnabled: true,
-  colorCycleSpeed: 0.0008, // Slow, subtle color shifting
+  colorCycleSpeed: 0.002,  // Faster color shifting for vibrancy
   orbitalEnabled: false,
   orbitalSpeed: 0.001,
   orbitalRadius: 0.002,
   trailEnabled: false,
   trailLength: 5,
   fireflyEnabled: true,
-  fireflySpeed: 0.001,     // Gentle firefly motion
-  fireflyRandomness: 0.6,  // Moderate randomness
+  fireflySpeed: 0.002,     // More active firefly motion
+  fireflyRandomness: 0.8,  // Higher randomness for dynamics
   flowFieldEnabled: false,
   flowFieldStrength: 0.001,
   attractionEnabled: false,
@@ -82,19 +83,20 @@ export const defaultAnimationConfig: AnimationConfig = {
   morphEnabled: false,
   morphSpeed: 0.001,
   autoRotateEnabled: true,    // Auto rotation enabled by default
-  autoRotateSpeed: 0.1,     // Rotation speed (degrees per frame)
+  autoRotateSpeed: 0.15,    // Faster rotation for dynamics
   colorTheme: 'current',   // Default to current color palette
-  // Wave layer defaults
+  // Wave layer defaults - reduced intensity values
   wavePattern: 'sine',
-  waveColorIntensity: 1.0,
-  waveHeightMultiplier: 1.0,
-  waveAnimationSpeed: 1.0,
-  waveEdgeGlow: 0.0,  // Disabled by default
-  waveParticleOpacity: 0.8,  // Default opacity for particles
-  waveParticleSize: 1.0,     // Default size multiplier
-  waveColorBrightness: 1.2,  // Slightly brighter by default
-  waveParticleDensity: 100,   // Default 100x100 grid
-  blackBackgroundEnabled: false   // Black background off by default
+  waveColorIntensity: 0.9,       // Reduced to half
+  waveHeightMultiplier: 0.75,    // Reduced to half
+  waveAnimationSpeed: 2.0,       // Faster animation
+  waveEdgeGlow: 2.0,            // Strong edge glow
+  waveParticleOpacity: 0.95,    // Nearly opaque particles
+  waveParticleSize: 1.25,        // Reduced particle size
+  waveColorBrightness: 0.9,      // Reduced to half
+  waveParticleDensity: 120,      // Higher density for better coverage
+  blackBackgroundEnabled: false,  // Black background off by default
+  waveColorScheme: 'neon'        // Default to neon color scheme
 }
 
 /**

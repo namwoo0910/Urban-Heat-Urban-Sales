@@ -258,6 +258,27 @@ export function AnimationControls({
             </Select>
           </div>
 
+          {/* Color Scheme Selection */}
+          <div className="space-y-2 p-3 bg-white/5 rounded-lg">
+            <Label className="text-xs font-semibold text-pink-400">Color Scheme</Label>
+            <Select
+              value={config.waveColorScheme || 'neon'}
+              onValueChange={(value: 'neon' | 'particle') => onConfigChange({ waveColorScheme: value })}
+            >
+              <SelectTrigger className="w-full bg-white/10 border-white/20 text-white">
+                <SelectValue placeholder="Select color scheme" />
+              </SelectTrigger>
+              <SelectContent className="bg-black/90 border-white/20">
+                <SelectItem value="neon" className="text-white hover:bg-white/10">
+                  Neon (Electric Colors)
+                </SelectItem>
+                <SelectItem value="particle" className="text-white hover:bg-white/10">
+                  Particle Layer (Pastel Colors)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* Wave Animation Controls */}
           <div className="space-y-2 p-3 bg-white/5 rounded-lg">
             <Label className="text-xs font-semibold text-purple-400 mb-2">Animation Settings</Label>
