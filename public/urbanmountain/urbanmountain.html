@@ -1,0 +1,1193 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>시간별 인구 격자 3D 바 플롯</title>
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js'></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .header h1 {
+            margin: 0;
+            color: white;
+            font-size: 28px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+        #map {
+            width: 100%;
+            height: 700px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            margin-bottom: 20px;
+        }
+        .controls {
+            margin-bottom: 20px;
+            padding: 25px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            color: #333;
+        }
+        .time-controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        .time-slider-container {
+            flex: 1;
+            min-width: 300px;
+        }
+        #timeSlider {
+            width: 100%;
+            margin: 15px 0;
+            height: 8px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        #timeSlider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        #timeSlider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        }
+        .time-display {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            min-width: 100px;
+            text-align: center;
+            background: white;
+            border-radius: 8px;
+            padding: 10px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        .play-button {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            color: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
+            transition: all 0.3s ease;
+        }
+        .play-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(40, 167, 69, 0.6);
+        }
+        .view-controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .view-button {
+            padding: 10px 15px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            font-size: 12px;
+        }
+        .view-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .view-button.active {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        }
+        .legend {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            font-size: 12px;
+            z-index: 1000;
+            min-width: 200px;
+        }
+        .legend h4 {
+            margin: 0 0 15px 0;
+            color: #333;
+            font-size: 16px;
+            text-align: center;
+            font-weight: bold;
+        }
+        .colorbar-container {
+            position: relative;
+            height: 200px;
+            width: 40px;
+            margin: 0 auto 15px auto;
+            border-radius: 6px;
+            overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .colorbar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(to top, 
+                #fdd0a2 0%,
+                #fdae6b 20%,
+                #fd8d3c 40%,
+                #f16913 60%,
+                #d94801 80%,
+                #a63603 100%);
+        }
+        .colorbar-labels {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            height: 200px;
+            margin-left: 10px;
+        }
+        .colorbar-label {
+            font-size: 10px;
+            color: #333;
+            line-height: 1;
+            transform: translateY(-50%);
+        }
+        .colorbar-wrapper {
+            display: flex;
+            align-items: center;
+        }
+        .colorbar-title {
+            text-align: center;
+            margin-bottom: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        .stats-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255,255,255,0.95);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            font-size: 13px;
+            min-width: 200px;
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+        .stats-panel.collapsed {
+            width: 60px;
+            min-width: 60px;
+        }
+        .stats-panel h4 {
+            margin: 0;
+            color: #333;
+            font-size: 16px;
+            font-weight: bold;
+            padding: 15px 20px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            user-select: none;
+        }
+        .stats-content {
+            padding: 20px;
+            transition: all 0.3s ease;
+        }
+        .stats-panel.collapsed .stats-content {
+            opacity: 0;
+            height: 0;
+            padding: 0;
+            overflow: hidden;
+        }
+        .collapse-icon {
+            transition: transform 0.3s ease;
+            font-size: 12px;
+        }
+        .stats-panel.collapsed .collapse-icon {
+            transform: rotate(180deg);
+        }
+        .stat-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 5px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .stat-label {
+            color: #666;
+            font-weight: 500;
+        }
+        .stat-value {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        /* 플로팅 컨트롤 패널 */
+        .floating-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(255,255,255,0.95);
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            backdrop-filter: blur(10px);
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .floating-view-controls {
+            display: flex;
+            gap: 8px;
+        }
+        .floating-view-button {
+            padding: 8px 12px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            font-size: 11px;
+            white-space: nowrap;
+        }
+        .floating-view-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        .floating-view-button.active {
+            background: linear-gradient(45deg, #ff6b6b, #ee5a52);
+        }
+        .floating-time-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .floating-play-button {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: white;
+            border: none;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+            transition: all 0.3s ease;
+        }
+        .floating-play-button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 16px rgba(40, 167, 69, 0.6);
+        }
+        .floating-time-display {
+            font-size: 16px;
+            font-weight: bold;
+            color: #667eea;
+            min-width: 60px;
+            text-align: center;
+            background: white;
+            border-radius: 6px;
+            padding: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .floating-slider {
+            width: 120px;
+            height: 6px;
+            border-radius: 3px;
+            background: #ddd;
+            outline: none;
+            -webkit-appearance: none;
+        }
+        .floating-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        .floating-slider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        #status {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 8px;
+            font-weight: 500;
+            text-align: center;
+            background: rgba(40, 167, 69, 0.1);
+            color: #155724;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+        .loading {
+            text-align: center;
+            font-size: 18px;
+            margin: 20px 0;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+
+<!-- 2부 -->
+<body>
+    <div class="header">
+        <h1>🏙️ 시간별 인구 분포 3D 시각화</h1>
+    </div>
+
+    <div class="loading" id="loadingSection">
+        <div class="spinner"></div>
+        <div>데이터를 로딩중입니다...</div>
+    </div>
+    
+    <div id="status" style="display: none;"></div>
+    
+    <div style="position: relative;">
+        <div id="map"></div>
+        
+        <div class="legend">
+            <h4>🏙️ 인구 수</h4>
+            <div class="colorbar-title">명</div>
+            <div class="colorbar-wrapper">
+                <div class="colorbar-container">
+                    <div class="colorbar"></div>
+                </div>
+                <div class="colorbar-labels">
+                    <div class="colorbar-label">30,000</div>
+                    <div class="colorbar-label">25,000</div>
+                    <div class="colorbar-label">20,000</div>
+                    <div class="colorbar-label">15,000</div>
+                    <div class="colorbar-label">10,000</div>
+                    <div class="colorbar-label">5,000</div>
+                    <div class="colorbar-label">0</div>
+                </div>
+            </div>
+            <div style="text-align: center; margin-top: 10px; font-size: 10px; color: #666;">
+                높이는 인구수에 비례
+            </div>
+        </div>
+        
+        <div class="stats-panel" id="statsPanel" style="display: none;">
+            <h4 onclick="toggleStatsPanel()">
+                📊 실시간 통계
+                <span class="collapse-icon">▼</span>
+            </h4>
+            <div class="stats-content">
+                <div class="stat-row">
+                    <span class="stat-label">총 인구:</span>
+                    <span class="stat-value" id="totalPop">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">평균 인구:</span>
+                    <span class="stat-value" id="avgPop">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">최대 인구:</span>
+                    <span class="stat-value" id="maxPop">-</span>
+                </div>
+                <div class="stat-row">
+                    <span class="stat-label">활성 격자:</span>
+                    <span class="stat-value" id="activeGrids">-</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 플로팅 컨트롤 패널 -->
+        <div class="floating-controls" id="floatingControls" style="display: none;">
+            <div class="floating-view-controls">
+                <button class="floating-view-button active" onclick="setFloatingView('top')">🏢 Top</button>
+                <button class="floating-view-button" onclick="setFloatingView('angle')">📐 Angle</button>
+                <button class="floating-view-button" onclick="setFloatingView('side')">📏 Side</button>
+                <button class="floating-view-button" onclick="setFloatingView('bird')">🦅 Bird</button>
+            </div>
+            <div class="floating-time-controls">
+                <button class="floating-play-button" id="floatingPlayButton" onclick="togglePlay()" title="자동 재생">▶</button>
+                <input type="range" class="floating-slider" id="floatingTimeSlider" min="0" max="23" value="12" step="1">
+                <div class="floating-time-display" id="floatingTimeDisplay">12:00</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+<!-- 3부 -->
+<script>
+    // Mapbox 설정
+    mapboxgl.accessToken = 'pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA';
+    
+    let map;
+    let gridCoordinatesData = null;
+    let gridPopulationData = null;
+    let currentHour = 12;
+    let isPlaying = false;
+    let playInterval = null;
+    
+    // 지도 초기화 - 더 극적인 3D 뷰
+    function initializeMap() {
+        map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/dark-v11', // 어두운 스타일로 3D 효과 강조
+            center: [127.0, 37.5],
+            zoom: 13,
+            pitch: 70, // 높은 각도로 3D 효과 극대화
+            bearing: 30, // 약간 회전하여 입체감 증가
+            antialias: true // 안티앨리어싱으로 더 부드러운 렌더링
+        });
+        
+        map.addControl(new mapboxgl.NavigationControl());
+        
+        // 더 부드러운 카메라 애니메이션
+        map.on('load', () => {
+            map.addSource('mapbox-dem', {
+                'type': 'raster-dem',
+                'url': 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                'tileSize': 512,
+                'maxzoom': 14
+            });
+            map.setTerrain({ 'source': 'mapbox-dem', 'exaggeration': 1.5 });
+        });
+    }
+    
+    // 통계 패널 접기/펼치기
+    function toggleStatsPanel() {
+        const panel = document.getElementById('statsPanel');
+        panel.classList.toggle('collapsed');
+    }
+    
+    // 플로팅 뷰 변경 함수
+    function setFloatingView(viewType) {
+        // 모든 버튼의 active 클래스 제거
+        document.querySelectorAll('.floating-view-button').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        const views = {
+            'top': { pitch: 0, bearing: 0, zoom: 13 },
+            'angle': { pitch: 60, bearing: 45, zoom: 13 },
+            'side': { pitch: 75, bearing: 90, zoom: 14 },
+            'bird': { pitch: 70, bearing: 30, zoom: 12 }
+        };
+        
+        const view = views[viewType];
+        map.easeTo({
+            pitch: view.pitch,
+            bearing: view.bearing,
+            zoom: view.zoom,
+            duration: 1500
+        });
+    }
+    
+    // 뷰 변경 함수들 (기존 + 플로팅 연동)
+    function setView(viewType) {
+        // 모든 버튼의 active 클래스 제거 (기존 컨트롤)
+        document.querySelectorAll('.view-button').forEach(btn => btn.classList.remove('active'));
+        event.target.classList.add('active');
+        
+        // 플로팅 컨트롤도 동기화
+        document.querySelectorAll('.floating-view-button').forEach(btn => btn.classList.remove('active'));
+        const floatingButton = document.querySelector(`.floating-view-button[onclick="setFloatingView('${viewType}')"]`);
+        if (floatingButton) floatingButton.classList.add('active');
+        
+        const views = {
+            'top': { pitch: 0, bearing: 0, zoom: 13 },
+            'angle': { pitch: 60, bearing: 45, zoom: 13 },
+            'side': { pitch: 75, bearing: 90, zoom: 14 },
+            'bird': { pitch: 70, bearing: 30, zoom: 12 }
+        };
+        
+        const view = views[viewType];
+        map.easeTo({
+            pitch: view.pitch,
+            bearing: view.bearing,
+            zoom: view.zoom,
+            duration: 1500
+        });
+    }
+    
+    // 상태 메시지 표시
+    function showStatus(message, isError = false) {
+        const status = document.getElementById('status');
+        status.textContent = message;
+        status.style.display = 'block';
+        
+        if (!isError) {
+            setTimeout(() => {
+                status.style.display = 'none';
+            }, 3000);
+        }
+    }
+    
+    // 인구수에 따른 색상 반환 (더 선명한 색상)
+    function getColorByPopulation(population) {
+        if (population >= 25000) return '#a63603';
+        if (population >= 20000) return '#d94801';
+        if (population >= 15000) return '#f16913';
+        if (population >= 10000) return '#fd8d3c';
+        if (population >= 5000) return '#fdae6b';
+        return '#fdd0a2';
+    }
+    
+    // 인구수에 따른 높이 계산 (더 극적인 높이 차이)
+    function getHeightByPopulation(population) {
+        const minHeight = 10;
+        const maxHeight = 1500; // 더 높은 최대 높이
+        const normalizedPop = Math.max(0, population);
+        const maxPop = 30000;
+        
+        // 제곱근 스케일로 더 드라마틱한 높이 차이
+        const normalizedRatio = Math.sqrt(normalizedPop / maxPop);
+        return minHeight + (maxHeight - minHeight) * normalizedRatio;
+    }
+    
+    // 시간 포맷팅
+    function formatHour(hour) {
+        return `${hour.toString().padStart(2, '0')}:00`;
+    }
+    
+    // 통계 업데이트
+    function updateStats(hourlyData) {
+        const populations = Object.values(hourlyData).filter(pop => pop > 0);
+        if (populations.length === 0) return;
+        
+        const total = populations.reduce((sum, pop) => sum + pop, 0);
+        const average = total / populations.length;
+        const maximum = Math.max(...populations);
+        
+        document.getElementById('totalPop').textContent = total.toLocaleString(undefined, {maximumFractionDigits: 0});
+        document.getElementById('avgPop').textContent = average.toLocaleString(undefined, {maximumFractionDigits: 0});
+        document.getElementById('maxPop').textContent = maximum.toLocaleString(undefined, {maximumFractionDigits: 0});
+        document.getElementById('activeGrids').textContent = populations.length.toLocaleString();
+    }
+    // 4부
+// 바이리니어 보간 함수
+    function bilinearInterpolation(x, y, x1, y1, x2, y2, q11, q12, q21, q22) {
+        const r1 = ((x2 - x) / (x2 - x1)) * q11 + ((x - x1) / (x2 - x1)) * q21;
+        const r2 = ((x2 - x) / (x2 - x1)) * q12 + ((x - x1) / (x2 - x1)) * q22;
+        return ((y2 - y) / (y2 - y1)) * r1 + ((y - y1) / (y2 - y1)) * r2;
+    }
+    
+    // 부드러운 보간된 격자 생성
+    function createInterpolatedGrid(matrix, bounds, rows, cols, interpolationFactor = 2) {
+        const features = [];
+        const stepLng = (bounds.maxLng - bounds.minLng) / (cols * interpolationFactor);
+        const stepLat = (bounds.maxLat - bounds.minLat) / (rows * interpolationFactor);
+        
+        for (let i = 0; i < rows * interpolationFactor - 1; i++) {
+            for (let j = 0; j < cols * interpolationFactor - 1; j++) {
+                // 현재 위치의 좌표
+                const lng = bounds.minLng + j * stepLng;
+                const lat = bounds.minLat + i * stepLat;
+                
+                // 원본 격자에서의 위치
+                const origRow = i / interpolationFactor;
+                const origCol = j / interpolationFactor;
+                
+                // 주변 4개 격자의 인덱스
+                const r1 = Math.floor(origRow);
+                const r2 = Math.min(r1 + 1, rows - 1);
+                const c1 = Math.floor(origCol);
+                const c2 = Math.min(c1 + 1, cols - 1);
+                
+                // 보간할 값들
+                const q11 = matrix[r1] && matrix[r1][c1] ? matrix[r1][c1] : 0;
+                const q12 = matrix[r2] && matrix[r2][c1] ? matrix[r2][c1] : 0;
+                const q21 = matrix[r1] && matrix[r1][c2] ? matrix[r1][c2] : 0;
+                const q22 = matrix[r2] && matrix[r2][c2] ? matrix[r2][c2] : 0;
+                
+                // 보간된 값 계산
+                let interpolatedValue;
+                if (r1 === r2 && c1 === c2) {
+                    interpolatedValue = q11;
+                } else if (r1 === r2) {
+                    interpolatedValue = q11 + (q21 - q11) * (origCol - c1);
+                } else if (c1 === c2) {
+                    interpolatedValue = q11 + (q12 - q11) * (origRow - r1);
+                } else {
+                    interpolatedValue = bilinearInterpolation(
+                        origCol, origRow, c1, r1, c2, r2, q11, q12, q21, q22
+                    );
+                }
+                
+                // 최소 임계값 적용
+                if (interpolatedValue < 100) continue;
+                
+                // 부드러운 사각형 생성 (모서리 둥글게)
+                const cellSize = Math.min(stepLng, stepLat) * 0.9; // 약간 겹치게
+                const polygon = [[
+                    [lng, lat],
+                    [lng + cellSize, lat],
+                    [lng + cellSize, lat + cellSize],
+                    [lng, lat + cellSize],
+                    [lng, lat]
+                ]];
+                
+                features.push({
+                    type: 'Feature',
+                    properties: {
+                        gridId: `interpolated_${i}_${j}`,
+                        population: interpolatedValue,
+                        color: getColorByPopulation(interpolatedValue),
+                        height: getHeightByPopulation(interpolatedValue),
+                        row: i,
+                        col: j,
+                        interpolated: true
+                    },
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: polygon
+                    }
+                });
+            }
+        }
+        
+        return features;
+    }
+    
+    // 부드러운 보간 함수 (시간 사이의 값들 계산)
+    function interpolateHourlyData(hour, progress = 0) {
+        const currentHourKey = formatHour(Math.floor(hour));
+        const nextHourKey = formatHour((Math.floor(hour) + 1) % 24);
+        
+        const currentData = gridPopulationData[currentHourKey];
+        const nextData = gridPopulationData[nextHourKey];
+        
+        if (!currentData || !nextData) return currentData || {};
+        
+        const interpolatedData = {};
+        
+        // 모든 격자에 대해 보간
+        Object.keys(currentData).forEach(gridId => {
+            const current = currentData[gridId] || 0;
+            const next = nextData[gridId] || 0;
+            
+            // 코사인 보간으로 부드러운 전환
+            const t = progress;
+            const cosineT = (1 - Math.cos(t * Math.PI)) / 2;
+            interpolatedData[gridId] = current + (next - current) * cosineT;
+        });
+        
+        return interpolatedData;
+    }
+    
+    // 부드러운 파동 효과를 위한 GeoJSON 생성
+    function createSmoothGeoJSONData(hour, progress = 0) {
+        const interpolatedPopulation = interpolateHourlyData(hour, progress);
+        
+        if (Object.keys(interpolatedPopulation).length === 0) {
+            return { type: 'FeatureCollection', features: [] };
+        }
+        
+        // 행렬 형태로 데이터 변환
+        const { matrix, bounds, rows, cols } = createPopulationMatrix(interpolatedPopulation);
+        
+        // 보간된 격자 생성 (해상도 높임)
+        const interpolatedFeatures = createInterpolatedGrid(matrix, bounds, rows, cols, 4);
+        
+        return {
+            type: 'FeatureCollection',
+            features: interpolatedFeatures
+        };
+    }
+    
+    // 행렬 생성 함수 수정 (보간된 데이터 지원)
+    function createPopulationMatrix(hourlyPopulation) {
+        const coordinatesArray = Array.isArray(gridCoordinatesData) ? 
+            gridCoordinatesData : Object.values(gridCoordinatesData);
+        
+        // 행렬 크기 계산
+        const maxRow = Math.max(...coordinatesArray.map(grid => grid.row || 0));
+        const maxCol = Math.max(...coordinatesArray.map(grid => grid.col || 0));
+        
+        // 행렬 초기화
+        const matrix = Array(maxRow + 1).fill().map(() => Array(maxCol + 1).fill(0));
+        const bounds = {
+            minLng: Infinity, maxLng: -Infinity,
+            minLat: Infinity, maxLat: -Infinity
+        };
+        
+        // 데이터 채우기
+        coordinatesArray.forEach((grid, index) => {
+            const population = hourlyPopulation[index.toString()] || 0;
+            const row = grid.row || 0;
+            const col = grid.col || 0;
+            
+            matrix[row][col] = population;
+            
+            // 경계 계산
+            const lng = grid.lng;
+            const lat = grid.lat;
+            bounds.minLng = Math.min(bounds.minLng, lng);
+            bounds.maxLng = Math.max(bounds.maxLng, lng);
+            bounds.minLat = Math.min(bounds.minLat, lat);
+            bounds.maxLat = Math.max(bounds.maxLat, lat);
+        });
+        
+        return { matrix, bounds, rows: maxRow + 1, cols: maxCol + 1 };
+    }
+    
+    // 부드러운 보간된 격자 생성
+    function createInterpolatedGrid(matrix, bounds, rows, cols, interpolationFactor = 2) {
+        const features = [];
+        const stepLng = (bounds.maxLng - bounds.minLng) / (cols * interpolationFactor);
+        const stepLat = (bounds.maxLat - bounds.minLat) / (rows * interpolationFactor);
+        
+        for (let i = 0; i < rows * interpolationFactor - 1; i++) {
+            for (let j = 0; j < cols * interpolationFactor - 1; j++) {
+                // 현재 위치의 좌표
+                const lng = bounds.minLng + j * stepLng;
+                const lat = bounds.minLat + i * stepLat;
+                
+                // 원본 격자에서의 위치
+                const origRow = i / interpolationFactor;
+                const origCol = j / interpolationFactor;
+                
+                // 주변 4개 격자의 인덱스
+                const r1 = Math.floor(origRow);
+                const r2 = Math.min(r1 + 1, rows - 1);
+                const c1 = Math.floor(origCol);
+                const c2 = Math.min(c1 + 1, cols - 1);
+                
+                // 보간할 값들
+                const q11 = matrix[r1] && matrix[r1][c1] ? matrix[r1][c1] : 0;
+                const q12 = matrix[r2] && matrix[r2][c1] ? matrix[r2][c1] : 0;
+                const q21 = matrix[r1] && matrix[r1][c2] ? matrix[r1][c2] : 0;
+                const q22 = matrix[r2] && matrix[r2][c2] ? matrix[r2][c2] : 0;
+                
+                // 보간된 값 계산
+                let interpolatedValue;
+                if (r1 === r2 && c1 === c2) {
+                    interpolatedValue = q11;
+                } else if (r1 === r2) {
+                    interpolatedValue = q11 + (q21 - q11) * (origCol - c1);
+                } else if (c1 === c2) {
+                    interpolatedValue = q11 + (q12 - q11) * (origRow - r1);
+                } else {
+                    interpolatedValue = bilinearInterpolation(
+                        origCol, origRow, c1, r1, c2, r2, q11, q12, q21, q22
+                    );
+                }
+                
+                // 최소 임계값 적용
+                if (interpolatedValue < 100) continue;
+                
+                // 부드러운 사각형 생성 (모서리 둥글게)
+                const cellSize = Math.min(stepLng, stepLat) * 0.9; // 약간 겹치게
+                const polygon = [[
+                    [lng, lat],
+                    [lng + cellSize, lat],
+                    [lng + cellSize, lat + cellSize],
+                    [lng, lat + cellSize],
+                    [lng, lat]
+                ]];
+                
+                features.push({
+                    type: 'Feature',
+                    properties: {
+                        gridId: `interpolated_${i}_${j}`,
+                        population: interpolatedValue,
+                        color: getColorByPopulation(interpolatedValue),
+                        height: getHeightByPopulation(interpolatedValue),
+                        row: i,
+                        col: j,
+                        interpolated: true
+                    },
+                    geometry: {
+                        type: 'Polygon',
+                        coordinates: polygon
+                    }
+                });
+            }
+        }
+        
+        return features;
+    }
+    
+    // GeoJSON 데이터 생성 (보간 적용)
+    function createGeoJSONData(hour) {
+        const hourKey = formatHour(hour);
+        const hourlyPopulation = gridPopulationData[hourKey];
+        
+        if (!hourlyPopulation) {
+            console.error(`No data for hour ${hourKey}`);
+            return { type: 'FeatureCollection', features: [] };
+        }
+        
+        // 행렬 형태로 데이터 변환
+        const { matrix, bounds, rows, cols } = createPopulationMatrix(hourlyPopulation);
+        
+        // 보간된 격자 생성
+        const interpolatedFeatures = createInterpolatedGrid(matrix, bounds, rows, cols, 3);
+        
+        return {
+            type: 'FeatureCollection',
+            features: interpolatedFeatures
+        };
+    }
+    
+    // 부드러운 3D 바 플롯 업데이트 (파동 효과)
+    function updateSmoothVisualization(hour, progress = 0) {
+        const geoJsonData = createSmoothGeoJSONData(hour, progress);
+        
+        if (geoJsonData.features.length === 0) {
+            console.warn(`No data to visualize for hour ${hour} with progress ${progress}`);
+            return;
+        }
+        
+        if (map.getSource('population-data')) {
+            map.getSource('population-data').setData(geoJsonData);
+        } else {
+            map.addSource('population-data', {
+                type: 'geojson',
+                data: geoJsonData
+            });
+            
+            // 더 부드러운 3D 바 레이어
+            map.addLayer({
+                id: 'population-bars',
+                type: 'fill-extrusion',
+                source: 'population-data',
+                paint: {
+                    'fill-extrusion-color': ['get', 'color'],
+                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-base': 0,
+                    'fill-extrusion-opacity': 0.85,
+                    'fill-extrusion-ambient-occlusion-intensity': 0.4,
+                    'fill-extrusion-ambient-occlusion-radius': 4.0
+                }
+            });
+            
+            // 부드러운 전환을 위한 레이어 애니메이션
+            map.setPaintProperty('population-bars', 'fill-extrusion-opacity', 0);
+            setTimeout(() => {
+                map.setPaintProperty('population-bars', 'fill-extrusion-opacity', 0.85);
+            }, 100);
+            
+            // 팝업 추가 (보간된 데이터 지원)
+            map.on('click', 'population-bars', (e) => {
+                const properties = e.features[0].properties;
+                const isInterpolated = properties.interpolated;
+                
+                new mapboxgl.Popup({
+                    closeButton: false,
+                    closeOnClick: false
+                })
+                    .setLngLat(e.lngLat)
+                    .setHTML(`
+                        <div style="font-family: Arial; padding: 12px; border-radius: 8px; background: linear-gradient(45deg, #667eea, #764ba2); color: white; min-width: 180px;">
+                            <div style="font-weight: bold; margin-bottom: 10px; text-align: center;">
+                                ${isInterpolated ? '🌊 파동 영역' : '🏢 격자 정보'}
+                            </div>
+                            <div style="margin-bottom: 5px;"><strong>ID:</strong> ${properties.gridId}</div>
+                            ${!isInterpolated ? `<div style="margin-bottom: 5px;"><strong>위치:</strong> Row ${properties.row}, Col ${properties.col}</div>` : ''}
+                            <div style="margin-bottom: 5px;"><strong>시간:</strong> ${formatHour(hour + progress)}</div>
+                            <div style="margin-bottom: 5px;"><strong>인구:</strong> ${Math.round(properties.population).toLocaleString()}명</div>
+                            <div style="margin-bottom: 5px;"><strong>높이:</strong> ${Math.round(properties.height)}m</div>
+                            ${isInterpolated ? '<div style="font-size: 10px; color: #cccccc; margin-top: 8px;">* 시간 보간으로 생성된 부드러운 파동</div>' : ''}
+                        </div>
+                    `)
+                    .addTo(map);
+            });
+            
+            map.on('mouseenter', 'population-bars', () => {
+                map.getCanvas().style.cursor = 'pointer';
+            });
+            
+            map.on('mouseleave', 'population-bars', () => {
+                map.getCanvas().style.cursor = '';
+                // 팝업 제거
+                const popups = document.getElementsByClassName('mapboxgl-popup');
+                if (popups.length) {
+                    popups[0].remove();
+                }
+            });
+            
+            // 지도 중심을 데이터 영역으로 이동
+            const bounds = new mapboxgl.LngLatBounds();
+            geoJsonData.features.forEach(feature => {
+                feature.geometry.coordinates[0].forEach(coord => {
+                    bounds.extend(coord);
+                });
+            });
+            map.fitBounds(bounds, { padding: 80 });
+        }
+        
+        // 통계 업데이트 (보간된 데이터로)
+        const interpolatedData = interpolateHourlyData(hour, progress);
+        updateStats(interpolatedData);
+    }
+    
+    // 기존 updateVisualization 함수 (호환성 유지)
+    function updateVisualization(hour) {
+        updateSmoothVisualization(hour, 0);
+    }
+    
+    // 부드러운 시간 변경 (소수점 시간 지원)
+    function changeSmoothHour(hour) {
+        currentHour = hour;
+        
+        // 정수 시간과 진행률 계산
+        const integerHour = Math.floor(hour);
+        const progress = hour - integerHour;
+        
+        // 기존 슬라이더 업데이트
+        const mainSlider = document.getElementById('timeSlider');
+        const mainDisplay = document.getElementById('timeDisplay');
+        if (mainSlider) mainSlider.value = integerHour;
+        if (mainDisplay) {
+            const displayHour = integerHour + (progress > 0.5 ? 1 : 0);
+            mainDisplay.textContent = formatHour(displayHour % 24);
+        }
+        
+        // 플로팅 슬라이더 업데이트
+        const floatingSlider = document.getElementById('floatingTimeSlider');
+        const floatingDisplay = document.getElementById('floatingTimeDisplay');
+        if (floatingSlider) floatingSlider.value = integerHour;
+        if (floatingDisplay) {
+            const displayHour = integerHour + (progress > 0.5 ? 1 : 0);
+            floatingDisplay.textContent = formatHour(displayHour % 24);
+        }
+        
+        updateSmoothVisualization(integerHour, progress);
+    }
+    
+    // 시간 변경 (호환성 유지 - 정수 시간용)
+    function changeHour(hour) {
+        changeSmoothHour(hour);
+    }
+    
+    // 부드러운 자동 재생 (파동 효과)
+    function toggleSmoothPlay() {
+        const playButton = document.getElementById('playButton');
+        const floatingPlayButton = document.getElementById('floatingPlayButton');
+        
+        if (isPlaying) {
+            clearInterval(playInterval);
+            if (playButton) {
+                playButton.textContent = '▶';
+                playButton.title = '자동 재생';
+            }
+            if (floatingPlayButton) {
+                floatingPlayButton.textContent = '▶';
+                floatingPlayButton.title = '자동 재생';
+            }
+            isPlaying = false;
+        } else {
+            let smoothHour = currentHour;
+            playInterval = setInterval(() => {
+                smoothHour += 0.1; // 0.1시간(6분) 단위로 증가
+                if (smoothHour >= 24) smoothHour = 0;
+                changeSmoothHour(smoothHour);
+            }, 150); // 150ms마다 업데이트 (매우 부드러움)
+            
+            if (playButton) {
+                playButton.textContent = '⏸';
+                playButton.title = '재생 중지';
+            }
+            if (floatingPlayButton) {
+                floatingPlayButton.textContent = '⏸';
+                floatingPlayButton.title = '재생 중지';
+            }
+            isPlaying = true;
+        }
+    }
+    
+    // 기존 togglePlay 함수 오버라이드
+    function togglePlay() {
+        toggleSmoothPlay();
+    }
+    // 5부
+// 자동 데이터 로드
+    async function autoLoadData() {
+        try {
+            // JSON 파일들을 fetch로 로드
+            console.log('좌표 데이터 로딩 중...');
+            const coordinatesResponse = await fetch('./processed_data/grid_coordinates.json');
+            if (!coordinatesResponse.ok) {
+                throw new Error(`좌표 데이터 로드 실패: ${coordinatesResponse.status}`);
+            }
+            gridCoordinatesData = await coordinatesResponse.json();
+            console.log('✅ 좌표 데이터 로드 완료');
+            
+            console.log('인구 데이터 로딩 중...');
+            const populationResponse = await fetch('./processed_data/grid_population.json');
+            if (!populationResponse.ok) {
+                throw new Error(`인구 데이터 로드 실패: ${populationResponse.status}`);
+            }
+            gridPopulationData = await populationResponse.json();
+            console.log('✅ 인구 데이터 로드 완료');
+            
+            if (!gridCoordinatesData || !gridPopulationData) {
+                throw new Error('데이터 파일을 찾을 수 없습니다.');
+            }
+            
+            console.log('✅ 데이터 로드 완료!');
+            console.log('좌표 데이터:', Array.isArray(gridCoordinatesData) ? `${gridCoordinatesData.length}개 격자` : `${Object.keys(gridCoordinatesData).length}개 격자`);
+            console.log('인구 데이터:', `${Object.keys(gridPopulationData).length}개 시간대`);
+            
+            // 로딩 화면 숨기고 컨트롤 표시
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('statsPanel').style.display = 'block';
+            document.getElementById('floatingControls').style.display = 'flex';
+            
+            // 지도가 로드되면 렌더링
+            if (map.isStyleLoaded()) {
+                updateVisualization(currentHour);
+            } else {
+                map.on('style.load', () => updateVisualization(currentHour));
+            }
+            
+            showStatus(`🎉 데이터를 성공적으로 로드했습니다! 시간을 조절하여 인구 변화를 확인해보세요!`);
+            
+        } catch (error) {
+            console.error('데이터 로드 실패:', error);
+            document.getElementById('loadingSection').innerHTML = `
+                <div style="color: #dc3545; text-align: center;">
+                    <h3>❌ 데이터 로드 실패</h3>
+                    <p>다음 파일들을 업로드해주세요:</p>
+                    <ul style="text-align: left; display: inline-block;">
+                        <li>grid_coordinates.json (또는 grid__coordinates.json)</li>
+                        <li>grid_population.json</li>
+                    </ul>
+                    <div style="margin-top: 20px;">
+                        <input type="file" id="manualGridCoordinates" accept=".json" style="margin: 5px;">
+                        <input type="file" id="manualGridPopulation" accept=".json" style="margin: 5px;">
+                        <button onclick="manualLoadData()" style="padding: 10px 20px; background: #667eea; color: white; border: none; border-radius: 4px; cursor: pointer;">수동 로드</button>
+                    </div>
+                </div>
+            `;
+        }
+    }
+    // 6부
+// 수동 데이터 로드
+    async function manualLoadData() {
+        try {
+            const coordinatesFile = document.getElementById('manualGridCoordinates').files[0];
+            const populationFile = document.getElementById('manualGridPopulation').files[0];
+            
+            if (!coordinatesFile || !populationFile) {
+                alert('두 파일을 모두 선택해주세요.');
+                return;
+            }
+            
+            const coordinatesText = await coordinatesFile.text();
+            const populationText = await populationFile.text();
+            
+            gridCoordinatesData = JSON.parse(coordinatesText);
+            gridPopulationData = JSON.parse(populationText);
+            
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('statsPanel').style.display = 'block';
+            document.getElementById('floatingControls').style.display = 'flex';
+            
+            if (map.isStyleLoaded()) {
+                updateVisualization(currentHour);
+            } else {
+                map.on('style.load', () => updateVisualization(currentHour));
+            }
+            
+            showStatus(`🎉 수동으로 데이터를 성공적으로 로드했습니다!`);
+            
+        } catch (error) {
+            console.error('수동 로드 실패:', error);
+            alert('파일 로드 중 오류가 발생했습니다: ' + error.message);
+        }
+    }
+    
+    // 이벤트 리스너
+    document.addEventListener('DOMContentLoaded', () => {
+        // 플로팅 슬라이더
+        const floatingTimeSlider = document.getElementById('floatingTimeSlider');
+        if (floatingTimeSlider) {
+            floatingTimeSlider.addEventListener('input', (e) => {
+                if (!isPlaying) {
+                    changeHour(parseInt(e.target.value));
+                }
+            });
+        }
+    });
+    
+    // 키보드 단축키
+    document.addEventListener('keydown', (e) => {
+        if (gridPopulationData) {
+            switch(e.code) {
+                case 'ArrowLeft':
+                    e.preventDefault();
+                    if (!isPlaying) changeHour(Math.max(0, currentHour - 1));
+                    break;
+                case 'ArrowRight':
+                    e.preventDefault();
+                    if (!isPlaying) changeHour(Math.min(23, currentHour + 1));
+                    break;
+                case 'Space':
+                    e.preventDefault();
+                    togglePlay();
+                    break;
+            }
+        }
+    });
+    
+    // 지도 초기화 및 자동 데이터 로드
+    initializeMap();
+    
+    // 페이지 로드 후 자동으로 데이터 로드 시도
+    setTimeout(autoLoadData, 1000);
+</script>
