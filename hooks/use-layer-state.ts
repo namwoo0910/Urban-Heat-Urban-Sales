@@ -198,77 +198,30 @@ export function useLayerState(): UseLayerStateReturn {
     setLayerConfig(DEFAULT_LAYER_CONFIG)
   }, [])
   
-  // 데이터 로딩 함수
+  // 데이터 로딩 함수 (dummy-hexagon-data.json 사용)
   const loadData = useCallback(async () => {
     console.log('[HexagonLayer] 데이터 로딩 시작...')
     setIsDataLoading(true)
     setDataError(null)
     
     try {
-      console.log('[HexagonLayer] Fetching data from /dummy-hexagon-data.json')
+      // dummy-hexagon-data.json 파일 로드
       const response = await fetch('/dummy-hexagon-data.json')
-      
-      console.log('[HexagonLayer] Fetch response:', {
-        ok: response.ok,
-        status: response.status,
-        statusText: response.statusText,
-        url: response.url
-      })
-      
       if (!response.ok) {
-        throw new Error(`데이터 로딩 실패: ${response.status} ${response.statusText} (URL: ${response.url})`)
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`)
       }
       
-      const data: HexagonLayerData[] = await response.json()
-      console.log('[HexagonLayer] Raw data received:', {
-        isArray: Array.isArray(data),
-        length: Array.isArray(data) ? data.length : 'N/A',
-        firstItem: Array.isArray(data) && data.length > 0 ? data[0] : 'N/A'
-      })
+      const data = await response.json()
+      console.log(`[HexagonLayer] 데이터 로딩 완료: ${data.length}개 포인트`)
+      console.log(`[HexagonLayer] 샘플 데이터:`, data.slice(0, 3))
       
-      // 데이터 유효성 검증
-      if (!Array.isArray(data)) {
-        throw new Error('잘못된 데이터 형식: 배열이 아닙니다')
-      }
-      
-      // 각 데이터 포인트 유효성 검증
-      const validData = data.filter((item, index) => {
-        if (!item.coordinates || !Array.isArray(item.coordinates) || item.coordinates.length !== 2) {
-          console.warn(`잘못된 좌표 데이터 (인덱스 ${index}):`, item)
-          return false
-        }
-        
-        if (typeof item.weight !== 'number' || item.weight < 0) {
-          console.warn(`잘못된 가중치 데이터 (인덱스 ${index}):`, item)
-          return false
-        }
-        
-        return true
-      })
-      
-      if (validData.length === 0) {
-        throw new Error('유효한 데이터가 없습니다')
-      }
-      
-      if (validData.length < data.length) {
-        console.warn(`${data.length - validData.length}개의 잘못된 데이터 포인트가 제외되었습니다`)
-      }
-      
-      setHexagonData(validData)
-      console.log(`[HexagonLayer] 데이터 로딩 완료: ${validData.length}개 포인트`)
-      console.log(`[HexagonLayer] 샘플 데이터:`, validData.slice(0, 3))
+      setHexagonData(data)
       
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다'
-      setDataError(errorMessage)
-      console.error('[HexagonLayer] 데이터 로딩 실패:', error)
+      console.error('[HexagonLayer] 데이터 로드 실패:', error)
       
-      // 추가 디버그 정보
-      console.error('[HexagonLayer] Debug info:', {
-        currentURL: window.location.href,
-        fetchURL: '/dummy-hexagon-data.json',
-        error: error
-      })
+      const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다'
+      setDataError(`데이터 로드 실패: ${errorMessage}`)
     } finally {
       setIsDataLoading(false)
     }
