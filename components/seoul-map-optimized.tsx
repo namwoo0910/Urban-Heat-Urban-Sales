@@ -10,6 +10,10 @@ import { generateSeoulParticles, generateSeoulParticlesWithBoundary, updateParti
 import type { ParticleData } from "@/utils/particle-data"
 import { loadSeoulBoundaries } from "@/utils/seoul-boundaries"
 import type { SeoulBoundaryData } from "@/utils/seoul-boundaries"
+import { precomputeBoundaryGrid } from "@/utils/seoul-boundaries-optimized"
+import { generateParticlesOptimized, generateInitialParticles, createParticleBuffers } from "@/utils/particle-data-optimized"
+import { useParticleCache } from "@/hooks/use-particle-cache"
+import { useParticleWorker } from "@/hooks/use-particle-worker"
 import useParticleAnimations from "@/hooks/use-particle-animations"
 import type { AnimationConfig } from "@/hooks/use-particle-animations"
 import { WaveLayer } from "@/components/wave-layer-integrated"
@@ -315,114 +319,143 @@ export function SeoulMapOptimized({
 
   // Animation config and map style changes handled by parent
 
-  // Enhanced data loading with comprehensive error handling and retry logic
+  // Particle cache hook
+  const { 
+    isReady: cacheReady, 
+    loadParticles: loadCachedParticles, 
+    saveParticles: saveCachedParticles 
+  } = useParticleCache()
+  
+  // Particle worker hook
+  const {
+    generateParticles: generateWithWorker,
+    progress: workerProgress,
+    isGenerating: workerGenerating
+  } = useParticleWorker()
+
+  // Enhanced data loading with optimizations
   useEffect(() => {
-    async function loadDataWithRetry(attempt: number = 0): Promise<void> {
+    async function loadDataOptimized(): Promise<void> {
       try {
         setIsLoading(true)
         setError(null)
         setLoadingProgress(0)
-        setLoadingPhase('Loading boundaries...')
         
-        if (attempt > 0) {
-          setLoadingPhase(`Retrying... (${attempt}/${maxRetries})`)
-          await new Promise(resolve => setTimeout(resolve, 1000 * attempt)) // Exponential backoff
-        }
-        
-        const boundaries = await loadSeoulBoundaries()
-        setBoundaryData(boundaries)
-        
-        setLoadingPhase('Generating particles...')
-        setLoadingProgress(10)
-        
-        // Generate particles within actual Seoul boundaries with progress tracking
-        const particlesInSeoul = await generateSeoulParticlesWithBoundary(
-          config.particleCount,
-          boundaries,
-          (progress) => {
-            // Convert generation progress (0-100) to overall progress (10-90)
-            const overallProgress = 10 + (progress * 0.8)
-            setLoadingProgress(overallProgress)
-            
-            if (progress < 25) {
-              setLoadingPhase('Analyzing Seoul districts...')
-            } else if (progress < 50) {
-              setLoadingPhase('Generating high-density areas...')
-            } else if (progress < 75) {
-              setLoadingPhase('Creating particle network...')
-            } else {
-              setLoadingPhase('Finalizing particles...')
-            }
-          },
-          animationConfig.colorTheme
-        )
-        
-        setLoadingPhase('Ready!')
-        setLoadingProgress(100)
-        setParticles(particlesInSeoul)
-        // Initialize animatedData with scattered positions for dramatic initial effect
-        setAnimatedData(particlesInSeoul.map(p => ({
-          position: [
-            p.position[0] + (Math.random() - 0.5) * 0.05,  // Random scatter offset
-            p.position[1] + (Math.random() - 0.5) * 0.05
-          ] as [number, number],
+        // Step 1: Show initial particles immediately (instant feedback)
+        const initialParticles = generateInitialParticles(animationConfig.colorTheme)
+        setParticles(initialParticles)
+        setAnimatedData(initialParticles.map(p => ({
+          position: p.position,
           color: p.color,
           size: p.size,
           opacity: 255
         })))
-        setRetryCount(0) // Reset retry count on success
+        setLoadingPhase('Loading optimized data...')
+        setLoadingProgress(5)
         
-      } catch (error) {
-        console.error(`Data loading attempt ${attempt + 1} failed:`, error)
-        
-        if (attempt < maxRetries) {
-          setRetryCount(attempt + 1)
-          await loadDataWithRetry(attempt + 1)
-        } else {
-          // Final fallback after all retries
-          console.warn('All retry attempts failed, using fallback data')
-          setError('Failed to load Seoul boundary data. Using approximate boundaries.')
-          setLoadingPhase('Using fallback data...')
-          setLoadingProgress(50)
-          
-          try {
-            // Even fallback can fail, so wrap in try-catch
-            const fallbackParticles = generateSeoulParticles(config.particleCount)
-            setParticles(fallbackParticles)
-            // Initialize animatedData with scattered positions for fallback particles too
-            setAnimatedData(fallbackParticles.map(p => ({
-              position: [
-                p.position[0] + (Math.random() - 0.5) * 0.05,  // Random scatter offset
-                p.position[1] + (Math.random() - 0.5) * 0.05
-              ] as [number, number],
+        // Step 2: Try to load from IndexedDB cache first (ultra-fast)
+        if (cacheReady) {
+          const cached = await loadCachedParticles(config.particleCount, animationConfig.colorTheme)
+          if (cached) {
+            setLoadingPhase('Loaded from cache!')
+            setLoadingProgress(100)
+            setParticles(cached)
+            setAnimatedData(cached.map(p => ({
+              position: p.position,
               color: p.color,
               size: p.size,
               opacity: 255
             })))
-            setLoadingProgress(100)
-            setLoadingPhase('Fallback data loaded')
-          } catch (fallbackError) {
-            console.error('Fallback data generation failed:', fallbackError)
-            setError('Critical error: Unable to generate particle data.')
-            setLoadingPhase('Error')
-            setLoadingProgress(0)
+            setIsLoading(false)
+            return
           }
         }
+        
+        // Step 3: Load and pre-compute boundary grid
+        setLoadingPhase('Optimizing boundaries...')
+        const boundaries = await loadSeoulBoundaries()
+        setBoundaryData(boundaries)
+        setLoadingProgress(20)
+        
+        const grid = await precomputeBoundaryGrid(boundaries)
+        setLoadingProgress(30)
+        
+        // Step 4: Generate particles with optimized algorithm
+        setLoadingPhase('Generating particles...')
+        const particlesInSeoul = await generateParticlesOptimized(
+          config.particleCount,
+          grid,
+          animationConfig.colorTheme,
+          (progress) => {
+            const overallProgress = 30 + (progress * 0.6)
+            setLoadingProgress(overallProgress)
+            
+            if (progress < 25) {
+              setLoadingPhase('Analyzing districts...')
+            } else if (progress < 50) {
+              setLoadingPhase('Creating density map...')
+            } else if (progress < 75) {
+              setLoadingPhase('Optimizing layout...')
+            } else {
+              setLoadingPhase('Finalizing...')
+            }
+          }
+        )
+        
+        // Step 5: Create optimized buffers for rendering
+        const buffers = createParticleBuffers(particlesInSeoul)
+        
+        // Step 6: Save to cache for next time
+        if (cacheReady) {
+          saveCachedParticles(particlesInSeoul, animationConfig.colorTheme, buffers)
+        }
+        
+        setLoadingPhase('Ready!')
+        setLoadingProgress(100)
+        setParticles(particlesInSeoul)
+        setAnimatedData(particlesInSeoul.map(p => ({
+          position: p.position,
+          color: p.color,
+          size: p.size,
+          opacity: 255
+        })))
+        
+      } catch (error) {
+        console.error('Optimized data loading failed:', error)
+        setError('Using fallback particle generation')
+        
+        // Fallback to original method if optimizations fail
+        try {
+          const boundaries = await loadSeoulBoundaries()
+          const fallbackParticles = await generateSeoulParticlesWithBoundary(
+            config.particleCount,
+            boundaries,
+            undefined,
+            animationConfig.colorTheme
+          )
+          setParticles(fallbackParticles)
+          setAnimatedData(fallbackParticles.map(p => ({
+            position: p.position,
+            color: p.color,
+            size: p.size,
+            opacity: 255
+          })))
+          setLoadingProgress(100)
+        } catch (fallbackError) {
+          console.error('Fallback also failed:', fallbackError)
+          setError('Unable to generate particles')
+        }
       } finally {
-        // Small delay to show completion state
-        setTimeout(() => {
-          setIsLoading(false)
-          
-          // Initialize amplitude animation when particles are loaded
-          amplitudeAnimationRef.current = 15.0 // Reset to much higher amplitude for very dramatic scatter effect
-          animationStartTimeRef.current = Date.now() // Start time for animation
-        }, 200)
+        setIsLoading(false)
+        // Initialize amplitude animation when particles are loaded
+        amplitudeAnimationRef.current = 15.0 // Reset to much higher amplitude for very dramatic scatter effect
+        animationStartTimeRef.current = Date.now() // Start time for animation
       }
     }
     
     // Start the loading process
-    loadDataWithRetry()
-  }, [config.particleCount, maxRetries])
+    loadDataOptimized()
+  }, [config.particleCount, maxRetries, cacheReady, loadCachedParticles, saveCachedParticles, animationConfig.colorTheme])
 
   // Separate effect for color theme changes - only update colors, don't reload data
   useEffect(() => {
