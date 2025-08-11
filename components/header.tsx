@@ -21,7 +21,7 @@ export function Header() {
 
   return (
     <motion.header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 p-4">
-      <div className="container mx-auto flex justify-between items-center bg-black/20 backdrop-blur-md p-4 rounded-full">
+      <div className="container mx-auto flex justify-between items-center bg-black/80 backdrop-blur-md p-4 rounded-full">
         <TransitionLink href="/" className="text-white font-bold text-xl">
           KAIST
         </TransitionLink>

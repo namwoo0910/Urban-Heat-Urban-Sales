@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
-import { Map } from "react-map-gl"
+import Map from "react-map-gl"
 import { DeckGL } from "@deck.gl/react"
 import { ScatterplotLayer, LineLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
@@ -835,7 +835,7 @@ export function SeoulMapOptimized({
   }
 
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" id="seoul-map-container">
       {/* Conditional rendering based on layer type */}
       {animationConfig.layerType === 'particle' ? (
         <DeckGL
@@ -851,17 +851,28 @@ export function SeoulMapOptimized({
           getTooltip={() => null}
         >
         {/* Render Map with fixed dark theme */}
-        <Map
+        {typeof window !== 'undefined' && MAPBOX_TOKEN && (
+          <Map
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyle}
           reuseMaps={true}
           preserveDrawingBuffer={false}
+          attributionControl={false}
+          onError={(evt: any) => {
+            console.error('Map error in particle layer:', evt)
+          }}
           onLoad={(evt: any) => {
             const map = evt.target
             
+            // Ensure the map has initialized properly
+            if (!map || !map.getStyle) {
+              console.warn('Map not properly initialized')
+              return
+            }
+            
             try {
               // 최소한의 스타일 조정만
-              const layers = map.getStyle().layers
+              const layers = map.getStyle()?.layers
               layers?.forEach((layer: any) => {
                 if (layer.type === 'symbol') {
                   map.setLayoutProperty(layer.id, 'visibility', 'none')
@@ -875,6 +886,7 @@ export function SeoulMapOptimized({
             }
           }}
         />
+        )}
         
         {/* Black background overlay for Seoul area (conditional) - Particle Layer */}
         {animationConfig.blackBackgroundEnabled && (
@@ -899,31 +911,52 @@ export function SeoulMapOptimized({
         // Wave Layer with Mapbox background
         <>
           {/* Mapbox map as background */}
-          <Map
-            mapboxAccessToken={MAPBOX_TOKEN}
-            mapStyle={mapStyle}
-            {...viewState}
-            reuseMaps={true}
-            preserveDrawingBuffer={false}
-            onLoad={(evt: any) => {
-              const map = evt.target
-              
-              try {
-                // Same styling as particle layer
-                const layers = map.getStyle().layers
-                layers?.forEach((layer: any) => {
-                  if (layer.type === 'symbol') {
-                    map.setLayoutProperty(layer.id, 'visibility', 'none')
-                  }
-                  if (layer.type === 'line') {
-                    map.setPaintProperty(layer.id, 'line-opacity', 0.1)
-                  }
-                })
-              } catch (error) {
-                console.warn('Map styling failed:', error)
-              }
-            }}
-          />
+          <div className="w-full h-full" id="wave-map-container">
+            {typeof window !== 'undefined' && MAPBOX_TOKEN && (
+              <Map
+              mapboxAccessToken={MAPBOX_TOKEN}
+              mapStyle={mapStyle}
+              initialViewState={viewState}
+              reuseMaps={true}
+              preserveDrawingBuffer={false}
+              attributionControl={false}
+              style={{ width: '100%', height: '100%' }}
+              onError={(evt: any) => {
+                console.error('Map error in wave layer:', evt)
+              }}
+              onMove={(evt: any) => {
+                const { viewState } = evt
+                if (viewState) {
+                  setViewState(viewState)
+                }
+              }}
+              onLoad={(evt: any) => {
+                const map = evt.target
+                
+                // Ensure the map has initialized properly
+                if (!map || !map.getStyle) {
+                  console.warn('Map not properly initialized')
+                  return
+                }
+                
+                try {
+                  // Same styling as particle layer
+                  const layers = map.getStyle()?.layers
+                  layers?.forEach((layer: any) => {
+                    if (layer.type === 'symbol') {
+                      map.setLayoutProperty(layer.id, 'visibility', 'none')
+                    }
+                    if (layer.type === 'line') {
+                      map.setPaintProperty(layer.id, 'line-opacity', 0.1)
+                    }
+                  })
+                } catch (error) {
+                  console.warn('Map styling failed:', error)
+                }
+              }}
+            />
+            )}
+          </div>
           
           {/* Black background overlay for Seoul area (conditional) */}
           {animationConfig.blackBackgroundEnabled && (

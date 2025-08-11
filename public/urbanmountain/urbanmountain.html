@@ -9,36 +9,50 @@
     <style>
         body {
             margin: 0;
-            padding: 20px;
+            padding: 0;
             font-family: 'Arial', sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #000;
             color: white;
+            overflow: hidden;
         }
         .header {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
             text-align: center;
-            margin-bottom: 20px;
+            z-index: 1000;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(10px);
+            padding: 15px 30px;
+            border-radius: 12px;
         }
         .header h1 {
             margin: 0;
             color: white;
-            font-size: 28px;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            font-size: 24px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
         #map {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            height: 700px;
-            border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-            margin-bottom: 20px;
+            height: 100vh;
+            z-index: 1;
         }
         .controls {
-            margin-bottom: 20px;
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
             padding: 25px;
-            background: rgba(255,255,255,0.95);
+            background: rgba(0, 0, 0, 0.85);
             border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             backdrop-filter: blur(10px);
-            color: #333;
+            color: white;
+            z-index: 1000;
+            display: none;
         }
         .time-controls {
             display: flex;
@@ -133,12 +147,12 @@
         }
         .legend {
             position: absolute;
-            top: 20px;
+            top: 80px;
             right: 20px;
-            background: rgba(255,255,255,0.95);
+            background: rgba(0, 0, 0, 0.85);
             padding: 20px;
             border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             backdrop-filter: blur(10px);
             font-size: 12px;
             z-index: 1000;
@@ -146,7 +160,7 @@
         }
         .legend h4 {
             margin: 0 0 15px 0;
-            color: #333;
+            color: white;
             font-size: 16px;
             text-align: center;
             font-weight: bold;
@@ -180,7 +194,7 @@
         }
         .colorbar-label {
             font-size: 10px;
-            color: #333;
+            color: #ccc;
             line-height: 1;
             transform: translateY(-50%);
         }
@@ -192,15 +206,15 @@
             text-align: center;
             margin-bottom: 10px;
             font-weight: bold;
-            color: #333;
+            color: white;
         }
         .stats-panel {
             position: absolute;
-            top: 20px;
+            top: 80px;
             left: 20px;
-            background: rgba(255,255,255,0.95);
+            background: rgba(0, 0, 0, 0.85);
             border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             backdrop-filter: blur(10px);
             z-index: 1000;
             font-size: 13px;
@@ -214,12 +228,11 @@
         }
         .stats-panel h4 {
             margin: 0;
-            color: #333;
+            color: white;
             font-size: 16px;
             font-weight: bold;
             padding: 15px 20px;
-            background: linear-gradient(45deg, #667eea, #764ba2);
-            color: white;
+            background: linear-gradient(45deg, #4f46e5, #7c3aed);
             cursor: pointer;
             display: flex;
             align-items: center;
@@ -248,26 +261,26 @@
             justify-content: space-between;
             margin-bottom: 8px;
             padding: 5px 0;
-            border-bottom: 1px solid #eee;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
         }
         .stat-label {
-            color: #666;
+            color: #aaa;
             font-weight: 500;
         }
         .stat-value {
             font-weight: bold;
-            color: #333;
+            color: white;
         }
         
         /* 플로팅 컨트롤 패널 */
         .floating-controls {
-            position: absolute;
+            position: fixed;
             bottom: 20px;
             left: 20px;
-            background: rgba(255,255,255,0.95);
+            background: rgba(0, 0, 0, 0.85);
             padding: 15px;
             border-radius: 12px;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
             backdrop-filter: blur(10px);
             z-index: 1000;
             display: flex;
@@ -360,19 +373,32 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.3);
         }
         #status {
-            margin-top: 15px;
-            padding: 15px;
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 15px 25px;
             border-radius: 8px;
             font-weight: 500;
             text-align: center;
-            background: rgba(40, 167, 69, 0.1);
-            color: #155724;
-            border: 1px solid rgba(40, 167, 69, 0.3);
+            background: rgba(0, 0, 0, 0.85);
+            color: #4ade80;
+            border: 1px solid rgba(74, 222, 128, 0.3);
+            backdrop-filter: blur(10px);
+            z-index: 1001;
         }
         .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             text-align: center;
             font-size: 18px;
-            margin: 20px 0;
+            z-index: 2000;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
         }
         .spinner {
             border: 4px solid #f3f3f3;
@@ -403,8 +429,8 @@
     
     <div id="status" style="display: none;"></div>
     
+    <div id="map"></div>
     <div style="position: relative;">
-        <div id="map"></div>
         
         <div class="legend">
             <h4>🏙️ 인구 수</h4>
@@ -423,7 +449,7 @@
                     <div class="colorbar-label">0</div>
                 </div>
             </div>
-            <div style="text-align: center; margin-top: 10px; font-size: 10px; color: #666;">
+            <div style="text-align: center; margin-top: 10px; font-size: 10px; color: #aaa;">
                 높이는 인구수에 비례
             </div>
         </div>
@@ -484,15 +510,37 @@
     
     // 지도 초기화 - 더 극적인 3D 뷰
     function initializeMap() {
-        map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/dark-v11', // 어두운 스타일로 3D 효과 강조
-            center: [127.0, 37.5],
-            zoom: 13,
-            pitch: 70, // 높은 각도로 3D 효과 극대화
-            bearing: 30, // 약간 회전하여 입체감 증가
-            antialias: true // 안티앨리어싱으로 더 부드러운 렌더링
-        });
+        // Check if Mapbox GL JS is loaded
+        if (typeof mapboxgl === 'undefined') {
+            console.error('Mapbox GL JS not loaded yet');
+            setTimeout(initializeMap, 200); // Retry after 200ms
+            return;
+        }
+        
+        // Check if container element exists
+        const mapContainer = document.getElementById('map');
+        if (!mapContainer) {
+            console.error('Map container element not found');
+            setTimeout(initializeMap, 100); // Retry after 100ms
+            return;
+        }
+        
+        try {
+            map = new mapboxgl.Map({
+                container: mapContainer, // Use the actual element instead of string ID
+                style: 'mapbox://styles/mapbox/dark-v11', // 어두운 스타일로 3D 효과 강조
+                center: [127.0, 37.5],
+                zoom: 13,
+                pitch: 70, // 높은 각도로 3D 효과 극대화
+                bearing: 30, // 약간 회전하여 입체감 증가
+                antialias: true // 안티앨리어싱으로 더 부드러운 렌더링
+            });
+        } catch (error) {
+            console.error('Failed to initialize map:', error);
+            // Retry after a delay
+            setTimeout(initializeMap, 500);
+            return;
+        }
         
         map.addControl(new mapboxgl.NavigationControl());
         
@@ -1186,8 +1234,23 @@
     });
     
     // 지도 초기화 및 자동 데이터 로드
-    initializeMap();
+    // Ensure DOM and all resources are fully loaded before initializing the map
+    function startApplication() {
+        initializeMap();
+        // 페이지 로드 후 자동으로 데이터 로드 시도
+        setTimeout(autoLoadData, 1000);
+    }
     
-    // 페이지 로드 후 자동으로 데이터 로드 시도
-    setTimeout(autoLoadData, 1000);
+    if (document.readyState === 'complete') {
+        // Everything is already loaded
+        startApplication();
+    } else if (document.readyState === 'interactive' || document.readyState === 'loading') {
+        // Wait for window load to ensure all resources including Mapbox GL JS are loaded
+        window.addEventListener('load', startApplication);
+    } else {
+        // Fallback
+        document.addEventListener('DOMContentLoaded', function() {
+            window.addEventListener('load', startApplication);
+        });
+    }
 </script>
