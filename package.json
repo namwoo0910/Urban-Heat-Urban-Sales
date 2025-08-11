@@ -9,13 +9,17 @@
     "start": "next start"
   },
   "dependencies": {
+    "@deck.gl/aggregation-layers": "^9.1.14",
     "@deck.gl/core": "^9.1.14",
     "@deck.gl/extensions": "^9.1.14",
     "@deck.gl/layers": "^9.1.14",
     "@deck.gl/react": "^9.1.14",
+    "@deck.gl/widgets": "^9.1.14",
     "@emotion/is-prop-valid": "latest",
     "@gsap/react": "latest",
     "@hookform/resolvers": "^3.9.1",
+    "@loaders.gl/core": "^4.2.0",
+    "@loaders.gl/csv": "^4.2.0",
     "@radix-ui/react-accordion": "1.2.2",
     "@radix-ui/react-alert-dialog": "1.1.4",
     "@radix-ui/react-aspect-ratio": "1.1.1",

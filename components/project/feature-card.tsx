@@ -9,7 +9,10 @@ import {
   Share2, 
   Atom, 
   Zap, 
-  Infinity 
+  Infinity,
+  Map,
+  Layers,
+  RotateCw 
 } from "lucide-react"
 
 interface FeatureCardProps {
@@ -29,6 +32,9 @@ const iconMap = {
   Atom,
   Zap,
   Infinity,
+  Map,
+  Layers,
+  RotateCw,
 }
 
 const FeatureCard = ({ icon, title, description, index }: FeatureCardProps) => {
