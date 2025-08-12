@@ -84,15 +84,15 @@ export function Hero() {
     { scope: container },
   )
 
-  const words = ["기후", "카드매출", "유동인구"]
+  const words = ["CLIMATE", "ECONOMY", "POPULATION"]
   const splitTitle = words.map((word, i) => (
-    <span key={i} className="inline-block mx-4">
+    <span key={i} className="inline-block">
       {word.split("").map((char, j) => (
         <span key={j} className="inline-block hero-char">
           {char}
         </span>
       ))}
-      {i < words.length - 1 && <span className="mx-3">.</span>}
+      {i < words.length - 1 && <span className="inline-block mx-6 hero-char">·</span>}
     </span>
   ))
 
@@ -121,28 +121,30 @@ export function Hero() {
           `,
         }}
       />
-      {/* Top text elements and button */}
-      <div className="absolute top-40 left-0 right-0 z-10 flex flex-col items-center text-white text-center px-4">
-        <h1 className="hero-title font-bold text-4xl md:text-6xl lg:text-7xl mb-4">{splitTitle}</h1>
-        <div className="flex flex-col items-center gap-3">
-          <motion.p
-            className="hero-subtitle text-lg md:text-xl lg:text-2xl text-neutral-300"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.5, duration: 1 }}
+      {/* Top text elements */}
+      <div className="absolute top-28 left-0 right-0 z-10 flex flex-col items-center text-white text-center px-4">
+        <h1 className="hero-title font-['Montserrat'] font-bold tracking-tight text-3xl md:text-4xl lg:text-5xl mb-4 uppercase">{splitTitle}</h1>
+        <motion.p
+          className="hero-subtitle font-['Montserrat'] font-semibold tracking-wider text-sm md:text-base lg:text-lg text-neutral-300 uppercase"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.5, duration: 1 }}
+        >
+          KAIST AI INSTITUTE
+        </motion.p>
+      </div>
+      
+      {/* Bottom button */}
+      <div className="absolute bottom-20 left-0 right-0 z-10 flex justify-center px-4">
+        <TransitionLink href="/#portfolio">
+          <motion.button
+            className="hero-button flex items-center gap-1 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-1 px-3 rounded-full transition-all duration-300 text-xs uppercase tracking-wide border border-white/20"
+            whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
+            whileTap={{ scale: 0.95 }}
           >
-            KAIST AI.
-          </motion.p>
-          <TransitionLink href="/#portfolio">
-            <motion.button
-              className="hero-button flex items-center gap-1 bg-white text-black font-medium py-1 px-3 md:py-1.5 md:px-4 rounded-full transition-transform duration-300 text-xs md:text-sm"
-              whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Explore SEOUL <ArrowRight size={14} />
-            </motion.button>
-          </TransitionLink>
-        </div>
+            EXPLORE SEOUL <ArrowRight size={12} />
+          </motion.button>
+        </TransitionLink>
       </div>
       
       {/* Animation Controls - positioned above all other elements */}

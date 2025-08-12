@@ -5,6 +5,7 @@ import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { useRef } from "react"
+import Image from "next/image"
 
 export function Header() {
   const headerRef = useRef(null)
@@ -20,10 +21,19 @@ export function Header() {
   }, [])
 
   return (
-    <motion.header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 p-4">
-      <div className="container mx-auto flex justify-between items-center bg-black/80 backdrop-blur-md p-4 rounded-full">
-        <TransitionLink href="/" className="text-white font-bold text-xl">
-          KAIST
+    <motion.header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 py-2 px-4">
+      <div className="container mx-auto flex justify-between items-center bg-black/80 backdrop-blur-md py-2 px-4 rounded-full">
+        <TransitionLink href="/" className="flex items-center">
+          <div className="bg-white rounded-full px-3 py-1.5 hover:bg-gray-100 transition-colors">
+            <Image
+              src="/images/kaist-ai-logo-text.png"
+              alt="KAIST AI Logo"
+              width={100}
+              height={32}
+              className="h-6 w-auto"
+              priority
+            />
+          </div>
         </TransitionLink>
         <nav className="hidden md:flex items-center gap-6 text-white">
           <TransitionLink href="/#portfolio" className="hover:text-neutral-300 transition-colors">
@@ -38,7 +48,7 @@ export function Header() {
         </nav>
         <TransitionLink href="/contact">
           <motion.button
-            className="bg-white text-black font-semibold py-2 px-5 rounded-full"
+            className="bg-white text-black font-semibold py-1.5 px-4 rounded-full text-sm"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >

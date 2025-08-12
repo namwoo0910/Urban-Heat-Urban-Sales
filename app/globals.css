@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Montserrat Font Import from Google Fonts - All weights */
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
