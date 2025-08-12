@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
 import Map from "react-map-gl"
 import { DeckGL } from "@deck.gl/react"
-import { ScatterplotLayer, LineLayer } from "@deck.gl/layers"
+import { ScatterplotLayer, LineLayer, SolidPolygonLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { generateSeoulParticles, generateSeoulParticlesWithBoundary, updateParticleColors } from "@/utils/particle-data"
@@ -28,7 +28,7 @@ const PERFORMANCE_CONFIG = {
     particleCount: 15000,
     connectionCount: 300,
     fps: 60,
-    glowLayers: 2,
+    glowLayers: 1,
   },
   medium: {
     particleCount: 10500,
@@ -40,7 +40,7 @@ const PERFORMANCE_CONFIG = {
     particleCount: 6000,
     connectionCount: 50,
     fps: 24,
-    glowLayers: 0,
+    glowLayers: 1,
   },
 }
 
@@ -691,7 +691,29 @@ export function SeoulMapOptimized({
   const layers = useMemo(() => {
     const baseLayers = []
     
-    // Seoul boundary layer removed - no longer displaying boundary lines
+    // Dark overlay layer - renders below particles but above map (controlled by blackBackgroundEnabled)
+    if (animationConfig.blackBackgroundEnabled) {
+      baseLayers.push(
+        new SolidPolygonLayer({
+          id: "dark-overlay",
+          data: [[
+            [-180, -90],
+            [180, -90],
+            [180, 90],
+            [-180, 90],
+            [-180, -90]
+          ]],
+          getPolygon: d => d,
+          getFillColor: [0, 0, 0, 128], // 50% black overlay
+          pickable: false,
+          parameters: {
+            depthTest: false,
+            blend: true,
+            blendFunc: [770, 771], // Multiplicative blending
+          },
+        })
+      )
+    }
     
     // 연결선 레이어 (중간 이상 성능에서만)
     if (config.connectionCount > 0) {
@@ -752,15 +774,15 @@ export function SeoulMapOptimized({
           id: "particle-glow",
           data: animatedData.filter((_, i) => i % 3 === 0),
           pickable: false,
-          opacity: 0.2,
+          opacity: 0.1,
           stroked: false,
           filled: true,
-          radiusScale: 2,
+          radiusScale: 1.5,
           radiusMinPixels: 1,
-          radiusMaxPixels: 10,
+          radiusMaxPixels: 8,
           getPosition: (d: any) => d.position,
-          getRadius: (d: any) => d.size * 1.5,
-          getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 80],
+          getRadius: (d: any) => d.size * 1.2,
+          getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 40],
           parameters: {
             depthTest: false,
             blend: true,
@@ -771,7 +793,7 @@ export function SeoulMapOptimized({
     }
     
     return baseLayers
-  }, [animatedData, connections, config.connectionCount, config.glowLayers, performanceLevel, boundaryData])
+  }, [animatedData, connections, config.connectionCount, config.glowLayers, performanceLevel, boundaryData, animationConfig.blackBackgroundEnabled])
 
   // 뷰 상태 변경 핸들러 (디바운싱 적용)
   const handleViewStateChange = useCallback(({ viewState }: any) => {
@@ -780,13 +802,6 @@ export function SeoulMapOptimized({
 
   // Show loading state with progress
   if (isLoading) {
-    // Determine which text to show based on loading progress
-    const getActiveText = () => {
-      if (loadingProgress < 33) return 'CLIMATE'
-      if (loadingProgress < 66) return 'ECONOMY'
-      return 'POPULATION'
-    }
-    
     // Calculate particles for loading gauge (30 particles total)
     const particleCount = 30
     const filledParticles = Math.floor((loadingProgress / 100) * particleCount)
@@ -938,14 +953,20 @@ export function SeoulMapOptimized({
             }
             
             try {
-              // 최소한의 스타일 조정만
+              // 더 어둡게 스타일 조정
               const layers = map.getStyle()?.layers
               layers?.forEach((layer: any) => {
                 if (layer.type === 'symbol') {
                   map.setLayoutProperty(layer.id, 'visibility', 'none')
                 }
                 if (layer.type === 'line') {
-                  map.setPaintProperty(layer.id, 'line-opacity', 0.1)
+                  map.setPaintProperty(layer.id, 'line-opacity', 0.05) // 더 어둡게
+                }
+                if (layer.type === 'fill') {
+                  map.setPaintProperty(layer.id, 'fill-opacity', 0.3) // 건물 등을 더 어둡게
+                }
+                if (layer.type === 'background') {
+                  map.setPaintProperty(layer.id, 'background-color', '#000000') // 순수 검은색 배경
                 }
               })
             } catch (error) {
@@ -955,24 +976,6 @@ export function SeoulMapOptimized({
         />
         )}
         
-        {/* Black background overlay for Seoul area (conditional) - Particle Layer */}
-        {animationConfig.blackBackgroundEnabled && (
-          <div 
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              background: `
-                radial-gradient(
-                  ellipse 40% 60% at 50% 50%, 
-                  transparent 0%, 
-                  transparent 30%, 
-                  rgba(0,0,0,0.7) 60%,
-                  rgba(0,0,0,0.9) 80%,
-                  rgba(0,0,0,1) 100%
-                )
-              `
-            }}
-          />
-        )}
         </DeckGL>
         </div>
       ) : (
@@ -1008,14 +1011,20 @@ export function SeoulMapOptimized({
                 }
                 
                 try {
-                  // Same styling as particle layer
+                  // 더 어둡게 스타일 조정 (particle layer와 동일)
                   const layers = map.getStyle()?.layers
                   layers?.forEach((layer: any) => {
                     if (layer.type === 'symbol') {
                       map.setLayoutProperty(layer.id, 'visibility', 'none')
                     }
                     if (layer.type === 'line') {
-                      map.setPaintProperty(layer.id, 'line-opacity', 0.1)
+                      map.setPaintProperty(layer.id, 'line-opacity', 0.05) // 더 어둡게
+                    }
+                    if (layer.type === 'fill') {
+                      map.setPaintProperty(layer.id, 'fill-opacity', 0.3) // 건물 등을 더 어둡게
+                    }
+                    if (layer.type === 'background') {
+                      map.setPaintProperty(layer.id, 'background-color', '#000000') // 순수 검은색 배경
                     }
                   })
                 } catch (error) {
@@ -1026,24 +1035,6 @@ export function SeoulMapOptimized({
             )}
           </div>
           
-          {/* Black background overlay for Seoul area (conditional) */}
-          {animationConfig.blackBackgroundEnabled && (
-            <div 
-              className="absolute inset-0 pointer-events-none"
-              style={{
-                background: `
-                  radial-gradient(
-                    ellipse 40% 60% at 50% 50%, 
-                    transparent 0%, 
-                    transparent 30%, 
-                    rgba(0,0,0,0.7) 60%,
-                    rgba(0,0,0,0.9) 80%,
-                    rgba(0,0,0,1) 100%
-                  )
-                `
-              }}
-            />
-          )}
 
           {/* Wave Layer on top */}
           <WaveLayer 
