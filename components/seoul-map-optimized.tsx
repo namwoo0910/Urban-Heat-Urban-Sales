@@ -780,56 +780,121 @@ export function SeoulMapOptimized({
 
   // Show loading state with progress
   if (isLoading) {
+    // Determine which text to show based on loading progress
+    const getActiveText = () => {
+      if (loadingProgress < 33) return 'CLIMATE'
+      if (loadingProgress < 66) return 'ECONOMY'
+      return 'POPULATION'
+    }
+    
+    // Calculate particles for loading gauge (30 particles total)
+    const particleCount = 30
+    const filledParticles = Math.floor((loadingProgress / 100) * particleCount)
+    
     return (
       <div className="relative w-full h-full flex items-center justify-center bg-[#000014]">
-        <div className="text-center text-white/60 max-w-md">
-          {/* Animated loader */}
-          <div className="relative w-16 h-16 mx-auto mb-6">
-            <div className="absolute inset-0 rounded-full border-2 border-purple-500/30 animate-ping"></div>
-            <div className="absolute inset-0 rounded-full border-2 border-blue-500/30 animate-ping animation-delay-200"></div>
-            <div className="absolute inset-0 rounded-full border-2 border-cyan-500/30 animate-ping animation-delay-400"></div>
+        <div className="text-center text-white/60 max-w-lg">
+          
+          {/* Particle-based loading gauge */}
+          <div className="relative w-full max-w-sm mx-auto mb-8">
+            <div className="flex items-center justify-center gap-1 flex-wrap">
+              {Array.from({ length: particleCount }).map((_, index) => {
+                const isFilled = index < filledParticles
+                const isCurrentlyFilling = index === filledParticles - 1
+                const delay = index * 30 // Stagger animation
+                
+                // Consistent particle color throughout loading
+                const getParticleColor = () => {
+                  if (!isFilled) return 'bg-white/5'
+                  return 'bg-gradient-to-br from-blue-400/60 to-purple-400/60'
+                }
+                
+                return (
+                  <div
+                    key={index}
+                    className={`
+                      w-2 h-2 rounded-full transition-all duration-500
+                      ${getParticleColor()}
+                      ${isFilled ? 'scale-100' : 'scale-75'}
+                      ${isCurrentlyFilling ? 'animate-pulse' : ''}
+                    `}
+                    style={{
+                      transitionDelay: isFilled ? `${delay}ms` : '0ms',
+                      boxShadow: isFilled 
+                        ? '0 0 8px rgba(96, 165, 250, 0.4)'
+                        : 'none',
+                      animation: isCurrentlyFilling 
+                        ? `pulse 1s infinite, float ${2 + Math.random() * 2}s ease-in-out infinite`
+                        : isFilled 
+                        ? `float ${2 + Math.random() * 2}s ease-in-out infinite`
+                        : 'none',
+                      animationDelay: `${Math.random() * 2}s`
+                    }}
+                  />
+                )
+              })}
+            </div>
+            
+            {/* Progress percentage */}
+            <div className="mt-4 text-center">
+              <div className="text-xs text-white/30 font-mono">{Math.round(loadingProgress)}%</div>
+            </div>
           </div>
           
-          {/* Progress bar */}
-          <div className="w-full bg-white/10 rounded-full h-1.5 mb-4 overflow-hidden">
-            <div 
-              className="h-full bg-gradient-to-r from-purple-500 via-blue-500 to-cyan-500 transition-all duration-300 ease-out"
-              style={{ width: `${loadingProgress}%` }}
-            />
+          {/* Loading phase text (smaller, subtle) */}
+          <div className="text-xs text-white/30 h-4">
+            {loadingPhase !== 'Loading boundaries...' && loadingPhase !== 'Ready!' && (
+              <span className="animate-pulse">{loadingPhase}</span>
+            )}
           </div>
           
-          {/* Loading phase and percentage */}
-          <div className="space-y-2">
-            <div className="text-sm font-medium text-white/80">{loadingPhase}</div>
-            <div className="text-xs text-white/50">{Math.round(loadingProgress)}%</div>
-            
-            {/* Error message and retry button */}
-            {error && (
-              <div className="mt-4 p-3 bg-red-900/30 border border-red-500/30 rounded text-center">
-                <div className="text-xs text-red-200 mb-2">{error}</div>
-                <button
-                  onClick={() => {
-                    setError(null)
-                    setRetryCount(0)
-                    setIsLoading(true)
-                    // Trigger reload by changing a dependency
-                    setLoadingPhase('Retrying...')
-                  }}
-                  className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition-colors"
-                >
-                  Retry
-                </button>
-              </div>
-            )}
-            
-            {/* Retry indicator */}
-            {retryCount > 0 && !error && (
-              <div className="text-xs text-yellow-300">
-                Retry attempt {retryCount}/{maxRetries}
-              </div>
-            )}
-          </div>
+          {/* Error message and retry button */}
+          {error && (
+            <div className="mt-4 p-3 bg-red-900/30 border border-red-500/30 rounded text-center">
+              <div className="text-xs text-red-200 mb-2">{error}</div>
+              <button
+                onClick={() => {
+                  setError(null)
+                  setRetryCount(0)
+                  setIsLoading(true)
+                  // Trigger reload by changing a dependency
+                  setLoadingPhase('Retrying...')
+                }}
+                className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+          
+          {/* Retry indicator */}
+          {retryCount > 0 && !error && (
+            <div className="text-xs text-yellow-300 mt-2">
+              Retry attempt {retryCount}/{maxRetries}
+            </div>
+          )}
         </div>
+        
+        {/* Add keyframe animations */}
+        <style jsx>{`
+          @keyframes float {
+            0%, 100% {
+              transform: translateY(0px);
+            }
+            50% {
+              transform: translateY(-3px);
+            }
+          }
+          
+          @keyframes pulse {
+            0%, 100% {
+              opacity: 1;
+            }
+            50% {
+              opacity: 0.5;
+            }
+          }
+        `}</style>
       </div>
     )
   }
@@ -1018,23 +1083,6 @@ export function SeoulMapOptimized({
         }}
       />
       
-      {/* Animation styles for loading indicators */}
-      <style jsx>{`
-        @keyframes ping {
-          75%, 100% {
-            transform: scale(2);
-            opacity: 0;
-          }
-        }
-        
-        .animation-delay-200 {
-          animation-delay: 0.2s;
-        }
-        
-        .animation-delay-400 {
-          animation-delay: 0.4s;
-        }
-      `}</style>
     </div>
   )
 }
