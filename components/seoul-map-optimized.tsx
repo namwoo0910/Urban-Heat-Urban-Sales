@@ -855,6 +855,7 @@ export function SeoulMapOptimized({
           <Map
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyle}
+          style={{ width: '100%', height: '100%' }}
           reuseMaps={true}
           preserveDrawingBuffer={false}
           attributionControl={false}

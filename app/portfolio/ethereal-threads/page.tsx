@@ -1,5 +1,6 @@
 "use client"
 import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
 import FeatureCard from "@/components/project/feature-card"
 import ProjectHeader from "@/components/project/project-header"
 import ProjectNavigation from "@/components/project/project-navigation"
@@ -25,10 +26,17 @@ const features = [
 
 const EtherealThreadsPage = () => {
   const router = useRouter()
+  const [barHeights, setBarHeights] = useState<number[]>([])
 
   const handleEnterVisualization = () => {
     router.push('/urbanmountain')
   }
+
+  // Generate random heights client-side only to prevent hydration mismatch
+  useEffect(() => {
+    const heights = Array.from({ length: 144 }, () => Math.random() * 40 + 10)
+    setBarHeights(heights)
+  }, [])
 
   return (
     <div>
@@ -44,7 +52,7 @@ const EtherealThreadsPage = () => {
                     className="w-3 h-8 bg-white rounded-sm animate-pulse"
                     style={{ 
                       animationDelay: `${i * 0.1}s`,
-                      height: `${Math.random() * 40 + 10}px`
+                      height: barHeights[i] ? `${barHeights[i]}px` : '20px'
                     }}
                   />
                 ))}

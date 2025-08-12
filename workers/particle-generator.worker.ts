@@ -165,12 +165,12 @@ function generateStratifiedPointsWorker(
   count: number,
   gridData: any
 ): any[] {
-  const points = []
+  const points: any[] = []
   const { grid, districtGrid, districtNames, bounds, cellWidth, cellHeight } = gridData
   const gridResolution = Math.sqrt(grid.length)
   
   // Find valid cells
-  const validCells = []
+  const validCells: number[] = []
   for (let i = 0; i < grid.length; i++) {
     if (grid[i] === 1) {
       validCells.push(i)

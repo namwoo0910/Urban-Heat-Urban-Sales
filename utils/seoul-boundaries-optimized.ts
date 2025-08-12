@@ -18,7 +18,7 @@ const SEOUL_BOUNDS = {
 }
 
 // Pre-computed grid for fast lookup
-interface BoundaryGrid {
+export interface BoundaryGrid {
   grid: Uint8Array // 0 = outside, 1 = inside Seoul
   districtGrid: Uint8Array // district index for each cell
   districtNames: string[]
