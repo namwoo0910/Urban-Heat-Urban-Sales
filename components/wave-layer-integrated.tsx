@@ -527,7 +527,6 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
     
     // Calculate the actual world size in meters (approximate)
     // At zoom 11.2, 1 pixel ≈ 38 meters
-    // const metersPerPixel = 156543.03392 * Math.cos(center.lat * Math.PI / 180) / Math.pow(2, zoom)
     
     const surfaceWidth = maxWorld.x - minWorld.x
     const surfaceHeight = maxWorld.y - minWorld.y

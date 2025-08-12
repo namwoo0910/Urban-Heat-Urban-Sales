@@ -43,27 +43,15 @@ const ProjectCyberscapePage = () => {
   const handleModeSwitch = (newMode: VisualizationMode) => {
     if (newMode === visualizationMode) return
     
-    console.log('[ProjectCyberscape] Switching visualization mode:', {
-      from: visualizationMode,
-      to: newMode
-    })
-    
     setIsTransitioning(true)
     
     // Small delay to allow current mode to cleanup
     setTimeout(() => {
       setVisualizationMode(newMode)
       setIsTransitioning(false)
-      console.log('[ProjectCyberscape] Mode switch completed to:', newMode)
     }, 100)
   }
 
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      // Cleanup will be handled by individual scene components
-    }
-  }, [])
 
   return (
     <div>

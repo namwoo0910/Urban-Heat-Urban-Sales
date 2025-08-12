@@ -1,10 +1,10 @@
 "use client"
 
-import React from "react"
+import React, { useEffect } from "react"
 import { useTransitionContext } from "@/context/transition-context"
 import type { LinkProps } from "next/link"
 import type { AnchorHTMLAttributes, ReactNode } from "react"
-import { usePathname } from "next/navigation"
+import { usePathname, useRouter } from "next/navigation"
 import { gsap } from "gsap"
 
 type TransitionLinkProps = LinkProps &
@@ -15,6 +15,23 @@ type TransitionLinkProps = LinkProps &
 export default function TransitionLink({ href, children, ...props }: TransitionLinkProps) {
   const { playTransition } = useTransitionContext()
   const pathname = usePathname()
+  const router = useRouter()
+
+  // Prefetch on hover and mount
+  useEffect(() => {
+    const hrefStr = href.toString()
+    if (hrefStr && !hrefStr.startsWith('#') && !hrefStr.startsWith('http')) {
+      router.prefetch(hrefStr)
+    }
+  }, [href, router])
+
+  const handleMouseEnter = () => {
+    const hrefStr = href.toString()
+    if (hrefStr && !hrefStr.startsWith('#') && !hrefStr.startsWith('http')) {
+      // Prefetch again on hover for maximum performance
+      router.prefetch(hrefStr)
+    }
+  }
 
   const handleClick = (e: React.MouseEvent<HTMLAnchorElement>) => {
     const hrefStr = href.toString()
@@ -41,7 +58,12 @@ export default function TransitionLink({ href, children, ...props }: TransitionL
   }
 
   return (
-    <a href={href.toString()} onClick={handleClick} {...props}>
+    <a 
+      href={href.toString()} 
+      onClick={handleClick} 
+      onMouseEnter={handleMouseEnter}
+      {...props}
+    >
       {children}
     </a>
   )

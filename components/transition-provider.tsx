@@ -27,9 +27,9 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
     })
     timeline.to(containerRef.current, {
       opacity: 0,
-      y: -20,
-      duration: 0.4,
-      ease: "power3.in",
+      y: -10,
+      duration: 0.2,
+      ease: "power2.in",
     })
   }
 
@@ -37,12 +37,12 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
     () => {
       gsap.fromTo(
         containerRef.current,
-        { opacity: 0, y: 20 },
+        { opacity: 0, y: 10 },
         {
           opacity: 1,
           y: 0,
-          duration: 0.8,
-          ease: "power3.out",
+          duration: 0.4,
+          ease: "power2.out",
           onComplete: () => {
             const hash = window.location.hash
             if (hash) {

@@ -86,20 +86,30 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
       setIsLoading(true)
       setError(null)
 
+      // Add compression headers for better performance
+      const fetchOptions = {
+        headers: {
+          'Accept-Encoding': 'gzip, deflate, br'
+        }
+      }
+
       const [coordsResponse, popResponse] = await Promise.all([
-        fetch('/urbanmountain/processed_data/grid_coordinates.json'),
-        fetch('/urbanmountain/processed_data/grid_population.json')
+        fetch('/urbanmountain/processed_data/grid_coordinates.json', fetchOptions),
+        fetch('/urbanmountain/processed_data/grid_population.json', fetchOptions)
       ])
 
       if (!coordsResponse.ok || !popResponse.ok) {
         throw new Error('Failed to load data files')
       }
 
+      // Progressive loading with streaming
       const coords = await coordsResponse.json()
-      const pop = await popResponse.json()
-
       setGridData(coords)
+      
+      // Load population data after coordinates
+      const pop = await popResponse.json()
       setPopulationData(pop)
+      
       setIsLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load data')

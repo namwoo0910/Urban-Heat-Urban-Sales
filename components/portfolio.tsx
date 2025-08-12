@@ -8,19 +8,22 @@ const projects = [
   {
     title: "카드매출",
     description: "카드 매출 데이터 시각화 및 분석.",
-    imgSrc: "/images/seoul_economy.png",
+    imgSrc: "/images/seoul_economy.webp",
+    imgSrcFallback: "/images/seoul_economy.png",
     href: "/portfolio/project-cyberscape",
   },
   {
     title: "유동인구",
     description: "서울시 유동인구 실시간 시각화.",
-    imgSrc: "/images/seoul_pop.png",
+    imgSrc: "/images/seoul_pop.webp",
+    imgSrcFallback: "/images/seoul_pop.png",
     href: "/portfolio/ethereal-threads",
   },
   {
     title: "EDA",
     description: "탐색적 데이터 분석 및 인사이트 도출.",
-    imgSrc: "/images/eda.png",
+    imgSrc: "/images/eda.webp",
+    imgSrcFallback: "/images/eda.png",
     href: "/portfolio/quantum-leap",
   },
 ]
@@ -51,6 +54,9 @@ export function Portfolio() {
                     fill
                     alt={project.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                    loading="lazy"
+                    quality={75}
+                    sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
                   <div className="absolute bottom-0 left-0 p-6 translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-500">

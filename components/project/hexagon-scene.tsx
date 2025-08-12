@@ -31,8 +31,6 @@ export default function HexagonScene() {
     setUpperPercentile,
     setColorScheme,
     resetConfig,
-    hoveredObject,
-    selectedObject,
     setHoveredObject,
     setSelectedObject,
     // 애니메이션 관련 상태 및 함수들
@@ -48,7 +46,6 @@ export default function HexagonScene() {
     rotationEnabled,
     rotationSpeed,
     rotationDirection,
-    currentBearing,
     isRotating,
     shouldRotate,
     rotationDirectionText,
@@ -103,13 +100,11 @@ export default function HexagonScene() {
 
   const handleTimeChange = (time: number) => {
     setCurrentTime(time)
-    console.log("Time changed to:", time)
   }
 
   // Official deck.gl rotation pattern implementation (fixed with ref)
   const rotateCamera = useCallback(() => {
     if (!rotationEnabledRef.current || userInteractingRef.current) {
-      console.log('Rotation stopped: enabled=', rotationEnabledRef.current, 'interacting=', userInteractingRef.current)
       return
     }
     
@@ -125,20 +120,16 @@ export default function HexagonScene() {
     // Calculate transition duration based on speed (slower speed = longer duration)
     const transitionDuration = Math.max(500, 2000 / rotationSpeed)
     
-    console.log(`[Rotation] Current: ${Math.round(currentBearing)}° → Next: ${Math.round(normalizedBearing)}° (${rotationDirectionText}, duration: ${transitionDuration}ms)`)
-    
     // Update bearing state for UI display
     updateBearing(normalizedBearing)
     
     setInitialViewState(viewState => {
-      console.log('[Rotation] Setting new viewState with bearing:', normalizedBearing)
       return {
         ...viewState,
         bearing: normalizedBearing,
         transitionDuration,
         transitionInterpolator: new LinearInterpolator(['bearing']),
         onTransitionEnd: () => {
-          console.log('[Rotation] Transition ended, continuing rotation:', rotationEnabledRef.current)
           if (rotationEnabledRef.current) {
             rotateCamera()
           }
@@ -167,7 +158,6 @@ export default function HexagonScene() {
   // Initialize bearing ref
   useEffect(() => {
     currentBearingRef.current = initialViewState.bearing || 0
-    console.log('[Rotation] Initialized bearing ref:', currentBearingRef.current)
   }, [])
 
   // DeckGL 레이어 생성
@@ -186,14 +176,6 @@ export default function HexagonScene() {
 
   // 레이어 상태 디버깅
   useEffect(() => {
-    console.log('[HexagonScene] Layer state changed:', {
-      hasData: !!hexagonData,
-      dataLength: hexagonData?.length || 0,
-      layerVisible: layerConfig.visible,
-      layersCount: deckLayers.length,
-      isDataLoading,
-      dataError
-    })
   }, [hexagonData, layerConfig.visible, deckLayers.length, isDataLoading, dataError])
 
   // 툴팁 핸들러 (Context7 권장 패턴)
@@ -357,7 +339,6 @@ export default function HexagonScene() {
           if ('bearing' in viewState && viewState.bearing !== undefined && viewState.bearing !== currentBearingRef.current) {
             currentBearingRef.current = viewState.bearing
             updateBearing(viewState.bearing)
-            console.log('[Rotation] View state changed, bearing updated:', viewState.bearing)
           }
         }}
       >
