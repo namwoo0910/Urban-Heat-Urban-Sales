@@ -31,7 +31,7 @@ const QuantumLeapPage = () => {
         <QuantumScene />
         <div className="absolute inset-0 flex items-center justify-center">
           <ProjectHeader
-            title="Quantum Leap"
+            title="Others"
             description="An interactive simulation of a quantum field. Disturb the fabric of spacetime with your cursor and witness the chaotic beauty of particle physics."
           />
         </div>
@@ -45,7 +45,7 @@ const QuantumLeapPage = () => {
         </div>
       </div>
 
-      <ProjectNavigation href="/portfolio/project-cyberscape" projectName="Project Cyberscape" />
+      <ProjectNavigation href="/portfolio/project-cyberscape" projectName="카드매출" />
     </div>
   )
 }

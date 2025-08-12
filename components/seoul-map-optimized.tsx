@@ -204,13 +204,13 @@ export function SeoulMapOptimized({
     batchInterval: 16 // ~60fps
   })
   
-  // 초기 뷰 상태
+  // 초기 뷰 상태 - 80% side view angle and adjusted zoom for 90% scale
   const [viewState, setViewState] = useState<MapViewState>({
     longitude: 126.978,
     latitude: 37.5665,
-    zoom: 11.2,
-    pitch: performanceLevel === 'high' ? 65 : 45,
-    bearing: 0,
+    zoom: 11.0, // Slightly reduced zoom for 90% scale effect
+    pitch: performanceLevel === 'high' ? 72 : 52, // Changed from top view to 80% side view
+    bearing: 15, // Slight rotation for side view effect
   })
 
   // Animation configuration now comes from props
@@ -629,7 +629,7 @@ export function SeoulMapOptimized({
           // Breathing effect - subtle zoom animation (지도가 숨쉬는 효과)
           const breathingSpeed = 0.3 // Slow breathing rate
           const breathingAmplitude = 0.15 // Subtle zoom change
-          const baseZoom = 11.2
+          const baseZoom = 11.0 // Updated to match new initial zoom
           const breathingOffset = Math.sin(timeInSeconds * breathingSpeed) * breathingAmplitude
           const newZoom = baseZoom + breathingOffset
           
@@ -838,6 +838,7 @@ export function SeoulMapOptimized({
     <div className="relative w-full h-full" id="seoul-map-container">
       {/* Conditional rendering based on layer type */}
       {animationConfig.layerType === 'particle' ? (
+        <div style={{ transform: 'scale(0.9)', transformOrigin: 'center center', width: '111.11%', height: '111.11%', marginLeft: '-5.56%', marginTop: '-5.56%' }}>
         <DeckGL
           viewState={viewState}
           onViewStateChange={handleViewStateChange}
@@ -908,9 +909,10 @@ export function SeoulMapOptimized({
           />
         )}
         </DeckGL>
+        </div>
       ) : (
-        // Wave Layer with Mapbox background
-        <>
+        // Wave Layer with Mapbox background - scaled to 90%
+        <div style={{ transform: 'scale(0.9)', transformOrigin: 'center center', width: '111.11%', height: '111.11%', marginLeft: '-5.56%', marginTop: '-5.56%' }}>
           {/* Mapbox map as background */}
           <div className="w-full h-full" id="wave-map-container">
             {typeof window !== 'undefined' && MAPBOX_TOKEN && (
@@ -985,11 +987,11 @@ export function SeoulMapOptimized({
               longitude: viewState.longitude || 126.978,
               latitude: viewState.latitude || 37.5665,
               zoom: viewState.zoom || 11.2,
-              pitch: viewState.pitch || 65,
+              pitch: viewState.pitch || 72,
               bearing: viewState.bearing || 0
             }}
           />
-        </>
+        </div>
       )}
 
       {/* Animation controls moved to Hero component for proper z-index handling */}

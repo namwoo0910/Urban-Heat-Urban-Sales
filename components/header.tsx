@@ -27,10 +27,10 @@ export function Header() {
         </TransitionLink>
         <nav className="hidden md:flex items-center gap-6 text-white">
           <TransitionLink href="/#portfolio" className="hover:text-neutral-300 transition-colors">
-            Portfolio
+            Research
           </TransitionLink>
           <TransitionLink href="/blog" className="hover:text-neutral-300 transition-colors">
-            Blog
+            Site
           </TransitionLink>
           <TransitionLink href="/contact" className="hover:text-neutral-300 transition-colors">
             Contact

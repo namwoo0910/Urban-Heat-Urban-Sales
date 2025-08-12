@@ -25,7 +25,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
           className="group text-neutral-400 hover:text-white font-semibold flex items-center gap-2 mb-8"
         >
           <ArrowLeft className="transition-transform group-hover:-translate-x-1" size={20} />
-          Back to Blog
+          Back to Site
         </TransitionLink>
         <article>
           <h1 className="text-4xl md:text-6xl font-bold mb-8 text-white">{post.title}</h1>

@@ -110,7 +110,7 @@ const ProjectCyberscapePage = () => {
         {visualizationMode === 'shader' && (
           <div className="absolute inset-0 flex items-center justify-center">
             <ProjectHeader
-              title="Project Cyberscape"
+              title="카드매출"
               description="An immersive journey into a procedurally generated digital world. Experience a reality constructed from pure data, where light and geometry intertwine."
             />
           </div>
@@ -165,7 +165,7 @@ const ProjectCyberscapePage = () => {
         </div>
       </div>
 
-      <ProjectNavigation href="/portfolio/ethereal-threads" projectName="Ethereal Threads" />
+      <ProjectNavigation href="/portfolio/ethereal-threads" projectName="유동인구" />
     </div>
   )
 }

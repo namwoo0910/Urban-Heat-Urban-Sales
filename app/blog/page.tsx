@@ -6,7 +6,7 @@ export default function BlogPage() {
   return (
     <div className="min-h-screen pt-32 pb-20">
       <div className="container mx-auto px-4">
-        <h1 className="text-5xl md:text-7xl font-bold text-center mb-16">Our Blog</h1>
+        <h1 className="text-5xl md:text-7xl font-bold text-center mb-16">Our Site</h1>
         <div className="max-w-3xl mx-auto space-y-12">
           {allPosts.map((post, index) => (
             <div key={index} className="border-b border-white/10 pb-8">

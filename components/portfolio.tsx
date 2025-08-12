@@ -6,20 +6,20 @@ import TransitionLink from "./transition-link"
 
 const projects = [
   {
-    title: "Project Cyberscape",
-    description: "A journey into a futuristic digital realm.",
+    title: "카드매출",
+    description: "카드 매출 데이터 시각화 및 분석.",
     imgSrc: "/images/project-cyberscape.png",
     href: "/portfolio/project-cyberscape",
   },
   {
-    title: "Ethereal Threads",
-    description: "Weaving light and color into abstract art.",
+    title: "유동인구",
+    description: "서울시 유동인구 실시간 시각화.",
     imgSrc: "/images/ethereal-threads.png",
     href: "/portfolio/ethereal-threads",
   },
   {
-    title: "Quantum Leap",
-    description: "Exploring the boundaries of space and time.",
+    title: "Others",
+    description: "기타 데이터 시각화 프로젝트들.",
     imgSrc: "/images/quantum-leap.png",
     href: "/portfolio/quantum-leap",
   },

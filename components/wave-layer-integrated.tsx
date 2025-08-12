@@ -535,10 +535,10 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
     const surfaceCenterY = (minWorld.y + maxWorld.y) / 2 - centerWorld.y
     
     // Scale the surface to match the actual geographic scale
-    // Use a base scale that matches the particle layer's visual scale
+    // Use a base scale that matches the particle layer's visual scale, reduced to 90%
     const baseScale = 1000 // Base geometry size
-    const scaleFactorX = surfaceWidth / baseScale
-    const scaleFactorZ = surfaceHeight / baseScale
+    const scaleFactorX = (surfaceWidth / baseScale) * 0.9 // 90% scale
+    const scaleFactorZ = (surfaceHeight / baseScale) * 0.9 // 90% scale
     
     surfaceRef.current.scale.set(scaleFactorX, 1, scaleFactorZ)
     surfaceRef.current.position.set(surfaceCenterX, 0, -surfaceCenterY)

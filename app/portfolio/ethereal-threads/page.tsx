@@ -20,7 +20,7 @@ const features = [
   {
     icon: "Layers",
     title: "3D Landscape",
-    description: "Population density rises like ethereal mountains, with smooth interpolation creating wave-like transitions between time periods.",
+    description: "Population density rises like data mountains, with smooth interpolation creating wave-like transitions between time periods.",
   },
 ]
 
@@ -64,8 +64,8 @@ const EtherealThreadsPage = () => {
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center space-y-8">
             <ProjectHeader
-              title="Ethereal Threads"
-              description="A living visualization of Seoul's urban pulse - watch as population flows through the city like ethereal threads, creating mesmerizing patterns that reveal the hidden rhythms of metropolitan life."
+              title="유동인구"
+              description="A living visualization of Seoul's urban pulse - watch as population flows through the city creating mesmerizing patterns that reveal the hidden rhythms of metropolitan life."
             />
             <button
               onClick={handleEnterVisualization}
@@ -90,7 +90,7 @@ const EtherealThreadsPage = () => {
         </div>
       </div>
 
-      <ProjectNavigation href="/portfolio/quantum-leap" projectName="Quantum Leap" />
+      <ProjectNavigation href="/portfolio/quantum-leap" projectName="Others" />
     </div>
   )
 }
