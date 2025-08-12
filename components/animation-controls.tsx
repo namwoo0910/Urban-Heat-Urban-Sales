@@ -1,5 +1,8 @@
 "use client"
 
+import { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ChevronDown, Settings2 } from "lucide-react"
 import { Switch } from "@/components/ui/switch"
 import { Slider } from "@/components/ui/slider"
 import { Label } from "@/components/ui/label"
@@ -21,11 +24,43 @@ export function AnimationControls({
   mapStyle,
   onMapStyleChange
 }: AnimationControlsProps) {
+  // State for collapsible panel
+  const [isExpanded, setIsExpanded] = useState(false)
   
   // Removed map style options - keeping only dark theme
   return (
-    <div className="absolute top-4 left-4 z-50 pointer-events-auto bg-black/80 backdrop-blur-sm rounded-lg p-4 text-white/90 text-sm max-w-md space-y-3">
-      <h3 className="font-semibold text-white mb-2">Animation Controls</h3>
+    <div className="absolute top-4 left-4 z-50 pointer-events-auto bg-black/80 backdrop-blur-sm rounded-lg text-white/90 text-sm max-w-md">
+      {/* Clickable Header */}
+      <button
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors rounded-lg group"
+      >
+        <div className="flex items-center gap-2">
+          <Settings2 className="w-4 h-4 text-white/70 group-hover:text-white/90 transition-colors" />
+          <h3 className="font-semibold text-white">Animation Controls</h3>
+        </div>
+        <motion.div
+          animate={{ rotate: isExpanded ? 180 : 0 }}
+          transition={{ duration: 0.2 }}
+        >
+          <ChevronDown className="w-4 h-4 text-white/70 group-hover:text-white/90 transition-colors" />
+        </motion.div>
+      </button>
+      
+      {/* Collapsible Content */}
+      <AnimatePresence initial={false}>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ 
+              duration: 0.3,
+              ease: "easeInOut"
+            }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className="px-4 pb-4 space-y-3">
       
       {/* Visualization Layer Selection */}
       <div className="space-y-2">
@@ -463,6 +498,10 @@ export function AnimationControls({
           Performance: <span className="text-white/80 font-medium">{performanceLevel.toUpperCase()}</span>
         </div>
       </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

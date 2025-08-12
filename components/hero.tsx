@@ -56,16 +56,23 @@ export function Hero() {
   useGSAP(
     () => {
       const tl = gsap.timeline()
+      // 타이핑 효과 - 각 글자가 순차적으로 나타남
       tl.fromTo(
-        ".hero-title span",
-        { y: 100, opacity: 0 },
-        { y: 0, opacity: 1, stagger: 0.1, duration: 1, ease: "power3.out" },
+        ".hero-char",
+        { opacity: 0, y: 20 },
+        { 
+          opacity: 1, 
+          y: 0,
+          stagger: 0.05,
+          duration: 0.5,
+          ease: "power3.out"
+        }
       )
         .fromTo(
           ".hero-subtitle",
           { y: 50, opacity: 0 },
           { y: 0, opacity: 1, duration: 0.8, ease: "power3.out" },
-          "-=0.6",
+          "-=0.3",
         )
         .fromTo(
           ".hero-button",
@@ -77,10 +84,15 @@ export function Hero() {
     { scope: container },
   )
 
-  const title = "Weather. Spending. Mobility."
-  const splitTitle = title.split(" ").map((word, i) => (
-    <span key={i} className="inline-block overflow-hidden">
-      <span className="inline-block">{word}&nbsp;</span>
+  const words = ["기후", "카드매출", "유동인구"]
+  const splitTitle = words.map((word, i) => (
+    <span key={i} className="inline-block mx-4">
+      {word.split("").map((char, j) => (
+        <span key={j} className="inline-block hero-char">
+          {char}
+        </span>
+      ))}
+      {i < words.length - 1 && <span className="mx-3">.</span>}
     </span>
   ))
 
@@ -111,8 +123,8 @@ export function Hero() {
       />
       {/* Top text elements and button */}
       <div className="absolute top-40 left-0 right-0 z-10 flex flex-col items-center text-white text-center px-4">
-        <h1 className="hero-title font-bold text-5xl md:text-7xl lg:text-8xl mb-4">{splitTitle}</h1>
-        <div className="flex items-center gap-6">
+        <h1 className="hero-title font-bold text-4xl md:text-6xl lg:text-7xl mb-4">{splitTitle}</h1>
+        <div className="flex flex-col items-center gap-3">
           <motion.p
             className="hero-subtitle text-lg md:text-xl lg:text-2xl text-neutral-300"
             initial={{ opacity: 0 }}
@@ -123,11 +135,11 @@ export function Hero() {
           </motion.p>
           <TransitionLink href="/#portfolio">
             <motion.button
-              className="hero-button flex items-center gap-2 bg-white text-black font-semibold py-2 px-4 md:py-3 md:px-6 rounded-full transition-transform duration-300 text-sm md:text-base"
+              className="hero-button flex items-center gap-1 bg-white text-black font-medium py-1 px-3 md:py-1.5 md:px-4 rounded-full transition-transform duration-300 text-xs md:text-sm"
               whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
               whileTap={{ scale: 0.95 }}
             >
-              Explore SEOUL <ArrowRight size={20} />
+              Explore SEOUL <ArrowRight size={14} />
             </motion.button>
           </TransitionLink>
         </div>
