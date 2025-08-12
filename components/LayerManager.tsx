@@ -273,12 +273,12 @@ export function formatTooltip(info: any): string {
 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   visible: true,
-  radius: 200,  // 초고밀도 hexagon을 위해 200으로 설정
-  elevationScale: 4,
+  radius: 100,  // 반지름 100m로 설정
+  elevationScale: 10,  // 높이 스케일 10x로 설정
   coverage: 1,
   upperPercentile: 100,
-  colorScheme: 'hologram', // 새로운 프리미엄 색상을 기본값으로
-  animationEnabled: false, // 기본적으로 비활성화 (사용자가 수동으로 활성화)
+  colorScheme: 'oceanic', // 색상 스킴 심해로 설정
+  animationEnabled: true, // 자동 애니메이션 ON으로 설정
   animationSpeed: 1.0,
   waveAmplitude: 2.0
 }

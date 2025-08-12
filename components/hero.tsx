@@ -148,7 +148,7 @@ export function Hero() {
       </div>
       
       {/* Animation Controls - positioned above all other elements */}
-      <div className="absolute top-4 left-4 z-[100]">
+      <div className="absolute top-[46px] left-4 z-[100]">
         <AnimationControls
           config={animationConfig}
           onConfigChange={handleAnimationConfigChange}

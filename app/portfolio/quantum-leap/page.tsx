@@ -31,8 +31,8 @@ const QuantumLeapPage = () => {
         <QuantumScene />
         <div className="absolute inset-0 flex items-center justify-center">
           <ProjectHeader
-            title="Others"
-            description="An interactive simulation of a quantum field. Disturb the fabric of spacetime with your cursor and witness the chaotic beauty of particle physics."
+            title="EDA"
+            description="EDA 관련 상세 설명을 삽입할 예정입니다. (활용 데이터, 방법론 등)"
           />
         </div>
       </div>

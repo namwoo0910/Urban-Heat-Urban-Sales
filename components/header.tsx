@@ -21,8 +21,8 @@ export function Header() {
   }, [])
 
   return (
-    <motion.header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 py-2 px-4">
-      <div className="container mx-auto flex justify-between items-center bg-black/80 backdrop-blur-md py-2 px-4 rounded-full">
+    <motion.header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 py-2 px-6">
+      <div className="w-full flex justify-between items-center bg-black/80 backdrop-blur-md py-2 px-6 rounded-full">
         <TransitionLink href="/" className="flex items-center">
           <div className="bg-white rounded-full px-3 py-1.5 hover:bg-gray-100 transition-colors">
             <Image

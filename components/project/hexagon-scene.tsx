@@ -66,7 +66,7 @@ export default function HexagonScene() {
   const [currentLayer, setCurrentLayer] = useState("night")
   const [currentTime, setCurrentTime] = useState(100)
   const [showHint, setShowHint] = useState(true)
-  const [showBoundary, setShowBoundary] = useState(true)
+  const [showBoundary, setShowBoundary] = useState(false)
   const [showSeoulBase, setShowSeoulBase] = useState(false)
   
   // DeckGL 초기 뷰 상태 (official deck.gl pattern)

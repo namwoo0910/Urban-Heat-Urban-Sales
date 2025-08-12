@@ -65,7 +65,7 @@ const EtherealThreadsPage = () => {
           <div className="text-center space-y-8">
             <ProjectHeader
               title="유동인구"
-              description="A living visualization of Seoul's urban pulse - watch as population flows through the city creating mesmerizing patterns that reveal the hidden rhythms of metropolitan life."
+              description="유동인구 관련 상세 설명을 삽입할 예정입니다. (활용 데이터, 방법론 등)"
             />
             <button
               onClick={handleEnterVisualization}
@@ -90,7 +90,7 @@ const EtherealThreadsPage = () => {
         </div>
       </div>
 
-      <ProjectNavigation href="/portfolio/quantum-leap" projectName="Others" />
+      <ProjectNavigation href="/portfolio/quantum-leap" projectName="EDA" />
     </div>
   )
 }

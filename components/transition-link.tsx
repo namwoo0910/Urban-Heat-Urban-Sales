@@ -27,7 +27,7 @@ export default function TransitionLink({ href, children, ...props }: TransitionL
       if (targetElement) {
         gsap.to(window, {
           duration: 1.2,
-          scrollTo: { y: targetElement, offsetY: 100 },
+          scrollTo: { y: targetElement, offsetY: 0 },
           ease: "power3.inOut",
         })
       }

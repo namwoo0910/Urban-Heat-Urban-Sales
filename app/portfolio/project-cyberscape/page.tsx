@@ -111,7 +111,7 @@ const ProjectCyberscapePage = () => {
           <div className="absolute inset-0 flex items-center justify-center">
             <ProjectHeader
               title="카드매출"
-              description="An immersive journey into a procedurally generated digital world. Experience a reality constructed from pure data, where light and geometry intertwine."
+              description="카드매출 관련 상세 설명을 삽입할 예정입니다. (활용 데이터, 방법론 등)"
             />
           </div>
         )}

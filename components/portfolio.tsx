@@ -18,8 +18,8 @@ const projects = [
     href: "/portfolio/ethereal-threads",
   },
   {
-    title: "Others",
-    description: "기타 데이터 시각화 프로젝트들.",
+    title: "EDA",
+    description: "탐색적 데이터 분석 및 인사이트 도출.",
     imgSrc: "/images/eda.png",
     href: "/portfolio/quantum-leap",
   },
@@ -27,15 +27,15 @@ const projects = [
 
 export function Portfolio() {
   return (
-    <div id="portfolio" className="relative min-h-screen flex items-center py-20 px-4 sm:px-6 lg:px-8">
-      <div className="w-full">
-        <div className="text-center mb-16">
-          <h2 className="text-4xl md:text-5xl font-bold tracking-tight">Our Creations</h2>
-          <p className="mt-4 max-w-2xl mx-auto text-lg text-neutral-400">
-            A selection of projects that define our passion for digital art.
+    <div id="portfolio" className="relative h-screen flex items-center px-4 sm:px-6 lg:px-8 pt-16">
+      <div className="w-full -mt-[60px]">
+        <div className="text-center mb-20">
+          <h2 className="text-5xl md:text-6xl font-bold tracking-tight">Our Research</h2>
+          <p className="mt-6 max-w-2xl mx-auto text-xl text-neutral-400">
+            기후에 따른 서울시민 카드매출 및 유동인구 변화 분석/예측
           </p>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[50px] max-w-7xl mx-auto">
           {projects.map((project, index) => (
             <motion.div
               key={project.title}
@@ -45,7 +45,7 @@ export function Portfolio() {
               viewport={{ once: true }}
             >
               <TransitionLink href={project.href}>
-                <div className="group relative block w-full h-[450px] overflow-hidden rounded-lg shadow-lg">
+                <div className="group relative block w-full h-[500px] overflow-hidden rounded-lg shadow-lg">
                   <Image
                     src={project.imgSrc || "/placeholder.svg"}
                     fill

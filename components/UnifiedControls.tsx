@@ -161,7 +161,7 @@ export default function UnifiedControls({
   }
 
   return (
-    <div className="fixed top-4 left-4 z-50">
+    <div className="fixed top-[76px] left-4 z-50">
       <Card className="bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-4 border-b border-white/20">
