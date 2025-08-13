@@ -55,6 +55,50 @@ export const COLOR_THEMES = {
     [255, 193, 7],    // Amber
     [255, 111, 97],   // Light coral
   ],
+  green: [
+    [27, 94, 32],     // Dark green
+    [56, 142, 60],    // Forest green
+    [76, 175, 80],    // Light green
+    [104, 159, 56],   // Olive green
+    [139, 195, 74],   // Lime green
+    [46, 125, 50],    // Medium green
+    [67, 160, 71],    // Grass green
+    [124, 179, 66],   // Yellow-green
+    [85, 139, 47],    // Moss green
+  ],
+  cyan: [
+    [0, 188, 212],    // Cyan
+    [0, 172, 193],    // Dark cyan
+    [38, 198, 218],   // Light cyan
+    [0, 150, 136],    // Teal
+    [0, 131, 143],    // Ocean cyan
+    [100, 255, 218],  // Aquamarine
+    [64, 224, 208],   // Turquoise
+    [0, 255, 255],    // Bright cyan
+    [127, 255, 212],  // Aqua
+  ],
+  violet: [
+    [138, 43, 226],   // Blue violet
+    [75, 0, 130],     // Indigo
+    [148, 0, 211],    // Dark violet
+    [153, 50, 204],   // Dark orchid
+    [186, 85, 211],   // Medium orchid
+    [147, 112, 219],  // Medium purple
+    [123, 104, 238],  // Medium slate blue
+    [106, 90, 205],   // Slate blue
+    [155, 89, 182],   // Amethyst
+  ],
+  neon: [
+    [255, 0, 255],    // Magenta
+    [0, 255, 255],    // Cyan
+    [255, 0, 128],    // Hot pink
+    [128, 255, 0],    // Lime
+    [255, 64, 255],   // Bright magenta
+    [0, 255, 128],    // Spring green
+    [255, 128, 0],    // Orange
+    [128, 0, 255],    // Purple
+    [255, 255, 0],    // Yellow
+  ],
   forest: [
     [27, 94, 32],     // Dark green
     [56, 142, 60],    // Forest green
