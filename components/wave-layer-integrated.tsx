@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import type { AnimationConfig } from '@/hooks/use-particle-animations'
 import { loadSeoulBoundaries, isPointInSeoul } from '@/utils/seoul-boundaries'
 import type { SeoulBoundaryData } from '@/utils/seoul-boundaries'
+import { loadWaveGrid } from '@/utils/fast-particle-loader'
 
 // Constants matching urbanwave
 const textureSize = 64
@@ -609,14 +610,11 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
     populationTexture.needsUpdate = true
     populationTextureRef.current = populationTexture
     
-    // Create particle geometry with grid positions
-    const particleCount = 100 // Grid size (100x100 = 10,000 particles)
-    const geometry = new THREE.BufferGeometry()
-    
+    // Generate grid of particles
     const positions = []
     const uvs = []
+    const particleCount = 100 // Grid size (100x100 = 10,000 particles)
     
-    // Generate grid of particles
     for (let i = 0; i < particleCount; i++) {
       for (let j = 0; j < particleCount; j++) {
         // Position in 3D space (spread across the surface)
@@ -628,6 +626,16 @@ export function WaveLayer({ animationConfig, mapboxCameraPos }: WaveLayerProps) 
         uvs.push(i / (particleCount - 1), j / (particleCount - 1))
       }
     }
+    
+    // Preload static grid data for future optimization (non-blocking)
+    loadWaveGrid().then(gridData => {
+      console.log('[WaveLayer] Static grid data loaded for next time')
+    }).catch(() => {
+      console.log('[WaveLayer] Static grid data not available')
+    })
+    
+    // Create particle geometry with positions
+    const geometry = new THREE.BufferGeometry()
     
     geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3))
     geometry.setAttribute('particleUV', new THREE.Float32BufferAttribute(uvs, 2))

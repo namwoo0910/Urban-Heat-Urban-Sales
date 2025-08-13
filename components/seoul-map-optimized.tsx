@@ -12,6 +12,7 @@ import { loadSeoulBoundaries } from "@/utils/seoul-boundaries"
 import type { SeoulBoundaryData } from "@/utils/seoul-boundaries"
 import { precomputeBoundaryGrid } from "@/utils/seoul-boundaries-optimized"
 import { generateParticlesOptimized, generateInitialParticles, createParticleBuffers } from "@/utils/particle-data-optimized"
+import { loadStaticParticles } from "@/utils/fast-particle-loader"
 import { useParticleCache } from "@/hooks/use-particle-cache"
 import { useParticleWorker } from "@/hooks/use-particle-worker"
 import useParticleAnimations from "@/hooks/use-particle-animations"
@@ -353,7 +354,28 @@ export function SeoulMapOptimized({
         setLoadingPhase('Loading optimized data...')
         setLoadingProgress(5)
         
-        // Step 2: Try to load from IndexedDB cache first (ultra-fast)
+        // Step 2: Try static files first (fastest)
+        try {
+          const quality = config.particleCount >= 12000 ? 'high' : 
+                         config.particleCount >= 8000 ? 'medium' : 'low'
+          const staticParticles = await loadStaticParticles(quality, animationConfig.colorTheme)
+          
+          setLoadingPhase('Loaded from static data!')
+          setLoadingProgress(100)
+          setParticles(staticParticles)
+          setAnimatedData(staticParticles.map(p => ({
+            position: p.position,
+            color: p.color,
+            size: p.size,
+            opacity: 255
+          })))
+          setIsLoading(false)
+          return
+        } catch (staticError) {
+          console.log('Static loading failed, trying cache...', staticError)
+        }
+        
+        // Step 3: Try to load from IndexedDB cache (fast)
         if (cacheReady) {
           const cached = await loadCachedParticles(config.particleCount, animationConfig.colorTheme)
           if (cached) {
@@ -371,7 +393,7 @@ export function SeoulMapOptimized({
           }
         }
         
-        // Step 3: Load and pre-compute boundary grid
+        // Step 4: Load and pre-compute boundary grid (fallback)
         setLoadingPhase('Optimizing boundaries...')
         const boundaries = await loadSeoulBoundaries()
         setBoundaryData(boundaries)
@@ -380,7 +402,7 @@ export function SeoulMapOptimized({
         const grid = await precomputeBoundaryGrid(boundaries)
         setLoadingProgress(30)
         
-        // Step 4: Generate particles with optimized algorithm
+        // Step 5: Generate particles with optimized algorithm (fallback)
         setLoadingPhase('Generating particles...')
         const particlesInSeoul = await generateParticlesOptimized(
           config.particleCount,
