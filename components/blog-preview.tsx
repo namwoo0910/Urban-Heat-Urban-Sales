@@ -3,12 +3,8 @@
 import { useRef } from "react"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { ScrollTrigger } from "gsap/ScrollTrigger"
 import { TransitionLink } from "./transition-link"
 import { ArrowRight } from "lucide-react"
-
-// ScrollTrigger 플러그인 등록
-gsap.registerPlugin(ScrollTrigger)
 
 const posts = [
   {
@@ -33,11 +29,8 @@ export function BlogPreview() {
 
   useGSAP(
     () => {
+      // Simple entrance animations without scroll trigger
       gsap.from(".blog-title", {
-        scrollTrigger: {
-          trigger: container.current,
-          start: "top 80%",
-        },
         y: 100,
         opacity: 0,
         duration: 1,
@@ -45,15 +38,12 @@ export function BlogPreview() {
       })
 
       gsap.from(".blog-post", {
-        scrollTrigger: {
-          trigger: ".blog-grid",
-          start: "top 80%",
-        },
         y: 100,
         opacity: 0,
         stagger: 0.2,
         duration: 0.8,
         ease: "power3.out",
+        delay: 0.3,
       })
     },
     { scope: container },

@@ -6,22 +6,6 @@ const Hero = dynamic(() => import('@/components/hero').then(mod => mod.Hero), {
   ssr: true
 })
 
-const Research = dynamic(() => import('@/components/research').then(mod => mod.Research), {
-  loading: () => <div className="min-h-screen flex items-center justify-center">Loading research...</div>,
-  ssr: true
-})
-
-const BlogPreview = dynamic(() => import('@/components/blog-preview').then(mod => mod.BlogPreview), {
-  loading: () => <div className="min-h-[400px] flex items-center justify-center">Loading blog...</div>,
-  ssr: true
-})
-
 export default function Home() {
-  return (
-    <>
-      <Hero />
-      <Research />
-      <BlogPreview />
-    </>
-  )
+  return <Hero />
 }
