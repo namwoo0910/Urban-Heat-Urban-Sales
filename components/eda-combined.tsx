@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import Map, { Source, Layer, NavigationControl, Popup } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
+import { geoJSONLoader } from '@/utils/geojson-loader'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA'
@@ -49,9 +50,9 @@ export default function EdaCombined() {
     const loadData = async () => {
       try {
         const [sgg, dong, jib] = await Promise.all([
-          fetch('/data/eda/gu.geojson').then(r => r.json()),
-          fetch('/data/eda/dong.geojson').then(r => r.json()),
-          fetch('/data/eda/ct.geojson').then(r => r.json())
+          geoJSONLoader.loadWithCache('/data/eda/gu.geojson'),
+          geoJSONLoader.loadWithCache('/data/eda/dong.geojson'),
+          geoJSONLoader.loadWithCache('/data/eda/ct.geojson')
         ])
         setSggData(sgg)
         setDongData(dong)

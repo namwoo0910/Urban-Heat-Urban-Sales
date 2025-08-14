@@ -86,43 +86,49 @@ export default function EdaCombinedOptimized() {
     const map = mapRef.current.getMap();
     const bounds = map.getBounds();
     
-    setViewportBounds([
-      [bounds.getWest() - 0.01, bounds.getSouth() - 0.01],
-      [bounds.getEast() + 0.01, bounds.getNorth() + 0.01]
-    ]);
+    if (bounds) {
+      setViewportBounds([
+        [bounds.getWest() - 0.01, bounds.getSouth() - 0.01],
+        [bounds.getEast() + 0.01, bounds.getNorth() + 0.01]
+      ]);
+    }
   }, []);
 
-  // Load GeoJSON data with caching and progress
+  // Progressive data loading with prioritization
   useEffect(() => {
     const loadData = async () => {
       try {
         setIsLoading(true);
         
-        // Load smaller files first
-        setLoadingMessage('자치구 데이터 로딩 중...');
+        // Phase 1: Load essential data first (smallest, most needed)
+        setLoadingMessage('필수 데이터 로딩 중...');
         setLoadingProgress(10);
         
-        const sggText = await fetch('/data/eda/gu.geojson').then(r => r.text());
-        const sgg = workerReady ? await parseGeoJSON(sggText) : JSON.parse(sggText);
+        const sgg = await geoJSONLoader.loadWithCache('/data/eda/gu.geojson');
         setSggData(sgg);
         setLoadingProgress(30);
         
-        setLoadingMessage('행정동 데이터 로딩 중...');
-        const dongText = await fetch('/data/eda/dong.geojson').then(r => r.text());
-        const dong = workerReady ? await parseGeoJSON(dongText) : JSON.parse(dongText);
+        // Show initial map immediately with district boundaries
+        setLoadingMessage('초기 지도 렌더링 중...');
+        setLoadingProgress(50);
+        await new Promise(resolve => setTimeout(resolve, 50)); // Allow render
+        
+        // Phase 2: Load secondary data in parallel
+        setLoadingMessage('상세 데이터 로딩 중...');
+        const [dong, jib] = await Promise.all([
+          geoJSONLoader.loadWithCache('/data/eda/dong.geojson'),
+          geoJSONLoader.loadWithCache('/data/eda/ct.geojson')
+        ]);
+        
         setDongData(dong);
-        setLoadingProgress(60);
+        setLoadingProgress(80);
         
-        // Load large jib data in background
-        setLoadingMessage('집계구 데이터 로딩 중...');
-        
-        // Use cache for large file
-        const jib = await geoJSONLoader.loadWithCache('/data/eda/ct.geojson');
+        // Phase 3: Load detailed data (defer if needed)
         setJibData(jib);
-        setLoadingProgress(90);
+        setLoadingProgress(95);
         
-        setLoadingMessage('렌더링 준비 중...');
-        await new Promise(resolve => setTimeout(resolve, 100));
+        setLoadingMessage('렌더링 완료 중...');
+        await new Promise(resolve => setTimeout(resolve, 50));
         setLoadingProgress(100);
         
         setIsLoading(false);
@@ -134,7 +140,7 @@ export default function EdaCombinedOptimized() {
     }
     
     loadData();
-  }, [workerReady, parseGeoJSON]);
+  }, [workerReady]);
 
   // Filter jib data based on viewport (only when visible and zoomed in)
   useEffect(() => {
@@ -319,7 +325,7 @@ export default function EdaCombinedOptimized() {
 
   return (
     <div className="relative w-full h-full">
-      {isLoading && (
+      {isLoading && loadingProgress < 30 && (
         <LoadingProgress progress={loadingProgress} message={loadingMessage} />
       )}
       

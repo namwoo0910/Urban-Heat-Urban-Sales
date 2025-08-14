@@ -2,6 +2,8 @@
 
 import Image from "next/image"
 import { motion } from "framer-motion"
+import { useRouter } from "next/navigation"
+import { geoJSONLoader } from "@/utils/geojson-loader"
 import TransitionLink from "./transition-link"
 
 const projects = [
@@ -29,6 +31,22 @@ const projects = [
 ]
 
 export function Portfolio() {
+  const router = useRouter()
+
+  // Smart prefetching for EDA visualization
+  const handleEDAHover = () => {
+    // Prefetch the EDA page
+    router.prefetch('/portfolio/quantum-leap')
+    router.prefetch('/eda-visualization')
+    
+    // Preload heavy data files in background
+    geoJSONLoader.preload([
+      '/data/eda/gu.geojson',
+      '/data/eda/dong.geojson',
+      '/data/eda/ct.geojson'
+    ]).catch(e => console.warn('Preload failed:', e))
+  }
+
   return (
     <div id="portfolio" className="relative h-screen flex items-center px-4 sm:px-6 lg:px-8 pt-16">
       <div className="w-full -mt-[60px]">
@@ -48,7 +66,10 @@ export function Portfolio() {
               viewport={{ once: true }}
             >
               <TransitionLink href={project.href}>
-                <div className="group relative block w-full h-[500px] overflow-hidden rounded-lg shadow-lg">
+                <div 
+                  className="group relative block w-full h-[500px] overflow-hidden rounded-lg shadow-lg"
+                  onMouseEnter={project.title === "EDA" ? handleEDAHover : undefined}
+                >
                   <Image
                     src={project.imgSrc || "/placeholder.svg"}
                     fill

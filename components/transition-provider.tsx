@@ -28,7 +28,7 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
     timeline.to(containerRef.current, {
       opacity: 0,
       y: -10,
-      duration: 0.2,
+      duration: 0.05,
       ease: "power2.in",
     })
   }
@@ -41,7 +41,7 @@ export function TransitionProvider({ children }: { children: ReactNode }) {
         {
           opacity: 1,
           y: 0,
-          duration: 0.4,
+          duration: 0.1,
           ease: "power2.out",
           onComplete: () => {
             const hash = window.location.hash
