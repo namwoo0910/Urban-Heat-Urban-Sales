@@ -2,7 +2,7 @@
 
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
-import { ArrowLeft, ArrowRight } from 'lucide-react'
+import { ArrowLeft } from 'lucide-react'
 import TransitionLink from '@/components/transition-link'
 
 // Dynamic import for Research component
@@ -16,27 +16,16 @@ export default function ResearchSection() {
     <div className="relative">
       <Research />
       
-      {/* Navigation Buttons */}
-      <div className="fixed bottom-10 left-0 right-0 z-50 flex justify-center gap-4">
+      {/* Navigation Button */}
+      <div className="fixed left-0 right-0 z-50 flex justify-center" style={{ bottom: 'calc(2.5rem + 60px)' }}>
         <TransitionLink href="/">
           <motion.button
-            className="flex items-center gap-2 px-6 py-3 bg-black/80 hover:bg-black text-white font-medium rounded-full transition-all duration-300 border border-white/20 backdrop-blur-sm"
+            className="flex items-center gap-2 px-4 py-2 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium rounded-full transition-all duration-300 border border-white/20 backdrop-blur-sm text-sm uppercase tracking-wide"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
             <ArrowLeft size={16} />
             <span>Back to Home</span>
-          </motion.button>
-        </TransitionLink>
-        
-        <TransitionLink href="/blog-section">
-          <motion.button
-            className="flex items-center gap-2 px-6 py-3 bg-black/80 hover:bg-black text-white font-medium rounded-full transition-all duration-300 border border-white/20 backdrop-blur-sm"
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            <span>View Blog</span>
-            <ArrowRight size={16} />
           </motion.button>
         </TransitionLink>
       </div>

@@ -5,12 +5,13 @@ import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { useRef } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, usePathname } from "next/navigation"
 import Image from "next/image"
 
 export function Header() {
   const headerRef = useRef(null)
   const router = useRouter()
+  const pathname = usePathname()
 
   useGSAP(() => {
     gsap.from(headerRef.current, {
@@ -28,41 +29,71 @@ export function Header() {
   }
 
   return (
-    <motion.header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 py-2 px-6">
-      <div className="w-full flex justify-between items-center bg-black/80 backdrop-blur-md py-2 px-6 rounded-full">
+    <motion.header ref={headerRef} className="fixed left-0 right-0 z-50 py-2 px-6" style={{ top: '10px' }}>
+      <div className="w-full flex justify-between items-center backdrop-blur-md py-2 px-6 rounded-full">
+        {/* Left: KAIST AI Logo */}
         <TransitionLink href="/" className="flex items-center" onMouseEnter={handleHomeHover}>
-          <div className="bg-white rounded-full px-3 py-1.5 hover:bg-gray-100 transition-colors">
+          <div 
+            className="relative rounded-sm px-3 py-1.5 overflow-hidden backdrop-blur-sm"
+            style={{
+              background: 'linear-gradient(-45deg, #fce4ec, #e1f5fe, #f3e5f5, #e8f5e9)',
+              backgroundSize: '400% 400%',
+              animation: 'gradientShift 8s ease infinite',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+            }}
+          >
+            {/* White overlay for better text visibility */}
+            <div className="absolute inset-0 bg-white/40"></div>
             <Image
               src="/images/kaist-ai-logo-text.png"
               alt="KAIST AI Logo"
               width={100}
               height={32}
-              className="h-6 w-auto"
+              className="h-6 w-auto relative z-10 contrast-125 brightness-95"
               priority
             />
           </div>
         </TransitionLink>
-        <nav className="hidden md:flex items-center gap-6 text-white">
-          <TransitionLink href="/#research" className="hover:text-neutral-300 transition-colors">
-            Research
+        
+        {/* Center: 데이터로 보는 서울 Button - Hide on main page and research-section page */}
+        {pathname !== '/' && pathname !== '/research-section' && (
+          <TransitionLink href="/research-section">
+            <motion.button
+              className="font-['Montserrat'] font-semibold text-white text-sm py-1.5 px-4 transition-all duration-300 hover:text-gray-300 uppercase tracking-wider"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              데이터로 보는 서울
+            </motion.button>
           </TransitionLink>
-          <TransitionLink href="/site" className="hover:text-neutral-300 transition-colors">
-            Site
-          </TransitionLink>
-          <TransitionLink href="/contact" className="hover:text-neutral-300 transition-colors">
-            Contact
-          </TransitionLink>
-        </nav>
+        )}
+        
+        {/* Right: Contact Us Button */}
         <TransitionLink href="/contact">
           <motion.button
-            className="bg-white text-black font-semibold py-1.5 px-4 rounded-full text-sm"
+            className="font-['Montserrat'] font-semibold text-white text-sm py-1.5 px-4 transition-all duration-300 hover:text-gray-300 uppercase tracking-wider"
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
-            Let's Talk
+            Contact Us
           </motion.button>
         </TransitionLink>
       </div>
+      
+      {/* Gradient Animation Styles */}
+      <style jsx>{`
+        @keyframes gradientShift {
+          0% {
+            background-position: 0% 50%;
+          }
+          50% {
+            background-position: 100% 50%;
+          }
+          100% {
+            background-position: 0% 50%;
+          }
+        }
+      `}</style>
     </motion.header>
   )
 }

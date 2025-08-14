@@ -121,7 +121,7 @@ export function Hero() {
         }}
       />
       {/* Top text elements */}
-      <div className="absolute top-28 left-0 right-0 z-10 flex flex-col items-center text-white text-center px-4">
+      <div className="absolute left-0 right-0 z-10 flex flex-col items-center text-white text-center px-4" style={{ top: 'calc(7rem - 10px)' }}>
         <h1 className="hero-title font-['Montserrat'] font-bold tracking-tight text-3xl md:text-4xl lg:text-5xl mb-4 uppercase">{splitTitle}</h1>
         <motion.p
           className="hero-subtitle font-['Montserrat'] font-semibold tracking-wider text-sm md:text-base lg:text-lg text-neutral-300 uppercase"
@@ -137,17 +137,17 @@ export function Hero() {
       <div className="absolute left-0 right-0 z-10 flex justify-center px-4" style={{ bottom: 'calc(5rem - 5px)' }}>
         <TransitionLink href="/research-section">
           <motion.button
-            className="hero-button flex items-center gap-1 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-1 px-3 rounded-full transition-all duration-300 text-xs uppercase tracking-wide border border-white/20"
+            className="hero-button flex items-center gap-2 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-2 px-4 rounded-full transition-all duration-300 text-sm uppercase tracking-wide border border-white/20"
             whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
             whileTap={{ scale: 0.95 }}
           >
-            EXPLORE SEOUL <ArrowRight size={12} />
+            EXPLORE SEOUL <ArrowRight size={16} />
           </motion.button>
         </TransitionLink>
       </div>
       
       {/* Animation Controls - positioned above all other elements */}
-      <div className="absolute top-[46px] left-4 z-[100]">
+      <div className="absolute top-[56px] left-4 z-[100]">
         <AnimationControls
           config={animationConfig}
           onConfigChange={handleAnimationConfigChange}

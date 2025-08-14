@@ -448,10 +448,6 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
 
   return (
     <div className={`relative w-full h-full ${className}`}>
-      {/* Header */}
-      <div className="absolute top-5 left-1/2 transform -translate-x-1/2 z-[1000] bg-black/80 backdrop-blur-md px-8 py-4 rounded-xl">
-        <h1 className="text-white text-xl font-bold text-center">🏙️ 시간별 인구 분포 3D 시각화</h1>
-      </div>
 
       {/* Map */}
       <Map

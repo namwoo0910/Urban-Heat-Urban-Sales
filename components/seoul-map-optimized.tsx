@@ -863,7 +863,7 @@ export function SeoulMapOptimized({
   }
 
   return (
-    <div className="relative w-full h-full" id="seoul-map-container">
+    <div className="relative w-full h-full" id="seoul-map-container" style={{ marginTop: '-10px' }}>
       {/* Particle layer rendering */}
       <DeckGL
         viewState={viewState}

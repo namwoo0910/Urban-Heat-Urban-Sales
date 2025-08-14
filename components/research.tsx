@@ -48,7 +48,7 @@ export function Research() {
   }
 
   return (
-    <div id="research" className="relative min-h-screen px-4 sm:px-6 lg:px-8 pt-32">
+    <div id="research" className="relative min-h-screen px-4 sm:px-6 lg:px-8" style={{ paddingTop: 'calc(8rem - 50px)' }}>
       {/* Main title section with proper spacing for fixed header */}
       <div className="text-center mb-20">
         <h2 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">데이터로 보는 서울</h2>
@@ -57,7 +57,7 @@ export function Research() {
         </p>
       </div>
       
-      <div className="w-full pb-20">
+      <div className="w-full" style={{ paddingBottom: 'calc(5rem - 30px)' }}>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[50px] max-w-7xl mx-auto">
           {projects.map((project, index) => (
             <motion.div

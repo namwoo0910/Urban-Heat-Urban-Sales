@@ -7,5 +7,9 @@ const Hero = dynamic(() => import('@/components/hero').then(mod => mod.Hero), {
 })
 
 export default function Home() {
-  return <Hero />
+  return (
+    <div className="relative min-h-screen">
+      <Hero />
+    </div>
+  )
 }
