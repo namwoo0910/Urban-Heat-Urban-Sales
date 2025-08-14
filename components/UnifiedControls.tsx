@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ChevronDown } from "lucide-react"
 import { 
   Layers, 
   Calendar, 
@@ -152,6 +154,7 @@ export default function UnifiedControls({
 }: UnifiedControlsProps) {
   const [isMinimized, setIsMinimized] = useState(false)
   const [activeTab, setActiveTab] = useState("map")
+  const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
 
   const currentLayerInfo = mapLayers.find((layer) => layer.id === currentLayer)
 
@@ -163,8 +166,11 @@ export default function UnifiedControls({
   return (
     <div className="fixed top-[76px] left-4 z-50">
       <Card className="bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden">
-        {/* 헤더 */}
-        <div className="flex items-center justify-between p-4 border-b border-white/20">
+        {/* Clickable Header to expand/collapse */}
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors group"
+        >
           <div className="flex items-center space-x-2">
             <MapPin size={18} className="text-blue-400" />
             <span className="font-bold">서울특별시</span>
@@ -173,38 +179,52 @@ export default function UnifiedControls({
           </div>
           <div className="flex items-center space-x-2">
             {isDataLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onReset}
-              className="text-white hover:bg-white/10 p-2"
-              title="설정 초기화"
+            <motion.div
+              animate={{ rotate: isExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
             >
-              <RefreshCw className="w-4 h-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={toggleMinimize}
-              className="text-white hover:bg-white/10 p-2"
-              title={isMinimized ? "확장" : "최소화"}
+              <ChevronDown className="w-4 h-4 text-white/70 group-hover:text-white/90 transition-colors" />
+            </motion.div>
+          </div>
+        </button>
+
+        {/* Collapsible Content */}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ 
+                duration: 0.3,
+                ease: "easeInOut"
+              }}
+              style={{ overflow: "hidden" }}
             >
-              {isMinimized ? <Maximize2 className="w-4 h-4" /> : <Minimize2 className="w-4 h-4" />}
-            </Button>
-          </div>
-        </div>
+              {/* Reset Button */}
+              <div className="px-4 pt-2 pb-3 border-b border-white/20">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={onReset}
+                  className="text-white hover:bg-white/10 w-full justify-center"
+                  title="설정 초기화"
+                >
+                  <RefreshCw className="w-4 h-4 mr-2" />
+                  설정 초기화
+                </Button>
+              </div>
 
-        {/* 오류 표시 */}
-        {dataError && !isMinimized && (
-          <div className="mx-4 mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
-            <div className="text-sm text-red-200">
-              <strong>오류:</strong> {dataError}
-            </div>
-          </div>
-        )}
+              {/* 오류 표시 */}
+              {dataError && (
+                <div className="mx-4 mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <div className="text-sm text-red-200">
+                    <strong>오류:</strong> {dataError}
+                  </div>
+                </div>
+              )}
 
-        {!isMinimized && (
-          <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
             {/* 레이어 활성화 토글 */}
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
@@ -488,15 +508,17 @@ export default function UnifiedControls({
               )}
             </div>
 
-            {/* 정보 패널 */}
-            <div className="bg-white/5 rounded-lg p-3 text-xs text-white/60 space-y-1">
-              <div>💡 팁: 반지름과 높이를 조정하여 3D 효과를 변경하세요</div>
-              <div>🎨 색상: 프리미엄 팔레트로 세련된 시각화를 경험하세요</div>
-              <div>📏 높이: 데이터 밀도를 3D로 표현합니다</div>
-              <div>🌊 애니메이션: 파도 효과로 생동감 있는 데이터 시각화</div>
-            </div>
-          </div>
-        )}
+                {/* 정보 패널 */}
+                <div className="bg-white/5 rounded-lg p-3 text-xs text-white/60 space-y-1">
+                  <div>💡 팁: 반지름과 높이를 조정하여 3D 효과를 변경하세요</div>
+                  <div>🎨 색상: 프리미엄 팔레트로 세련된 시각화를 경험하세요</div>
+                  <div>📏 높이: 데이터 밀도를 3D로 표현합니다</div>
+                  <div>🌊 애니메이션: 파도 효과로 생동감 있는 데이터 시각화</div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Card>
     </div>
   )

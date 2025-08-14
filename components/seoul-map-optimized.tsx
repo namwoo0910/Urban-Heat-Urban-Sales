@@ -928,7 +928,7 @@ export function SeoulMapOptimized({
 
       {/* 성능 정보 표시 (개발 모드에서만) */}
       {process.env.NODE_ENV === 'development' && (
-        <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-sm rounded px-3 py-2 text-xs text-white/80 space-y-1">
+        <div className="absolute right-4 bg-black/60 backdrop-blur-sm rounded px-3 py-2 text-xs text-white/80 space-y-1" style={{ top: '86px' }}>
           <div>Performance: {performanceLevel.toUpperCase()}</div>
           <div>Particles: {config.particleCount}</div>
           <div>Target FPS: {config.fps}</div>
