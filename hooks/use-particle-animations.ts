@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
 import type { ParticleData } from '@/utils/particle-data'
+import { fastSin, fastCos } from '@/utils/math-lookup-tables'
 
 export interface AnimationConfig {
   layerType: 'particle' | 'wave'
@@ -122,8 +123,8 @@ export function useParticleAnimations(
     (particle: ParticleData, time: number): [number, number] => {
       if (!config.waveEnabled) return particle.position
 
-      const waveX = Math.sin(time * config.waveSpeed + particle.phase) * config.waveAmplitude
-      const waveY = Math.cos(time * config.waveSpeed * 0.7 + particle.phase) * config.waveAmplitude * 0.7
+      const waveX = fastSin(time * config.waveSpeed + particle.phase) * config.waveAmplitude
+      const waveY = fastCos(time * config.waveSpeed * 0.7 + particle.phase) * config.waveAmplitude * 0.7
 
       return [
         particle.position[0] + waveX,
@@ -140,7 +141,7 @@ export function useParticleAnimations(
         return { size: particle.size, opacity: 1 }
       }
 
-      const pulse = Math.sin(time * config.pulseSpeed + particle.phase * 2)
+      const pulse = fastSin(time * config.pulseSpeed + particle.phase * 2)
       const sizeFactor = 1 + pulse * config.pulseIntensity * 0.5
       const opacityFactor = 0.7 + pulse * config.pulseIntensity * 0.3
 
@@ -162,8 +163,8 @@ export function useParticleAnimations(
       const [r, g, b] = particle.color
 
       // Simple hue rotation
-      const cos = Math.cos(hueShift)
-      const sin = Math.sin(hueShift)
+      const cos = fastCos(hueShift)
+      const sin = fastSin(hueShift)
       
       const newR = r * (cos + (1 - cos) / 3) + g * ((1 - cos) / 3 - Math.sqrt(1/3) * sin) + b * ((1 - cos) / 3 + Math.sqrt(1/3) * sin)
       const newG = r * ((1 - cos) / 3 + Math.sqrt(1/3) * sin) + g * (cos + (1 - cos) / 3) + b * ((1 - cos) / 3 - Math.sqrt(1/3) * sin)
@@ -184,8 +185,8 @@ export function useParticleAnimations(
       if (!config.orbitalEnabled) return particle.position
 
       const angle = time * config.orbitalSpeed + (index * Math.PI * 2) / 100
-      const orbX = Math.cos(angle) * config.orbitalRadius
-      const orbY = Math.sin(angle) * config.orbitalRadius
+      const orbX = fastCos(angle) * config.orbitalRadius
+      const orbY = fastSin(angle) * config.orbitalRadius
 
       return [
         particle.position[0] + orbX,

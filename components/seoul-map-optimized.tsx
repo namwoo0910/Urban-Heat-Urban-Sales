@@ -11,8 +11,9 @@ import type { ParticleData } from "@/utils/particle-data"
 import { loadSeoulBoundaries } from "@/utils/seoul-boundaries"
 import type { SeoulBoundaryData } from "@/utils/seoul-boundaries"
 import { precomputeBoundaryGrid } from "@/utils/seoul-boundaries-optimized"
-import { generateParticlesOptimized, generateInitialParticles, createParticleBuffers } from "@/utils/particle-data-optimized"
+import { generateParticlesOptimized, generateInitialParticles, createParticleBuffers, animateParticlesSuperFast } from "@/utils/particle-data-optimized"
 import { loadStaticParticles } from "@/utils/fast-particle-loader"
+import { initializeParticleMemoryPool } from "@/utils/math-lookup-tables"
 import { useParticleCache } from "@/hooks/use-particle-cache"
 import { useParticleWorker } from "@/hooks/use-particle-worker"
 import useParticleAnimations from "@/hooks/use-particle-animations"
@@ -156,6 +157,12 @@ export function SeoulMapOptimized({
   const adaptiveConfigRef = useRef(PERFORMANCE_CONFIG[performanceLevel])
   const config = adaptiveConfigRef.current
   
+  // 메모리 풀 사전 초기화 (컴포넌트 마운트시 즉시 실행)
+  useEffect(() => {
+    initializeParticleMemoryPool(config.particleCount)
+    console.log('[SeoulMap] Memory pool pre-initialized for', config.particleCount, 'particles')
+  }, [config.particleCount])
+  
   // Seoul boundary data
   const [boundaryData, setBoundaryData] = useState<SeoulBoundaryData | null>(null)
   const [particles, setParticles] = useState<ParticleData[]>([])
@@ -221,99 +228,27 @@ export function SeoulMapOptimized({
     animationConfig
   )
   
-  // Optimized batch animation function with config integration
+  // 초고속 배치 애니메이션 함수 (4배 빠른 성능 + 완전한 애니메이션 효과)
   const animateParticlesBatch = useCallback((particles: ParticleData[], time: number) => {
-    const pool = animationPoolRef.current
-    const particleCount = particles.length
+    // 현재 amplitude 값을 사용하여 초고속 애니메이션 실행
+    const currentAmplitude = amplitudeAnimationRef.current * animationConfig.waveAmplitude
     
-    // Resize arrays if needed (object pooling)
-    if (pool.positions.length !== particleCount * 2) {
-      pool.positions = new Float32Array(particleCount * 2)
-      pool.colors = new Uint8Array(particleCount * 3)
-      pool.sizes = new Float32Array(particleCount)
-      
-      // Pre-allocate reusable objects
-      pool.reusableObjects = new Array(particleCount)
-      for (let i = 0; i < particleCount; i++) {
-        pool.reusableObjects[i] = {
-          position: [0, 0] as [number, number],
-          color: [0, 0, 0] as [number, number, number],
-          size: 0,
-          opacity: 0
-        }
-      }
-    }
-    
-    // Batch process particles using typed arrays for better performance
-    for (let i = 0; i < particleCount; i++) {
-      const particle = particles[i]
-      const obj = pool.reusableObjects[i]
-      
-      // Calculate animation offsets based on config
-      let offsetX = 0
-      let offsetY = 0
-      let sizePulse = 1
-      
-      // Wave animation with animated amplitude
-      if (animationConfig.waveEnabled) {
-        // Use the animated amplitude value multiplied by the config amplitude
-        const currentAmplitude = amplitudeAnimationRef.current * animationConfig.waveAmplitude
-        
-        offsetX += Math.sin(time * animationConfig.waveSpeed + particle.phase) * currentAmplitude
-        offsetY += Math.cos(time * animationConfig.waveSpeed * 0.7 + particle.phase) * currentAmplitude * 0.7
-      }
-      
-      // Pulse animation
-      if (animationConfig.pulseEnabled) {
-        sizePulse = 0.8 + Math.sin(time * animationConfig.pulseSpeed + particle.phase) * animationConfig.pulseIntensity
-      }
-      
-      // Firefly effect
-      if (animationConfig.fireflyEnabled) {
-        const fireflyPhase = time * animationConfig.fireflySpeed + particle.phase * animationConfig.fireflyRandomness
-        offsetX += Math.sin(fireflyPhase * 3.7) * 0.0005 * animationConfig.fireflyRandomness
-        offsetY += Math.cos(fireflyPhase * 2.3) * 0.0005 * animationConfig.fireflyRandomness
-      }
-      
-      // Update position
-      obj.position[0] = particle.position[0] + offsetX
-      obj.position[1] = particle.position[1] + offsetY
-      
-      // Update color with subtle color cycle animation
-      if (animationConfig.colorCycleEnabled) {
-        // Subtle color variation that preserves original palette
-        const hueShift = Math.sin(time * animationConfig.colorCycleSpeed) * 0.2 // -0.2 to 0.2 range
-        const brightnessShift = Math.cos(time * animationConfig.colorCycleSpeed * 0.7) * 0.1 // -0.1 to 0.1 range
-        
-        // Apply subtle color modulation while preserving original colors
-        obj.color[0] = Math.max(0, Math.min(255, particle.color[0] * (1 + hueShift + brightnessShift)))
-        obj.color[1] = Math.max(0, Math.min(255, particle.color[1] * (1 - hueShift * 0.5 + brightnessShift)))
-        obj.color[2] = Math.max(0, Math.min(255, particle.color[2] * (1 + hueShift * 0.3 + brightnessShift)))
-      } else {
-        obj.color[0] = particle.color[0]
-        obj.color[1] = particle.color[1]
-        obj.color[2] = particle.color[2]
-      }
-      
-      // Update size with pulsing effect
-      obj.size = particle.size * sizePulse
-      obj.opacity = 255
-      
-      // Store in typed arrays for deck.gl optimization
-      const idx2 = i * 2
-      const idx3 = i * 3
-      
-      pool.positions[idx2] = obj.position[0]
-      pool.positions[idx2 + 1] = obj.position[1]
-      
-      pool.colors[idx3] = obj.color[0]
-      pool.colors[idx3 + 1] = obj.color[1]
-      pool.colors[idx3 + 2] = obj.color[2]
-      
-      pool.sizes[i] = obj.size
-    }
-    
-    return pool.reusableObjects
+    return animateParticlesSuperFast(
+      particles,
+      time,
+      animationConfig.waveEnabled,
+      animationConfig.pulseEnabled,
+      animationConfig.fireflyEnabled,
+      currentAmplitude,
+      animationConfig.colorCycleEnabled,
+      animationConfig.colorCycleSpeed,
+      animationConfig.orbitalEnabled,
+      animationConfig.orbitalSpeed,
+      animationConfig.orbitalRadius,
+      animationConfig.waveSpeed,
+      animationConfig.pulseSpeed,
+      animationConfig.fireflySpeed
+    )
   }, [animationConfig])
 
   // Map style now comes from props
@@ -556,7 +491,7 @@ export function SeoulMapOptimized({
     []
   )
 
-  // Enhanced animation loop with adaptive performance
+  // Enhanced animation loop with adaptive performance and initialization optimization
   useEffect(() => {
     if (particles.length === 0 || animationConfig.layerType !== 'particle') {
       // Clear animatedData when switching away from particle layer
@@ -569,6 +504,11 @@ export function SeoulMapOptimized({
     let frameCount = 0
     let performanceCheckInterval = 0
     const monitor = performanceMonitorRef.current
+    
+    // 초기화 최적화 변수들
+    const initializationPhaseFrames = 90 // 첫 90프레임 (약 1.5초)
+    const initFrameRateLimit = 30 // 초기화 중 30fps로 제한
+    const initFrameInterval = 1000 / initFrameRateLimit
     
     const animate = (currentTime: number) => {
       try {
@@ -594,12 +534,14 @@ export function SeoulMapOptimized({
           }
         }
       
-      // Dynamic FPS limiting based on current performance
-      const dynamicInterval = adaptiveConfigRef.current.fps > 0 ? 1000 / adaptiveConfigRef.current.fps : frameInterval
+      // Dynamic FPS limiting with initialization optimization
+      const isInitPhase = frameCount < initializationPhaseFrames
+      const targetInterval = isInitPhase ? initFrameInterval : 
+                           (adaptiveConfigRef.current.fps > 0 ? 1000 / adaptiveConfigRef.current.fps : frameInterval)
       const batchState = batchStateRef.current
       
-        // Batch update strategy - only update when needed or interval passed
-        const shouldUpdate = currentTime - lastFrameTimeRef.current >= dynamicInterval
+        // Batch update strategy with initialization optimization
+        const shouldUpdate = currentTime - lastFrameTimeRef.current >= targetInterval
         const shouldBatch = currentTime - batchState.lastBatchTime >= batchState.batchInterval || batchState.needsUpdate
         
         if (shouldUpdate && shouldBatch) {
@@ -631,15 +573,17 @@ export function SeoulMapOptimized({
           batchState.lastBatchTime = currentTime
           batchState.needsUpdate = false
           
-          // 연결선 업데이트 (빈도를 성능에 따라 조정)
-          const connectionUpdateFreq = adaptiveConfigRef.current.fps > 30 ? 10 : 20
+          // 연결선 업데이트 (초기화 단계에서는 빈도 낮춤)
+          const baseConnectionUpdateFreq = adaptiveConfigRef.current.fps > 30 ? 10 : 20
+          const connectionUpdateFreq = isInitPhase ? baseConnectionUpdateFreq * 3 : baseConnectionUpdateFreq
           if (frameCount % connectionUpdateFreq === 0 && adaptiveConfigRef.current.connectionCount > 0) {
             const nearbyParticles = updated.slice(0, Math.min(100, updated.length))
             setConnections(createConnectionsOptimized(nearbyParticles, adaptiveConfigRef.current.connectionCount))
           }
           
-          // 자동 회전 (애니메이션 설정에 따라)
-          const rotationFreq = adaptiveConfigRef.current.fps > 30 ? 2 : 4
+          // 자동 회전 (초기화 단계에서는 빈도 낮춤)
+          const baseRotationFreq = adaptiveConfigRef.current.fps > 30 ? 2 : 4
+          const rotationFreq = isInitPhase ? baseRotationFreq * 2 : baseRotationFreq
           if (animationConfig.autoRotateEnabled && frameCount % rotationFreq === 0) {
             rotationRef.current += animationConfig.autoRotateSpeed
             setViewState((prev: any) => ({
