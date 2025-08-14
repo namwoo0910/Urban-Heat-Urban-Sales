@@ -212,13 +212,13 @@ export function SeoulMapOptimized({
     batchInterval: 16 // ~60fps
   })
   
-  // 초기 뷰 상태 - 80% side view angle and adjusted zoom for 90% scale
+  // 초기 뷰 상태 - more top-down view for less narrow feeling
   const [viewState, setViewState] = useState<MapViewState>({
     longitude: 126.978,
     latitude: 37.5665,
     zoom: 11.0, // Slightly reduced zoom for 90% scale effect
-    pitch: performanceLevel === 'high' ? 72 : 52, // Changed from top view to 80% side view
-    bearing: 15, // Slight rotation for side view effect
+    pitch: performanceLevel === 'high' ? 55 : 45, // Adjusted pitch angles
+    bearing: 15, // Slight rotation for visual interest
   })
 
   // Animation configuration now comes from props
@@ -875,14 +875,13 @@ export function SeoulMapOptimized({
         <div style={{ transform: 'scale(0.9)', transformOrigin: 'center center', width: '111.11%', height: '111.11%', marginLeft: '-5.56%', marginTop: '-5.56%' }}>
         <DeckGL
           viewState={viewState}
-          onViewStateChange={handleViewStateChange}
-          controller={true}
+          controller={false}  // Disable user interaction
           layers={layers}
           parameters={{
             // Parameters for rendering optimization
           }}
           // 성능 최적화 옵션
-          getCursor={() => 'grab'}
+          getCursor={() => 'default'}  // Default cursor (no grab)
           getTooltip={() => null}
         >
         {/* Render Map with fixed dark theme */}
@@ -891,6 +890,7 @@ export function SeoulMapOptimized({
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyle}
           style={{ width: '100%', height: '100%' }}
+          interactive={false}  // Disable Mapbox interaction
           reuseMaps={true}
           preserveDrawingBuffer={false}
           attributionControl={false}
@@ -942,18 +942,13 @@ export function SeoulMapOptimized({
               mapboxAccessToken={MAPBOX_TOKEN}
               mapStyle={mapStyle}
               initialViewState={viewState}
+              interactive={false}  // Disable Mapbox interaction
               reuseMaps={true}
               preserveDrawingBuffer={false}
               attributionControl={false}
               style={{ width: '100%', height: '100%' }}
               onError={(evt: any) => {
                 console.error('Map error in wave layer:', evt)
-              }}
-              onMove={(evt: any) => {
-                const { viewState } = evt
-                if (viewState) {
-                  setViewState(viewState)
-                }
               }}
               onLoad={(evt: any) => {
                 const map = evt.target
