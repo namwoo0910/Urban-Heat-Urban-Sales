@@ -2,9 +2,9 @@
 
 import dynamic from 'next/dynamic'
 
-// Dynamically import the combined EDA component to avoid SSR issues with Mapbox
+// Dynamically import the optimized EDA component to avoid SSR issues with Mapbox
 const EdaCombined = dynamic(
-  () => import('@/components/eda-combined'),
+  () => import('@/components/eda-combined-optimized'),
   { 
     ssr: false,
     loading: () => (

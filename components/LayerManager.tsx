@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState, useEffect } from 'react'
+import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { HexagonLayer } from '@deck.gl/aggregation-layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '../lib/premium-colors'
@@ -94,30 +94,52 @@ export function LayerManager({
   onAnimationInteractionStart,
   onAnimationInteractionEnd
 }: LayerManagerProps) {
-  // 애니메이션 시간 추적
+  // 애니메이션 시간 추적 (throttled updates)
   const [animationTime, setAnimationTime] = useState(0)
+  const animationFrameRef = useRef<number | null>(null)
+  const lastUpdateTimeRef = useRef(0)
   
-  // 애니메이션 업데이트
+  // 애니메이션 업데이트 (throttled to 30fps for performance)
   useEffect(() => {
-    if (!config.animationEnabled) return
+    if (!config.animationEnabled) {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+        console.log('Wave animation stopped')
+      }
+      return
+    }
     
-    let animationId: number
-    const animate = () => {
-      setAnimationTime(Date.now() / 1000)
-      animationId = requestAnimationFrame(animate)
+    const THROTTLE_MS = 33 // ~30fps for better performance
+    
+    const animate = (currentTime: number) => {
+      if (currentTime - lastUpdateTimeRef.current >= THROTTLE_MS) {
+        setAnimationTime(currentTime / 1000)
+        lastUpdateTimeRef.current = currentTime
+      }
+      
+      animationFrameRef.current = requestAnimationFrame(animate)
     }
     
     console.log('Wave animation started')
-    animationId = requestAnimationFrame(animate)
+    animationFrameRef.current = requestAnimationFrame(animate)
     
     return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId)
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
         console.log('Wave animation stopped')
       }
     }
   }, [config.animationEnabled])
 
+  // Grouped data for animated layers (stable)
+  const groupedData = useMemo(() => {
+    if (!data || !config.animationEnabled) return null
+    return groupDataByDistance(data, SEOUL_CENTER, WAVE_LAYERS)
+  }, [data, config.animationEnabled])
+
+  // Create layers with proper dependency management
   const layers = useMemo<Layer[]>(() => {
     console.log('[LayerManager] Creating layers with:', {
       hasData: !!data,
@@ -134,16 +156,14 @@ export function LayerManager({
     }
 
     // 애니메이션이 활성화된 경우 다중 레이어 생성
-    if (config.animationEnabled) {
-      const groupedData = groupDataByDistance(data, SEOUL_CENTER, WAVE_LAYERS)
-      
+    if (config.animationEnabled && groupedData) {
       console.log(`[LayerManager] Creating ${WAVE_LAYERS} wave layers with ${data.length} total points`)
       
       return groupedData.map((groupData, index) => {
         // 각 레이어의 위상차 계산 (0 ~ 2π)
         const phaseOffset = (index / WAVE_LAYERS) * Math.PI * 2
         
-        // 시간에 따른 사인파 계산
+        // 시간에 따른 사인파 계산 (throttled animationTime)
         const waveValue = Math.sin(animationTime * config.animationSpeed + phaseOffset)
         const waveScale = config.elevationScale * (1 + waveValue * (config.waveAmplitude - 1) * 0.5)
         
@@ -189,10 +209,10 @@ export function LayerManager({
           // 성능 최적화
           gpuAggregation: true,
           
-          // 업데이트 트리거
+          // 업데이트 트리거 (throttled animationTime)
           updateTriggers: {
             getColorWeight: [config.colorScheme],
-            getElevationWeight: [waveScale, animationTime]
+            getElevationWeight: [waveScale]
           }
         })
       })
@@ -247,13 +267,25 @@ export function LayerManager({
     return [hexagonLayer]
   }, [
     data, 
-    config, 
+    config,
+    groupedData,
+    animationTime, // Only for animated layers - throttled to 30fps
     onHover, 
     onClick, 
     onAnimationInteractionStart, 
-    onAnimationInteractionEnd,
-    animationTime  // 애니메이션 시간 변경시 레이어 재생성
+    onAnimationInteractionEnd
   ])
+
+  // Cleanup animation on unmount
+  useEffect(() => {
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+        console.log('Component unmounted - Wave animation cleaned up')
+      }
+    }
+  }, [])
 
   return layers
 }
