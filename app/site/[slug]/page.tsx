@@ -9,7 +9,7 @@ export async function generateStaticParams() {
   }))
 }
 
-export default async function BlogPostPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function SitePostPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params
   const post = getPostBySlug(slug)
 
@@ -21,7 +21,7 @@ export default async function BlogPostPage({ params }: { params: Promise<{ slug:
     <div className="min-h-screen pt-32 pb-20 bg-[#0a0a0a]">
       <div className="container mx-auto px-4 max-w-3xl">
         <TransitionLink
-          href="/blog"
+          href="/site"
           className="group text-neutral-400 hover:text-white font-semibold flex items-center gap-2 mb-8"
         >
           <ArrowLeft className="transition-transform group-hover:-translate-x-1" size={20} />

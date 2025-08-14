@@ -1,30 +1,29 @@
 "use client"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import FeatureCard from "@/components/project/feature-card"
-import ProjectHeader from "@/components/project/project-header"
-import ProjectNavigation from "@/components/project/project-navigation"
+import FeatureCard from "@/components/research/feature-card"
+import ResearchHeader from "@/components/research/research-header"
+import ResearchNavigation from "@/components/research/research-navigation"
 
 const features = [
   {
     icon: "Map",
-    title: "Urban Pulse",
-    description: "Real-time visualization of Seoul's population density flowing across 3,380 city grids throughout 24 hours.",
+    title: "도시 맥박",
+    description: "서울시 3,380개 격자의 24시간 실시간 유동인구 밀도 시각화로 도시의 맥박을 확인하세요.",
   },
   {
     icon: "RotateCw",
-    title: "Temporal Flow",
-    description:
-      "Watch the city breathe as population patterns shift from dawn to dusk, revealing the hidden rhythms of urban life.",
+    title: "시간적 흐름",
+    description: "새벽부터 저녁까지 인구 패턴의 변화를 관찰하며 도시 생활의 숨겨진 리듬을 발견하세요.",
   },
   {
     icon: "Layers",
-    title: "3D Landscape",
-    description: "Population density rises like data mountains, with smooth interpolation creating wave-like transitions between time periods.",
+    title: "3D 경관",
+    description: "인구 밀도가 데이터 산맥처럼 솟아오르며, 시간대별 부드러운 보간으로 웨이브 같은 전환을 만들어냅니다.",
   },
 ]
 
-const EtherealThreadsPage = () => {
+const FloatingPopulationPage = () => {
   const router = useRouter()
   const [barHeights, setBarHeights] = useState<number[]>([])
 
@@ -63,16 +62,16 @@ const EtherealThreadsPage = () => {
 
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center space-y-8">
-            <ProjectHeader
-              title="유동인구"
-              description="유동인구 관련 상세 설명을 삽입할 예정입니다. (활용 데이터, 방법론 등)"
+            <ResearchHeader
+              title="Floating_population"
+              description="서울시 유동인구 실시간 분석을 통한 도시 동선 패턴 연구 및 시공간 시각화"
             />
             <button
               onClick={handleEnterVisualization}
               className="group relative px-8 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
             >
               <span className="flex items-center gap-3">
-                <span>Enter 3D Visualization</span>
+                <span>3D 시각화 진입</span>
                 <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
@@ -90,9 +89,9 @@ const EtherealThreadsPage = () => {
         </div>
       </div>
 
-      <ProjectNavigation href="/portfolio/quantum-leap" projectName="EDA" />
+      <ResearchNavigation href="/research/eda" projectName="EDA" />
     </div>
   )
 }
 
-export default EtherealThreadsPage
+export default FloatingPopulationPage

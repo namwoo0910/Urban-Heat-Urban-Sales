@@ -5,7 +5,7 @@ import { Canvas, extend, useFrame } from "@react-three/fiber"
 import { shaderMaterial } from "@react-three/drei"
 import { useMemo, useRef } from "react"
 
-const CyberscapeMaterial = shaderMaterial(
+const LocalEconomyMaterial = shaderMaterial(
   { uTime: 0, uMouse: new THREE.Vector2() },
   // vertex shader
   `
@@ -40,39 +40,43 @@ const CyberscapeMaterial = shaderMaterial(
       vec2 st = vUv;
       st.x *= 1.6; // Aspect ratio correction
       
-      // Glitch effect based on mouse
-      float glitch = smoothstep(0.3, 0.0, distance(uMouse, vUv)) * 0.1;
+      // Economic activity pulse effect based on mouse
+      float activity = smoothstep(0.4, 0.0, distance(uMouse, vUv)) * 0.15;
 
-      // Scan lines
-      float scanline = sin(vUv.y * 800.0 * (1.0 + glitch)) * 0.04;
+      // Data flow lines (representing card transactions)
+      float dataFlow = sin(vUv.y * 600.0 + uTime * 2.0) * 0.03;
       
-      // Grid
-      vec2 grid_uv = fract(st * vec2(30.0, 20.0));
-      float grid = (1.0 - step(0.05, grid_uv.x)) + (1.0 - step(0.05, grid_uv.y));
+      // Economic zone grid (representing Seoul districts)
+      vec2 grid_uv = fract(st * vec2(25.0, 18.0));
+      float grid = (1.0 - step(0.08, grid_uv.x)) + (1.0 - step(0.08, grid_uv.y));
       grid = clamp(grid, 0.0, 1.0);
 
-      // Base color
-      vec3 color = vec3(0.05, 0.0, 0.15);
+      // Base color (warm economic theme)
+      vec3 color = vec3(0.1, 0.05, 0.0);
       
-      // Add grid
-      color += vec3(0.2, 0.5, 1.0) * grid * 0.3;
+      // Add economic zone grid (golden color for prosperity)
+      color += vec3(1.0, 0.8, 0.3) * grid * 0.4;
       
-      // Add noise
-      color += noise(st * 10.0 + uTime * 0.2) * 0.1;
+      // Add market fluctuation noise
+      color += noise(st * 8.0 + uTime * 0.3) * 0.15;
       
-      // Add scanlines
-      color += scanline;
+      // Add transaction flow lines
+      color += dataFlow * vec3(0.8, 0.6, 0.2);
 
-      // Add mouse interaction
+      // Add economic activity hotspots (mouse interaction)
       float mouseDist = distance(uMouse, vUv);
-      color += smoothstep(0.2, 0.0, mouseDist) * vec3(0.5, 0.7, 1.0);
+      color += smoothstep(0.3, 0.0, mouseDist) * vec3(1.0, 0.7, 0.3);
+      
+      // Add pulsing economic indicators
+      float pulse = sin(uTime * 3.0) * 0.05 + 0.05;
+      color += pulse * vec3(0.9, 0.5, 0.1);
 
       gl_FragColor = vec4(color, 1.0);
     }
   `,
 )
 
-extend({ CyberscapeMaterial })
+extend({ LocalEconomyMaterial })
 
 const Scene = () => {
   const materialRef = useRef<any>(null)
@@ -89,12 +93,12 @@ const Scene = () => {
     <mesh>
       <planeGeometry args={[2, 2]} />
       {/* @ts-ignore */}
-      <cyberscapeMaterial ref={materialRef} />
+      <localEconomyMaterial ref={materialRef} />
     </mesh>
   )
 }
 
-const CyberscapeScene = () => {
+const LocalEconomyScene = () => {
   return (
     <Canvas camera={{ position: [0, 0, 1] }}>
       <Scene />
@@ -102,4 +106,4 @@ const CyberscapeScene = () => {
   )
 }
 
-export default CyberscapeScene
+export default LocalEconomyScene

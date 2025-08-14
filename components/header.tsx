@@ -5,10 +5,12 @@ import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { useRef } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 
 export function Header() {
   const headerRef = useRef(null)
+  const router = useRouter()
 
   useGSAP(() => {
     gsap.from(headerRef.current, {
@@ -20,10 +22,15 @@ export function Header() {
     })
   }, [])
 
+  // Smart prefetching for main page when user shows intent to navigate home
+  const handleHomeHover = () => {
+    router.prefetch('/')
+  }
+
   return (
     <motion.header ref={headerRef} className="fixed top-0 left-0 right-0 z-50 py-2 px-6">
       <div className="w-full flex justify-between items-center bg-black/80 backdrop-blur-md py-2 px-6 rounded-full">
-        <TransitionLink href="/" className="flex items-center">
+        <TransitionLink href="/" className="flex items-center" onMouseEnter={handleHomeHover}>
           <div className="bg-white rounded-full px-3 py-1.5 hover:bg-gray-100 transition-colors">
             <Image
               src="/images/kaist-ai-logo-text.png"
@@ -36,10 +43,10 @@ export function Header() {
           </div>
         </TransitionLink>
         <nav className="hidden md:flex items-center gap-6 text-white">
-          <TransitionLink href="/#portfolio" className="hover:text-neutral-300 transition-colors">
+          <TransitionLink href="/#research" className="hover:text-neutral-300 transition-colors">
             Research
           </TransitionLink>
-          <TransitionLink href="/blog" className="hover:text-neutral-300 transition-colors">
+          <TransitionLink href="/site" className="hover:text-neutral-300 transition-colors">
             Site
           </TransitionLink>
           <TransitionLink href="/contact" className="hover:text-neutral-300 transition-colors">

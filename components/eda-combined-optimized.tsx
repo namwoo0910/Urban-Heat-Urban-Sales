@@ -561,7 +561,7 @@ export default function EdaCombinedOptimized() {
       {/* Back Button */}
       <div className="absolute top-3 right-20 z-10">
         <a
-          href="/portfolio/quantum-leap"
+          href="/research/eda"
           className="inline-flex items-center gap-2 px-4 py-2 bg-gray-800 text-white rounded-lg hover:bg-gray-700 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

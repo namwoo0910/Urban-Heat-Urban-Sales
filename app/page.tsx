@@ -6,8 +6,8 @@ const Hero = dynamic(() => import('@/components/hero').then(mod => mod.Hero), {
   ssr: true
 })
 
-const Portfolio = dynamic(() => import('@/components/portfolio').then(mod => mod.Portfolio), {
-  loading: () => <div className="min-h-screen flex items-center justify-center">Loading portfolio...</div>,
+const Research = dynamic(() => import('@/components/research').then(mod => mod.Research), {
+  loading: () => <div className="min-h-screen flex items-center justify-center">Loading research...</div>,
   ssr: true
 })
 
@@ -20,7 +20,7 @@ export default function Home() {
   return (
     <>
       <Hero />
-      <Portfolio />
+      <Research />
       <BlogPreview />
     </>
   )

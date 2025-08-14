@@ -8,35 +8,35 @@ import TransitionLink from "./transition-link"
 
 const projects = [
   {
-    title: "카드매출",
+    title: "Local_economy",
     description: "카드 매출 데이터 시각화 및 분석.",
     imgSrc: "/images/seoul_economy.webp",
     imgSrcFallback: "/images/seoul_economy.png",
-    href: "/portfolio/project-cyberscape",
+    href: "/research/local-economy",
   },
   {
-    title: "유동인구",
+    title: "Floating_population",
     description: "서울시 유동인구 실시간 시각화.",
     imgSrc: "/images/seoul_pop.webp",
     imgSrcFallback: "/images/seoul_pop.png",
-    href: "/portfolio/ethereal-threads",
+    href: "/research/floating-population",
   },
   {
     title: "EDA",
     description: "탐색적 데이터 분석 및 인사이트 도출.",
     imgSrc: "/images/eda.webp",
     imgSrcFallback: "/images/eda.png",
-    href: "/portfolio/quantum-leap",
+    href: "/research/eda",
   },
 ]
 
-export function Portfolio() {
+export function Research() {
   const router = useRouter()
 
   // Smart prefetching for EDA visualization
   const handleEDAHover = () => {
     // Prefetch the EDA page
-    router.prefetch('/portfolio/quantum-leap')
+    router.prefetch('/research/eda')
     router.prefetch('/eda-visualization')
     
     // Preload heavy data files in background
@@ -48,7 +48,7 @@ export function Portfolio() {
   }
 
   return (
-    <div id="portfolio" className="relative h-screen flex items-center px-4 sm:px-6 lg:px-8 pt-16">
+    <div id="research" className="relative h-screen flex items-center px-4 sm:px-6 lg:px-8 pt-16">
       <div className="w-full -mt-[60px]">
         <div className="text-center mb-20">
           <h2 className="text-5xl md:text-6xl font-bold tracking-tight">Our Research</h2>

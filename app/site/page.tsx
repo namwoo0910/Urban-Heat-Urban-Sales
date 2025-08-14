@@ -2,7 +2,7 @@ import { TransitionLink } from "@/components/transition-link"
 import { ArrowRight } from "lucide-react"
 import { allPosts } from "@/lib/blog-posts"
 
-export default function BlogPage() {
+export default function SitePage() {
   return (
     <div className="min-h-screen pt-32 pb-20">
       <div className="container mx-auto px-4">
@@ -13,7 +13,7 @@ export default function BlogPage() {
               <h2 className="text-3xl font-bold mb-4">{post.title}</h2>
               <p className="text-neutral-400 mb-6">{post.excerpt}</p>
               <TransitionLink
-                href={`/blog/${post.slug}`}
+                href={`/site/${post.slug}`}
                 className="group text-white font-semibold flex items-center gap-2"
               >
                 Read Full Article <ArrowRight className="transition-transform group-hover:translate-x-1" size={20} />
