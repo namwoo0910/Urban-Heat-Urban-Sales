@@ -11,7 +11,6 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "../UnifiedControls"
 import { LayerManager, formatTooltip } from "../LayerManager"
 import { useLayerState } from "../../hooks/use-layer-state"
-import type { ViewportBounds } from "../../utils/hexagon-lazy-loader"
 
 // Mapbox access token (실제 사용시에는 환경변수로 관리하세요)
 const MAPBOX_TOKEN = "pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA"
@@ -35,7 +34,6 @@ export default function HexagonScene() {
     resetConfig,
     setHoveredObject,
     setSelectedObject,
-    loadDataForViewport,
     // 애니메이션 관련 상태 및 함수들
     setAnimationEnabled,
     setAnimationSpeed,
@@ -84,10 +82,6 @@ export default function HexagonScene() {
   const rotationEnabledRef = useRef(false)
   const userInteractingRef = useRef(false)
   const currentBearingRef = useRef(0)
-  
-  // 뷰포트 기반 lazy loading을 위한 ref
-  const lastViewportBoundsRef = useRef<ViewportBounds | null>(null)
-  const viewportLoadTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
@@ -108,46 +102,6 @@ export default function HexagonScene() {
   const handleTimeChange = (time: number) => {
     setCurrentTime(time)
   }
-
-  // 뷰포트 기반 데이터 로딩 함수
-  const loadDataForCurrentViewport = useCallback((viewState: MapViewState) => {
-    // 줌 레벨이 너무 낮으면 데이터 로딩하지 않음 (성능 최적화)
-    if (viewState.zoom < 9) {
-      console.log('[HexagonScene] 줌 레벨이 너무 낮음, 데이터 로딩 스킵:', viewState.zoom)
-      return
-    }
-
-    // 뷰포트 경계 계산
-    const padding = 0.02 // 약간의 패딩 추가로 부드러운 로딩
-    const bounds: ViewportBounds = {
-      north: viewState.latitude + padding,
-      south: viewState.latitude - padding,
-      east: viewState.longitude + padding,
-      west: viewState.longitude - padding
-    }
-
-    // 이전 뷰포트와 너무 비슷하면 스킵
-    const lastBounds = lastViewportBoundsRef.current
-    if (lastBounds) {
-      const latDiff = Math.abs(bounds.north - lastBounds.north)
-      const lngDiff = Math.abs(bounds.east - lastBounds.east)
-      if (latDiff < 0.01 && lngDiff < 0.01) {
-        return
-      }
-    }
-
-    // 기존 타이머 취소
-    if (viewportLoadTimeoutRef.current) {
-      clearTimeout(viewportLoadTimeoutRef.current)
-    }
-
-    // 디바운스된 로딩 (300ms 지연)
-    viewportLoadTimeoutRef.current = setTimeout(() => {
-      console.log('[HexagonScene] 뷰포트 변경 감지, 데이터 로딩:', bounds)
-      lastViewportBoundsRef.current = bounds
-      loadDataForViewport(bounds)
-    }, 300)
-  }, [loadDataForViewport])
 
   // Official deck.gl rotation pattern implementation (fixed with ref)
   const rotateCamera = useCallback(() => {
@@ -361,11 +315,6 @@ export default function HexagonScene() {
   // Memory cleanup effect
   useEffect(() => {
     return () => {
-      // Clean up viewport loading timeout
-      if (viewportLoadTimeoutRef.current) {
-        clearTimeout(viewportLoadTimeoutRef.current)
-      }
-      
       // Clean up any remaining resources
       cleanupRef.current.forEach(cleanup => cleanup())
       cleanupRef.current = []
@@ -406,9 +355,6 @@ export default function HexagonScene() {
             currentBearingRef.current = viewState.bearing
             updateBearing(viewState.bearing)
           }
-          
-          // 뷰포트 변경 시 lazy loading 트리거
-          loadDataForCurrentViewport(viewState)
         }}
       >
         <Map

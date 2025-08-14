@@ -5,7 +5,6 @@ import type { LayerConfig, HexagonLayerData } from '../components/LayerManager'
 import { DEFAULT_LAYER_CONFIG } from '../components/LayerManager'
 import type { ColorScheme } from '../lib/premium-colors'
 import { geoJSONLoader } from '../utils/geojson-loader'
-import { hexagonLazyLoader, type ViewportBounds } from '../utils/hexagon-lazy-loader'
 import useWaveAnimation from './use-wave-animation'
 
 interface UseLayerStateReturn {
@@ -36,7 +35,6 @@ interface UseLayerStateReturn {
   
   // 데이터 로딩
   loadData: () => Promise<void>
-  loadDataForViewport: (bounds: ViewportBounds) => Promise<void>
   
   // 상호작용 상태
   hoveredObject: any
@@ -213,16 +211,17 @@ export function useLayerState(): UseLayerStateReturn {
     setLayerConfig(DEFAULT_LAYER_CONFIG)
   }, [])
   
-  // 뷰포트 기반 데이터 로딩 (lazy loading)
-  const loadDataForViewport = useCallback(async (bounds: ViewportBounds) => {
-    console.log('[HexagonLayer] 뷰포트 기반 데이터 로딩 시작...', bounds)
+  // 전체 데이터 로딩 함수 (청킹 제거됨)
+  const loadData = useCallback(async () => {
+    console.log('[HexagonLayer] 데이터 로딩 시작...')
     setIsDataLoading(true)
     setDataError(null)
     
     try {
-      const data = await hexagonLazyLoader.loadForViewport(bounds)
+      // 원본 파일에서 직접 로드
+      const data = await geoJSONLoader.loadWithCache('/dummy-hexagon-data.json')
       
-      console.log(`[HexagonLayer] 뷰포트 데이터 로딩 완료: ${data.length}개 포인트`)
+      console.log(`[HexagonLayer] 데이터 로딩 완료: ${data.length}개 포인트`)
       if (data.length > 0) {
         console.log(`[HexagonLayer] 샘플 데이터:`, data.slice(0, 3))
       }
@@ -230,46 +229,10 @@ export function useLayerState(): UseLayerStateReturn {
       setHexagonData(data)
       
     } catch (error) {
-      console.error('[HexagonLayer] 뷰포트 데이터 로드 실패:', error)
+      console.error('[HexagonLayer] 데이터 로드 실패:', error)
       
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다'
-      setDataError(`뷰포트 데이터 로드 실패: ${errorMessage}`)
-    } finally {
-      setIsDataLoading(false)
-    }
-  }, [])
-
-  // 전체 데이터 로딩 함수 (fallback)
-  const loadData = useCallback(async () => {
-    console.log('[HexagonLayer] 전체 데이터 로딩 시작...')
-    setIsDataLoading(true)
-    setDataError(null)
-    
-    try {
-      // 청크 기반 로딩 시도
-      const data = await hexagonLazyLoader.loadFullDataset()
-      
-      console.log(`[HexagonLayer] 전체 데이터 로딩 완료: ${data.length}개 포인트`)
-      console.log(`[HexagonLayer] 샘플 데이터:`, data.slice(0, 3))
-      
-      setHexagonData(data)
-      
-    } catch (error) {
-      console.error('[HexagonLayer] 청크 로딩 실패, 원본 파일 시도:', error)
-      
-      try {
-        // 청크 로딩 실패 시 원본 파일로 fallback
-        const data = await geoJSONLoader.loadWithCache('/dummy-hexagon-data.json')
-        
-        console.log(`[HexagonLayer] 원본 파일 로딩 완료: ${data.length}개 포인트`)
-        setHexagonData(data)
-        
-      } catch (fallbackError) {
-        console.error('[HexagonLayer] 모든 데이터 로드 방법 실패:', fallbackError)
-        
-        const errorMessage = fallbackError instanceof Error ? fallbackError.message : '알 수 없는 오류가 발생했습니다'
-        setDataError(`데이터 로드 실패: ${errorMessage}`)
-      }
+      setDataError(`데이터 로드 실패: ${errorMessage}`)
     } finally {
       setIsDataLoading(false)
     }
@@ -308,7 +271,6 @@ export function useLayerState(): UseLayerStateReturn {
     
     // 데이터 로딩
     loadData,
-    loadDataForViewport,
     
     // 상호작용 상태
     hoveredObject,

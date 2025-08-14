@@ -38,7 +38,6 @@ export function Hero() {
     ...defaultAnimationConfig,
     waveEnabled: true,
     pulseEnabled: true,
-    colorCycleEnabled: true,
     fireflyEnabled: true,
     trailEnabled: false, // Disabled for performance
   })
@@ -136,7 +135,7 @@ export function Hero() {
       
       {/* Bottom button */}
       <div className="absolute bottom-20 left-0 right-0 z-10 flex justify-center px-4">
-        <TransitionLink href="/#portfolio">
+        <TransitionLink href="/#research">
           <motion.button
             className="hero-button flex items-center gap-1 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-1 px-3 rounded-full transition-all duration-300 text-xs uppercase tracking-wide border border-white/20"
             whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}

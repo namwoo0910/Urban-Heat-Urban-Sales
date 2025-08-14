@@ -67,7 +67,7 @@ export const defaultAnimationConfig: AnimationConfig = {
   pulseEnabled: true,
   pulseSpeed: 0.005,      // Faster pulsing
   pulseIntensity: 0.5,    // Higher intensity
-  colorCycleEnabled: true,
+  colorCycleEnabled: false,  // Color cycle OFF by default
   colorCycleSpeed: 0.002,  // Faster color shifting for vibrancy
   orbitalEnabled: false,
   orbitalSpeed: 0.001,

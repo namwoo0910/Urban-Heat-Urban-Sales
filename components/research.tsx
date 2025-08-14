@@ -8,21 +8,21 @@ import TransitionLink from "./transition-link"
 
 const projects = [
   {
-    title: "Local_economy",
+    title: "카드매출",
     description: "카드 매출 데이터 시각화 및 분석.",
     imgSrc: "/images/seoul_economy.webp",
     imgSrcFallback: "/images/seoul_economy.png",
     href: "/research/local-economy",
   },
   {
-    title: "Floating_population",
+    title: "유동인구",
     description: "서울시 유동인구 실시간 시각화.",
     imgSrc: "/images/seoul_pop.webp",
     imgSrcFallback: "/images/seoul_pop.png",
     href: "/research/floating-population",
   },
   {
-    title: "EDA",
+    title: "행정구역 데이터",
     description: "탐색적 데이터 분석 및 인사이트 도출.",
     imgSrc: "/images/eda.webp",
     imgSrcFallback: "/images/eda.png",
@@ -48,14 +48,16 @@ export function Research() {
   }
 
   return (
-    <div id="research" className="relative h-screen flex items-center px-4 sm:px-6 lg:px-8 pt-16">
-      <div className="w-full -mt-[60px]">
-        <div className="text-center mb-20">
-          <h2 className="text-5xl md:text-6xl font-bold tracking-tight">Our Research</h2>
-          <p className="mt-6 max-w-2xl mx-auto text-xl text-neutral-400">
-            기후에 따른 서울시민 카드매출 및 유동인구 변화 분석/예측
-          </p>
-        </div>
+    <div id="research" className="relative min-h-screen px-4 sm:px-6 lg:px-8 pt-32">
+      {/* Main title section with proper spacing for fixed header */}
+      <div className="text-center mb-20">
+        <h2 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">데이터로 보는 서울</h2>
+        <p className="max-w-2xl mx-auto text-xl text-neutral-400">
+          기후에 따른 서울시민 카드매출 및 유동인구 변화 분석/예측
+        </p>
+      </div>
+      
+      <div className="w-full pb-20">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[50px] max-w-7xl mx-auto">
           {projects.map((project, index) => (
             <motion.div

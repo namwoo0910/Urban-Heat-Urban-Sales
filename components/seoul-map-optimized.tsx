@@ -271,21 +271,22 @@ export function SeoulMapOptimized({
 
   // Enhanced data loading with optimizations
   useEffect(() => {
+    // Initialize amplitude animation immediately (before loading)
+    amplitudeAnimationRef.current = 15.0 // Start with dramatic scatter
+    animationStartTimeRef.current = Date.now() // Animation starts now
+    
     async function loadDataOptimized(): Promise<void> {
       try {
         setIsLoading(true)
         setError(null)
         setLoadingProgress(0)
         
-        // Step 1: Show initial particles immediately (instant feedback)
+        // Step 1: Show initial particles immediately with scatter effect
         const initialParticles = generateInitialParticles(animationConfig.colorTheme)
         setParticles(initialParticles)
-        setAnimatedData(initialParticles.map(p => ({
-          position: p.position,
-          color: p.color,
-          size: p.size,
-          opacity: 255
-        })))
+        // Apply initial scatter using animateParticlesBatch
+        const initialScatteredData = animateParticlesBatch(initialParticles, 0)
+        setAnimatedData(initialScatteredData)
         setLoadingPhase('Loading optimized data...')
         setLoadingProgress(5)
         
@@ -298,12 +299,9 @@ export function SeoulMapOptimized({
           setLoadingPhase('Loaded from static data!')
           setLoadingProgress(100)
           setParticles(staticParticles)
-          setAnimatedData(staticParticles.map(p => ({
-            position: p.position,
-            color: p.color,
-            size: p.size,
-            opacity: 255
-          })))
+          // Apply scatter effect to static particles
+          const staticScatteredData = animateParticlesBatch(staticParticles, 0)
+          setAnimatedData(staticScatteredData)
           setIsLoading(false)
           return
         } catch (staticError) {
@@ -317,12 +315,9 @@ export function SeoulMapOptimized({
             setLoadingPhase('Loaded from cache!')
             setLoadingProgress(100)
             setParticles(cached)
-            setAnimatedData(cached.map(p => ({
-              position: p.position,
-              color: p.color,
-              size: p.size,
-              opacity: 255
-            })))
+            // Apply scatter effect to cached particles
+            const cachedScatteredData = animateParticlesBatch(cached, 0)
+            setAnimatedData(cachedScatteredData)
             setIsLoading(false)
             return
           }
@@ -370,12 +365,9 @@ export function SeoulMapOptimized({
         setLoadingPhase('Ready!')
         setLoadingProgress(100)
         setParticles(particlesInSeoul)
-        setAnimatedData(particlesInSeoul.map(p => ({
-          position: p.position,
-          color: p.color,
-          size: p.size,
-          opacity: 255
-        })))
+        // Apply scatter effect to generated particles
+        const generatedScatteredData = animateParticlesBatch(particlesInSeoul, 0)
+        setAnimatedData(generatedScatteredData)
         
       } catch (error) {
         console.error('Optimized data loading failed:', error)
@@ -391,12 +383,9 @@ export function SeoulMapOptimized({
             animationConfig.colorTheme
           )
           setParticles(fallbackParticles)
-          setAnimatedData(fallbackParticles.map(p => ({
-            position: p.position,
-            color: p.color,
-            size: p.size,
-            opacity: 255
-          })))
+          // Apply scatter effect to fallback particles
+          const fallbackScatteredData = animateParticlesBatch(fallbackParticles, 0)
+          setAnimatedData(fallbackScatteredData)
           setLoadingProgress(100)
         } catch (fallbackError) {
           console.error('Fallback also failed:', fallbackError)
@@ -404,9 +393,7 @@ export function SeoulMapOptimized({
         }
       } finally {
         setIsLoading(false)
-        // Initialize amplitude animation when particles are loaded
-        amplitudeAnimationRef.current = 15.0 // Reset to much higher amplitude for very dramatic scatter effect
-        animationStartTimeRef.current = Date.now() // Start time for animation
+        // Amplitude animation already initialized at the beginning
       }
     }
     
@@ -415,19 +402,20 @@ export function SeoulMapOptimized({
   }, [config.particleCount, maxRetries, cacheReady, loadCachedParticles, saveCachedParticles, animationConfig.colorTheme])
 
   // Separate effect for color theme changes - only update colors, don't reload data
+  const previousColorThemeRef = useRef(animationConfig.colorTheme)
   useEffect(() => {
-    if (particles.length > 0 && animationConfig.layerType === 'particle' && animatedData.length > 0) {
+    // Only update if color theme actually changed (not on every render)
+    if (previousColorThemeRef.current !== animationConfig.colorTheme && 
+        particles.length > 0 && 
+        animationConfig.layerType === 'particle') {
       const updatedParticles = updateParticleColors(particles, animationConfig.colorTheme)
       setParticles(updatedParticles)
-      // Update animatedData with new colors but keep current positions (no scatter)
-      setAnimatedData(prevAnimated => 
-        prevAnimated.map((a, i) => ({
-          ...a,
-          color: updatedParticles[i]?.color || a.color
-        }))
-      )
+      previousColorThemeRef.current = animationConfig.colorTheme
+      // Note: animatedData will be updated automatically by the animation loop
+      // which will pick up the new particles with updated colors
+      console.log(`[ColorTheme] Updated particle colors to ${animationConfig.colorTheme} theme`)
     }
-  }, [animationConfig.colorTheme, animationConfig.layerType])
+  }, [animationConfig.colorTheme, animationConfig.layerType, particles])
 
   // Connection pooling for optimized line generation
   const connectionPoolRef = useRef<{

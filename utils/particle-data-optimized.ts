@@ -303,7 +303,7 @@ export function animateParticlesSuperFast(
         opacity = Math.floor(255 * opacityFactor)
       }
       
-      // Color cycle 애니메이션 복원
+      // Color cycle 애니메이션 (선택적)
       if (colorCycleEnabled) {
         const hueShift = (time * colorCycleSpeed + particle.phase) % (TWO_PI)
         
@@ -321,6 +321,9 @@ export function animateParticlesSuperFast(
         color[0] = Math.max(0, Math.min(255, newR))
         color[1] = Math.max(0, Math.min(255, newG))
         color[2] = Math.max(0, Math.min(255, newB))
+      } else {
+        // Color cycle OFF: 테마 색상 그대로 유지
+        // color는 이미 particle.color를 복사했으므로 테마가 적용된 상태
       }
       
       // Firefly 효과 (강화)
