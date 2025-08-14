@@ -3,7 +3,6 @@ import type { ParticleData } from '@/utils/particle-data'
 import { fastSin, fastCos } from '@/utils/math-lookup-tables'
 
 export interface AnimationConfig {
-  layerType: 'particle' | 'wave'
   waveEnabled: boolean
   waveSpeed: number
   waveAmplitude: number
@@ -29,18 +28,7 @@ export interface AnimationConfig {
   autoRotateEnabled: boolean
   autoRotateSpeed: number
   colorTheme: 'current' | 'ocean' | 'sunset' | 'forest' | 'aurora' | 'galaxy' | 'cyberpunk'
-  // Wave layer specific controls
-  wavePattern: 'sine' | 'triangle' | 'sawtooth' | 'square'
-  waveColorIntensity: number
-  waveHeightMultiplier: number
-  waveAnimationSpeed: number
-  waveEdgeGlow: number
-  waveParticleOpacity: number
-  waveParticleSize: number
-  waveColorBrightness: number
-  waveParticleDensity: number
   blackBackgroundEnabled: boolean
-  waveColorScheme: 'neon' | 'particle'  // Color scheme selection
 }
 
 export interface AnimationState {
@@ -60,7 +48,6 @@ interface AnimatedParticle {
 
 // Default animation configuration - optimized for maximum visibility
 export const defaultAnimationConfig: AnimationConfig = {
-  layerType: 'particle',
   waveEnabled: true,
   waveSpeed: 2.0,         // Faster wave motion for dynamics
   waveAmplitude: 0.01,    // Much stronger wave amplitude for visibility
@@ -86,18 +73,7 @@ export const defaultAnimationConfig: AnimationConfig = {
   autoRotateEnabled: false,    // Auto rotation disabled by default
   autoRotateSpeed: 0.15,    // Faster rotation for dynamics
   colorTheme: 'current',   // Default to current color palette
-  // Wave layer defaults - reduced intensity values
-  wavePattern: 'sine',
-  waveColorIntensity: 0.9,       // Reduced to half
-  waveHeightMultiplier: 0.75,    // Reduced to half
-  waveAnimationSpeed: 2.0,       // Faster animation
-  waveEdgeGlow: 2.0,            // Strong edge glow
-  waveParticleOpacity: 0.95,    // Nearly opaque particles
-  waveParticleSize: 1.25,        // Reduced particle size
-  waveColorBrightness: 0.9,      // Reduced to half
-  waveParticleDensity: 120,      // Higher density for better coverage
-  blackBackgroundEnabled: false,  // Black background off by default
-  waveColorScheme: 'neon'        // Default to neon color scheme
+  blackBackgroundEnabled: false  // Black background off by default
 }
 
 /**

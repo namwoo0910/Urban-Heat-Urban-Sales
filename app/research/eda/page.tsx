@@ -1,7 +1,7 @@
 'use client'
 
 import { useRouter } from "next/navigation"
-import QuantumScene from "@/components/project/quantum-scene"
+import { useEffect } from "react"
 import FeatureCard from "@/components/research/feature-card"
 import ResearchHeader from "@/components/research/research-header"
 import ResearchNavigation from "@/components/research/research-navigation"
@@ -27,18 +27,42 @@ const features = [
 const EDAPage = () => {
   const router = useRouter()
 
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   const handleEnterVisualization = () => {
     router.push('/eda-visualization')
   }
 
   return (
     <div>
-      <div className="relative h-screen">
-        <QuantumScene />
+      <div className="relative h-screen bg-gradient-to-br from-blue-900 via-indigo-900 to-purple-900">
+        {/* Background Pattern */}
+        <div className="absolute inset-0 opacity-30">
+          <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
+            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+              <div className="grid grid-cols-8 gap-4 opacity-20">
+                {[...Array(64)].map((_, i) => (
+                  <div 
+                    key={i} 
+                    className="w-6 h-6 bg-white rounded-lg animate-pulse"
+                    style={{ 
+                      animationDelay: `${i * 0.03}s`,
+                      transform: `rotate(${Math.random() * 45}deg) scale(${0.6 + Math.random() * 0.4})`
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+        
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center space-y-8">
             <ResearchHeader
-              title="EDA"
+              title="행정구역 데이터"
               description="탐색적 데이터 분석을 통한 서울시 데이터 패턴 발굴 및 시각적 인사이트 도출 연구"
             />
             <button
@@ -46,7 +70,7 @@ const EDAPage = () => {
               className="group relative px-8 py-4 bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
             >
               <span className="flex items-center gap-3">
-                <span>EDA 시각화 진입</span>
+                <span>Map Visualization</span>
                 <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
@@ -64,7 +88,7 @@ const EDAPage = () => {
         </div>
       </div>
 
-      <ResearchNavigation href="/research/local-economy" projectName="Local_economy" />
+      <ResearchNavigation href="/research/local-economy" projectName="카드매출" />
     </div>
   )
 }

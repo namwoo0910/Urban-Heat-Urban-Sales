@@ -96,7 +96,7 @@ export function Hero() {
   ))
 
   return (
-    <div ref={container} className="relative w-full h-screen overflow-hidden">
+    <div ref={container} className="relative w-full min-h-screen h-screen overflow-hidden">
       {/* 파티클 맵 배경 */}
       <div className="absolute inset-0 z-0">
         <SeoulMapOptimized 
@@ -134,7 +134,7 @@ export function Hero() {
       </div>
       
       {/* Bottom button */}
-      <div className="absolute bottom-20 left-0 right-0 z-10 flex justify-center px-4">
+      <div className="absolute left-0 right-0 z-10 flex justify-center px-4" style={{ bottom: 'calc(5rem - 5px)' }}>
         <TransitionLink href="/#research">
           <motion.button
             className="hero-button flex items-center gap-1 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-1 px-3 rounded-full transition-all duration-300 text-xs uppercase tracking-wide border border-white/20"

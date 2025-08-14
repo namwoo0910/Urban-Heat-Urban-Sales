@@ -41,6 +41,12 @@ type VisualizationMode = 'analysis' | 'hexagon'
 const LocalEconomyPage = () => {
   const [visualizationMode, setVisualizationMode] = useState<VisualizationMode>('analysis')
   const [isTransitioning, setIsTransitioning] = useState(false)
+  const [showVisualization, setShowVisualization] = useState(false)
+
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
 
   // Handle smooth transitions between modes with proper cleanup
   const handleModeSwitch = (newMode: VisualizationMode) => {
@@ -61,71 +67,122 @@ const LocalEconomyPage = () => {
     }, 150)
   }
 
+  const handleEnterVisualization = () => {
+    setVisualizationMode('hexagon')  // Set to hexagon mode directly
+    setShowVisualization(true)
+  }
+
 
   return (
     <div>
-      <div className="relative h-screen">
-        {/* Visualization Layer with Suspense */}
-        {!isTransitioning && (
-          <Suspense fallback={
-            <div className="absolute inset-0 bg-black flex items-center justify-center">
-              <div className="text-white">시각화 로딩 중...</div>
+      {!showVisualization ? (
+        // Landing page with gradient background
+        <div className="relative h-screen bg-gradient-to-br from-green-900 via-teal-900 to-cyan-900">
+          {/* Background Pattern */}
+          <div className="absolute inset-0 opacity-30">
+            <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
+              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
+                <div className="grid grid-cols-10 gap-3 opacity-20">
+                  {[...Array(80)].map((_, i) => (
+                    <div 
+                      key={i} 
+                      className="w-4 h-4 bg-white rounded-full animate-pulse"
+                      style={{ 
+                        animationDelay: `${i * 0.05}s`,
+                        transform: `scale(${0.5 + Math.random() * 0.5})`
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
             </div>
-          }>
-            {visualizationMode === 'analysis' ? <LocalEconomyScene /> : <HexagonScene />}
-          </Suspense>
-        )}
-        
-        {/* Loading overlay during transition */}
-        {isTransitioning && (
-          <div className="absolute inset-0 bg-black flex items-center justify-center">
-            <div className="text-white">시각화 모드 전환 중...</div>
           </div>
-        )}
-        
-        {/* Mode Switch Controls */}
-        <div className="absolute top-4 right-4 z-50">
-          <div className="flex items-center space-x-2 bg-black/80 backdrop-blur-md rounded-lg border border-white/20 p-2">
-            <Button
-              variant={visualizationMode === 'analysis' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => handleModeSwitch('analysis')}
-              disabled={isTransitioning}
-              className="flex items-center space-x-1 text-white"
-            >
-              <Zap className="w-4 h-4" />
-              <span>분석</span>
-            </Button>
-            <Button
-              variant={visualizationMode === 'hexagon' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => handleModeSwitch('hexagon')}
-              disabled={isTransitioning}
-              className="flex items-center space-x-1 text-white"
-            >
-              <Map className="w-4 h-4" />
-              <span>헥사곤</span>
-            </Button>
-          </div>
-        </div>
-        
-        {/* Research Header (only for analysis mode) */}
-        {visualizationMode === 'analysis' && (
+
           <div className="absolute inset-0 flex items-center justify-center">
-            <ResearchHeader
-              title="Local_economy"
-              description="서울시 카드매출 데이터 분석을 통한 지역경제 현황 파악 및 트렌드 분석 연구"
-            />
+            <div className="text-center space-y-8">
+              <ResearchHeader
+                title="카드매출"
+                description="서울시 카드매출 데이터 분석을 통한 지역경제 현황 파악 및 트렌드 분석 연구"
+              />
+              <button
+                onClick={handleEnterVisualization}
+                className="group relative px-8 py-4 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
+              >
+                <span className="flex items-center gap-3">
+                  <span>Map Visualization</span>
+                  <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                  </svg>
+                </span>
+              </button>
+            </div>
           </div>
-        )}
-        
-        {/* Mode indicator */}
-        <div className="absolute bottom-4 right-4 z-40">
-          <Badge variant="outline" className="bg-black/50 text-white border-white/20">
-            {visualizationMode === 'analysis' ? '분석 모드' : '헥사곤 레이어 모드'}
-          </Badge>
         </div>
-      </div>
+      ) : (
+        // Visualization page
+        <div className="relative h-screen">
+          {/* Visualization Layer with Suspense */}
+          {!isTransitioning && (
+            <Suspense fallback={
+              <div className="absolute inset-0 bg-black flex items-center justify-center">
+                <div className="text-white">시각화 로딩 중...</div>
+              </div>
+            }>
+              {visualizationMode === 'analysis' ? <LocalEconomyScene /> : <HexagonScene />}
+            </Suspense>
+          )}
+          
+          {/* Loading overlay during transition */}
+          {isTransitioning && (
+            <div className="absolute inset-0 bg-black flex items-center justify-center">
+              <div className="text-white">시각화 모드 전환 중...</div>
+            </div>
+          )}
+          
+          {/* Mode Switch Controls */}
+          <div className="absolute top-4 right-4 z-50">
+            <div className="flex items-center space-x-2 bg-black/80 backdrop-blur-md rounded-lg border border-white/20 p-2">
+              <Button
+                variant={visualizationMode === 'analysis' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => handleModeSwitch('analysis')}
+                disabled={isTransitioning}
+                className="flex items-center space-x-1 text-white"
+              >
+                <Zap className="w-4 h-4" />
+                <span>분석</span>
+              </Button>
+              <Button
+                variant={visualizationMode === 'hexagon' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => handleModeSwitch('hexagon')}
+                disabled={isTransitioning}
+                className="flex items-center space-x-1 text-white"
+              >
+                <Map className="w-4 h-4" />
+                <span>헥사곤</span>
+              </Button>
+            </div>
+          </div>
+          
+          {/* Research Header (only for analysis mode) */}
+          {visualizationMode === 'analysis' && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <ResearchHeader
+                title="카드매출"
+                description="서울시 카드매출 데이터 분석을 통한 지역경제 현황 파악 및 트렌드 분석 연구"
+              />
+            </div>
+          )}
+          
+          {/* Mode indicator */}
+          <div className="absolute bottom-4 right-4 z-40">
+            <Badge variant="outline" className="bg-black/50 text-white border-white/20">
+              {visualizationMode === 'analysis' ? '분석 모드' : '헥사곤 레이어 모드'}
+            </Badge>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-7xl mx-auto py-20 px-4">
         {/* Mode Description */}
@@ -168,7 +225,7 @@ const LocalEconomyPage = () => {
         </div>
       </div>
 
-      <ResearchNavigation href="/research/floating-population" projectName="Floating_population" />
+      <ResearchNavigation href="/research/floating-population" projectName="유동인구" />
     </div>
   )
 }

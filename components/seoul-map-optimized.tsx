@@ -18,7 +18,6 @@ import { useParticleCache } from "@/hooks/use-particle-cache"
 import { useParticleWorker } from "@/hooks/use-particle-worker"
 import useParticleAnimations from "@/hooks/use-particle-animations"
 import type { AnimationConfig } from "@/hooks/use-particle-animations"
-import { WaveLayer } from "@/components/wave-layer-integrated"
 // Removed AnimationControls import - moved to Hero component
 
 // Mapbox access token
@@ -216,7 +215,7 @@ export function SeoulMapOptimized({
   const [viewState, setViewState] = useState<MapViewState>({
     longitude: 126.978,
     latitude: 37.5665,
-    zoom: 11.0, // Slightly reduced zoom for 90% scale effect
+    zoom: 10.8, // Adjusted zoom level after removing scale transform
     pitch: performanceLevel === 'high' ? 55 : 45, // Adjusted pitch angles
     bearing: 15, // Slight rotation for visual interest
   })
@@ -406,8 +405,7 @@ export function SeoulMapOptimized({
   useEffect(() => {
     // Only update if color theme actually changed (not on every render)
     if (previousColorThemeRef.current !== animationConfig.colorTheme && 
-        particles.length > 0 && 
-        animationConfig.layerType === 'particle') {
+        particles.length > 0) {
       const updatedParticles = updateParticleColors(particles, animationConfig.colorTheme)
       setParticles(updatedParticles)
       previousColorThemeRef.current = animationConfig.colorTheme
@@ -415,7 +413,7 @@ export function SeoulMapOptimized({
       // which will pick up the new particles with updated colors
       console.log(`[ColorTheme] Updated particle colors to ${animationConfig.colorTheme} theme`)
     }
-  }, [animationConfig.colorTheme, animationConfig.layerType, particles])
+  }, [animationConfig.colorTheme, particles])
 
   // Connection pooling for optimized line generation
   const connectionPoolRef = useRef<{
@@ -481,11 +479,7 @@ export function SeoulMapOptimized({
 
   // Enhanced animation loop with adaptive performance and initialization optimization
   useEffect(() => {
-    if (particles.length === 0 || animationConfig.layerType !== 'particle') {
-      // Clear animatedData when switching away from particle layer
-      if (animationConfig.layerType !== 'particle') {
-        setAnimatedData([])
-      }
+    if (particles.length === 0) {
       return
     }
     
@@ -583,7 +577,7 @@ export function SeoulMapOptimized({
           // Breathing effect - subtle zoom animation (지도가 숨쉬는 효과)
           const breathingSpeed = 0.3 // Slow breathing rate
           const breathingAmplitude = 0.15 // Subtle zoom change
-          const baseZoom = 11.0 // Updated to match new initial zoom
+          const baseZoom = 10.8 // Updated to match new initial zoom
           const breathingOffset = Math.sin(timeInSeconds * breathingSpeed) * breathingAmplitude
           const newZoom = baseZoom + breathingOffset
           
@@ -639,7 +633,7 @@ export function SeoulMapOptimized({
       // Reset performance monitor
       performanceMonitorRef.current.reset()
     }
-  }, [particles, performanceLevel, animationConfig.layerType, animationConfig.autoRotateEnabled, animationConfig.autoRotateSpeed, createConnectionsOptimized, animateParticlesBatch, animationState.time])
+  }, [particles, performanceLevel, animationConfig.autoRotateEnabled, animationConfig.autoRotateSpeed, createConnectionsOptimized, animateParticlesBatch, animationState.time])
 
   // 레이어 생성 (성능 레벨에 따라 조정)
   const layers = useMemo(() => {
@@ -870,20 +864,18 @@ export function SeoulMapOptimized({
 
   return (
     <div className="relative w-full h-full" id="seoul-map-container">
-      {/* Conditional rendering based on layer type */}
-      {animationConfig.layerType === 'particle' ? (
-        <div style={{ transform: 'scale(0.9)', transformOrigin: 'center center', width: '111.11%', height: '111.11%', marginLeft: '-5.56%', marginTop: '-5.56%' }}>
-        <DeckGL
-          viewState={viewState}
-          controller={false}  // Disable user interaction
-          layers={layers}
-          parameters={{
-            // Parameters for rendering optimization
-          }}
-          // 성능 최적화 옵션
-          getCursor={() => 'default'}  // Default cursor (no grab)
-          getTooltip={() => null}
-        >
+      {/* Particle layer rendering */}
+      <DeckGL
+        viewState={viewState}
+        controller={false}  // Disable user interaction
+        layers={layers}
+        parameters={{
+          // Parameters for rendering optimization
+        }}
+        // 성능 최적화 옵션
+        getCursor={() => 'default'}  // Default cursor (no grab)
+        getTooltip={() => null}
+      >
         {/* Render Map with fixed dark theme */}
         {typeof window !== 'undefined' && MAPBOX_TOKEN && (
           <Map
@@ -930,74 +922,7 @@ export function SeoulMapOptimized({
         />
         )}
         
-        </DeckGL>
-        </div>
-      ) : (
-        // Wave Layer with Mapbox background - scaled to 90%
-        <div style={{ transform: 'scale(0.9)', transformOrigin: 'center center', width: '111.11%', height: '111.11%', marginLeft: '-5.56%', marginTop: '-5.56%' }}>
-          {/* Mapbox map as background */}
-          <div className="w-full h-full" id="wave-map-container">
-            {typeof window !== 'undefined' && MAPBOX_TOKEN && (
-              <Map
-              mapboxAccessToken={MAPBOX_TOKEN}
-              mapStyle={mapStyle}
-              initialViewState={viewState}
-              interactive={false}  // Disable Mapbox interaction
-              reuseMaps={true}
-              preserveDrawingBuffer={false}
-              attributionControl={false}
-              style={{ width: '100%', height: '100%' }}
-              onError={(evt: any) => {
-                console.error('Map error in wave layer:', evt)
-              }}
-              onLoad={(evt: any) => {
-                const map = evt.target
-                
-                // Ensure the map has initialized properly
-                if (!map || !map.getStyle) {
-                  console.warn('Map not properly initialized')
-                  return
-                }
-                
-                try {
-                  // 더 어둡게 스타일 조정 (particle layer와 동일)
-                  const layers = map.getStyle()?.layers
-                  layers?.forEach((layer: any) => {
-                    if (layer.type === 'symbol') {
-                      map.setLayoutProperty(layer.id, 'visibility', 'none')
-                    }
-                    if (layer.type === 'line') {
-                      map.setPaintProperty(layer.id, 'line-opacity', 0.05) // 더 어둡게
-                    }
-                    if (layer.type === 'fill') {
-                      map.setPaintProperty(layer.id, 'fill-opacity', 0.3) // 건물 등을 더 어둡게
-                    }
-                    if (layer.type === 'background') {
-                      map.setPaintProperty(layer.id, 'background-color', '#000000') // 순수 검은색 배경
-                    }
-                  })
-                } catch (error) {
-                  console.warn('Map styling failed:', error)
-                }
-              }}
-            />
-            )}
-          </div>
-          
-
-          {/* Wave Layer on top */}
-          <WaveLayer 
-            animationConfig={animationConfig}
-            mapboxCameraPos={{
-              longitude: viewState.longitude || 126.978,
-              latitude: viewState.latitude || 37.5665,
-              zoom: viewState.zoom || 11.2,
-              pitch: viewState.pitch || 72,
-              bearing: viewState.bearing || 0
-            }}
-          />
-        </div>
-      )}
+      </DeckGL>
 
       {/* Animation controls moved to Hero component for proper z-index handling */}
 

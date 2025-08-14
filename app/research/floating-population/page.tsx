@@ -31,6 +31,11 @@ const FloatingPopulationPage = () => {
     router.push('/urbanmountain')
   }
 
+  // Scroll to top when page loads
+  useEffect(() => {
+    window.scrollTo(0, 0)
+  }, [])
+
   // Generate random heights client-side only to prevent hydration mismatch
   useEffect(() => {
     const heights = Array.from({ length: 144 }, () => Math.random() * 40 + 10)
@@ -63,7 +68,7 @@ const FloatingPopulationPage = () => {
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center space-y-8">
             <ResearchHeader
-              title="Floating_population"
+              title="유동인구"
               description="서울시 유동인구 실시간 분석을 통한 도시 동선 패턴 연구 및 시공간 시각화"
             />
             <button
@@ -71,7 +76,7 @@ const FloatingPopulationPage = () => {
               className="group relative px-8 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
             >
               <span className="flex items-center gap-3">
-                <span>3D 시각화 진입</span>
+                <span>Map Visualization</span>
                 <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
@@ -89,7 +94,7 @@ const FloatingPopulationPage = () => {
         </div>
       </div>
 
-      <ResearchNavigation href="/research/eda" projectName="EDA" />
+      <ResearchNavigation href="/research/eda" projectName="행정구역 데이터" />
     </div>
   )
 }
