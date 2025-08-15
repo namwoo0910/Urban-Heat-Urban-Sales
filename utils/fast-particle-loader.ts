@@ -3,7 +3,7 @@
  * 정적 파일에서 파티클 데이터를 즉시 로드하고 런타임에 색상 적용
  */
 
-import type { ParticleData } from './particle-data'
+import type { ParticleData } from './particle-data-optimized'
 
 // 메모리 캐시 (위치 데이터만)
 const particleCache = new Map<string, Omit<ParticleData, 'color'>[]>()
@@ -23,11 +23,11 @@ async function loadColorThemes(): Promise<Record<string, [number, number, number
       // Fallback to hardcoded themes
       const defaultThemes = {
         current: [
-          [230, 126, 34],
-          [231, 76, 60],
-          [241, 196, 15],
-          [155, 89, 182],
-          [52, 152, 219]
+          [230, 126, 34] as [number, number, number],
+          [231, 76, 60] as [number, number, number],
+          [241, 196, 15] as [number, number, number],
+          [155, 89, 182] as [number, number, number],
+          [52, 152, 219] as [number, number, number]
         ],
         ocean: [
           [0, 119, 190],
@@ -105,7 +105,7 @@ async function loadColorThemes(): Promise<Record<string, [number, number, number
         colorThemeCache.set(key, value as [number, number, number][])
       })
       
-      return defaultThemes as Record<string, [number, number, number][]>
+      return defaultThemes as unknown as Record<string, [number, number, number][]>
     }
     
     const themes = await response.json()
@@ -134,9 +134,10 @@ function applyColorTheme(
     // 밀도 기반으로 색상 분포 조정 (옵션)
     const colorIndex = Math.floor(Math.random() * palette.length)
     
+    const [r, g, b] = palette[colorIndex]
     return {
       ...p,
-      color: palette[colorIndex] as [number, number, number]
+      color: `rgba(${r}, ${g}, ${b}, 0.8)`
     }
   })
 }

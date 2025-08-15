@@ -321,7 +321,7 @@ export default function HexagonScene() {
       
       // Force cleanup of heavy data structures
       if (window.gc) {
-        setTimeout(() => window.gc(), 100)
+        setTimeout(() => window.gc?.(), 100)
       }
     }
   }, [])

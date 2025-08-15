@@ -3,14 +3,136 @@
  * Enhanced with math acceleration and memory pooling
  */
 
-import type { ParticleData } from './particle-data'
-import { COLOR_THEMES } from './particle-data'
+// Define types and constants locally since original files were removed
+export interface ParticleData {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  charge: number
+  color: string
+  targetX?: number
+  targetY?: number
+  targetVx?: number
+  targetVy?: number
+  districtName?: string
+  position?: [number, number]
+  phase?: number
+  speed?: number
+  amplitude?: number
+  size?: number
+  district?: string
+}
+
+import type { SeoulBoundaryData } from './seoul-boundaries-optimized'
+
+// Export the loadSeoulBoundaries function
+export async function loadSeoulBoundaries(): Promise<SeoulBoundaryData> {
+  const response = await fetch('/seoul_boundary.geojson')
+  if (!response.ok) {
+    throw new Error('Failed to load Seoul boundary data')
+  }
+  return response.json()
+}
+
+export const COLOR_THEMES = {
+  current: [
+    'rgba(88, 166, 255, 0.8)',   // Seoul Blue
+    'rgba(147, 197, 253, 0.7)',  // Light blue
+    'rgba(129, 140, 248, 0.6)',  // Indigo
+    'rgba(196, 181, 253, 0.5)',  // Purple
+    'rgba(251, 191, 36, 0.7)',   // Amber
+    'rgba(252, 211, 77, 0.6)',   // Yellow
+  ],
+  ocean: [
+    'rgba(59, 130, 246, 0.8)',   // Blue
+    'rgba(147, 197, 253, 0.7)',  // Light blue
+    'rgba(99, 102, 241, 0.6)',   // Indigo
+    'rgba(139, 92, 246, 0.5)',   // Violet
+    'rgba(168, 85, 247, 0.8)',   // Purple
+    'rgba(217, 70, 239, 0.7)',   // Magenta
+  ],
+  sunset: [
+    'rgba(251, 146, 60, 0.8)',   // Orange
+    'rgba(252, 211, 77, 0.7)',   // Yellow
+    'rgba(254, 215, 170, 0.6)',  // Peach
+    'rgba(254, 240, 138, 0.5)',  // Light yellow
+    'rgba(249, 115, 22, 0.8)',   // Dark orange
+    'rgba(251, 191, 36, 0.7)',   // Amber
+  ],
+  forest: [
+    'rgba(34, 197, 94, 0.8)',    // Green
+    'rgba(74, 222, 128, 0.7)',   // Light green
+    'rgba(134, 239, 172, 0.6)',  // Pale green
+    'rgba(187, 247, 208, 0.5)',  // Very light green
+    'rgba(16, 185, 129, 0.8)',   // Emerald
+    'rgba(52, 211, 153, 0.7)',   // Teal
+  ],
+  aurora: [
+    'rgba(147, 197, 253, 0.8)',  // Light blue
+    'rgba(196, 181, 253, 0.7)',  // Purple
+    'rgba(167, 243, 208, 0.6)',  // Mint
+    'rgba(254, 215, 170, 0.5)',  // Peach
+    'rgba(252, 211, 77, 0.8)',   // Yellow
+    'rgba(251, 146, 60, 0.7)',   // Orange
+  ],
+  galaxy: [
+    'rgba(139, 92, 246, 0.8)',   // Violet
+    'rgba(168, 85, 247, 0.7)',   // Purple
+    'rgba(217, 70, 239, 0.6)',   // Magenta
+    'rgba(244, 114, 182, 0.5)',  // Pink
+    'rgba(251, 146, 60, 0.8)',   // Orange
+    'rgba(252, 211, 77, 0.7)',   // Yellow
+  ],
+  cyberpunk: [
+    'rgba(255, 0, 128, 0.8)',    // Neon pink
+    'rgba(0, 255, 255, 0.7)',    // Cyan
+    'rgba(128, 255, 0, 0.6)',    // Lime
+    'rgba(255, 0, 255, 0.5)',    // Magenta
+    'rgba(255, 255, 0, 0.8)',    // Yellow
+    'rgba(0, 128, 255, 0.7)',    // Sky blue
+  ],
+  // Keep these for backward compatibility
+  warm: [
+    'rgba(251, 146, 60, 0.8)',   // Orange
+    'rgba(252, 211, 77, 0.7)',   // Yellow
+    'rgba(254, 215, 170, 0.6)',  // Peach
+    'rgba(254, 240, 138, 0.5)',  // Light yellow
+    'rgba(249, 115, 22, 0.8)',   // Dark orange
+    'rgba(251, 191, 36, 0.7)',   // Amber
+  ],
+  cool: [
+    'rgba(59, 130, 246, 0.8)',   // Blue
+    'rgba(147, 197, 253, 0.7)',  // Light blue
+    'rgba(99, 102, 241, 0.6)',   // Indigo
+    'rgba(139, 92, 246, 0.5)',   // Violet
+    'rgba(168, 85, 247, 0.8)',   // Purple
+    'rgba(217, 70, 239, 0.7)',   // Magenta
+  ],
+  monochrome: [
+    'rgba(255, 255, 255, 0.9)',  // White
+    'rgba(229, 231, 235, 0.7)',  // Gray 200
+    'rgba(209, 213, 219, 0.6)',  // Gray 300
+    'rgba(156, 163, 175, 0.5)',  // Gray 400
+    'rgba(107, 114, 128, 0.7)',  // Gray 500
+    'rgba(75, 85, 99, 0.6)',     // Gray 600
+  ],
+  neon: [
+    'rgba(255, 0, 128, 0.8)',    // Neon pink
+    'rgba(0, 255, 255, 0.7)',    // Cyan
+    'rgba(128, 255, 0, 0.6)',    // Lime
+    'rgba(255, 0, 255, 0.5)',    // Magenta
+    'rgba(255, 255, 0, 0.8)',    // Yellow
+    'rgba(0, 128, 255, 0.7)',    // Sky blue
+  ]
+}
 import type { BoundaryGrid } from './seoul-boundaries-optimized'
 import { 
   isPointInSeoulFast, 
   getDistrictNameFast,
   generateStratifiedPoints,
-  DISTRICT_CENTERS
+  DISTRICT_CENTERS,
+  precomputeBoundaryGrid
 } from './seoul-boundaries-optimized'
 import { 
   fastSin, 
@@ -76,14 +198,19 @@ export async function generateParticlesOptimized(
     const baseSize = 30 + Math.random() * 80
     
     particles[validCount] = {
+      x: point.lng,
+      y: point.lat,
+      vx: (Math.random() - 0.5) * 0.00002,
+      vy: (Math.random() - 0.5) * 0.00002,
+      charge: 0.5 + Math.random() * 0.5,
+      color: color,
       position: [point.lng, point.lat],
-      color: color as [number, number, number],
       size: baseSize * sizeFactor,
       speed: 0.0002 + Math.random() * 0.0005,
       phase: Math.random() * TWO_PI,
       amplitude: 0.001 + Math.random() * 0.002,
       district: point.district
-    }
+    } as ParticleData
     
     validCount++
     
@@ -148,17 +275,26 @@ export function createParticleBuffers(particles: ParticleData[]) {
     const i2 = i * 2
     const i3 = i * 3
     
-    positions[i2] = particle.position[0]
-    positions[i2 + 1] = particle.position[1]
+    const pos = particle.position || [particle.x, particle.y]
+    positions[i2] = pos[0]
+    positions[i2 + 1] = pos[1]
     
-    colors[i3] = particle.color[0]
-    colors[i3 + 1] = particle.color[1]
-    colors[i3 + 2] = particle.color[2]
+    // Parse color from rgba string
+    const colorMatch = particle.color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+    if (colorMatch) {
+      colors[i3] = parseInt(colorMatch[1]) / 255
+      colors[i3 + 1] = parseInt(colorMatch[2]) / 255
+      colors[i3 + 2] = parseInt(colorMatch[3]) / 255
+    } else {
+      colors[i3] = 0.4
+      colors[i3 + 1] = 0.6
+      colors[i3 + 2] = 1.0
+    }
     
-    sizes[i] = particle.size
-    speeds[i] = particle.speed
-    phases[i] = particle.phase
-    amplitudes[i] = particle.amplitude
+    sizes[i] = particle.size || 50
+    speeds[i] = particle.speed || 0.0003
+    phases[i] = particle.phase || 0
+    amplitudes[i] = particle.amplitude || 0.001
   }
   
   return {
@@ -250,7 +386,7 @@ export function animateParticlesSuperFast(
   // 1단계: 모든 phase 값을 일괄 계산 (수정: waveSpeed 사용)
   if (waveEnabled) {
     for (let i = 0; i < count; i++) {
-      wavePhases[i] = time * waveSpeed + particles[i].phase
+      wavePhases[i] = time * waveSpeed + (particles[i].phase || 0)
     }
     
     // 2단계: 벡터화된 sin/cos 계산 (4배 빠름)
@@ -266,10 +402,11 @@ export function animateParticlesSuperFast(
     
     for (let i = chunk; i < end; i++) {
       const particle = particles[i]
-      let x = particle.position[0]
-      let y = particle.position[1]
-      let size = particle.size
-      let color = [...particle.color] as [number, number, number]
+      const pos = particle.position || [particle.x, particle.y]
+      let x = pos[0]
+      let y = pos[1]
+      let size = particle.size || 50
+      let color = particle.color
       let opacity = 255
       
       // Wave 애니메이션 적용 (수정: currentAmplitude 직접 사용)
@@ -278,8 +415,8 @@ export function animateParticlesSuperFast(
         const waveX = sinResults[i] * currentAmplitude
         const waveY = cosResults[i] * currentAmplitude * 0.7
         
-        x = particle.position[0] + waveX
-        y = particle.position[1] + waveY
+        x = pos[0] + waveX
+        y = pos[1] + waveY
       }
       
       // Orbital motion 복원
@@ -294,33 +431,37 @@ export function animateParticlesSuperFast(
       
       // Pulse 애니메이션 (복원)
       if (pulseEnabled) {
-        const pulsePhase = time * pulseSpeed + particle.phase * 2
+        const pulsePhase = time * pulseSpeed + (particle.phase || 0) * 2
         const pulse = fastSin(pulsePhase)
         const sizeFactor = 1 + pulse * 0.5 // 원래 강도로 복원
         const opacityFactor = 0.7 + pulse * 0.3
         
-        size = particle.size * sizeFactor
+        size = (particle.size || 50) * sizeFactor
         opacity = Math.floor(255 * opacityFactor)
       }
       
       // Color cycle 애니메이션 (선택적)
       if (colorCycleEnabled) {
-        const hueShift = (time * colorCycleSpeed + particle.phase) % (TWO_PI)
+        const hueShift = (time * colorCycleSpeed + (particle.phase || 0)) % (TWO_PI)
         
         // HSL 색상 순환 (원래 로직 복원)
         const cos = fastCos(hueShift)
         const sin = fastSin(hueShift)
         
-        const [r, g, b] = particle.color
-        
-        // 색상 변환 매트릭스 적용
-        const newR = r * (cos + (1 - cos) / 3) + g * ((1 - cos) / 3 - Math.sqrt(1/3) * sin) + b * ((1 - cos) / 3 + Math.sqrt(1/3) * sin)
-        const newG = r * ((1 - cos) / 3 + Math.sqrt(1/3) * sin) + g * (cos + (1 - cos) / 3) + b * ((1 - cos) / 3 - Math.sqrt(1/3) * sin)
-        const newB = r * ((1 - cos) / 3 - Math.sqrt(1/3) * sin) + g * ((1 - cos) / 3 + Math.sqrt(1/3) * sin) + b * (cos + (1 - cos) / 3)
-        
-        color[0] = Math.max(0, Math.min(255, newR))
-        color[1] = Math.max(0, Math.min(255, newG))
-        color[2] = Math.max(0, Math.min(255, newB))
+        // Parse color from rgba string
+        const colorMatch = particle.color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+        if (colorMatch) {
+          const r = parseInt(colorMatch[1])
+          const g = parseInt(colorMatch[2])
+          const b = parseInt(colorMatch[3])
+          
+          // 색상 변환 매트릭스 적용
+          const newR = r * (cos + (1 - cos) / 3) + g * ((1 - cos) / 3 - Math.sqrt(1/3) * sin) + b * ((1 - cos) / 3 + Math.sqrt(1/3) * sin)
+          const newG = r * ((1 - cos) / 3 + Math.sqrt(1/3) * sin) + g * (cos + (1 - cos) / 3) + b * ((1 - cos) / 3 - Math.sqrt(1/3) * sin)
+          const newB = r * ((1 - cos) / 3 - Math.sqrt(1/3) * sin) + g * ((1 - cos) / 3 + Math.sqrt(1/3) * sin) + b * (cos + (1 - cos) / 3)
+          
+          color = `rgba(${Math.max(0, Math.min(255, newR))}, ${Math.max(0, Math.min(255, newG))}, ${Math.max(0, Math.min(255, newB))}, 0.8)`
+        }
       } else {
         // Color cycle OFF: 테마 색상 그대로 유지
         // color는 이미 particle.color를 복사했으므로 테마가 적용된 상태
@@ -328,7 +469,7 @@ export function animateParticlesSuperFast(
       
       // Firefly 효과 (강화)
       if (fireflyEnabled) {
-        const fireflyPhase = time * fireflySpeed + particle.phase * 3
+        const fireflyPhase = time * fireflySpeed + (particle.phase || 0) * 3
         const twinkle = fastSin(fireflyPhase)
         const fireflyIntensity = 0.8
         
@@ -342,9 +483,23 @@ export function animateParticlesSuperFast(
         y += randomY
       }
       
+      // Parse color for result  
+      let colorArray: [number, number, number, number]
+      const colorMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+      if (colorMatch) {
+        colorArray = [
+          parseInt(colorMatch[1]),
+          parseInt(colorMatch[2]),
+          parseInt(colorMatch[3]),
+          opacity
+        ]
+      } else {
+        colorArray = [100, 150, 255, opacity]
+      }
+      
       result[i] = {
         position: [x, y],
-        color: color,
+        color: colorArray,
         size: size,
         opacity: Math.max(0, Math.min(255, Math.floor(opacity)))
       }
@@ -381,17 +536,44 @@ export function generateInitialParticles(
     const color = selectedPalette[colorIndex]
     
     particles.push({
+      x: lng,
+      y: lat,
+      vx: (Math.random() - 0.5) * 0.00002,
+      vy: (Math.random() - 0.5) * 0.00002,
+      charge: 0.5 + Math.random() * 0.5,
+      color: color,
       position: [lng, lat],
-      color: color as [number, number, number],
       size: 40 + Math.random() * 60,
       speed: 0.0002 + Math.random() * 0.0005,
       phase: Math.random() * TWO_PI,
       amplitude: 0.001 + Math.random() * 0.002,
       district: districtName
-    })
+    } as ParticleData)
   }
   
   return particles
+}
+
+// Function to generate particles with boundary
+export async function generateSeoulParticlesWithBoundary(
+  count: number,
+  boundaryData: SeoulBoundaryData,
+  colorTheme: keyof typeof COLOR_THEMES = 'current'
+): Promise<ParticleData[]> {
+  const grid = await precomputeBoundaryGrid(boundaryData)
+  return generateParticlesOptimized(count, grid, colorTheme)
+}
+
+// Function to update particle colors
+export function updateParticleColors(
+  particles: ParticleData[],
+  colorTheme: keyof typeof COLOR_THEMES
+): ParticleData[] {
+  const colors = COLOR_THEMES[colorTheme]
+  return particles.map(particle => ({
+    ...particle,
+    color: colors[Math.floor(Math.random() * colors.length)]
+  }))
 }
 
 export default {

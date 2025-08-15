@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "npm run generate-particles && next build",
+    "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
@@ -17,7 +17,6 @@
     "@deck.gl/layers": "^9.1.14",
     "@deck.gl/react": "^9.1.14",
     "@deck.gl/widgets": "^9.1.14",
-    "@emotion/is-prop-valid": "latest",
     "@gsap/react": "latest",
     "@loaders.gl/core": "^4.2.0",
     "@loaders.gl/csv": "^4.2.0",
@@ -54,7 +53,6 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "postcss": "^8.5",
-    "sharp": "^0.34.3",
     "tailwindcss": "^3.4.17",
     "typescript": "^5"
   }

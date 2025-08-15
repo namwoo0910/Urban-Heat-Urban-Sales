@@ -3,6 +3,8 @@
  * Register and manage service worker for caching optimization
  */
 
+import { useState, useEffect, useCallback } from 'react'
+
 export interface ServiceWorkerStatus {
   isSupported: boolean
   isRegistered: boolean
@@ -224,7 +226,7 @@ export class ServiceWorkerManager {
   /**
    * Trigger immediate prefetch (fallback)
    */
-  private async triggerImmediatePrefetch(): void {
+  private async triggerImmediatePrefetch(): Promise<void> {
     const criticalUrls = [
       '/seoul_boundary.compressed.gz',
       '/urbanmountain/processed_data/metadata.json'

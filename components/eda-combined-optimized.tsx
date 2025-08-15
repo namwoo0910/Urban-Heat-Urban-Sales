@@ -215,7 +215,7 @@ export default function EdaCombinedOptimized() {
     }
 
     const feature = event.features?.[0];
-    if (feature && feature.layer.id === 'sgg-fill') {
+    if (feature && feature.layer?.id === 'sgg-fill') {
       const props = feature.properties || {};
       const guName = props.SIGUNGU_NM || props.SIG_KOR_NM || props.GU_NM || props.nm || '자치구';
       
@@ -226,7 +226,7 @@ export default function EdaCombinedOptimized() {
       if (feature.geometry && mapRef.current) {
         const bounds = getBounds(feature.geometry);
         if (bounds) {
-          mapRef.current.fitBounds(bounds, {
+          mapRef.current.fitBounds(bounds as [[number, number], [number, number]], {
             padding: 60,
             duration: 900
           });

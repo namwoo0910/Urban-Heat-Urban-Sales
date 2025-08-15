@@ -3,6 +3,7 @@
  * Progressive chunked loading for better performance
  */
 
+import { useState, useEffect, useCallback } from 'react'
 import { ProgressiveDataLoader } from './data-compression'
 
 export interface GridData {

@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { ParticleData } from '@/utils/particle-data'
+import type { ParticleData } from '@/utils/particle-data-optimized'
 import { fastSin, fastCos } from '@/utils/math-lookup-tables'
 
 export interface AnimationConfig {
@@ -97,14 +97,16 @@ export function useParticleAnimations(
   // Wave animation
   const applyWaveAnimation = useCallback(
     (particle: ParticleData, time: number): [number, number] => {
-      if (!config.waveEnabled) return particle.position
+      const position = particle.position || [particle.x, particle.y]
+      if (!config.waveEnabled) return position
 
-      const waveX = fastSin(time * config.waveSpeed + particle.phase) * config.waveAmplitude
-      const waveY = fastCos(time * config.waveSpeed * 0.7 + particle.phase) * config.waveAmplitude * 0.7
+      const phase = particle.phase || 0
+      const waveX = fastSin(time * config.waveSpeed + phase) * config.waveAmplitude
+      const waveY = fastCos(time * config.waveSpeed * 0.7 + phase) * config.waveAmplitude * 0.7
 
       return [
-        particle.position[0] + waveX,
-        particle.position[1] + waveY,
+        position[0] + waveX,
+        position[1] + waveY,
       ]
     },
     [config.waveEnabled, config.waveSpeed, config.waveAmplitude]
@@ -113,16 +115,18 @@ export function useParticleAnimations(
   // Pulse animation (size and opacity)
   const applyPulseAnimation = useCallback(
     (particle: ParticleData, time: number): { size: number; opacity: number } => {
+      const size = particle.size || 3
       if (!config.pulseEnabled) {
-        return { size: particle.size, opacity: 1 }
+        return { size, opacity: 1 }
       }
 
-      const pulse = fastSin(time * config.pulseSpeed + particle.phase * 2)
+      const phase = particle.phase || 0
+      const pulse = fastSin(time * config.pulseSpeed + phase * 2)
       const sizeFactor = 1 + pulse * config.pulseIntensity * 0.5
       const opacityFactor = 0.7 + pulse * config.pulseIntensity * 0.3
 
       return {
-        size: particle.size * sizeFactor,
+        size: size * sizeFactor,
         opacity: opacityFactor,
       }
     },
@@ -132,11 +136,22 @@ export function useParticleAnimations(
   // Color cycle animation
   const applyColorCycle = useCallback(
     (particle: ParticleData, time: number): [number, number, number] => {
-      if (!config.colorCycleEnabled) return particle.color
+      // Parse color from rgba string to RGB values
+      const parseColor = (color: string): [number, number, number] => {
+        const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)
+        if (match) {
+          return [parseInt(match[1]), parseInt(match[2]), parseInt(match[3])]
+        }
+        return [100, 150, 255] // Default blue color
+      }
+      
+      const color = parseColor(particle.color)
+      if (!config.colorCycleEnabled) return color
 
+      const phase = particle.phase || 0
       // HSL color cycling
-      const hueShift = (time * config.colorCycleSpeed + particle.phase) % (Math.PI * 2)
-      const [r, g, b] = particle.color
+      const hueShift = (time * config.colorCycleSpeed + phase) % (Math.PI * 2)
+      const [r, g, b] = color
 
       // Simple hue rotation
       const cos = fastCos(hueShift)
@@ -158,15 +173,16 @@ export function useParticleAnimations(
   // Orbital motion animation
   const applyOrbitalMotion = useCallback(
     (particle: ParticleData, time: number, index: number): [number, number] => {
-      if (!config.orbitalEnabled) return particle.position
+      const position = particle.position || [particle.x, particle.y]
+      if (!config.orbitalEnabled) return position
 
       const angle = time * config.orbitalSpeed + (index * Math.PI * 2) / 100
       const orbX = fastCos(angle) * config.orbitalRadius
       const orbY = fastSin(angle) * config.orbitalRadius
 
       return [
-        particle.position[0] + orbX,
-        particle.position[1] + orbY,
+        position[0] + orbX,
+        position[1] + orbY,
       ]
     },
     [config.orbitalEnabled, config.orbitalSpeed, config.orbitalRadius]
@@ -175,8 +191,9 @@ export function useParticleAnimations(
   // Firefly effect (random twinkling and movement)
   const applyFireflyEffect = useCallback(
     (particle: ParticleData, time: number): { position: [number, number]; opacity: number } => {
+      const position = particle.position || [particle.x, particle.y]
       if (!config.fireflyEnabled) {
-        return { position: particle.position, opacity: 1 }
+        return { position, opacity: 1 }
       }
 
       // Random twinkling
@@ -188,8 +205,8 @@ export function useParticleAnimations(
 
       return {
         position: [
-          particle.position[0] + randomX,
-          particle.position[1] + randomY,
+          position[0] + randomX,
+          position[1] + randomY,
         ],
         opacity: twinkle,
       }
@@ -200,15 +217,16 @@ export function useParticleAnimations(
   // Flow field animation
   const applyFlowField = useCallback(
     (particle: ParticleData, time: number): [number, number] => {
-      if (!config.flowFieldEnabled) return particle.position
+      const position = particle.position || [particle.x, particle.y]
+      if (!config.flowFieldEnabled) return position
 
       // Simple Perlin-like noise simulation
-      const noiseX = Math.sin(particle.position[0] * 100 + time * 0.001) * config.flowFieldStrength
-      const noiseY = Math.cos(particle.position[1] * 100 + time * 0.001) * config.flowFieldStrength
+      const noiseX = Math.sin(position[0] * 100 + time * 0.001) * config.flowFieldStrength
+      const noiseY = Math.cos(position[1] * 100 + time * 0.001) * config.flowFieldStrength
 
       return [
-        particle.position[0] + noiseX,
-        particle.position[1] + noiseY,
+        position[0] + noiseX,
+        position[1] + noiseY,
       ]
     },
     [config.flowFieldEnabled, config.flowFieldStrength]
@@ -219,7 +237,7 @@ export function useParticleAnimations(
     (particles: ParticleData[], time: number): AnimatedParticle[] => {
       return particles.map((particle, index) => {
         // Apply position animations
-        let position = particle.position
+        let position: [number, number] = particle.position || [particle.x, particle.y]
         
         if (config.waveEnabled) {
           position = applyWaveAnimation(particle, time)
@@ -258,7 +276,7 @@ export function useParticleAnimations(
           size: pulse.size,
           opacity: pulse.opacity,
           trail: config.trailEnabled ? animationState.particleHistory.get(index) : undefined,
-        }
+        } as AnimatedParticle
       })
     },
     [

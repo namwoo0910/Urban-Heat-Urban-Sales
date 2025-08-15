@@ -6,12 +6,18 @@ import { DeckGL } from "@deck.gl/react"
 import { ScatterplotLayer, LineLayer, SolidPolygonLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
 import "mapbox-gl/dist/mapbox-gl.css"
-import { generateSeoulParticlesWithBoundary, updateParticleColors } from "@/utils/particle-data"
-import type { ParticleData } from "@/utils/particle-data"
-import { loadSeoulBoundaries } from "@/utils/seoul-boundaries"
-import type { SeoulBoundaryData } from "@/utils/seoul-boundaries"
 import { precomputeBoundaryGrid } from "@/utils/seoul-boundaries-optimized"
-import { generateParticlesOptimized, generateInitialParticles, createParticleBuffers, animateParticlesSuperFast } from "@/utils/particle-data-optimized"
+import type { SeoulBoundaryData } from "@/utils/seoul-boundaries-optimized"
+import { 
+  generateParticlesOptimized, 
+  generateInitialParticles, 
+  createParticleBuffers, 
+  animateParticlesSuperFast,
+  generateSeoulParticlesWithBoundary,
+  updateParticleColors,
+  loadSeoulBoundaries,
+  type ParticleData
+} from "@/utils/particle-data-optimized"
 import { loadStaticParticles } from "@/utils/fast-particle-loader"
 import { initializeParticleMemoryPool } from "@/utils/math-lookup-tables"
 import { useParticleCache } from "@/hooks/use-particle-cache"
@@ -378,7 +384,6 @@ export function SeoulMapOptimized({
           const fallbackParticles = await generateSeoulParticlesWithBoundary(
             config.particleCount,
             boundaries,
-            undefined,
             animationConfig.colorTheme
           )
           setParticles(fallbackParticles)

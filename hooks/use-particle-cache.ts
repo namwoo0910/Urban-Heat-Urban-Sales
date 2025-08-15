@@ -4,7 +4,7 @@
  */
 
 import { useEffect, useState, useCallback } from 'react'
-import type { ParticleData } from '@/utils/particle-data'
+import type { ParticleData } from '@/utils/particle-data-optimized'
 
 const DB_NAME = 'SeoulVisualization'
 const DB_VERSION = 2

@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { ParticleData } from '@/utils/particle-data'
+import type { ParticleData } from '@/utils/particle-data-optimized'
 
 interface WorkerState {
   isGenerating: boolean

@@ -3,7 +3,23 @@
  * for ultra-fast point-in-polygon checks
  */
 
-import type { SeoulBoundaryData, SeoulBoundaryFeature } from './seoul-boundaries'
+// Define types locally since original file was removed
+export interface SeoulBoundaryFeature {
+  type: "Feature"
+  properties: {
+    name: string
+    [key: string]: any
+  }
+  geometry: {
+    type: "Polygon" | "MultiPolygon"
+    coordinates: number[][][] | number[][][][]
+  }
+}
+
+export interface SeoulBoundaryData {
+  type: "FeatureCollection"
+  features: SeoulBoundaryFeature[]
+}
 
 // Grid resolution (higher = more accurate but more memory)
 const GRID_RESOLUTION = 200 // 200x200 grid cells
@@ -141,11 +157,21 @@ export function getDistrictNameFast(lng: number, lat: number, grid: BoundaryGrid
  * Helper function for point-in-polygon check
  */
 function isPointInFeature(lng: number, lat: number, feature: SeoulBoundaryFeature): boolean {
-  if (feature.geometry.type !== 'Polygon') return false
-  
-  for (const ring of feature.geometry.coordinates) {
-    if (isPointInPolygon([lng, lat], ring)) {
-      return true
+  if (feature.geometry.type === 'Polygon') {
+    const coordinates = feature.geometry.coordinates as number[][][]
+    for (const ring of coordinates) {
+      if (isPointInPolygon([lng, lat], ring)) {
+        return true
+      }
+    }
+  } else if (feature.geometry.type === 'MultiPolygon') {
+    const coordinates = feature.geometry.coordinates as number[][][][]
+    for (const polygon of coordinates) {
+      for (const ring of polygon) {
+        if (isPointInPolygon([lng, lat], ring)) {
+          return true
+        }
+      }
     }
   }
   return false

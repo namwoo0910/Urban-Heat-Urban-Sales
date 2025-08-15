@@ -259,7 +259,7 @@ export function useAdaptiveParticles(initialTargetFPS: number = 60) {
   const [targetFPS, setTargetFPS] = useState(initialTargetFPS)
   
   const monitorRef = useRef<PerformanceMonitor>(new PerformanceMonitor())
-  const adaptiveIntervalRef = useRef<NodeJS.Timeout>()
+  const adaptiveIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined)
   const lastAdaptationRef = useRef<number>(0)
   
   // Performance monitoring and adaptation
@@ -283,7 +283,7 @@ export function useAdaptiveParticles(initialTargetFPS: number = 60) {
         lastAdaptationRef.current = now
       }
       // If FPS is consistently above target, gradually increase quality
-      else if (fpsDiff > 10 && config.particleCount < capabilities.level === 'high' ? 8000 : 5000) {
+      else if (fpsDiff > 10 && config.particleCount < (capabilities.level === 'high' ? 8000 : 5000)) {
         setConfig(prev => ({
           ...prev,
           particleCount: Math.min(8000, Math.floor(prev.particleCount * 1.1)),

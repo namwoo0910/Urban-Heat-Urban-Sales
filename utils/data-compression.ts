@@ -59,7 +59,7 @@ export class DataCompressionManager {
       const writer = decompressionStream.writable.getWriter()
       const reader = decompressionStream.readable.getReader()
       
-      writer.write(compressedData)
+      writer.write(compressedData.buffer as ArrayBuffer)
       writer.close()
       
       const chunks: Uint8Array[] = []
