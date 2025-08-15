@@ -194,7 +194,6 @@ export function AnimationControls({
           </div>
         )}
       </div>
-      )}
 
       {/* Firefly Effect - Show for high performance */}
       {performanceLevel === 'high' && (

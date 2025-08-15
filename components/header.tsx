@@ -72,7 +72,7 @@ export function Header() {
         <TransitionLink href="/contact">
           <motion.button
             className="font-['Montserrat'] font-semibold text-white text-sm py-1.5 px-4 transition-all duration-300 hover:text-gray-300 uppercase tracking-wider"
-            style={{ marginRight: '-20px' }}
+            style={{ marginRight: '0px' }}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
           >
