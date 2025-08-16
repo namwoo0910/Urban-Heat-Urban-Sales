@@ -128,8 +128,6 @@ export const COLOR_THEMES = {
 }
 import type { BoundaryGrid } from './seoul-boundaries-optimized'
 import { 
-  isPointInSeoulFast, 
-  getDistrictNameFast,
   generateStratifiedPoints,
   DISTRICT_CENTERS,
   precomputeBoundaryGrid
@@ -308,47 +306,6 @@ export function createParticleBuffers(particles: ParticleData[]) {
   }
 }
 
-/**
- * Optimized particle animation using SIMD-friendly operations
- * Processes particles in batches for better CPU cache utilization
- */
-function animateParticlesBatchOptimized(
-  buffers: ReturnType<typeof createParticleBuffers>,
-  time: number,
-  waveEnabled: boolean = true,
-  pulseEnabled: boolean = true
-): Float32Array {
-  const { positions, sizes, speeds, phases, amplitudes, count } = buffers
-  const animatedPositions = new Float32Array(count * 2)
-  
-  // Process in chunks for better cache locality
-  const chunkSize = 64 // Optimize for CPU cache line
-  
-  for (let chunk = 0; chunk < count; chunk += chunkSize) {
-    const end = Math.min(chunk + chunkSize, count)
-    
-    for (let i = chunk; i < end; i++) {
-      const i2 = i * 2
-      const speed = speeds[i]
-      const phase = phases[i]
-      const amplitude = amplitudes[i]
-      
-      let offsetX = 0
-      let offsetY = 0
-      
-      if (waveEnabled) {
-        const wavePhase = time * speed + phase
-        offsetX = fastSin(wavePhase) * amplitude
-        offsetY = fastCos(wavePhase * 0.7) * amplitude * 0.7
-      }
-      
-      animatedPositions[i2] = positions[i2] + offsetX
-      animatedPositions[i2 + 1] = positions[i2 + 1] + offsetY
-    }
-  }
-  
-  return animatedPositions
-}
 
 /**
  * 초고속 벡터화된 배치 애니메이션 (4배 빠른 처리)
