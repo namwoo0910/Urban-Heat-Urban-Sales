@@ -27,7 +27,7 @@ import type { AnimationConfig } from "@/hooks/use-particle-animations"
 // Removed AnimationControls import - moved to Hero component
 
 // Mapbox access token
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA"
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 // 성능 설정 - 파티클 개수 1.5배 증가
 const PERFORMANCE_CONFIG = {

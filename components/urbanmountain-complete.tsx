@@ -5,7 +5,7 @@ import Map, { Popup } from "react-map-gl"
 import type { MapRef } from "react-map-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 
-const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || "pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA"
+const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
 interface UrbanMountainCompleteProps {
   className?: string
