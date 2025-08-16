@@ -5,7 +5,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 
-export interface AdaptiveParticleConfig {
+interface AdaptiveParticleConfig {
   particleCount: number
   connectionCount: number
   fps: number
@@ -21,7 +21,7 @@ export interface AdaptiveParticleConfig {
   }
 }
 
-export interface PerformanceMetrics {
+interface PerformanceMetrics {
   fps: number
   frameTime: number
   memoryUsage: number
@@ -29,7 +29,7 @@ export interface PerformanceMetrics {
   lastUpdate: number
 }
 
-export interface DeviceCapabilities {
+interface DeviceCapabilities {
   level: 'low' | 'medium' | 'high'
   gpu: string
   cores: number

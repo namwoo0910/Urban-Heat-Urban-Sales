@@ -8,7 +8,7 @@ import type { CSSProperties } from 'react'
 export type ColorRange = [number, number, number][]
 
 // 기존 색상 팔레트 (LayerManager에서 이동)
-export const CLASSIC_COLOR_RANGES = {
+const CLASSIC_COLOR_RANGES = {
   heat: [
     [1, 152, 189],
     [73, 227, 206], 
@@ -46,7 +46,7 @@ export const CLASSIC_COLOR_RANGES = {
 } as const
 
 // 프리미엄 색상 팔레트 (새로 추가)
-export const PREMIUM_COLOR_RANGES = {
+const PREMIUM_COLOR_RANGES = {
   // 홀로그램 - 보라에서 시안으로 그라데이션
   hologram: [
     [40, 0, 80],      // 진보라
@@ -167,23 +167,6 @@ export const COLOR_PALETTE_INFO = {
   }
 } as const
 
-// 카테고리별 팔레트 그룹핑
-export const getColorPalettesByCategory = () => {
-  const classic: ColorScheme[] = []
-  const premium: ColorScheme[] = []
-  
-  Object.entries(COLOR_PALETTE_INFO).forEach(([key, info]) => {
-    const colorScheme = key as ColorScheme
-    if (info.category === 'classic') {
-      classic.push(colorScheme)
-    } else {
-      premium.push(colorScheme)
-    }
-  })
-  
-  return { classic, premium }
-}
-
 // 색상 팔레트 미리보기 CSS 생성
 export const getColorPreviewStyle = (scheme: ColorScheme): CSSProperties => {
   const colors = COLOR_RANGES[scheme]
@@ -191,26 +174,6 @@ export const getColorPreviewStyle = (scheme: ColorScheme): CSSProperties => {
   return {
     background: `linear-gradient(to right, ${rgbColors})`
   }
-}
-
-// 랜덤 색상 스킴 선택 (애니메이션용)
-export const getRandomColorScheme = (exclude?: ColorScheme): ColorScheme => {
-  const schemes = Object.keys(COLOR_RANGES) as ColorScheme[]
-  const availableSchemes = exclude ? schemes.filter(s => s !== exclude) : schemes
-  const randomIndex = Math.floor(Math.random() * availableSchemes.length)
-  return availableSchemes[randomIndex]
-}
-
-// 색상 강도 조절 함수
-export const adjustColorIntensity = (
-  colorRange: ColorRange, 
-  intensity: number = 1.0
-): ColorRange => {
-  return colorRange.map(([r, g, b]) => [
-    Math.min(255, Math.round(r * intensity)),
-    Math.min(255, Math.round(g * intensity)),
-    Math.min(255, Math.round(b * intensity))
-  ]) as ColorRange
 }
 
 export default COLOR_RANGES

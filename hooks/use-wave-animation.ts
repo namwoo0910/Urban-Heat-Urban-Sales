@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react'
 
-export interface WaveAnimationConfig {
+interface WaveAnimationConfig {
   enabled: boolean
   speed: number        // 애니메이션 속도 (0.5x - 2x)
   amplitude: number    // 진폭 (높이 변화 범위)
@@ -9,7 +9,7 @@ export interface WaveAnimationConfig {
   maxScale: number     // 최대 elevationScale
 }
 
-export interface WaveAnimationState {
+interface WaveAnimationState {
   currentScale: number
   isAnimating: boolean
 }

@@ -31,7 +31,7 @@ export interface AnimationConfig {
   blackBackgroundEnabled: boolean
 }
 
-export interface AnimationState {
+interface AnimationState {
   time: number
   frameCount: number
   isAnimating: boolean

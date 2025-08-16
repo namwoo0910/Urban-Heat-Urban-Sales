@@ -312,7 +312,7 @@ export function createParticleBuffers(particles: ParticleData[]) {
  * Optimized particle animation using SIMD-friendly operations
  * Processes particles in batches for better CPU cache utilization
  */
-export function animateParticlesBatchOptimized(
+function animateParticlesBatchOptimized(
   buffers: ReturnType<typeof createParticleBuffers>,
   time: number,
   waveEnabled: boolean = true,
@@ -579,7 +579,6 @@ export function updateParticleColors(
 export default {
   generateParticlesOptimized,
   createParticleBuffers,
-  animateParticlesBatchOptimized,
   animateParticlesSuperFast,
   generateInitialParticles
 }

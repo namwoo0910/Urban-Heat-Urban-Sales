@@ -58,7 +58,7 @@ export function fastCos(angle: number): number {
  * 더 정확한 보간이 필요한 경우를 위한 선형 보간 버전
  * 약간 느리지만 여전히 Math.sin/cos보다 5배 빠름
  */
-export function fastSinInterpolated(angle: number): number {
+function fastSinInterpolated(angle: number): number {
   if (!isInitialized) initializeLookupTables()
   
   const normalizedAngle = angle - Math.floor(angle / (2 * Math.PI)) * (2 * Math.PI)
@@ -70,7 +70,7 @@ export function fastSinInterpolated(angle: number): number {
   return sinLookup[index1] * (1 - factor) + sinLookup[index2] * factor
 }
 
-export function fastCosInterpolated(angle: number): number {
+function fastCosInterpolated(angle: number): number {
   if (!isInitialized) initializeLookupTables()
   
   const normalizedAngle = angle - Math.floor(angle / (2 * Math.PI)) * (2 * Math.PI)
@@ -177,7 +177,7 @@ export function vectorizedSinCos(
 /**
  * 초기화 함수 - 컴포넌트 로드 전에 호출
  */
-export function initializeMathAcceleration() {
+function initializeMathAcceleration() {
   initializeLookupTables()
   console.log('[MathAccel] All acceleration systems ready')
 }
