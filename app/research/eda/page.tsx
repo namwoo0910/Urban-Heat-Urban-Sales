@@ -38,7 +38,7 @@ const EDAPage = () => {
 
   return (
     <div>
-      <div className="relative h-screen bg-gradient-to-br from-amber-900 via-orange-900 to-red-900">
+      <div className="relative h-screen bg-gradient-to-br from-slate-900 via-gray-900 to-zinc-900">
         {/* Background Pattern */}
         <div className="absolute inset-0 opacity-30">
           <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
@@ -67,7 +67,7 @@ const EDAPage = () => {
             />
             <button
               onClick={handleEnterVisualization}
-              className="group relative px-8 py-4 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
+              className="group relative px-8 py-4 bg-gradient-to-r from-slate-800 to-zinc-800 hover:from-slate-900 hover:to-zinc-900 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
             >
               <span className="flex items-center gap-3">
                 <span>Map Visualization</span>

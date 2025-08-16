@@ -52,7 +52,7 @@ const LocalEconomyPage = () => {
     <div>
       {!showVisualization ? (
         // Landing page with gradient background
-        <div className="relative h-screen bg-gradient-to-br from-green-900 via-teal-900 to-cyan-900">
+        <div className="relative h-screen bg-gradient-to-br from-emerald-950 via-teal-950 to-cyan-950">
           {/* Background Pattern */}
           <div className="absolute inset-0 opacity-30">
             <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
@@ -81,7 +81,7 @@ const LocalEconomyPage = () => {
               />
               <button
                 onClick={handleEnterVisualization}
-                className="group relative px-8 py-4 bg-gradient-to-r from-green-600 to-teal-600 hover:from-green-700 hover:to-teal-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
+                className="group relative px-8 py-4 bg-gradient-to-r from-emerald-800 to-teal-800 hover:from-emerald-900 hover:to-teal-900 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
               >
                 <span className="flex items-center gap-3">
                   <span>Map Visualization</span>

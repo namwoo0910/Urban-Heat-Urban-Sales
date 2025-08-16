@@ -44,7 +44,7 @@ const FloatingPopulationPage = () => {
 
   return (
     <div>
-      <div className="relative h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900">
+      <div className="relative h-screen bg-gradient-to-br from-black via-indigo-950 to-purple-950">
         {/* Background Preview */}
         <div className="absolute inset-0 opacity-30">
           <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
@@ -73,7 +73,7 @@ const FloatingPopulationPage = () => {
             />
             <button
               onClick={handleEnterVisualization}
-              className="group relative px-8 py-4 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
+              className="group relative px-8 py-4 bg-gradient-to-r from-indigo-800 to-purple-800 hover:from-indigo-900 hover:to-purple-900 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
             >
               <span className="flex items-center gap-3">
                 <span>Map Visualization</span>
