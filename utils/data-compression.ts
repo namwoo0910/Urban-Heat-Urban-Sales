@@ -161,21 +161,6 @@ export class DataCompressionManager {
   }
 }
 
-/**
- * Optimized Seoul boundary loader with compression support
- */
-export async function loadSeoulBoundaryOptimized(): Promise<any> {
-  try {
-    // Try compressed version first, fallback to original
-    return await DataCompressionManager.loadCompressedData(
-      '/seoul_boundary.compressed.gz',
-      '/seoul_boundary.geojson'
-    )
-  } catch (error) {
-    console.error('Failed to load Seoul boundary data:', error)
-    throw error
-  }
-}
 
 /**
  * Progressive data chunking for large datasets
