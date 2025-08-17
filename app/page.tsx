@@ -1,15 +1,10 @@
-import dynamic from 'next/dynamic'
+/**
+ * 홈페이지 라우트
+ * src/features/home 모듈을 참조
+ */
 
-// Dynamic imports with loading states for better performance
-const Hero = dynamic(() => import('@/components/hero').then(mod => mod.Hero), {
-  loading: () => <div className="h-screen flex items-center justify-center">Loading...</div>,
-  ssr: true
-})
+import HomePage from '@/src/features/home/components/HomePage'
 
 export default function Home() {
-  return (
-    <div className="relative min-h-screen">
-      <Hero />
-    </div>
-  )
+  return <HomePage />
 }
