@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react'
-import type { ParticleData } from '@/utils/particle-data-optimized'
-import { fastSin, fastCos } from '@/utils/math-lookup-tables'
+import type { ParticleData } from '../utils/particleGenerator'
+import { fastSin, fastCos } from '@/src/shared/utils/mathHelpers'
 
 export interface AnimationConfig {
   waveEnabled: boolean

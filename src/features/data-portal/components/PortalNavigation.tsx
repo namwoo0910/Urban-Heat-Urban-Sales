@@ -1,6 +1,6 @@
 "use client"
 import { ArrowRight } from "lucide-react"
-import TransitionLink from "../transition-link"
+import TransitionLink from "@/src/shared/components/navigation/TransitionLink"
 
 interface ResearchNavigationProps {
   href: string

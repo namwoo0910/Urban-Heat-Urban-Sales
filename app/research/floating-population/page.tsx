@@ -1,9 +1,9 @@
 "use client"
 import { useRouter } from "next/navigation"
 import { useState, useEffect } from "react"
-import FeatureCard from "@/components/research/feature-card"
-import ResearchHeader from "@/components/research/research-header"
-import ResearchNavigation from "@/components/research/research-navigation"
+import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
+import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
+import ResearchNavigation from "@/src/features/data-portal/components/PortalNavigation"
 
 const features = [
   {

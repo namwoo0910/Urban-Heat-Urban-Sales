@@ -3,10 +3,10 @@
 import dynamic from 'next/dynamic'
 import { motion } from 'framer-motion'
 import { ArrowLeft } from 'lucide-react'
-import TransitionLink from '@/components/transition-link'
+import TransitionLink from '@/src/shared/components/navigation/TransitionLink'
 
 // Dynamic import for Research component
-const Research = dynamic(() => import('@/components/research').then(mod => mod.Research), {
+const Research = dynamic(() => import('@/src/features/data-portal/components/ResearchSection').then(mod => mod.Research), {
   loading: () => <div className="min-h-screen flex items-center justify-center">Loading research...</div>,
   ssr: true
 })

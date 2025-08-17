@@ -1,6 +1,6 @@
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
+import { Button } from "@/src/shared/components/ui/button"
+import { Input } from "@/src/shared/components/ui/input"
+import { Textarea } from "@/src/shared/components/ui/textarea"
 
 export default function ContactPage() {
   return (

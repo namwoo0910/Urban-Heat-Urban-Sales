@@ -3,9 +3,9 @@
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import type { LayerConfig, HexagonLayerData } from '../components/LayerManager'
 import { DEFAULT_LAYER_CONFIG } from '../components/LayerManager'
-import type { ColorScheme } from '../lib/premium-colors'
-import { geoJSONLoader } from '../utils/geojson-loader'
-import useWaveAnimation from './use-wave-animation'
+import type { ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
+import { geoJSONLoader } from '@/src/shared/utils/geoJSONLoader'
+import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
 
 interface UseLayerStateReturn {
   // 레이어 설정 상태

@@ -21,16 +21,16 @@ import {
   Compass,
   Flame
 } from "lucide-react"
-import { Card } from "./ui/card"
-import { Label } from "./ui/label"
-import { Switch } from "./ui/switch"
-import { Slider } from "./ui/slider"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select"
-import { Button } from "./ui/button"
-import { Badge } from "./ui/badge"
-import { Separator } from "./ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs"
-import { COLOR_PALETTE_INFO, getColorPreviewStyle, type ColorScheme } from "../lib/premium-colors"
+import { Card } from "@/src/shared/components/ui/card"
+import { Label } from "@/src/shared/components/ui/label"
+import { Switch } from "@/src/shared/components/ui/switch"
+import { Slider } from "@/src/shared/components/ui/slider"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/components/ui/select"
+import { Button } from "@/src/shared/components/ui/button"
+import { Badge } from "@/src/shared/components/ui/badge"
+import { Separator } from "@/src/shared/components/ui/separator"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/shared/components/ui/tabs"
+import { COLOR_PALETTE_INFO, getColorPreviewStyle, type ColorScheme } from "@/src/features/card-sales/utils/premiumColors"
 
 // 지도 레이어 정의
 const mapLayers = [

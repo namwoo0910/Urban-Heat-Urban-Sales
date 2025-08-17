@@ -1,6 +1,6 @@
 "use client"
 
-import { TransitionLink } from "./transition-link"
+import { TransitionLink } from "@/src/shared/components/navigation/TransitionLink"
 import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"

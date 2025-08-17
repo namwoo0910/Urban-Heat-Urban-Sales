@@ -3,7 +3,7 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { ParticleData } from '@/utils/particle-data-optimized'
+import type { ParticleData } from '../utils/particleGenerator'
 
 interface WorkerState {
   isGenerating: boolean
@@ -22,7 +22,7 @@ export function useParticleWorker() {
   useEffect(() => {
     // Create worker instance
     workerRef.current = new Worker(
-      new URL('../workers/particle-generator.worker.ts', import.meta.url)
+      new URL('@/src/workers/particleWorker.ts', import.meta.url)
     )
 
     // Setup message handler

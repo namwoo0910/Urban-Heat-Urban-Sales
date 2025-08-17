@@ -8,9 +8,9 @@ import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator } from '@deck.gl/core'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
-import UnifiedControls from "../UnifiedControls"
-import { LayerManager, formatTooltip } from "../LayerManager"
-import { useLayerState } from "../../hooks/use-layer-state"
+import UnifiedControls from "./SalesDataControls"
+import { LayerManager, formatTooltip } from "./LayerManager"
+import { useLayerState } from "../hooks/useCardSalesData"
 
 // Mapbox access token (실제 사용시에는 환경변수로 관리하세요)
 const MAPBOX_TOKEN = "pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA"

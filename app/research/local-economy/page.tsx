@@ -1,16 +1,16 @@
 "use client"
 
 import { lazy, Suspense } from "react"
-import FeatureCard from "@/components/research/feature-card"
-import ResearchHeader from "@/components/research/research-header"
-import ResearchNavigation from "@/components/research/research-navigation"
+import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
+import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
+import ResearchNavigation from "@/src/features/data-portal/components/PortalNavigation"
 import { useState, useEffect } from "react"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/src/shared/components/ui/button"
+import { Badge } from "@/src/shared/components/ui/badge"
 import { Map, Layers, Zap } from "lucide-react"
 
 // Dynamic imports for better performance
-const HexagonScene = lazy(() => import("@/components/project/hexagon-scene"))
+const HexagonScene = lazy(() => import("@/src/features/card-sales/components/HexagonLayer3D"))
 
 const features = [
   {

@@ -20,7 +20,7 @@ export function useGeoJSONWorker() {
   useEffect(() => {
     // Create worker
     workerRef.current = new Worker(
-      new URL('../utils/geojson-worker.ts', import.meta.url),
+      new URL('@/src/shared/utils/geojson-worker.ts', import.meta.url),
       { type: 'module' }
     );
 

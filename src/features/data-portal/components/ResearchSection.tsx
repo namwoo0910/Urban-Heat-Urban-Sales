@@ -3,8 +3,8 @@
 import Image from "next/image"
 import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
-import { geoJSONLoader } from "@/utils/geojson-loader"
-import TransitionLink from "./transition-link"
+import { geoJSONLoader } from "@/src/shared/utils/geoJSONLoader"
+import TransitionLink from "@/src/shared/components/navigation/TransitionLink"
 
 const projects = [
   {

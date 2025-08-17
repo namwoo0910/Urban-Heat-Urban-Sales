@@ -1,6 +1,6 @@
 "use client"
 
-import { TransitionContext } from "@/context/transition-context"
+import { TransitionContext } from "@/src/shared/providers/TransitionContext"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { usePathname, useRouter } from "next/navigation"

@@ -126,19 +126,19 @@ export const COLOR_THEMES = {
     'rgba(0, 128, 255, 0.7)',    // Sky blue
   ]
 }
-import type { BoundaryGrid } from './seoul-boundaries-optimized'
+import type { BoundaryGrid } from '@/src/features/admin-districts/utils/boundaryProcessor'
 import { 
   generateStratifiedPoints,
   DISTRICT_CENTERS,
   precomputeBoundaryGrid
-} from './seoul-boundaries-optimized'
+} from '@/src/features/admin-districts/utils/boundaryProcessor'
 import { 
   fastSin, 
   fastCos, 
   vectorizedSinCos,
   initializeParticleMemoryPool,
   getParticleMemoryPool
-} from './math-lookup-tables'
+} from '@/src/shared/utils/mathHelpers'
 
 // Pre-computed constants for performance
 const TWO_PI = Math.PI * 2

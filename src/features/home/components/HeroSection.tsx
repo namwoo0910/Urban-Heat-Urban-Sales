@@ -5,15 +5,15 @@ import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { TransitionLink } from "@/components/transition-link"
+import { TransitionLink } from "@/src/shared/components/navigation/TransitionLink"
 import { ArrowRight } from "lucide-react"
-import { AnimationControls } from "@/components/animation-controls"
-import type { AnimationConfig } from "@/hooks/use-particle-animations"
-import { defaultAnimationConfig } from "@/hooks/use-particle-animations"
+import { AnimationControls } from "./ParticleAnimationControls"
+import type { AnimationConfig } from "../hooks/useParticleAnimation"
+import { defaultAnimationConfig } from "../hooks/useParticleAnimation"
 
 // 동적으로 파티클 맵 로드 (SSR 비활성화) - 최적화된 버전 사용
 const SeoulMapOptimized = dynamic(
-  () => import("@/components/seoul-map-optimized").then((mod) => mod.SeoulMapOptimized),
+  () => import("./ParticleMapSeoul").then((mod) => mod.SeoulMapOptimized),
   { 
     ssr: false,
     loading: () => (

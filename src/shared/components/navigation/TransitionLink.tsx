@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect } from "react"
-import { useTransitionContext } from "@/context/transition-context"
+import { useTransitionContext } from "@/src/shared/providers/TransitionContext"
 import type { LinkProps } from "next/link"
 import type { AnchorHTMLAttributes, ReactNode } from "react"
 import { usePathname, useRouter } from "next/navigation"

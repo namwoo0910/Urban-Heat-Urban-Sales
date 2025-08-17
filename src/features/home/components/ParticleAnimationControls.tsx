@@ -3,11 +3,11 @@
 import { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, Settings2 } from "lucide-react"
-import { Switch } from "@/components/ui/switch"
-import { Slider } from "@/components/ui/slider"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { AnimationConfig } from "@/hooks/use-particle-animations"
+import { Switch } from "@/src/shared/components/ui/switch"
+import { Slider } from "@/src/shared/components/ui/slider"
+import { Label } from "@/src/shared/components/ui/label"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/components/ui/select"
+import type { AnimationConfig } from "../hooks/useParticleAnimation"
 
 interface AnimationControlsProps {
   config: AnimationConfig

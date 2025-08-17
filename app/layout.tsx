@@ -2,10 +2,10 @@ import type React from "react"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { Header } from "@/components/header"
-import { Footer } from "@/components/footer"
-import { GsapProvider } from "@/components/gsap-provider"
-import { TransitionProvider } from "@/components/transition-provider"
+import { Header } from "@/src/shared/components/layout/AppHeader"
+import { Footer } from "@/src/shared/components/layout/AppFooter"
+import { GsapProvider } from "@/src/shared/providers/GSAPProvider"
+import { TransitionProvider } from "@/src/shared/providers/TransitionProvider"
 
 const inter = Inter({ subsets: ["latin"] })
 

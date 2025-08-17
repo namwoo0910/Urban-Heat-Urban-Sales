@@ -3,10 +3,10 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { HexagonLayer } from '@deck.gl/aggregation-layers'
 import type { Layer } from '@deck.gl/core'
-import { COLOR_RANGES, type ColorScheme } from '../lib/premium-colors'
+import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
-export { COLOR_RANGES } from '../lib/premium-colors'
+export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'
 
 export interface HexagonLayerData {
   coordinates: [number, number]

@@ -6,8 +6,8 @@ import { DeckGL } from "@deck.gl/react"
 import { ScatterplotLayer, LineLayer, SolidPolygonLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
 import "mapbox-gl/dist/mapbox-gl.css"
-import { precomputeBoundaryGrid } from "@/utils/seoul-boundaries-optimized"
-import type { SeoulBoundaryData } from "@/utils/seoul-boundaries-optimized"
+import { precomputeBoundaryGrid } from "@/src/features/admin-districts/utils/boundaryProcessor"
+import type { SeoulBoundaryData } from "@/src/features/admin-districts/utils/boundaryProcessor"
 import { 
   generateParticlesOptimized, 
   generateInitialParticles, 
@@ -17,13 +17,13 @@ import {
   updateParticleColors,
   loadSeoulBoundaries,
   type ParticleData
-} from "@/utils/particle-data-optimized"
-import { loadStaticParticles } from "@/utils/fast-particle-loader"
-import { initializeParticleMemoryPool } from "@/utils/math-lookup-tables"
-import { useParticleCache } from "@/hooks/use-particle-cache"
-import { useParticleWorker } from "@/hooks/use-particle-worker"
-import useParticleAnimations from "@/hooks/use-particle-animations"
-import type { AnimationConfig } from "@/hooks/use-particle-animations"
+} from "../utils/particleGenerator"
+import { loadStaticParticles } from "../utils/particleOptimizer"
+import { initializeParticleMemoryPool } from "@/src/shared/utils/mathHelpers"
+import { useParticleCache } from "../hooks/useParticleCache"
+import { useParticleWorker } from "../hooks/useParticleWorker"
+import useParticleAnimations from "../hooks/useParticleAnimation"
+import type { AnimationConfig } from "../hooks/useParticleAnimation"
 // Removed AnimationControls import - moved to Hero component
 
 // Mapbox access token

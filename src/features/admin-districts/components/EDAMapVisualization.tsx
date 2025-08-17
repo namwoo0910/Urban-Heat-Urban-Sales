@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import Map, { Source, Layer, NavigationControl, Popup } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent, ViewStateChangeEvent } from 'react-map-gl'
-import { geoJSONLoader } from '@/utils/geojson-loader'
-import { useGeoJSONWorker } from '@/hooks/useGeoJSONWorker'
+import { geoJSONLoader } from '@/src/shared/utils/geoJSONLoader'
+import { useGeoJSONWorker } from '@/src/shared/hooks/useGeoJSONWorker'
 import 'mapbox-gl/dist/mapbox-gl.css'
 
 const MAPBOX_TOKEN = 'pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA'
