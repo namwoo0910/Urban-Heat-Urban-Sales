@@ -3,9 +3,13 @@
  * @description 프로젝트 전체에서 사용되는 맵박스 관련 설정
  */
 
-// Mapbox 액세스 토큰 (환경변수 우선, 하드코딩된 값은 폴백)
-export const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || 
-  "pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA"
+// Mapbox 액세스 토큰 (환경변수에서만 가져옴)
+export const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ""
+
+// 토큰이 설정되지 않았을 때 경고
+if (!MAPBOX_TOKEN) {
+  console.warn("⚠️ MAPBOX_TOKEN이 설정되지 않았습니다. .env.local 파일에 NEXT_PUBLIC_MAPBOX_TOKEN을 설정해주세요.")
+}
 
 // 기본 맵 스타일
 export const MAP_STYLES = {

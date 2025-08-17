@@ -5,9 +5,8 @@ import Map, { Source, Layer, NavigationControl, Popup } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent, ViewStateChangeEvent } from 'react-map-gl'
 import { geoJSONLoader } from '@/src/shared/utils/geoJSONLoader'
 import { useGeoJSONWorker } from '@/src/shared/hooks/useGeoJSONWorker'
+import { MAPBOX_TOKEN } from '@/src/shared/constants/mapConfig'
 import 'mapbox-gl/dist/mapbox-gl.css'
-
-const MAPBOX_TOKEN = 'pk.eyJ1IjoieXN1MTUxNiIsImEiOiJjbWRyMHR2bTQwOTB2MmlzOGdlZmFldnVnIn0.Rv_I_4s0u88CYd7r9JbZDA'
 
 // Loading progress component
 function LoadingProgress({ progress, message }: { progress: number; message: string }) {
