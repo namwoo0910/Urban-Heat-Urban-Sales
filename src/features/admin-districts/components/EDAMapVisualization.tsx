@@ -287,38 +287,38 @@ export default function EdaCombinedOptimized() {
 
   // Memoized paint properties
   const sggFillPaint = useMemo(() => ({
-    'fill-color': '#1864ab',
-    'fill-opacity': 0.20
+    'fill-color': '#4dabf7',
+    'fill-opacity': 0.25
   }), []);
 
   const sggLinePaint = useMemo(() => ({
-    'line-color': '#1864ab',
-    'line-width': 1.3
+    'line-color': '#74c0fc',
+    'line-width': 1.5
   }), []);
 
   const dongFillPaint = useMemo(() => ({
-    'fill-color': '#2b8a3e',
-    'fill-opacity': 0.20
+    'fill-color': '#51cf66',
+    'fill-opacity': 0.25
   }), []);
 
   const dongLinePaint = useMemo(() => ({
-    'line-color': '#2b8a3e',
-    'line-width': 1.0
+    'line-color': '#8ce99a',
+    'line-width': 1.2
   }), []);
 
   const jibLinePaint = useMemo(() => ({
-    'line-color': '#aa1e72',
-    'line-width': 0.6
+    'line-color': '#f783ac',
+    'line-width': 0.8
   }), []);
 
   const selectedFillPaint = useMemo(() => ({
-    'fill-color': '#4f46e5',
-    'fill-opacity': 0.28
+    'fill-color': '#748ffc',
+    'fill-opacity': 0.35
   }), []);
 
   const selectedLinePaint = useMemo(() => ({
-    'line-color': '#4338ca',
-    'line-width': 2.2,
+    'line-color': '#91a7ff',
+    'line-width': 2.5,
     'line-dasharray': [8, dashPhase % 10 + 10, 8, Math.max(0.01, 10 - dashPhase % 10)]
   }), [dashPhase]);
 
@@ -333,7 +333,7 @@ export default function EdaCombinedOptimized() {
         {...viewState}
         onMove={handleViewStateChange}
         mapboxAccessToken={MAPBOX_TOKEN}
-        mapStyle="mapbox://styles/mapbox/light-v11"
+        mapStyle="mapbox://styles/mapbox/dark-v11"
         onClick={handleMapClick}
         onDblClick={handleMapDblClick}
         interactiveLayerIds={['sgg-fill', 'dong-fill', 'jib-line']}
@@ -441,9 +441,9 @@ export default function EdaCombinedOptimized() {
       </Map>
       
       {/* Controls Panel */}
-      <div className="absolute left-3 z-10 bg-white p-4 rounded-xl shadow-lg font-sans max-w-xs" style={{ top: '63px' }}>
+      <div className="absolute left-3 z-10 bg-gray-900 p-4 rounded-xl shadow-lg font-sans max-w-xs border border-gray-700" style={{ top: '63px' }}>
         <div className="mb-4">
-          <strong className="text-gray-800 text-lg">모드 선택</strong>
+          <strong className="text-gray-100 text-lg">모드 선택</strong>
           <div className="mt-2 space-y-2">
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -453,7 +453,7 @@ export default function EdaCombinedOptimized() {
                 onChange={() => setSelectionMode(false)}
                 className="w-4 h-4"
               />
-              <span className="text-gray-700">레이어 보기 모드</span>
+              <span className="text-gray-200">레이어 보기 모드</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -463,7 +463,7 @@ export default function EdaCombinedOptimized() {
                 onChange={() => setSelectionMode(true)}
                 className="w-4 h-4"
               />
-              <span className="text-gray-700">자치구 선택 모드</span>
+              <span className="text-gray-200">자치구 선택 모드</span>
             </label>
           </div>
         </div>
@@ -471,7 +471,7 @@ export default function EdaCombinedOptimized() {
         {!selectionMode ? (
           // Layer toggle controls
           <div>
-            <strong className="text-gray-800">레이어</strong>
+            <strong className="text-gray-100">레이어</strong>
             <label className="flex items-center gap-2 mt-2">
               <input
                 type="checkbox"
@@ -479,7 +479,7 @@ export default function EdaCombinedOptimized() {
                 onChange={(e) => setSggVisible(e.target.checked)}
                 className="w-4 h-4"
               />
-              <span className="text-gray-700">자치구</span>
+              <span className="text-gray-200">자치구</span>
             </label>
             <label className="flex items-center gap-2 mt-2">
               <input
@@ -488,7 +488,7 @@ export default function EdaCombinedOptimized() {
                 onChange={(e) => setDongVisible(e.target.checked)}
                 className="w-4 h-4"
               />
-              <span className="text-gray-700">행정동</span>
+              <span className="text-gray-200">행정동</span>
             </label>
             <label className="flex items-center gap-2 mt-2">
               <input
@@ -497,23 +497,23 @@ export default function EdaCombinedOptimized() {
                 onChange={(e) => setJibVisible(e.target.checked)}
                 className="w-4 h-4"
               />
-              <span className="text-gray-700">집계구</span>
+              <span className="text-gray-200">집계구</span>
               {viewState.zoom < 10 && (
-                <span className="text-xs text-gray-500 ml-1">(zoom 10+)</span>
+                <span className="text-xs text-gray-400 ml-1">(zoom 10+)</span>
               )}
             </label>
             
-            <div className="mt-3 text-xs text-gray-600">
+            <div className="mt-3 text-xs text-gray-300">
               <div className="flex items-center gap-1">
-                <span className="inline-block w-3 h-3 bg-[#1864ab] rounded-sm"></span>
+                <span className="inline-block w-3 h-3 bg-[#74c0fc] rounded-sm"></span>
                 <span>자치구 (파랑)</span>
               </div>
               <div className="flex items-center gap-1 mt-1">
-                <span className="inline-block w-3 h-3 bg-[#2b8a3e] rounded-sm"></span>
+                <span className="inline-block w-3 h-3 bg-[#8ce99a] rounded-sm"></span>
                 <span>행정동 (초록)</span>
               </div>
               <div className="flex items-center gap-1 mt-1">
-                <span className="inline-block w-3 h-3 bg-[#aa1e72] rounded-sm"></span>
+                <span className="inline-block w-3 h-3 bg-[#f783ac] rounded-sm"></span>
                 <span>집계구 (자홍)</span>
               </div>
             </div>
@@ -521,9 +521,9 @@ export default function EdaCombinedOptimized() {
         ) : (
           // Selection mode info
           <div>
-            <div className="text-sm font-bold text-gray-700">선택된 자치구</div>
+            <div className="text-sm font-bold text-gray-200">선택된 자치구</div>
             <div className="text-lg font-extrabold text-blue-700 mt-1">{selectedDistrict}</div>
-            <div className="text-xs text-gray-500 mt-2">
+            <div className="text-xs text-gray-400 mt-2">
               지도를 클릭하여 자치구를 선택하세요.<br/>
               더블클릭으로 선택을 초기화합니다.
             </div>

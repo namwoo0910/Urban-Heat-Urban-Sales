@@ -85,12 +85,12 @@ export default function HexagonScene() {
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
 
   const mapStyles = {
-    earth: "mapbox://styles/mapbox/satellite-v9",
+    earth: "mapbox://styles/mapbox/dark-v11",
     night: "mapbox://styles/mapbox/dark-v11",
-    temperature: "mapbox://styles/mapbox/outdoors-v12",
-    precipitation: "mapbox://styles/mapbox/light-v11",
-    population: "mapbox://styles/mapbox/streets-v12",
-    elevation: "mapbox://styles/mapbox/outdoors-v12",
+    temperature: "mapbox://styles/mapbox/dark-v11",
+    precipitation: "mapbox://styles/mapbox/dark-v11",
+    population: "mapbox://styles/mapbox/dark-v11",
+    elevation: "mapbox://styles/mapbox/dark-v11",
   }
 
   const handleLayerChange = (layer: string) => {

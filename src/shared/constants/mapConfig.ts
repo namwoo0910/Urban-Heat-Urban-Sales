@@ -19,6 +19,9 @@ export const MAP_STYLES = {
   satellite: "mapbox://styles/mapbox/satellite-streets-v12"
 }
 
+// 프로젝트 기본 테마 (다크 테마로 통일)
+export const DEFAULT_MAP_STYLE = MAP_STYLES.dark
+
 // 서울 중심 좌표
 export const SEOUL_CENTER = {
   longitude: 126.9780,
