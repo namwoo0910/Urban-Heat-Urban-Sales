@@ -438,6 +438,22 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
       districtSelection.stopDashAnimation()
     }
   }, [districtSelection.selectedFeature, districtSelection.selectionMode])
+  
+  // Handle terrain toggling when selection mode changes
+  useEffect(() => {
+    if (!isMapLoaded) return
+    
+    const map = mapRef.current?.getMap()
+    if (map && map.getSource('mapbox-dem')) {
+      if (districtSelection.selectionMode) {
+        // Remove terrain in selection mode
+        map.setTerrain(undefined)
+      } else {
+        // Add terrain back in normal mode
+        map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 })
+      }
+    }
+  }, [districtSelection.selectionMode, isMapLoaded])
 
   // Keyboard controls
   useEffect(() => {
@@ -511,17 +527,23 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
         onLoad={() => {
           setIsMapLoaded(true)
           const map = mapRef.current?.getMap()
-          if (map && !districtSelection.selectionMode) {
-            map.addSource('mapbox-dem', {
-              type: 'raster-dem',
-              url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
-              tileSize: 512,
-              maxzoom: 14
-            })
-            map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 })
+          if (map) {
+            // Always add the terrain source, but check if it exists first
+            if (!map.getSource('mapbox-dem')) {
+              map.addSource('mapbox-dem', {
+                type: 'raster-dem',
+                url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
+                tileSize: 512,
+                maxzoom: 14
+              })
+            }
+            // Set terrain only if not in selection mode
+            if (!districtSelection.selectionMode) {
+              map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 })
+            }
           }
         }}
-        terrain={districtSelection.selectionMode ? undefined : { source: 'mapbox-dem', exaggeration: 1.5 }}
+        terrain={undefined}
         onClick={(e: MapLayerMouseEvent) => {
           if (!districtSelection.handleDistrictClick(e)) {
             setPopupInfo(null)

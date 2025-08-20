@@ -4,7 +4,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { ProgressiveDataLoader } from './data-compression'
+// import { ProgressiveDataLoader } from './data-compression'
 
 export interface GridData {
   grid_id: number

@@ -11,6 +11,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip } from "./LayerManager"
 import { useLayerState } from "../hooks/useCardSalesData"
+import { SalesChartPanel } from "./charts/SalesChartPanel"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { DistrictModeControl } from "@/src/shared/components/DistrictModeControl"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
@@ -19,6 +20,7 @@ import { DISTRICT_LAYER_PAINT, loadDistrictData } from "@/src/shared/utils/distr
 export default function HexagonScene() {
   const mapRef = useRef<MapRef>(null)
   const cleanupRef = useRef<(() => void)[]>([])
+  const [showChartPanel, setShowChartPanel] = useState(false)
   
   // 레이어 상태 관리
   const {
@@ -350,9 +352,11 @@ export default function HexagonScene() {
   }, [])
 
   return (
-    <div className="relative w-full h-screen">
-      {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
-      <DeckGL
+    <div className="relative w-full h-screen flex">
+      {/* Map Section - Left Side */}
+      <div className={`relative transition-all duration-500 ${showChartPanel ? 'w-3/5' : 'w-full'}`}>
+        {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
+        <DeckGL
         initialViewState={initialViewState}
         controller={true}
         layers={districtSelection.selectionMode ? [] : deckLayers}
@@ -630,6 +634,30 @@ export default function HexagonScene() {
           background: rgba(255, 255, 255, 0.1) !important;
         }
       `}</style>
+      </div>
+      
+      {/* Chart Panel - Right Side */}
+      {showChartPanel && (
+        <div className="w-2/5 h-full p-4 bg-black/80">
+          <SalesChartPanel />
+        </div>
+      )}
+      
+      {/* Chart Panel Toggle Button */}
+      <button
+        onClick={() => setShowChartPanel(!showChartPanel)}
+        className="absolute top-9 right-4 z-20 px-4 py-2 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+            d={showChartPanel 
+              ? "M6 18L18 6M6 6l12 12" 
+              : "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            } 
+          />
+        </svg>
+        <span>{showChartPanel ? '차트 닫기' : '차트 보기'}</span>
+      </button>
     </div>
   )
 }

@@ -4,7 +4,7 @@ import { useState, useCallback, useRef } from 'react'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
 
 interface UseDistrictSelectionProps {
-  mapRef: React.RefObject<MapRef>
+  mapRef: React.RefObject<MapRef | null>
   onDistrictSelect?: (districtName: string, feature: any) => void
 }
 
