@@ -1,9 +1,12 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
-import Map, { Popup } from "react-map-gl"
-import type { MapRef } from "react-map-gl"
+import Map, { Popup, Source, Layer } from "react-map-gl"
+import type { MapRef, MapLayerMouseEvent } from "react-map-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
+import { DistrictModeControl } from "@/src/shared/components/DistrictModeControl"
+import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
+import { DISTRICT_LAYER_PAINT, loadDistrictData } from "@/src/shared/utils/districtUtils"
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -75,10 +78,40 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
   
   const animationRef = useRef<number | null>(null)
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  
+  // District selection hook
+  const districtSelection = useDistrictSelection({ 
+    mapRef,
+    onDistrictSelect: (districtName) => {
+      console.log('Selected district for population visualization:', districtName)
+    }
+  })
+  
+  // District GeoJSON data
+  const [sggData, setSggData] = useState<any>(null)
+  const [dongData, setDongData] = useState<any>(null)
+  const [jibData, setJibData] = useState<any>(null)
 
   // Load data on mount
   useEffect(() => {
     loadData()
+  }, [])
+  
+  // Load district data
+  useEffect(() => {
+    const loadDistrictsData = async () => {
+      const [sgg, dong, jib] = await Promise.all([
+        loadDistrictData('sgg'),
+        loadDistrictData('dong'),
+        loadDistrictData('jib')
+      ])
+      
+      if (sgg) setSggData(sgg)
+      if (dong) setDongData(dong)
+      if (jib) setJibData(jib)
+    }
+    
+    loadDistrictsData()
   }, [])
 
   const loadData = async () => {
@@ -392,6 +425,19 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
       }
     }
   }, [])
+  
+  // Start/stop dash animation for selected district
+  useEffect(() => {
+    if (districtSelection.selectedFeature && districtSelection.selectionMode) {
+      districtSelection.startDashAnimation()
+    } else {
+      districtSelection.stopDashAnimation()
+    }
+    
+    return () => {
+      districtSelection.stopDashAnimation()
+    }
+  }, [districtSelection.selectedFeature, districtSelection.selectionMode])
 
   // Keyboard controls
   useEffect(() => {
@@ -458,14 +504,14 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
           longitude: 127.0,
           latitude: 37.5,
           zoom: 13,
-          pitch: 70,
-          bearing: 30
+          pitch: districtSelection.selectionMode ? 0 : 70,
+          bearing: districtSelection.selectionMode ? 0 : 30
         }}
         style={{ width: '100%', height: '100%' }}
         onLoad={() => {
           setIsMapLoaded(true)
           const map = mapRef.current?.getMap()
-          if (map) {
+          if (map && !districtSelection.selectionMode) {
             map.addSource('mapbox-dem', {
               type: 'raster-dem',
               url: 'mapbox://mapbox.mapbox-terrain-dem-v1',
@@ -475,11 +521,90 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
             map.setTerrain({ source: 'mapbox-dem', exaggeration: 1.5 })
           }
         }}
-        terrain={{ source: 'mapbox-dem', exaggeration: 1.5 }}
-        onClick={() => setPopupInfo(null)}
+        terrain={districtSelection.selectionMode ? undefined : { source: 'mapbox-dem', exaggeration: 1.5 }}
+        onClick={(e: MapLayerMouseEvent) => {
+          if (!districtSelection.handleDistrictClick(e)) {
+            setPopupInfo(null)
+          }
+        }}
+        onDblClick={districtSelection.handleMapReset}
+        interactiveLayerIds={districtSelection.selectionMode ? ['sgg-fill'] : []}
       >
+        {/* District layers */}
+        {sggData && (
+          <Source id="sgg-source" type="geojson" data={sggData}>
+            <Layer
+              id="sgg-fill"
+              type="fill"
+              paint={DISTRICT_LAYER_PAINT.sggFill}
+              layout={{ 
+                visibility: (!districtSelection.selectionMode && districtSelection.sggVisible) || 
+                           districtSelection.selectionMode ? 'visible' : 'none' 
+              }}
+            />
+            <Layer
+              id="sgg-line"
+              type="line"
+              paint={DISTRICT_LAYER_PAINT.sggLine}
+              layout={{ 
+                visibility: (!districtSelection.selectionMode && districtSelection.sggVisible) || 
+                           districtSelection.selectionMode ? 'visible' : 'none' 
+              }}
+            />
+            
+            {/* Selected district highlight */}
+            {districtSelection.selectionMode && districtSelection.selectedFeature && (
+              <>
+                <Layer
+                  id="sgg-select-fill"
+                  type="fill"
+                  paint={DISTRICT_LAYER_PAINT.selectedFill}
+                  filter={['==', ['get', 'SIGUNGU_NM'], districtSelection.selectedDistrict]}
+                />
+                <Layer
+                  id="sgg-select-line"
+                  type="line"
+                  paint={DISTRICT_LAYER_PAINT.selectedLine(districtSelection.dashPhase)}
+                  filter={['==', ['get', 'SIGUNGU_NM'], districtSelection.selectedDistrict]}
+                />
+              </>
+            )}
+          </Source>
+        )}
+        
+        {/* Dong layers */}
+        {dongData && !districtSelection.selectionMode && (
+          <Source id="dong-source" type="geojson" data={dongData}>
+            <Layer
+              id="dong-fill"
+              type="fill"
+              paint={DISTRICT_LAYER_PAINT.dongFill}
+              layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
+            />
+            <Layer
+              id="dong-line"
+              type="line"
+              paint={DISTRICT_LAYER_PAINT.dongLine}
+              layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
+            />
+          </Source>
+        )}
+        
+        {/* Jib layers */}
+        {jibData && !districtSelection.selectionMode && (
+          <Source id="jib-source" type="geojson" data={jibData}>
+            <Layer
+              id="jib-line"
+              type="line"
+              paint={DISTRICT_LAYER_PAINT.jibLine}
+              layout={{ visibility: districtSelection.jibVisible ? 'visible' : 'none' }}
+              minzoom={10}
+            />
+          </Source>
+        )}
+        
         {/* Popup */}
-        {popupInfo && (
+        {popupInfo && !districtSelection.selectionMode && (
           <Popup
             longitude={popupInfo.longitude}
             latitude={popupInfo.latitude}
@@ -511,9 +636,24 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
           </Popup>
         )}
       </Map>
+      
+      {/* District Mode Control */}
+      <DistrictModeControl
+        selectionMode={districtSelection.selectionMode}
+        onModeChange={districtSelection.setSelectionMode}
+        selectedDistrict={districtSelection.selectedDistrict}
+        sggVisible={districtSelection.sggVisible}
+        dongVisible={districtSelection.dongVisible}
+        jibVisible={districtSelection.jibVisible}
+        onSggVisibleChange={districtSelection.setSggVisible}
+        onDongVisibleChange={districtSelection.setDongVisible}
+        onJibVisibleChange={districtSelection.setJibVisible}
+        zoomLevel={13}
+      />
 
       {/* Legend */}
-      <div className="absolute top-20 right-5 bg-black/85 backdrop-blur-md p-6 rounded-xl text-white z-[1000] min-w-[200px]">
+      {!districtSelection.selectionMode && (
+        <div className="absolute top-20 right-5 bg-black/85 backdrop-blur-md p-6 rounded-xl text-white z-[1000] min-w-[200px]">
         <h4 className="text-center mb-4 font-bold">🏙️ 인구 수</h4>
         <div className="text-center mb-3 text-sm">명</div>
         <div className="flex flex-col space-y-2">
@@ -546,9 +686,11 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
           높이는 인구수에 비례
         </div>
       </div>
+      )}
 
       {/* Statistics Panel */}
-      <div className={`absolute top-24 left-5 bg-black/85 backdrop-blur-md rounded-xl text-white z-[1000] transition-all duration-300 ${statsCollapsed ? 'w-16' : 'min-w-[200px]'}`}>
+      {!districtSelection.selectionMode && (
+        <div className={`absolute top-24 left-5 bg-black/85 backdrop-blur-md rounded-xl text-white z-[1000] transition-all duration-300 ${statsCollapsed ? 'w-16' : 'min-w-[200px]'}`}>
         <h4 
           className="flex items-center justify-between p-4 cursor-pointer bg-gradient-to-r from-blue-600 to-purple-600 rounded-t-xl"
           onClick={() => setStatsCollapsed(!statsCollapsed)}
@@ -577,9 +719,11 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
           </div>
         )}
       </div>
+      )}
 
       {/* Floating Controls */}
-      <div className="absolute bottom-5 left-5 bg-black/85 backdrop-blur-md p-4 rounded-xl z-[1000] flex flex-col gap-3">
+      {!districtSelection.selectionMode && (
+        <div className="absolute bottom-5 left-5 bg-black/85 backdrop-blur-md p-4 rounded-xl z-[1000] flex flex-col gap-3">
         {/* View Controls */}
         <div className="flex gap-2">
           {Object.entries(VIEW_PRESETS).map(([key, view]) => (
@@ -625,6 +769,7 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
           </div>
         </div>
       </div>
+      )}
     </div>
   )
 }

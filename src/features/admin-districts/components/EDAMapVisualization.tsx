@@ -441,7 +441,7 @@ export default function EdaCombinedOptimized() {
       </Map>
       
       {/* Controls Panel */}
-      <div className="absolute left-3 z-10 bg-gray-900 p-4 rounded-xl shadow-lg font-sans max-w-xs border border-gray-700" style={{ top: '63px' }}>
+      <div className="absolute right-3 bottom-3 z-10 bg-gray-900 p-4 rounded-xl shadow-lg font-sans max-w-xs border border-gray-700">
         <div className="mb-4">
           <strong className="text-gray-100 text-lg">모드 선택</strong>
           <div className="mt-2 space-y-2">

@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { DeckGL } from '@deck.gl/react'
-import { Map } from 'react-map-gl'
-import type { MapRef } from 'react-map-gl'
+import { Map, Source, Layer } from 'react-map-gl'
+import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator } from '@deck.gl/core'
 import mapboxgl from "mapbox-gl"
@@ -12,6 +12,9 @@ import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip } from "./LayerManager"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
+import { DistrictModeControl } from "@/src/shared/components/DistrictModeControl"
+import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
+import { DISTRICT_LAYER_PAINT, loadDistrictData } from "@/src/shared/utils/districtUtils"
 
 export default function HexagonScene() {
   const mapRef = useRef<MapRef>(null)
@@ -83,6 +86,19 @@ export default function HexagonScene() {
 
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
+  
+  // District selection hook
+  const districtSelection = useDistrictSelection({ 
+    mapRef,
+    onDistrictSelect: (districtName) => {
+      console.log('Selected district:', districtName)
+    }
+  })
+  
+  // District GeoJSON data
+  const [sggData, setSggData] = useState<any>(null)
+  const [dongData, setDongData] = useState<any>(null)
+  const [jibData, setJibData] = useState<any>(null)
 
   const mapStyles = {
     earth: "mapbox://styles/mapbox/dark-v11",
@@ -146,6 +162,19 @@ export default function HexagonScene() {
       return () => clearTimeout(timer)
     }
   }, [shouldRotate, rotateCamera])
+  
+  // Start/stop dash animation for selected district
+  useEffect(() => {
+    if (districtSelection.selectedFeature && districtSelection.selectionMode) {
+      districtSelection.startDashAnimation()
+    } else {
+      districtSelection.stopDashAnimation()
+    }
+    
+    return () => {
+      districtSelection.stopDashAnimation()
+    }
+  }, [districtSelection.selectedFeature, districtSelection.selectionMode])
 
   // Sync bearing with MapBox when it changes
   useEffect(() => {
@@ -225,32 +254,28 @@ export default function HexagonScene() {
       clearTimeout(hintTimer)
     }
   }, [])
+  
+  // Load district data
+  useEffect(() => {
+    const loadData = async () => {
+      const [sgg, dong, jib] = await Promise.all([
+        loadDistrictData('sgg'),
+        loadDistrictData('dong'),
+        loadDistrictData('jib')
+      ])
+      
+      if (sgg) setSggData(sgg)
+      if (dong) setDongData(dong)
+      if (jib) setJibData(jib)
+    }
+    
+    loadData()
+  }, [])
 
   // 지도 로드 완료 후 Mapbox 레이어 추가
   const handleMapLoad = () => {
     const map = mapRef.current?.getMap()
     if (!map) return
-
-    // 서울 주요 지점들에 마커 추가
-    const seoulLandmarks = [
-      { name: "남산타워", coordinates: [126.9882, 37.5512] },
-      { name: "경복궁", coordinates: [126.977, 37.5796] },
-      { name: "한강공원", coordinates: [126.9356, 37.5219] },
-      { name: "강남역", coordinates: [127.0276, 37.4979] },
-      { name: "홍대입구", coordinates: [126.924, 37.5563] },
-    ]
-
-    seoulLandmarks.forEach((landmark) => {
-      const popup = new mapboxgl.Popup({ offset: 25 }).setText(landmark.name)
-
-      new mapboxgl.Marker({
-        color: "#3b82f6",
-        scale: 0.8,
-      })
-        .setLngLat(landmark.coordinates as [number, number])
-        .setPopup(popup)
-        .addTo(map)
-    })
 
     // 서울 정확한 행정구역 GeoJSON 데이터 로드 (안전한 소스 추가)
     if (!map.getSource("seoul-boundary")) {
@@ -330,8 +355,8 @@ export default function HexagonScene() {
       <DeckGL
         initialViewState={initialViewState}
         controller={true}
-        layers={deckLayers}
-        getTooltip={getTooltip}
+        layers={districtSelection.selectionMode ? [] : deckLayers}
+        getTooltip={districtSelection.selectionMode ? undefined : getTooltip}
         onLoad={rotateCamera} // Start rotation when deck.gl loads
         onDragStart={() => {
           userInteractingRef.current = true
@@ -360,13 +385,108 @@ export default function HexagonScene() {
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyles[currentLayer as keyof typeof mapStyles]}
           onLoad={handleMapLoad}
+          onClick={(e: MapLayerMouseEvent) => {
+            if (!districtSelection.handleDistrictClick(e)) {
+              // Handle other click events if not in selection mode
+            }
+          }}
+          onDblClick={districtSelection.handleMapReset}
+          interactiveLayerIds={districtSelection.selectionMode ? ['sgg-fill'] : []}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
-        />
+        >
+          {/* District layers */}
+          {sggData && (
+            <Source id="sgg-source" type="geojson" data={sggData}>
+              <Layer
+                id="sgg-fill"
+                type="fill"
+                paint={DISTRICT_LAYER_PAINT.sggFill}
+                layout={{ 
+                  visibility: (!districtSelection.selectionMode && districtSelection.sggVisible) || 
+                             districtSelection.selectionMode ? 'visible' : 'none' 
+                }}
+              />
+              <Layer
+                id="sgg-line"
+                type="line"
+                paint={DISTRICT_LAYER_PAINT.sggLine}
+                layout={{ 
+                  visibility: (!districtSelection.selectionMode && districtSelection.sggVisible) || 
+                             districtSelection.selectionMode ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* Selected district highlight */}
+              {districtSelection.selectionMode && districtSelection.selectedFeature && (
+                <>
+                  <Layer
+                    id="sgg-select-fill"
+                    type="fill"
+                    paint={DISTRICT_LAYER_PAINT.selectedFill}
+                    filter={['==', ['get', 'SIGUNGU_NM'], districtSelection.selectedDistrict]}
+                  />
+                  <Layer
+                    id="sgg-select-line"
+                    type="line"
+                    paint={DISTRICT_LAYER_PAINT.selectedLine(districtSelection.dashPhase)}
+                    filter={['==', ['get', 'SIGUNGU_NM'], districtSelection.selectedDistrict]}
+                  />
+                </>
+              )}
+            </Source>
+          )}
+          
+          {/* Dong layers */}
+          {dongData && !districtSelection.selectionMode && (
+            <Source id="dong-source" type="geojson" data={dongData}>
+              <Layer
+                id="dong-fill"
+                type="fill"
+                paint={DISTRICT_LAYER_PAINT.dongFill}
+                layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
+              />
+              <Layer
+                id="dong-line"
+                type="line"
+                paint={DISTRICT_LAYER_PAINT.dongLine}
+                layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
+              />
+            </Source>
+          )}
+          
+          {/* Jib layers */}
+          {jibData && !districtSelection.selectionMode && initialViewState.zoom > 10 && (
+            <Source id="jib-source" type="geojson" data={jibData}>
+              <Layer
+                id="jib-line"
+                type="line"
+                paint={DISTRICT_LAYER_PAINT.jibLine}
+                layout={{ visibility: districtSelection.jibVisible ? 'visible' : 'none' }}
+                minzoom={10}
+              />
+            </Source>
+          )}
+        </Map>
       </DeckGL>
+      
+      {/* District Mode Control */}
+      <DistrictModeControl
+        selectionMode={districtSelection.selectionMode}
+        onModeChange={districtSelection.setSelectionMode}
+        selectedDistrict={districtSelection.selectedDistrict}
+        sggVisible={districtSelection.sggVisible}
+        dongVisible={districtSelection.dongVisible}
+        jibVisible={districtSelection.jibVisible}
+        onSggVisibleChange={districtSelection.setSggVisible}
+        onDongVisibleChange={districtSelection.setDongVisible}
+        onJibVisibleChange={districtSelection.setJibVisible}
+        zoomLevel={initialViewState.zoom}
+      />
 
       {/* 통합 컨트롤 패널 */}
-      <UnifiedControls
+      {!districtSelection.selectionMode && (
+        <UnifiedControls
         // 지도 컨트롤 props
         onLayerChange={handleLayerChange}
         onTimeChange={handleTimeChange}
@@ -438,7 +558,8 @@ export default function HexagonScene() {
         onRotationSpeedChange={setRotationSpeed}
         onRotationDirectionChange={setRotationDirection}
         onToggleRotation={toggleRotation}
-      />
+        />
+      )}
 
       {showHint && (
         <div className="absolute bottom-4 right-4 bg-black bg-opacity-70 text-white text-sm px-4 py-2 rounded-lg transition-opacity duration-1000 opacity-80 hover:opacity-100 z-10">
