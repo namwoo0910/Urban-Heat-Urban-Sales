@@ -9,6 +9,7 @@
 - **UI 컴포넌트**: Radix UI, shadcn/ui
 - **지도**: Mapbox GL 3.14.0, React Map GL 7.1.9
 - **데이터 시각화**: Deck.gl 9.1.14
+- **차트 라이브러리**: Recharts 2.15.4
 - **애니메이션**: GSAP 3.13.0, Framer Motion 12.23.12
 - **아이콘**: Lucide React
 - **패키지 매니저**: npm
@@ -45,6 +46,7 @@ slw_vis/
 │   │
 │   ├── 📁 shared/                   # 🔗 공유 모듈
 │   │   ├── 📁 components/           # 공통 컴포넌트
+│   │   │   ├── 📁 charts/           # 재사용 가능한 차트 컴포넌트
 │   │   │   ├── 📁 layout/           # Header, Footer
 │   │   │   ├── 📁 navigation/       # 네비게이션
 │   │   │   └── 📁 ui/               # 기본 UI (버튼, 카드 등)
@@ -180,9 +182,22 @@ slw_vis/
 - `LayerManager.tsx`: 레이어 관리
 - `SalesDataControls.tsx`: 데이터 컨트롤 UI
 
+**components/charts/** - 매출 차트 컴포넌트
+- `SalesChartPanel.tsx`: 차트 대시보드 메인 패널
+- `SalesLineChart.tsx`: 일별 매출 추이 차트
+- `SalesAreaChart.tsx`: 누적 매출 영역 차트
+- `SalesBarChart.tsx`: 업종별 막대 차트
+- `SalesPieChart.tsx`: 연령대별 파이 차트
+- `SalesRadarChart.tsx`: 요일별 패턴 레이더 차트
+- `SalesComposedChart.tsx`: 복합 분석 차트
+- `SalesHeatmapChart.tsx`: 히트맵 시각화
+
 **hooks/**
 - `useCardSalesData.ts`: 카드 매출 데이터 관리
 - `useWaveAnimation.ts`: 웨이브 애니메이션
+
+**data/**
+- `salesChartData.ts`: 차트용 샘플 데이터
 
 **utils/**
 - `premiumColors.ts`: 프리미엄 색상 팔레트
@@ -208,6 +223,21 @@ slw_vis/
 
 ### 🔗 공유 모듈 (src/shared/)
 
+#### **📁 components/charts/ - 재사용 가능한 차트 컴포넌트**
+- `LineChart.tsx`: 선 그래프 컴포넌트
+- `AreaChart.tsx`: 영역 차트 컴포넌트
+- `BarChart.tsx`: 막대 차트 컴포넌트
+- `PieChart.tsx`: 파이 차트 컴포넌트
+- `RadarChart.tsx`: 레이더 차트 컴포넌트
+- `RadialBarChart.tsx`: 방사형 막대 차트
+- `ComposedChart.tsx`: 복합 차트 컴포넌트
+- `ScatterChart.tsx`: 산점도 차트
+- `FunnelChart.tsx`: 깔때기 차트
+- `TreemapChart.tsx`: 트리맵 차트
+- `HeatmapChart.tsx`: 히트맵 차트
+- `index.ts`: 차트 컴포넌트 내보내기
+- `types.ts`: 차트 타입 정의
+
 #### **📁 components/ui/ - UI 컴포넌트**
 - `button.tsx`: 버튼 컴포넌트
 - `card.tsx`: 카드 컴포넌트
@@ -216,6 +246,7 @@ slw_vis/
 - `slider.tsx`: 슬라이더
 - `switch.tsx`: 스위치
 - `tabs.tsx`: 탭
+- `chart.tsx`: 차트 컨테이너 및 툴팁 컴포넌트
 - 기타 Radix UI 기반 컴포넌트
 
 #### **📁 components/layout/**
@@ -340,6 +371,72 @@ slw_vis/
 1. **src/features/[기능명]/components/[지도명].tsx** 생성
 2. **src/shared/constants/mapConfig.ts**에 설정 추가
 3. react-map-gl 컴포넌트 사용
+
+### 📈 차트 컴포넌트 추가하기
+
+**새로운 차트 타입 추가:**
+1. **src/shared/components/charts/**에 기본 차트 컴포넌트 활용
+   ```typescript
+   import { LineChart } from '@/src/shared/components/charts'
+   
+   export function MyChart() {
+     return (
+       <LineChart
+         data={myData}
+         xDataKey="date"
+         yDataKey="value"
+         strokeColor="#3b82f6"
+         height={300}
+       />
+     )
+   }
+   ```
+
+2. **차트 패널 생성 (탭 형식):**
+   ```typescript
+   import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/shared/components/ui/tabs'
+   import { MyChart1, MyChart2 } from './charts'
+   
+   export function ChartPanel() {
+     return (
+       <Tabs defaultValue="chart1">
+         <TabsList>
+           <TabsTrigger value="chart1">차트 1</TabsTrigger>
+           <TabsTrigger value="chart2">차트 2</TabsTrigger>
+         </TabsList>
+         <TabsContent value="chart1"><MyChart1 /></TabsContent>
+         <TabsContent value="chart2"><MyChart2 /></TabsContent>
+       </Tabs>
+     )
+   }
+   ```
+
+3. **차트 데이터 타입 정의:**
+   ```typescript
+   // src/features/[기능명]/data/chartData.ts
+   export interface ChartDataPoint {
+     name: string
+     value: number
+     category?: string
+   }
+   
+   export const chartData: ChartDataPoint[] = [
+     { name: '1월', value: 100 },
+     { name: '2월', value: 150 },
+   ]
+   ```
+
+**사용 가능한 차트 컴포넌트:**
+- LineChart: 선 그래프 (시계열 데이터)
+- AreaChart: 영역 차트 (누적 데이터)
+- BarChart: 막대 차트 (카테고리 비교)
+- PieChart: 파이 차트 (비율 표시)
+- RadarChart: 레이더 차트 (다차원 비교)
+- HeatmapChart: 히트맵 (2차원 데이터)
+- ComposedChart: 복합 차트 (여러 차트 타입 결합)
+- ScatterChart: 산점도 (상관관계)
+- FunnelChart: 깔때기 차트 (단계별 전환)
+- TreemapChart: 트리맵 (계층적 데이터)
 
 ### 🔌 API 연동하기
 

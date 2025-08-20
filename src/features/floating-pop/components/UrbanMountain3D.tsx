@@ -7,6 +7,7 @@ import "mapbox-gl/dist/mapbox-gl.css"
 import { DistrictModeControl } from "@/src/shared/components/DistrictModeControl"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { DISTRICT_LAYER_PAINT, loadDistrictData } from "@/src/shared/utils/districtUtils"
+import { PopulationChartPanel } from "./charts/PopulationChartPanel"
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 
@@ -62,6 +63,7 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
   const [error, setError] = useState<string | null>(null)
   const [activeView, setActiveView] = useState('bird')
   const [statsCollapsed, setStatsCollapsed] = useState(false)
+  const [showChartPanel, setShowChartPanel] = useState(false)
   const [popupInfo, setPopupInfo] = useState<{
     longitude: number
     latitude: number
@@ -509,8 +511,11 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
   }
 
   return (
-    <div className={`relative w-full h-full ${className}`}>
-
+    <div className={`relative w-full h-full flex ${className}`}>
+      
+      {/* Map Container */}
+      <div className={`relative ${showChartPanel ? 'w-3/5' : 'w-full'} h-full transition-all duration-300`}>
+      
       {/* Map */}
       <Map
         ref={mapRef}
@@ -791,6 +796,30 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
           </div>
         </div>
       </div>
+      )}
+      
+      {/* Chart Panel Toggle Button */}
+      <button
+        onClick={() => setShowChartPanel(!showChartPanel)}
+        className="absolute top-[216px] right-4 z-20 px-4 py-2 bg-green-600/80 hover:bg-green-600 text-white rounded-lg transition-colors flex items-center gap-2"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+            d={showChartPanel 
+              ? "M6 18L18 6M6 6l12 12" 
+              : "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+            } 
+          />
+        </svg>
+        <span>{showChartPanel ? 'Close' : 'Charts'}</span>
+      </button>
+      </div>
+      
+      {/* Chart Panel - Right Side */}
+      {showChartPanel && (
+        <div className="w-2/5 h-full p-4 bg-black/80">
+          <PopulationChartPanel />
+        </div>
       )}
     </div>
   )
