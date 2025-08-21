@@ -4,8 +4,9 @@ import { useState, useCallback, useEffect, useMemo } from 'react'
 import type { LayerConfig, HexagonLayerData } from '../components/LayerManager'
 import { DEFAULT_LAYER_CONFIG } from '../components/LayerManager'
 import type { ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
-import { geoJSONLoader } from '@/src/shared/utils/geoJSONLoader'
 import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
+import { climateDataLoader } from '../utils/climateDataLoader'
+import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
 
 interface UseLayerStateReturn {
   // 레이어 설정 상태
@@ -13,8 +14,15 @@ interface UseLayerStateReturn {
   
   // 데이터 상태
   hexagonData: HexagonLayerData[] | null
+  climateData: ClimateCardSalesData[] | null
   isDataLoading: boolean
   dataError: string | null
+  
+  // 필터 상태
+  filterOptions: ClimateFilterOptions
+  selectedDate: string
+  selectedHour: number
+  colorMode: ColorMode
   
   // 설정 업데이트 함수들
   setVisible: (visible: boolean) => void
@@ -35,6 +43,12 @@ interface UseLayerStateReturn {
   
   // 데이터 로딩
   loadData: () => Promise<void>
+  
+  // 필터 업데이트 함수들
+  setFilterOptions: (options: ClimateFilterOptions) => void
+  setSelectedDate: (date: string) => void
+  setSelectedHour: (hour: number) => void
+  setColorMode: (mode: ColorMode) => void
   
   // 상호작용 상태
   hoveredObject: any
@@ -76,8 +90,17 @@ export function useLayerState(): UseLayerStateReturn {
   
   // 데이터 상태
   const [hexagonData, setHexagonData] = useState<HexagonLayerData[] | null>(null)
+  const [climateData, setClimateData] = useState<ClimateCardSalesData[] | null>(null)
   const [isDataLoading, setIsDataLoading] = useState(false)
   const [dataError, setDataError] = useState<string | null>(null)
+  
+  // 필터 상태
+  const [filterOptions, setFilterOptions] = useState<ClimateFilterOptions>({
+    date: '2024-01-01' // 기본 날짜
+  })
+  const [selectedDate, setSelectedDateState] = useState('2024-01-01')
+  const [selectedHour, setSelectedHourState] = useState(12) // 기본 12시
+  const [colorMode, setColorModeState] = useState<ColorMode>('temperature')
   
   // 상호작용 상태
   const [hoveredObject, setHoveredObject] = useState<any>(null)
@@ -211,32 +234,67 @@ export function useLayerState(): UseLayerStateReturn {
     setLayerConfig(DEFAULT_LAYER_CONFIG)
   }, [])
   
-  // 전체 데이터 로딩 함수 (청킹 제거됨)
+  // 전체 데이터 로딩 함수
   const loadData = useCallback(async () => {
-    console.log('[HexagonLayer] 데이터 로딩 시작...')
+    console.log('[ClimateDataLoader] 기후-카드매출 데이터 로딩 시작...')
     setIsDataLoading(true)
     setDataError(null)
     
     try {
-      // 원본 파일에서 직접 로드
-      const data = await geoJSONLoader.loadWithCache('/dummy-hexagon-data.json')
+      // 기후-카드매출 데이터 로드
+      const data = await climateDataLoader.loadAllData(filterOptions)
       
-      console.log(`[HexagonLayer] 데이터 로딩 완료: ${data.length}개 포인트`)
+      console.log(`[ClimateDataLoader] 데이터 로딩 완료: ${data.length}개 포인트`)
+      
+      // ClimateCardSalesData를 HexagonLayerData 형식으로 변환
+      const hexData: HexagonLayerData[] = data.map(item => ({
+        coordinates: item.coordinates,
+        weight: item.weight,
+        category: item.temperatureGroup,
+        // 추가 데이터를 원본 객체로 저장
+        originalData: item
+      }))
+      
+      setClimateData(data)
+      setHexagonData(hexData)
+      
       if (data.length > 0) {
-        console.log(`[HexagonLayer] 샘플 데이터:`, data.slice(0, 3))
+        console.log(`[ClimateDataLoader] 샘플 데이터:`, data.slice(0, 3))
       }
       
-      setHexagonData(data)
-      
     } catch (error) {
-      console.error('[HexagonLayer] 데이터 로드 실패:', error)
+      console.error('[ClimateDataLoader] 데이터 로드 실패:', error)
       
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다'
       setDataError(`데이터 로드 실패: ${errorMessage}`)
     } finally {
       setIsDataLoading(false)
     }
+  }, [filterOptions])
+  
+  // 필터 업데이트 함수들
+  const setSelectedDate = useCallback((date: string) => {
+    setSelectedDateState(date)
+    setFilterOptions(prev => ({ ...prev, date }))
   }, [])
+  
+  const setSelectedHour = useCallback((hour: number) => {
+    setSelectedHourState(hour)
+    // 시간대 변경시 데이터를 재가공할 수 있음
+  }, [])
+  
+  const setColorMode = useCallback((mode: ColorMode) => {
+    setColorModeState(mode)
+    // 색상 모드에 따라 colorScheme 업데이트
+    const schemeMap: Record<ColorMode, ColorScheme> = {
+      temperature: 'temperature' as ColorScheme,
+      temperatureGroup: 'temperature' as ColorScheme,
+      discomfort: 'discomfort' as ColorScheme,
+      alert: 'alert' as ColorScheme,
+      sales: 'oceanic' as ColorScheme
+    }
+    setColorScheme(schemeMap[mode])
+  }, [setColorScheme])
   
   // 컴포넌트 마운트 시 데이터 자동 로딩
   useEffect(() => {
@@ -249,8 +307,15 @@ export function useLayerState(): UseLayerStateReturn {
     
     // 데이터 상태
     hexagonData,
+    climateData,
     isDataLoading,
     dataError,
+    
+    // 필터 상태
+    filterOptions,
+    selectedDate,
+    selectedHour,
+    colorMode,
     
     // 설정 업데이트 함수들
     setVisible,
@@ -271,6 +336,12 @@ export function useLayerState(): UseLayerStateReturn {
     
     // 데이터 로딩
     loadData,
+    
+    // 필터 업데이트 함수들
+    setFilterOptions,
+    setSelectedDate,
+    setSelectedHour,
+    setColorMode,
     
     // 상호작용 상태
     hoveredObject,

@@ -2,3 +2,4 @@ node_modules
 .claude
 .next
 .env.local
+public/data/output_json

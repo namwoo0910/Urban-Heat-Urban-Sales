@@ -12,6 +12,7 @@ export interface HexagonLayerData {
   coordinates: [number, number]
   weight: number
   category?: string
+  originalData?: any // 원본 ClimateCardSalesData 저장
 }
 
 export interface LayerConfig {
