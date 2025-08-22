@@ -43,16 +43,31 @@ export function useDistrictSelection({ mapRef, onDistrictSelect }: UseDistrictSe
     return [[minLng, minLat], [maxLng, maxLat]]
   }, [])
 
-  // Handle district click
+  // Handle district click (both 자치구 and 행정동)
   const handleDistrictClick = useCallback((event: MapLayerMouseEvent) => {
-    if (!selectionMode) return false
-
+    // console.log('[Click Event Received]', {
+    //   hasFeatures: !!event.features,
+    //   featureCount: event.features?.length,
+    //   firstFeatureLayer: event.features?.[0]?.layer?.id
+    // })
+    
     const feature = event.features?.[0]
-    if (feature && feature.layer?.id === 'sgg-fill') {
+    
+    // Check if clicked on 자치구 or 행정동
+    if (feature && (feature.layer?.id === 'sgg-fill' || feature.layer?.id === 'dong-fill')) {
       const props = feature.properties || {}
-      const guName = props.SIGUNGU_NM || props.SIG_KOR_NM || props.GU_NM || props.nm || '자치구'
+      let districtName = ''
       
-      setSelectedDistrict(guName)
+      // For 자치구 (sgg)
+      if (feature.layer.id === 'sgg-fill') {
+        districtName = props.SIGUNGU_NM || props.SIG_KOR_NM || props.GU_NM || props.nm || '자치구'
+      }
+      // For 행정동 (dong)
+      else if (feature.layer.id === 'dong-fill') {
+        districtName = props.ADM_NM || props.H_DONG_NM || props.DONG_NM || props.ADM_DR_NM || props.nm || '행정동'
+      }
+      
+      setSelectedDistrict(districtName)
       setSelectedFeature(feature)
       setShowDialog(true)
 
@@ -60,21 +75,26 @@ export function useDistrictSelection({ mapRef, onDistrictSelect }: UseDistrictSe
         const bounds = getBounds(feature.geometry)
         if (bounds) {
           mapRef.current.fitBounds(bounds as [[number, number], [number, number]], {
-            padding: 60,
-            duration: 900
+            padding: 80,
+            duration: 800,  // Smooth animation for better UX
+            essential: true  // This animation is essential with respect to prefers-reduced-motion
           })
         }
       }
 
-      onDistrictSelect?.(guName, feature)
+      // console.log('[District Selected]', {
+      //   layerId: feature.layer.id,
+      //   districtName
+      // })
+      
+      onDistrictSelect?.(districtName, feature)
       return true
     }
     return false
-  }, [selectionMode, mapRef, getBounds, onDistrictSelect])
+  }, [mapRef, getBounds, onDistrictSelect])
 
   // Handle double click to reset
   const handleMapReset = useCallback(() => {
-    if (!selectionMode) return
 
     setSelectedDistrict('없음')
     setSelectedFeature(null)
@@ -86,10 +106,11 @@ export function useDistrictSelection({ mapRef, onDistrictSelect }: UseDistrictSe
         zoom: 10,
         pitch: 0,
         bearing: 0,
-        duration: 1500
+        duration: 1000,  // Faster reset animation
+        essential: true
       })
     }
-  }, [selectionMode, mapRef])
+  }, [mapRef])
 
   // Start dash animation
   const startDashAnimation = useCallback(() => {
