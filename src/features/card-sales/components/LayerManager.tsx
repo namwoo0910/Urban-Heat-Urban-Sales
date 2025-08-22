@@ -474,6 +474,13 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
   if (!data || !config.visible) return []
   
   console.log('[ColumnLayer] Creating with', data.length, 'columns')
+  if (data.length > 0) {
+    console.log('[ColumnLayer] Sample data:', {
+      category: data[0].category,
+      weight: data[0].weight,
+      coordinates: data[0].coordinates
+    })
+  }
   
   const layer = new ColumnLayer<HexagonLayerData>({
     id: 'column-layer',
@@ -484,7 +491,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     
     // 3D 바 설정
     diskResolution: 6,  // 육각형 모양
-    radius: config.radius * 0.3 * config.coverage,  // 기둥 반지름 (radius와 coverage에 따라 조절)
+    radius: config.radius * 0.05 * config.coverage,  // 카테고리 데이터용 작은 반지름
     extruded: true,  // 3D 활성화
     wireframe: false,
     filled: true,
@@ -519,6 +526,23 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     
     // 색상 (colorMode에 따라 변경)
     getFillColor: (d: HexagonLayerData) => {
+      // 카테고리 데이터인 경우 카테고리별 고유 색상 사용
+      if (d.category) {
+        const categoryColors: Record<string, [number, number, number, number]> = {
+          '음식': [255, 107, 107, 200],      // 연한 빨강
+          '쇼핑': [78, 205, 196, 200],       // 청록색
+          '교통': [255, 217, 61, 200],       // 노랑
+          '문화/여가': [168, 85, 247, 200],  // 보라
+          '의료/건강': [107, 207, 127, 200], // 연두
+          '교육': [255, 140, 66, 200],       // 주황
+          '숙박': [70, 130, 180, 200],       // 스틸블루
+          '금융': [253, 121, 168, 200],      // 핑크
+          '생활서비스': [147, 112, 219, 200], // 연보라
+          '공공/기관': [162, 155, 254, 200]  // 라벤더
+        }
+        return categoryColors[d.category] || [128, 128, 128, 200]
+      }
+      
       const mode = config.colorMode || 'sales'
       
       switch(mode) {
@@ -650,13 +674,13 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   visible: true,
-  radius: 100,  // 반지름 100m로 설정
+  radius: 500,  // 반지름 500m로 설정
   elevationScale: 1,  // 높이 스케일 1x로 설정 (기본값)
   coverage: 1,
   upperPercentile: 100,
-  colorScheme: 'temperature', // 기온 기반 색상으로 변경
+  colorScheme: 'oceanic', // oceanic으로 변경 (sales는 COLOR_RANGES에 없음)
   animationEnabled: false, // 임시로 애니메이션 OFF (툴팁 테스트용)
   animationSpeed: 1.0,
   waveAmplitude: 2.0,
-  colorMode: 'temperature' // 색상을 기온 기반으로 설정
+  colorMode: 'sales' // 색상을 매출액 기반으로 설정
 }

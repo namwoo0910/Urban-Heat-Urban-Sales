@@ -248,6 +248,17 @@ export const COLOR_PALETTE_INFO = {
 // 색상 팔레트 미리보기 CSS 생성
 export const getColorPreviewStyle = (scheme: ColorScheme): CSSProperties => {
   const colors = COLOR_RANGES[scheme]
+  
+  // undefined 체크 - 기본값으로 oceanic 사용
+  if (!colors) {
+    console.warn(`[getColorPreviewStyle] Unknown color scheme: ${scheme}, using oceanic as fallback`)
+    const fallbackColors = COLOR_RANGES.oceanic
+    const rgbColors = fallbackColors.map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`).join(', ')
+    return {
+      background: `linear-gradient(to right, ${rgbColors})`
+    }
+  }
+  
   const rgbColors = colors.map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`).join(', ')
   return {
     background: `linear-gradient(to right, ${rgbColors})`

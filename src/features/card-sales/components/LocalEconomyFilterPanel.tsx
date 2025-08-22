@@ -29,6 +29,54 @@ interface LocalEconomyFilterPanelProps {
   className?: string
 }
 
+// Color palette for business categories
+const CATEGORY_COLORS: Record<string, string> = {
+  // Main categories
+  "음식": "#3B82F6", // Blue
+  "쇼핑": "#10B981", // Green
+  "교통": "#F97316", // Orange
+  "문화/여가": "#A855F7", // Purple
+  "의료": "#EF4444", // Red
+  "교육": "#EAB308", // Yellow
+  "숙박": "#EC4899", // Pink
+  "기타": "#6B7280", // Gray
+  
+  // Subcategories - Food
+  "한식": "#60A5FA",
+  "중식": "#3B82F6",
+  "일식": "#2563EB",
+  "양식": "#1D4ED8",
+  "패스트푸드": "#1E40AF",
+  "카페/베이커리": "#93C5FD",
+  "주점": "#BFDBFE",
+  "기타음식점": "#DBEAFE",
+  
+  // Subcategories - Shopping
+  "백화점": "#34D399",
+  "대형마트": "#10B981",
+  "슈퍼마켓": "#059669",
+  "편의점": "#047857",
+  "의류/신발": "#065F46",
+  "화장품": "#6EE7B7",
+  "전자제품": "#A7F3D0",
+  "가구/인테리어": "#D1FAE5",
+  "서적/문구": "#ECFDF5",
+  "스포츠용품": "#86EFAC",
+  "기타소매": "#BBF7D0",
+  
+  // Subcategories - Transportation
+  "대중교통": "#FB923C",
+  "택시": "#F97316",
+  "주유소": "#EA580C",
+  "주차장": "#DC2626",
+  "자동차정비": "#FDBA74",
+  "렌터카": "#FED7AA",
+  "기타교통": "#FEF3C7",
+  
+  // Default color for unmapped categories
+  "전체": "#9CA3AF"
+}
+
 export interface FilterState {
   selectedGu: string | null
   selectedDong: string | null
@@ -107,14 +155,7 @@ export default function LocalEconomyFilterPanel({
   // Process data for bar chart based on filters
   const chartData = useMemo(() => {
     if (!climateData || climateData.length === 0 || climateData === null) {
-      // Return dummy data if no real data available
-      return [
-        { name: '음식점', value: 850000000 },
-        { name: '쇼핑', value: 720000000 },
-        { name: '교통', value: 450000000 },
-        { name: '편의점', value: 680000000 },
-        { name: '문화/여가', value: 390000000 },
-      ]
+      return []
     }
     
     // Filter data based on selections
@@ -173,7 +214,11 @@ export default function LocalEconomyFilterPanel({
     
     // Convert to chart format and sort by value
     return Object.entries(categoryTotals)
-      .map(([name, value]) => ({ name, value }))
+      .map(([name, value]) => ({ 
+        name, 
+        value,
+        color: CATEGORY_COLORS[name] || CATEGORY_COLORS["전체"] // Add color for each category
+      }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10) // Top 10 categories
   }, [climateData, selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory])

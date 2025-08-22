@@ -272,6 +272,123 @@ export function useLayerState(): UseLayerStateReturn {
     return filteredData
   }, [selectedGu, selectedDong])
 
+  // Create multiple data points for each business category
+  const createCategoryDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
+    const categoryPoints: HexagonLayerData[] = []
+    
+    // Define main business categories and their colors (all 10 categories)
+    const mainCategories = [
+      { name: '음식', color: '#FF6B6B' },
+      { name: '쇼핑', color: '#4ECDC4' },
+      { name: '교통', color: '#FFD93D' },
+      { name: '문화/여가', color: '#A855F7' },
+      { name: '의료/건강', color: '#6BCF7F' },
+      { name: '교육', color: '#FF8C42' },
+      { name: '숙박', color: '#4682B4' },
+      { name: '금융', color: '#FD79A8' },
+      { name: '생활서비스', color: '#9370DB' },
+      { name: '공공/기관', color: '#A29BFE' }
+    ]
+    
+    // Grid layout offsets for 10 categories (3x4 grid layout)
+    const gridOffsets = [
+      { dx: -0.0015, dy: 0.002 },    // Row 1, Col 1
+      { dx: -0.0005, dy: 0.002 },    // Row 1, Col 2
+      { dx: 0.0005, dy: 0.002 },     // Row 1, Col 3
+      { dx: 0.0015, dy: 0.002 },     // Row 1, Col 4
+      { dx: -0.0015, dy: 0 },        // Row 2, Col 1
+      { dx: -0.0005, dy: 0 },        // Row 2, Col 2
+      { dx: 0.0005, dy: 0 },         // Row 2, Col 3
+      { dx: 0.0015, dy: 0 },         // Row 2, Col 4
+      { dx: -0.001, dy: -0.002 },    // Row 3, Col 1-2
+      { dx: 0.001, dy: -0.002 }      // Row 3, Col 3-4
+    ]
+    
+    data.forEach(item => {
+      if (!item.salesByCategory) return
+      
+      // Aggregate sales by main categories
+      const categorySales: Record<string, number> = {
+        '음식': 0,
+        '쇼핑': 0,
+        '교통': 0,
+        '문화/여가': 0,
+        '의료/건강': 0,
+        '교육': 0,
+        '숙박': 0,
+        '금융': 0,
+        '생활서비스': 0,
+        '공공/기관': 0
+      }
+      
+      // Map detailed categories to main categories
+      Object.entries(item.salesByCategory).forEach(([category, amount]) => {
+        // Enhanced mapping based on actual category names
+        if (category.includes('음식') || category.includes('식당') || category.includes('카페') || 
+            category.includes('한식') || category.includes('중식') || category.includes('일식') || 
+            category.includes('양식') || category.includes('패스트푸드')) {
+          categorySales['음식'] += amount
+        } else if (category.includes('쇼핑') || category.includes('마트') || category.includes('백화점') ||
+                   category.includes('슈퍼') || category.includes('편의점') || category.includes('의류')) {
+          categorySales['쇼핑'] += amount
+        } else if (category.includes('교통') || category.includes('주유') || category.includes('주차') ||
+                   category.includes('택시') || category.includes('대중교통')) {
+          categorySales['교통'] += amount
+        } else if (category.includes('문화') || category.includes('여가') || category.includes('영화') ||
+                   category.includes('공연') || category.includes('스포츠') || category.includes('노래방')) {
+          categorySales['문화/여가'] += amount
+        } else if (category.includes('의료') || category.includes('병원') || category.includes('약국') ||
+                   category.includes('건강') || category.includes('치과') || category.includes('한의원')) {
+          categorySales['의료/건강'] += amount
+        } else if (category.includes('교육') || category.includes('학원') || category.includes('학교') ||
+                   category.includes('유치원') || category.includes('어린이집')) {
+          categorySales['교육'] += amount
+        } else if (category.includes('숙박') || category.includes('호텔') || category.includes('모텔') ||
+                   category.includes('펜션') || category.includes('민박')) {
+          categorySales['숙박'] += amount
+        } else if (category.includes('금융') || category.includes('은행') || category.includes('보험') ||
+                   category.includes('증권') || category.includes('카드')) {
+          categorySales['금융'] += amount
+        } else if (category.includes('생활') || category.includes('서비스') || category.includes('부동산') ||
+                   category.includes('세탁') || category.includes('미용') || category.includes('이발')) {
+          categorySales['생활서비스'] += amount
+        } else if (category.includes('공공') || category.includes('기관') || category.includes('관공서') ||
+                   category.includes('우체국')) {
+          categorySales['공공/기관'] += amount
+        }
+      })
+      
+      // Create a data point for each category with sales > 0
+      mainCategories.forEach((cat, index) => {
+        const sales = categorySales[cat.name]
+        if (sales > 0) {
+          const offset = gridOffsets[index]
+          categoryPoints.push({
+            coordinates: [
+              item.coordinates[0] + offset.dx,
+              item.coordinates[1] + offset.dy
+            ],
+            weight: sales,
+            category: cat.name,  // 카테고리 이름을 최상위 레벨에 저장
+            originalData: item  // 원본 데이터 그대로 저장
+          })
+        }
+      })
+    })
+    
+    console.log(`[createCategoryDataPoints] Created ${categoryPoints.length} category data points`)
+    if (categoryPoints.length > 0) {
+      const samplePoint = categoryPoints[0]
+      console.log('[createCategoryDataPoints] Sample point:', {
+        category: samplePoint.category,
+        weight: samplePoint.weight,
+        coordinates: samplePoint.coordinates
+      })
+    }
+    
+    return categoryPoints
+  }, [])
+
   // 전체 데이터 로딩 함수
   const loadData = useCallback(async () => {
     console.log('[ClimateDataLoader] 기후-카드매출 데이터 로딩 시작...')
@@ -287,14 +404,8 @@ export function useLayerState(): UseLayerStateReturn {
       // Apply hierarchical filters
       const filteredData = applyHierarchicalFilters(data)
       
-      // ClimateCardSalesData를 HexagonLayerData 형식으로 변환
-      const hexData: HexagonLayerData[] = filteredData.map(item => ({
-        coordinates: item.coordinates,
-        weight: item.weight,
-        category: item.temperatureGroup,
-        // 추가 데이터를 원본 객체로 저장
-        originalData: item
-      }))
+      // Create separate data points for each business category
+      const hexData = createCategoryDataPoints(filteredData)
       
       setClimateData(data) // Keep original data
       setHexagonData(hexData) // Set filtered hexagon data
@@ -349,15 +460,11 @@ export function useLayerState(): UseLayerStateReturn {
   useEffect(() => {
     if (climateData && climateData.length > 0) {
       const filteredData = applyHierarchicalFilters(climateData)
-      const hexData: HexagonLayerData[] = filteredData.map(item => ({
-        coordinates: item.coordinates,
-        weight: item.weight,
-        category: item.temperatureGroup,
-        originalData: item
-      }))
+      // Create separate data points for each business category
+      const hexData = createCategoryDataPoints(filteredData)
       setHexagonData(hexData)
     }
-  }, [selectedGu, selectedDong, climateData, applyHierarchicalFilters])
+  }, [selectedGu, selectedDong, climateData, applyHierarchicalFilters, createCategoryDataPoints])
   
   return {
     // 레이어 설정 상태
