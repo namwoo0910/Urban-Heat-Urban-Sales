@@ -79,6 +79,12 @@ interface UnifiedControlsProps {
   onColorSchemeChange: (scheme: ColorScheme) => void
   onReset: () => void
   
+  // Color mode props
+  colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity'
+  onColorModeChange?: (mode: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity') => void
+  selectedHour?: number
+  onSelectedHourChange?: (hour: number) => void
+  
   // Animation props
   animationEnabled?: boolean
   animationSpeed?: number
@@ -129,6 +135,12 @@ export default function UnifiedControls({
   onUpperPercentileChange,
   onColorSchemeChange,
   onReset,
+  
+  // Color mode props
+  colorMode = 'sales',
+  onColorModeChange,
+  selectedHour = 12,
+  onSelectedHourChange,
   
   // Animation props
   animationEnabled = false,
@@ -286,15 +298,15 @@ export default function UnifiedControls({
                 <Slider
                   value={[elevationScale]}
                   onValueChange={(value) => onElevationScaleChange(value[0])}
-                  min={1}
-                  max={10}
-                  step={0.5}
+                  min={0.1}
+                  max={5}
+                  step={0.1}
                   disabled={!visible || isDataLoading}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-white/60">
-                  <span>1x</span>
-                  <span>10x</span>
+                  <span>0.1x</span>
+                  <span>5x</span>
                 </div>
               </div>
 
@@ -359,6 +371,59 @@ export default function UnifiedControls({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* 색상 모드 선택 */}
+              <div className="space-y-2">
+                <Label className="text-white text-sm">색상 데이터 기준</Label>
+                <Select
+                  value={colorMode}
+                  onValueChange={onColorModeChange}
+                  disabled={!visible || isDataLoading}
+                >
+                  <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-gray-900 border-white/20">
+                    <SelectItem value="sales" className="text-white hover:bg-white/10">
+                      <div className="flex items-center space-x-2">
+                        <span>💳</span>
+                        <span>매출액</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="temperature" className="text-white hover:bg-white/10">
+                      <div className="flex items-center space-x-2">
+                        <span>🌡️</span>
+                        <span>기온</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="temperatureGroup" className="text-white hover:bg-white/10">
+                      <div className="flex items-center space-x-2">
+                        <span>🌡️</span>
+                        <span>기온 그룹</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="discomfort" className="text-white hover:bg-white/10">
+                      <div className="flex items-center space-x-2">
+                        <span>😓</span>
+                        <span>불쾌지수</span>
+                      </div>
+                    </SelectItem>
+                    <SelectItem value="humidity" className="text-white hover:bg-white/10">
+                      <div className="flex items-center space-x-2">
+                        <span>💧</span>
+                        <span>습도</span>
+                      </div>
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="text-xs text-white/60">
+                  {colorMode === 'sales' && '카드 매출액을 기준으로 색상을 표시합니다'}
+                  {colorMode === 'temperature' && '일평균 기온 (-11.5°C ~ 31.9°C)을 기준으로 표시합니다'}
+                  {colorMode === 'temperatureGroup' && '한파/일반/온화/폭염 그룹별로 표시합니다'}
+                  {colorMode === 'discomfort' && '불쾌지수 (24 ~ 80+)를 기준으로 표시합니다'}
+                  {colorMode === 'humidity' && '일평균 습도 (0 ~ 100%)를 기준으로 표시합니다'}
+                </div>
               </div>
 
               {/* 색상 미리보기 */}

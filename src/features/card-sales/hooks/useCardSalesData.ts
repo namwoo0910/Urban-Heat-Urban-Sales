@@ -285,15 +285,18 @@ export function useLayerState(): UseLayerStateReturn {
   
   const setColorMode = useCallback((mode: ColorMode) => {
     setColorModeState(mode)
-    // 색상 모드에 따라 colorScheme 업데이트
+    // 색상 모드에 따라 colorScheme과 colorMode 업데이트
     const schemeMap: Record<ColorMode, ColorScheme> = {
       temperature: 'temperature' as ColorScheme,
       temperatureGroup: 'temperature' as ColorScheme,
       discomfort: 'discomfort' as ColorScheme,
       alert: 'alert' as ColorScheme,
-      sales: 'oceanic' as ColorScheme
+      sales: 'oceanic' as ColorScheme,
+      humidity: 'oceanic' as ColorScheme // 습도는 oceanic 색상 사용
     }
     setColorScheme(schemeMap[mode])
+    // LayerConfig의 colorMode도 업데이트
+    setLayerConfig(prev => ({ ...prev, colorMode: mode as any }))
   }, [setColorScheme])
   
   // 컴포넌트 마운트 시 데이터 자동 로딩

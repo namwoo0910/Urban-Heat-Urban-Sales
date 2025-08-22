@@ -93,7 +93,7 @@ export interface ClimateFilterOptions {
 }
 
 // 색상 모드
-export type ColorMode = 'temperature' | 'temperatureGroup' | 'discomfort' | 'alert' | 'sales'
+export type ColorMode = 'temperature' | 'temperatureGroup' | 'discomfort' | 'alert' | 'sales' | 'humidity'
 
 // 집계 데이터
 export interface AggregatedData {

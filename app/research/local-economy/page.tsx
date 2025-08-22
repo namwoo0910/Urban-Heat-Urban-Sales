@@ -58,16 +58,22 @@ const LocalEconomyPage = () => {
             <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                 <div className="grid grid-cols-10 gap-3 opacity-20">
-                  {[...Array(80)].map((_, i) => (
-                    <div 
-                      key={i} 
-                      className="w-4 h-4 bg-white rounded-full animate-pulse"
-                      style={{ 
-                        animationDelay: `${i * 0.05}s`,
-                        transform: `scale(${0.5 + Math.random() * 0.5})`
-                      }}
-                    />
-                  ))}
+                  {[...Array(80)].map((_, i) => {
+                    // Deterministic pseudo-random for consistent server/client rendering
+                    const hash = Math.sin(i * 12.9898) * 43758.5453;
+                    const pseudoRandom = hash - Math.floor(hash);
+                    
+                    return (
+                      <div 
+                        key={i} 
+                        className="w-4 h-4 bg-white rounded-full animate-pulse"
+                        style={{ 
+                          animationDelay: `${i * 0.05}s`,
+                          transform: `scale(${0.5 + pseudoRandom * 0.5})`
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>

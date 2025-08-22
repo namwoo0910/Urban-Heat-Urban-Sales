@@ -9,7 +9,7 @@ import { LinearInterpolator } from '@deck.gl/core'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
-import { LayerManager, formatTooltip } from "./LayerManager"
+import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip } from "./LayerManager"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
@@ -28,12 +28,16 @@ export default function HexagonScene() {
     hexagonData,
     isDataLoading,
     dataError,
+    colorMode,
+    selectedHour,
     setVisible,
     setRadius,
     setElevationScale,
     setCoverage,
     setUpperPercentile,
     setColorScheme,
+    setColorMode,
+    setSelectedHour,
     resetConfig,
     setHoveredObject,
     setSelectedObject,
@@ -190,36 +194,108 @@ export default function HexagonScene() {
     currentBearingRef.current = initialViewState.bearing || 0
   }, [])
 
-  // DeckGL 레이어 생성
-  const deckLayers = LayerManager({
-    data: hexagonData,
-    config: layerConfig,
-    onHover: (info: PickingInfo) => {
-      setHoveredObject(info.object)
-    },
-    onClick: (info: PickingInfo) => {
-      setSelectedObject(info.object)
-    },
-    onAnimationInteractionStart,
-    onAnimationInteractionEnd
-  })
+  // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
+  const deckLayers = createColumnLayer(hexagonData, layerConfig)
+  
+  // 기존 HexagonLayer 코드 (주석 처리)
+  // const deckLayers = LayerManager({
+  //   data: hexagonData,
+  //   config: layerConfig,
+  //   onHover: (info: PickingInfo) => {
+  //     console.log('[HexagonLayer3D] onHover triggered:', {
+  //       hasObject: !!info.object,
+  //       object: info.object,
+  //       x: info.x,
+  //       y: info.y,
+  //       picked: info.picked,
+  //       layerId: info.layer?.id
+  //     })
+  //     setHoveredObject(info.object)
+  //   },
+  //   onClick: (info: PickingInfo) => {
+  //     console.log('[HexagonLayer3D] onClick triggered:', info)
+  //     setSelectedObject(info.object)
+  //   },
+  //   onAnimationInteractionStart,
+  //   onAnimationInteractionEnd
+  // })
 
   // 레이어 상태 디버깅
   useEffect(() => {
-  }, [hexagonData, layerConfig.visible, deckLayers.length, isDataLoading, dataError])
+    console.log('[Layer Debug] Layer state:', {
+      hasData: !!hexagonData,
+      dataLength: hexagonData?.length || 0,
+      layerVisible: layerConfig.visible,
+      layerCount: deckLayers.length,
+      isLoading: isDataLoading,
+      error: dataError,
+      selectionMode: districtSelection.selectionMode,
+      animationEnabled: layerConfig.animationEnabled
+    })
+    
+    if (hexagonData && hexagonData.length > 0) {
+      console.log('[Layer Debug] Sample data point:', hexagonData[0])
+    }
+  }, [hexagonData, layerConfig.visible, deckLayers.length, isDataLoading, dataError, districtSelection.selectionMode, layerConfig.animationEnabled])
 
   // 툴팁 핸들러 (Context7 권장 패턴)
   const getTooltip = (info: PickingInfo) => {
-    if (!info.object) return null
-    return {
-      html: formatTooltip(info),
-      style: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        color: 'white',
-        fontSize: '12px',
-        padding: '8px',
-        borderRadius: '4px',
-        whiteSpace: 'pre-line'
+    console.log('[Tooltip Debug] getTooltip called with info:', {
+      hasObject: !!info.object,
+      object: info.object,
+      x: info.x,
+      y: info.y,
+      layer: info.layer?.id
+    })
+    
+    if (!info.object) {
+      console.log('[Tooltip Debug] No object found in info')
+      return null
+    }
+    
+    try {
+      // LayerConfig의 colorMode를 info에 추가
+      const enhancedInfo = {
+        ...info,
+        layer: {
+          ...info.layer,
+          props: {
+            ...info.layer?.props,
+            colorMode: layerConfig.colorMode
+          }
+        }
+      }
+      
+      // ScatterplotLayer용 툴팁 포맷터 사용 (구 이름 표시)
+      const tooltipHtml = formatScatterplotTooltip(enhancedInfo)
+      console.log('[Tooltip Debug] Tooltip HTML generated:', tooltipHtml)
+      
+      return {
+        html: tooltipHtml,
+        style: {
+          backgroundColor: 'rgba(0, 0, 0, 0.95)',
+          color: 'white',
+          fontSize: '13px',
+          padding: '14px',
+          borderRadius: '8px',
+          whiteSpace: 'pre-line',
+          maxWidth: '380px',
+          lineHeight: '1.6',
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          backdropFilter: 'blur(8px)'
+        }
+      }
+    } catch (error) {
+      console.error('[Tooltip Debug] Error in getTooltip:', error)
+      return {
+        html: '⚠️ 툴팁 로드 중 오류 발생',
+        style: {
+          backgroundColor: 'rgba(255, 0, 0, 0.9)',
+          color: 'white',
+          padding: '8px',
+          borderRadius: '4px'
+        }
       }
     }
   }
@@ -356,11 +432,17 @@ export default function HexagonScene() {
       {/* Map Section - Left Side */}
       <div className={`relative transition-all duration-500 ${showChartPanel ? 'w-3/5' : 'w-full'}`}>
         {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
+        {console.log('[DeckGL Config]', {
+          selectionMode: districtSelection.selectionMode,
+          layersCount: deckLayers.length,
+          hasGetTooltip: !!getTooltip,
+          layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
+        })}
         <DeckGL
         initialViewState={initialViewState}
         controller={true}
-        layers={districtSelection.selectionMode ? [] : deckLayers}
-        getTooltip={districtSelection.selectionMode ? undefined : getTooltip}
+        layers={false ? [] : deckLayers} // 임시로 selectionMode 무시하고 항상 레이어 표시
+        getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
         onLoad={rotateCamera} // Start rotation when deck.gl loads
         onDragStart={() => {
           userInteractingRef.current = true
@@ -542,6 +624,11 @@ export default function HexagonScene() {
         onUpperPercentileChange={setUpperPercentile}
         onColorSchemeChange={setColorScheme}
         onReset={resetConfig}
+        // 색상 모드 props
+        colorMode={colorMode}
+        onColorModeChange={setColorMode}
+        selectedHour={selectedHour}
+        onSelectedHourChange={setSelectedHour}
         // 애니메이션 props
         animationEnabled={layerConfig.animationEnabled}
         animationSpeed={layerConfig.animationSpeed}
