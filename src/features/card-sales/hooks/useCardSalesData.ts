@@ -290,18 +290,18 @@ export function useLayerState(): UseLayerStateReturn {
       { name: '공공/기관', color: '#A29BFE' }
     ]
     
-    // Grid layout offsets for 10 categories (3x4 grid layout)
+    // Grid layout offsets for 10 categories (3x4 grid layout) - 간격 증가
     const gridOffsets = [
-      { dx: -0.0015, dy: 0.002 },    // Row 1, Col 1
-      { dx: -0.0005, dy: 0.002 },    // Row 1, Col 2
-      { dx: 0.0005, dy: 0.002 },     // Row 1, Col 3
-      { dx: 0.0015, dy: 0.002 },     // Row 1, Col 4
-      { dx: -0.0015, dy: 0 },        // Row 2, Col 1
-      { dx: -0.0005, dy: 0 },        // Row 2, Col 2
-      { dx: 0.0005, dy: 0 },         // Row 2, Col 3
-      { dx: 0.0015, dy: 0 },         // Row 2, Col 4
-      { dx: -0.001, dy: -0.002 },    // Row 3, Col 1-2
-      { dx: 0.001, dy: -0.002 }      // Row 3, Col 3-4
+      { dx: -0.003, dy: 0.004 },     // Row 1, Col 1
+      { dx: -0.001, dy: 0.004 },     // Row 1, Col 2
+      { dx: 0.001, dy: 0.004 },      // Row 1, Col 3
+      { dx: 0.003, dy: 0.004 },      // Row 1, Col 4
+      { dx: -0.003, dy: 0 },         // Row 2, Col 1
+      { dx: -0.001, dy: 0 },         // Row 2, Col 2
+      { dx: 0.001, dy: 0 },          // Row 2, Col 3
+      { dx: 0.003, dy: 0 },          // Row 2, Col 4
+      { dx: -0.002, dy: -0.004 },    // Row 3, Col 1-2
+      { dx: 0.002, dy: -0.004 }      // Row 3, Col 3-4
     ]
     
     data.forEach(item => {

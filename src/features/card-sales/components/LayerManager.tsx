@@ -491,7 +491,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     
     // 3D 바 설정
     diskResolution: 6,  // 육각형 모양
-    radius: config.radius * 0.05 * config.coverage,  // 카테고리 데이터용 작은 반지름
+    radius: config.radius * 0.03 * config.coverage,  // 카테고리 데이터용 더 작은 반지름 (간격 확보)
     extruded: true,  // 3D 활성화
     wireframe: false,
     filled: true,

@@ -13,6 +13,7 @@ import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer,
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
+import { BusinessCategoryLegend } from "./BusinessCategoryLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { DistrictModeControl } from "@/src/shared/components/DistrictModeControl"
@@ -690,8 +691,11 @@ export default function HexagonScene() {
         </div>
       )}
 
+      {/* Business Category Legend */}
+      <BusinessCategoryLegend />
+
       {/* 서울 정보 패널 - Move to bottom-right to avoid overlap */}
-      <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-md rounded-lg border border-white/20 p-4 text-white z-10">
+      <div className="absolute bottom-4 right-[226px] bg-black/80 backdrop-blur-md rounded-lg border border-white/20 p-4 text-white z-10">
         <h3 className="font-bold text-lg mb-2 flex items-center space-x-2">
           <span>서울특별시</span>
           {showBoundary && <span className="text-xs bg-blue-500/30 px-2 py-1 rounded">경계표시</span>}
