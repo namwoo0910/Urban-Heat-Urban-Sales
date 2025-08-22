@@ -12,6 +12,8 @@ import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip } from "./LayerManager"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
+import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
+import type { FilterState } from "./LocalEconomyFilterPanel"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { DistrictModeControl } from "@/src/shared/components/DistrictModeControl"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
@@ -26,6 +28,7 @@ export default function HexagonScene() {
   const {
     layerConfig,
     hexagonData,
+    climateData,
     isDataLoading,
     dataError,
     colorMode,
@@ -64,7 +67,17 @@ export default function HexagonScene() {
     toggleRotation,
     updateBearing,
     onRotationInteractionStart,
-    onRotationInteractionEnd
+    onRotationInteractionEnd,
+    
+    // Hierarchical filter states and functions
+    selectedGu,
+    selectedDong,
+    selectedMiddleCategory,
+    selectedSubCategory,
+    setSelectedGu,
+    setSelectedDong,
+    setSelectedMiddleCategory,
+    setSelectedSubCategory
   } = useLayerState()
   
   // 기본 지도 상태
@@ -92,6 +105,15 @@ export default function HexagonScene() {
 
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
+  
+  // Handle filter panel changes
+  const handleFilterChange = useCallback((filters: FilterState) => {
+    // Update the hierarchical filter states
+    if (filters.selectedGu !== selectedGu) setSelectedGu(filters.selectedGu)
+    if (filters.selectedDong !== selectedDong) setSelectedDong(filters.selectedDong)
+    if (filters.selectedMiddleCategory !== selectedMiddleCategory) setSelectedMiddleCategory(filters.selectedMiddleCategory)
+    if (filters.selectedSubCategory !== selectedSubCategory) setSelectedSubCategory(filters.selectedSubCategory)
+  }, [selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory, setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory])
   
   // District selection hook
   const districtSelection = useDistrictSelection({ 
@@ -570,6 +592,13 @@ export default function HexagonScene() {
         zoomLevel={initialViewState.zoom}
       />
 
+      {/* LocalEconomy Filter Panel - Positioned properly above map */}
+      <LocalEconomyFilterPanel
+        hexagonData={hexagonData}
+        climateData={climateData}
+        onFilterChange={handleFilterChange}
+      />
+
       {/* 통합 컨트롤 패널 */}
       {!districtSelection.selectionMode && (
         <UnifiedControls
@@ -661,8 +690,8 @@ export default function HexagonScene() {
         </div>
       )}
 
-      {/* 서울 정보 패널 */}
-      <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur-md rounded-lg border border-white/20 p-4 text-white z-10">
+      {/* 서울 정보 패널 - Move to bottom-right to avoid overlap */}
+      <div className="absolute bottom-4 right-4 bg-black/80 backdrop-blur-md rounded-lg border border-white/20 p-4 text-white z-10">
         <h3 className="font-bold text-lg mb-2 flex items-center space-x-2">
           <span>서울특별시</span>
           {showBoundary && <span className="text-xs bg-blue-500/30 px-2 py-1 rounded">경계표시</span>}
@@ -683,6 +712,9 @@ export default function HexagonScene() {
           )}
           {rotationEnabled && (
             <div>🧭 회전각도: {bearingDisplay} ({rotationDirectionText})</div>
+          )}
+          {selectedGu && (
+            <div>🎯 선택된 구: {selectedGu} {selectedDong && `- ${selectedDong}`}</div>
           )}
         </div>
       </div>

@@ -24,6 +24,12 @@ interface UseLayerStateReturn {
   selectedHour: number
   colorMode: ColorMode
   
+  // Hierarchical filter states
+  selectedGu: string | null
+  selectedDong: string | null
+  selectedMiddleCategory: string | null
+  selectedSubCategory: string | null
+  
   // 설정 업데이트 함수들
   setVisible: (visible: boolean) => void
   setRadius: (radius: number) => void
@@ -49,6 +55,12 @@ interface UseLayerStateReturn {
   setSelectedDate: (date: string) => void
   setSelectedHour: (hour: number) => void
   setColorMode: (mode: ColorMode) => void
+  
+  // Hierarchical filter functions
+  setSelectedGu: (gu: string | null) => void
+  setSelectedDong: (dong: string | null) => void
+  setSelectedMiddleCategory: (category: string | null) => void
+  setSelectedSubCategory: (category: string | null) => void
   
   // 상호작용 상태
   hoveredObject: any
@@ -101,6 +113,12 @@ export function useLayerState(): UseLayerStateReturn {
   const [selectedDate, setSelectedDateState] = useState('2024-01-01')
   const [selectedHour, setSelectedHourState] = useState(12) // 기본 12시
   const [colorMode, setColorModeState] = useState<ColorMode>('temperature')
+  
+  // Hierarchical filter states
+  const [selectedGu, setSelectedGu] = useState<string | null>(null)
+  const [selectedDong, setSelectedDong] = useState<string | null>(null)
+  const [selectedMiddleCategory, setSelectedMiddleCategory] = useState<string | null>(null)
+  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
   
   // 상호작용 상태
   const [hoveredObject, setHoveredObject] = useState<any>(null)
@@ -234,6 +252,26 @@ export function useLayerState(): UseLayerStateReturn {
     setLayerConfig(DEFAULT_LAYER_CONFIG)
   }, [])
   
+  // Apply hierarchical filters to data
+  const applyHierarchicalFilters = useCallback((data: ClimateCardSalesData[]) => {
+    let filteredData = [...data]
+    
+    // Filter by district (자치구)
+    if (selectedGu) {
+      filteredData = filteredData.filter(item => item.guName === selectedGu)
+    }
+    
+    // Filter by dong (행정동)
+    if (selectedDong) {
+      filteredData = filteredData.filter(item => item.dongName === selectedDong)
+    }
+    
+    // Note: Business category filtering would be applied at visualization level
+    // since the raw data may not have category-specific location data
+    
+    return filteredData
+  }, [selectedGu, selectedDong])
+
   // 전체 데이터 로딩 함수
   const loadData = useCallback(async () => {
     console.log('[ClimateDataLoader] 기후-카드매출 데이터 로딩 시작...')
@@ -246,8 +284,11 @@ export function useLayerState(): UseLayerStateReturn {
       
       console.log(`[ClimateDataLoader] 데이터 로딩 완료: ${data.length}개 포인트`)
       
+      // Apply hierarchical filters
+      const filteredData = applyHierarchicalFilters(data)
+      
       // ClimateCardSalesData를 HexagonLayerData 형식으로 변환
-      const hexData: HexagonLayerData[] = data.map(item => ({
+      const hexData: HexagonLayerData[] = filteredData.map(item => ({
         coordinates: item.coordinates,
         weight: item.weight,
         category: item.temperatureGroup,
@@ -255,11 +296,11 @@ export function useLayerState(): UseLayerStateReturn {
         originalData: item
       }))
       
-      setClimateData(data)
-      setHexagonData(hexData)
+      setClimateData(data) // Keep original data
+      setHexagonData(hexData) // Set filtered hexagon data
       
-      if (data.length > 0) {
-        console.log(`[ClimateDataLoader] 샘플 데이터:`, data.slice(0, 3))
+      if (filteredData.length > 0) {
+        console.log(`[ClimateDataLoader] 필터링 후 데이터: ${filteredData.length}개 포인트`)
       }
       
     } catch (error) {
@@ -270,7 +311,7 @@ export function useLayerState(): UseLayerStateReturn {
     } finally {
       setIsDataLoading(false)
     }
-  }, [filterOptions])
+  }, [filterOptions, applyHierarchicalFilters])
   
   // 필터 업데이트 함수들
   const setSelectedDate = useCallback((date: string) => {
@@ -304,6 +345,20 @@ export function useLayerState(): UseLayerStateReturn {
     loadData()
   }, [loadData])
   
+  // Re-filter data when hierarchical filters change
+  useEffect(() => {
+    if (climateData && climateData.length > 0) {
+      const filteredData = applyHierarchicalFilters(climateData)
+      const hexData: HexagonLayerData[] = filteredData.map(item => ({
+        coordinates: item.coordinates,
+        weight: item.weight,
+        category: item.temperatureGroup,
+        originalData: item
+      }))
+      setHexagonData(hexData)
+    }
+  }, [selectedGu, selectedDong, climateData, applyHierarchicalFilters])
+  
   return {
     // 레이어 설정 상태
     layerConfig,
@@ -319,6 +374,12 @@ export function useLayerState(): UseLayerStateReturn {
     selectedDate,
     selectedHour,
     colorMode,
+    
+    // Hierarchical filter states
+    selectedGu,
+    selectedDong,
+    selectedMiddleCategory,
+    selectedSubCategory,
     
     // 설정 업데이트 함수들
     setVisible,
@@ -345,6 +406,12 @@ export function useLayerState(): UseLayerStateReturn {
     setSelectedDate,
     setSelectedHour,
     setColorMode,
+    
+    // Hierarchical filter functions
+    setSelectedGu,
+    setSelectedDong,
+    setSelectedMiddleCategory,
+    setSelectedSubCategory,
     
     // 상호작용 상태
     hoveredObject,
