@@ -321,40 +321,63 @@ export function useLayerState(): UseLayerStateReturn {
         '공공/기관': 0
       }
       
-      // Map detailed categories to main categories
+      // Map detailed categories to main categories (새로운 구조 대응)
       Object.entries(item.salesByCategory).forEach(([category, amount]) => {
-        // Enhanced mapping based on actual category names
-        if (category.includes('음식') || category.includes('식당') || category.includes('카페') || 
-            category.includes('한식') || category.includes('중식') || category.includes('일식') || 
-            category.includes('양식') || category.includes('패스트푸드')) {
+        // 중분류 카테고리 매핑 (업데이트된 구조에 맞춤)
+        const categoryName = category.replace('sub_', '') // Remove sub_ prefix if exists
+        
+        // 중분류 매핑
+        if (categoryName === '한식' || categoryName === '일식/양식/중식' || 
+            categoryName === '제과/커피/패스트푸드' || categoryName === '기타요식' ||
+            categoryName === '일식' || categoryName === '양식' || categoryName === '중식' ||
+            categoryName === '커피전문점' || categoryName === '제과점' || categoryName === '패스트푸드') {
           categorySales['음식'] += amount
-        } else if (category.includes('쇼핑') || category.includes('마트') || category.includes('백화점') ||
-                   category.includes('슈퍼') || category.includes('편의점') || category.includes('의류')) {
+        } else if (categoryName === '마트/생활잡화' || categoryName === '편의점' || 
+                   categoryName === '백화점' || categoryName === '패션/잡화' || 
+                   categoryName === '기타유통' || categoryName === '음/식료품' ||
+                   categoryName === '대형마트' || categoryName === '슈퍼마켓 기업형' || 
+                   categoryName === '슈퍼마켓 일반형') {
           categorySales['쇼핑'] += amount
-        } else if (category.includes('교통') || category.includes('주유') || category.includes('주차') ||
-                   category.includes('택시') || category.includes('대중교통')) {
+        } else if (categoryName === '자동차서비스/용품' || categoryName === '자동차판매' || 
+                   categoryName === '주유' || categoryName === '주차장' || 
+                   categoryName === '자동차서비스' || categoryName === '자동차용품' ||
+                   categoryName === '주유소' || categoryName === 'LPG가스') {
           categorySales['교통'] += amount
-        } else if (category.includes('문화') || category.includes('여가') || category.includes('영화') ||
-                   category.includes('공연') || category.includes('스포츠') || category.includes('노래방')) {
+        } else if (categoryName === '스포츠/문화/레저' || categoryName === '스포츠/문화/레저용품' || 
+                   categoryName === '유흥' || categoryName === '영화/공연' || 
+                   categoryName === '노래방' || categoryName === '스포츠시설' ||
+                   categoryName === '실내/실외골프장' || categoryName === '종합레저타운/놀이동산') {
           categorySales['문화/여가'] += amount
-        } else if (category.includes('의료') || category.includes('병원') || category.includes('약국') ||
-                   category.includes('건강') || category.includes('치과') || category.includes('한의원')) {
+        } else if (categoryName === '병원' || categoryName === '약국' || 
+                   categoryName === '미용서비스' || categoryName === '일반병원' || 
+                   categoryName === '종합병원' || categoryName === '치과병원' || 
+                   categoryName === '한의원' || categoryName === '동물병원' ||
+                   categoryName === '미용실' || categoryName === '헬스장') {
           categorySales['의료/건강'] += amount
-        } else if (category.includes('교육') || category.includes('학원') || category.includes('학교') ||
-                   category.includes('유치원') || category.includes('어린이집')) {
+        } else if (categoryName === '학습' || categoryName === '학원/학습지' || 
+                   categoryName === '독서실' || categoryName === '서점') {
           categorySales['교육'] += amount
-        } else if (category.includes('숙박') || category.includes('호텔') || category.includes('모텔') ||
-                   category.includes('펜션') || category.includes('민박')) {
+        } else if (categoryName === '숙박' || categoryName === '호텔/콘도' || 
+                   categoryName === '모텔,여관,기타숙박') {
           categorySales['숙박'] += amount
-        } else if (category.includes('금융') || category.includes('은행') || category.includes('보험') ||
-                   category.includes('증권') || category.includes('카드')) {
+        } else if (categoryName === '상품권/복권') {
           categorySales['금융'] += amount
-        } else if (category.includes('생활') || category.includes('서비스') || category.includes('부동산') ||
-                   category.includes('세탁') || category.includes('미용') || category.includes('이발')) {
+        } else if (categoryName === '생활서비스' || categoryName === '부동산중개' || 
+                   categoryName === '세탁소' || categoryName === '안마/마사지' ||
+                   categoryName === '싸우나/목욕탕' || categoryName === '예식장/결혼서비스') {
           categorySales['생활서비스'] += amount
-        } else if (category.includes('공공') || category.includes('기관') || category.includes('관공서') ||
-                   category.includes('우체국')) {
+        } else if (categoryName === '보건소') {
           categorySales['공공/기관'] += amount
+        } else if (categoryName === '가전/가구' || categoryName === '화장품' || 
+                   categoryName === '사무기기/컴퓨터' || categoryName === '여행') {
+          // 기타 카테고리들을 적절한 메인 카테고리로 분류
+          if (categoryName === '가전/가구' || categoryName === '사무기기/컴퓨터') {
+            categorySales['쇼핑'] += amount
+          } else if (categoryName === '화장품') {
+            categorySales['의료/건강'] += amount
+          } else if (categoryName === '여행') {
+            categorySales['문화/여가'] += amount
+          }
         }
       })
       

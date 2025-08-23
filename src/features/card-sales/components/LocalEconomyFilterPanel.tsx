@@ -16,10 +16,10 @@ import {
   getDongsByDistrict 
 } from "../data/districtHierarchy"
 import { 
-  businessHierarchy, 
-  getAllMiddleCategories, 
-  getSubCategoriesByMiddle,
-  categoryCodeMap 
+  actualMiddleCategories,
+  actualSubCategories,
+  getAllMiddleCategories,
+  getAllSubCategories
 } from "../data/businessHierarchy"
 
 interface LocalEconomyFilterPanelProps {
@@ -106,9 +106,7 @@ export default function LocalEconomyFilterPanel({
   }, [selectedGu])
   
   const availableMiddleCategories = useMemo(() => getAllMiddleCategories(), [])
-  const availableSubCategories = useMemo(() => {
-    return selectedMiddleCategory ? getSubCategoriesByMiddle(selectedMiddleCategory) : []
-  }, [selectedMiddleCategory])
+  const availableSubCategories = useMemo(() => getAllSubCategories(), [])
   
   // Handle district selection
   const handleGuChange = (value: string) => {
@@ -180,29 +178,22 @@ export default function LocalEconomyFilterPanel({
         Object.entries(item.salesByCategory).forEach(([category, amount]) => {
           // Filter by selected categories if any
           if (selectedSubCategory) {
-            const categoryCode = categoryCodeMap[selectedSubCategory]
-            if (category === categoryCode) {
+            // 소분류는 'sub_' 접두사가 있을 수 있음
+            if (category === selectedSubCategory || category === `sub_${selectedSubCategory}`) {
               categoryTotals[selectedSubCategory] = (categoryTotals[selectedSubCategory] || 0) + (amount as number)
             }
           } else if (selectedMiddleCategory) {
-            // Show all subcategories of selected middle category
-            const subCategories = getSubCategoriesByMiddle(selectedMiddleCategory)
-            subCategories.forEach(sub => {
-              const code = categoryCodeMap[sub]
-              if (category === code && amount) {
-                categoryTotals[sub] = (categoryTotals[sub] || 0) + (amount as number)
-              }
-            })
+            // 중분류 선택 시 해당 중분류만 표시
+            if (category === selectedMiddleCategory) {
+              categoryTotals[selectedMiddleCategory] = (categoryTotals[selectedMiddleCategory] || 0) + (amount as number)
+            }
           } else {
-            // Show middle category totals
-            Object.entries(businessHierarchy).forEach(([middle, subs]) => {
-              subs.forEach(sub => {
-                const code = categoryCodeMap[sub]
-                if (category === code && amount) {
-                  categoryTotals[middle] = (categoryTotals[middle] || 0) + (amount as number)
-                }
-              })
-            })
+            // 전체 카테고리 표시 - 중분류와 소분류 모두 집계
+            if (amount && amount > 0) {
+              // sub_ 접두사 제거
+              const cleanCategory = category.startsWith('sub_') ? category.substring(4) : category
+              categoryTotals[cleanCategory] = (categoryTotals[cleanCategory] || 0) + (amount as number)
+            }
           }
         })
       } else {

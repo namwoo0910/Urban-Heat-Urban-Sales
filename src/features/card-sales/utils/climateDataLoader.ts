@@ -67,8 +67,9 @@ export class ClimateDataLoader {
     options?: ClimateFilterOptions
   ): Promise<ClimateCardSalesData[]> {
     try {
-      const response = await fetch(`/data/output_json/${districtName}.json`)
+      const response = await fetch(`/data/output_json_v2/${districtName}.json`)
       const rawData: RawClimateCardSalesData[] = await response.json()
+      
       
       // 좌표 매칭 및 변환
       const transformedData = rawData
@@ -107,14 +108,37 @@ export class ClimateDataLoader {
       populationByHour.push(raw[key] || 0)
     }
 
-    // 업종별 매출 추출
+    // 업종별 매출 추출 (새로운 구조 지원)
     const salesByCategory: Record<string, number> = {}
-    Object.keys(raw).forEach(key => {
-      if (key.includes('_총매출액') && key !== '총매출액') {
-        const category = key.replace('_총매출액', '')
-        salesByCategory[category] = raw[key] || 0
-      }
-    })
+    
+    // 새로운 구조: 총매출액_중분류와 총매출액_소분류에서 추출
+    if (raw.총매출액_중분류) {
+      Object.entries(raw.총매출액_중분류).forEach(([category, amount]) => {
+        if (amount && amount > 0) {
+          salesByCategory[category] = amount
+        }
+      })
+    }
+    
+    // 소분류도 포함 (선택적)
+    if (raw.총매출액_소분류) {
+      Object.entries(raw.총매출액_소분류).forEach(([category, amount]) => {
+        if (amount && amount > 0) {
+          // 소분류는 'sub_' 접두사를 붙여 구분
+          salesByCategory[`sub_${category}`] = amount
+        }
+      })
+    }
+    
+    // 이전 구조 호환성 유지 (fallback)
+    if (!raw.총매출액_중분류 && !raw.총매출액_소분류) {
+      Object.keys(raw).forEach(key => {
+        if (key.includes('_총매출액') && key !== '총매출액') {
+          const category = key.replace('_총매출액', '')
+          salesByCategory[category] = raw[key] || 0
+        }
+      })
+    }
 
     return {
       // HexagonLayer 필수
