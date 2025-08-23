@@ -94,7 +94,7 @@ export default function HexagonScene() {
     longitude: 126.978,
     latitude: 37.5665,
     zoom: 11,
-    pitch: 45,
+    pitch: 60,  // Increased for better 3D effect
     bearing: 0,
     minZoom: 5,
     maxZoom: 15
@@ -670,7 +670,7 @@ export default function HexagonScene() {
           // Determine zoom level and pitch based on selection type
           const isDistrictLevel = !selectedDong && selectedGu // 구 레벨
           const zoom = isDistrictLevel ? 12.5 : 14 // 구: 12.5, 동: 14
-          const pitch = isDistrictLevel ? 45 : 50 // 구: 45도, 동: 50도
+          const pitch = isDistrictLevel ? 60 : 65 // 구: 60도, 동: 65도 - Increased for better 3D effect
           
           // Smooth camera movement using FlyToInterpolator
           setInitialViewState(prevState => ({
@@ -698,7 +698,7 @@ export default function HexagonScene() {
         longitude: SEOUL_COORDINATES[0],
         latitude: SEOUL_COORDINATES[1],
         zoom: 11,
-        pitch: 45,
+        pitch: 60,  // Increased for better 3D effect
         bearing: prevState.bearing || 0,
         transitionDuration: 800, // Faster return animation
         transitionInterpolator: new FlyToInterpolator(),
@@ -787,46 +787,191 @@ export default function HexagonScene() {
             setHoveredDistrict(null)
             mapRef.current!.getCanvas().style.cursor = ''
           }}
-          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-fill', 'dong-line']}
+          interactiveLayerIds={['sgg-extrusion', 'sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-extrusion', 'dong-fill', 'dong-line']}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
-          {/* District layers with enhanced visualization */}
+          {/* District layers with enhanced 3D visualization */}
           {sggData && (
             <Source id="sgg-source" type="geojson" data={sggData}>
-              {/* District fill FIRST - base layer */}
+              {/* 3D Extrusion layer for districts */}
+              <Layer
+                id="sgg-extrusion"
+                type="fill-extrusion"
+                paint={{
+                  'fill-extrusion-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 'rgba(100, 150, 255, 0.8)',
+                    12, 'rgba(100, 200, 255, 0.85)',
+                    16, 'rgba(150, 220, 255, 0.9)'
+                  ],
+                  'fill-extrusion-height': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 400,
+                    10, 600,
+                    12, 750,
+                    14, 900,
+                    16, 1000
+                  ],
+                  'fill-extrusion-base': 0,
+                  'fill-extrusion-opacity': 0.6,
+                  'fill-extrusion-ambient-occlusion-intensity': 0.3,
+                  'fill-extrusion-ambient-occlusion-radius': 5
+                }}
+                layout={{ 
+                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* 3D 효과를 위한 그림자 레이어 */}
+              <Layer
+                id="sgg-shadow"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(0, 0, 0, 0.3)',
+                  'line-width': 6,
+                  'line-blur': 4,
+                  'line-translate': [3, 3],
+                  'line-translate-anchor': 'viewport'
+                }}
+                layout={{ 
+                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* District fill - 2D 배경 (fallback) */}
               <Layer
                 id="sgg-fill"
                 type="fill"
-                paint={DISTRICT_LAYER_PAINT.sggFill}
+                paint={{
+                  'fill-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 'rgba(100, 120, 255, 0.05)',
+                    12, 'rgba(100, 120, 255, 0.08)',
+                    16, 'rgba(100, 120, 255, 0.1)'
+                  ],
+                  'fill-opacity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 0.3,
+                    12, 0.4,
+                    16, 0.5
+                  ]
+                }}
                 layout={{ 
                   visibility: districtSelection.sggVisible ? 'visible' : 'none' 
                 }}
               />
               
-              {/* District lines ON TOP of fill */}
+              {/* 네온 글로우 효과 - 외곽 글로우 */}
+              <Layer
+                id="sgg-glow-outer"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(0, 255, 255, 0.2)',
+                  'line-width': 8,
+                  'line-blur': 6,
+                  'line-opacity': 0.5
+                }}
+                layout={{ 
+                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* 네온 글로우 효과 - 중간 글로우 */}
+              <Layer
+                id="sgg-glow-mid"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(100, 200, 255, 0.4)',
+                  'line-width': 4,
+                  'line-blur': 3,
+                  'line-opacity': 0.7
+                }}
+                layout={{ 
+                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* 메인 경계선 - 네온 코어 */}
               <Layer
                 id="sgg-line"
                 type="line"
-                paint={DISTRICT_LAYER_PAINT.sggLine}
+                paint={{
+                  'line-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 'rgba(100, 200, 255, 0.6)',
+                    12, 'rgba(0, 255, 255, 0.7)',
+                    16, 'rgba(0, 255, 255, 0.8)'
+                  ],
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 1.5,
+                    12, 2,
+                    16, 2.5
+                  ],
+                  'line-opacity': 0.9
+                }}
                 layout={{ 
                   visibility: districtSelection.sggVisible ? 'visible' : 'none' 
                 }}
               />
               
-              {/* Hover effect for districts */}
+              {/* Modern hover effect with neon glow and 3D */}
               {hoveredDistrict && hoveredDistrict !== districtSelection.selectedDistrict && (
                 <>
+                  {/* Hover 3D extrusion effect */}
                   <Layer
-                    id="sgg-hover-fill"
-                    type="fill"
-                    paint={DISTRICT_LAYER_PAINT.hoverFill}
+                    id="sgg-hover-extrusion"
+                    type="fill-extrusion"
+                    paint={{
+                      'fill-extrusion-color': 'rgba(0, 255, 255, 0.8)',
+                      'fill-extrusion-height': [
+                        'interpolate',
+                        ['linear'],
+                        ['zoom'],
+                        8, 600,
+                        12, 1000,
+                        16, 1250
+                      ],
+                      'fill-extrusion-base': 0,
+                      'fill-extrusion-opacity': 0.7
+                    }}
                     filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
                   />
+                  
+                  {/* Hover glow effect */}
+                  <Layer
+                    id="sgg-hover-glow"
+                    type="line"
+                    paint={{
+                      'line-color': 'rgba(0, 255, 255, 0.3)',
+                      'line-width': 8,
+                      'line-blur': 4
+                    }}
+                    filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
+                  />
+                  
+                  {/* Hover line with bright neon */}
                   <Layer
                     id="sgg-hover-line"
                     type="line"
-                    paint={DISTRICT_LAYER_PAINT.hoverLine}
+                    paint={{
+                      'line-color': 'rgba(0, 255, 255, 0.9)',
+                      'line-width': 2.5,
+                      'line-opacity': 1
+                    }}
                     filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
                   />
                 </>
@@ -836,25 +981,123 @@ export default function HexagonScene() {
             </Source>
           )}
           
-          {/* Dong layers */}
+          {/* Dong layers with 3D effects */}
           {dongData && (
             <Source id="dong-source" type="geojson" data={dongData}>
-              {/* Dong fill FIRST - base layer */}
+              {/* 3D Extrusion layer for dong */}
+              <Layer
+                id="dong-extrusion"
+                type="fill-extrusion"
+                paint={{
+                  'fill-extrusion-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 'rgba(180, 130, 255, 0.7)',
+                    14, 'rgba(200, 150, 255, 0.75)',
+                    18, 'rgba(220, 180, 255, 0.8)'
+                  ],
+                  'fill-extrusion-height': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 200,
+                    12, 300,
+                    14, 400,
+                    16, 500,
+                    18, 600
+                  ],
+                  'fill-extrusion-base': 0,
+                  'fill-extrusion-opacity': 0.5,
+                  'fill-extrusion-ambient-occlusion-intensity': 0.2,
+                  'fill-extrusion-ambient-occlusion-radius': 3
+                }}
+                layout={{ 
+                  visibility: districtSelection.dongVisible ? 'visible' : 'none' 
+                }}
+                minzoom={10}
+              />
+              
+              {/* 3D Shadow layer for dong */}
+              <Layer
+                id="dong-shadow"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(0, 0, 0, 0.2)',
+                  'line-width': 3,
+                  'line-blur': 2,
+                  'line-translate': [1.5, 1.5],
+                  'line-translate-anchor': 'viewport'
+                }}
+                layout={{ 
+                  visibility: districtSelection.dongVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* Dong fill with modern gradient (fallback) */}
               <Layer
                 id="dong-fill"
                 type="fill"
-                paint={DISTRICT_LAYER_PAINT.dongFill}
-                layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
-              />
-              {/* Dong lines ON TOP of fill */}
-              <Layer
-                id="dong-line"
-                type="line"
-                paint={DISTRICT_LAYER_PAINT.dongLine}
+                paint={{
+                  'fill-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 'rgba(160, 100, 255, 0.03)',
+                    14, 'rgba(160, 100, 255, 0.05)',
+                    18, 'rgba(160, 100, 255, 0.07)'
+                  ],
+                  'fill-opacity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 0.3,
+                    14, 0.4,
+                    18, 0.5
+                  ]
+                }}
                 layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
               />
               
-              {/* Removed - using setPaintProperty instead */}
+              {/* Dong neon glow lines */}
+              <Layer
+                id="dong-glow"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(200, 100, 255, 0.15)',
+                  'line-width': 4,
+                  'line-blur': 3
+                }}
+                layout={{ 
+                  visibility: districtSelection.dongVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* Dong main lines with modern style */}
+              <Layer
+                id="dong-line"
+                type="line"
+                paint={{
+                  'line-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 'rgba(180, 150, 255, 0.3)',
+                    14, 'rgba(180, 150, 255, 0.4)',
+                    18, 'rgba(180, 150, 255, 0.5)'
+                  ],
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 0.8,
+                    14, 1.0,
+                    18, 1.2
+                  ],
+                  'line-opacity': 0.8
+                }}
+                layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
+              />
             </Source>
           )}
           
@@ -871,27 +1114,94 @@ export default function HexagonScene() {
             </Source>
           )}
 
-          {/* Selected District Layer - SEPARATE LAYER ON TOP */}
+          {/* Selected District Layer with modern 3D effect */}
           {selectedDistrictData && (
             <Source id="selected-district-source" type="geojson" data={selectedDistrictData}>
-              {/* Selected district fill - Purple gradient style */}
+              {/* Selected 3D extrusion */}
               <Layer
-                id="selected-district-fill"
-                type="fill"
+                id="selected-extrusion"
+                type="fill-extrusion"
                 paint={{
-                  'fill-color': '#667eea',  // Modern purple
-                  'fill-opacity': 0.6       // Semi-transparent
+                  'fill-extrusion-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, '#667eea',
+                    12, '#7c3aed',
+                    16, '#8b5cf6'
+                  ],
+                  'fill-extrusion-height': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 750,
+                    12, 1250,
+                    16, 1500
+                  ],
+                  'fill-extrusion-base': 0,
+                  'fill-extrusion-opacity': 0.8,
+                  'fill-extrusion-ambient-occlusion-intensity': 0.4,
+                  'fill-extrusion-ambient-occlusion-radius': 6
                 }}
               />
               
-              {/* Selected district outline - Light purple */}
+              {/* Selected shadow for depth */}
+              <Layer
+                id="selected-shadow"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(0, 0, 0, 0.4)',
+                  'line-width': 8,
+                  'line-blur': 5,
+                  'line-translate': [4, 4],
+                  'line-translate-anchor': 'viewport'
+                }}
+              />
+              
+              {/* Selected glow effect - outer */}
+              <Layer
+                id="selected-glow-outer"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(102, 126, 234, 0.3)',
+                  'line-width': 12,
+                  'line-blur': 6
+                }}
+              />
+              
+              {/* Selected glow effect - mid */}
+              <Layer
+                id="selected-glow-mid"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(102, 126, 234, 0.5)',
+                  'line-width': 6,
+                  'line-blur': 3
+                }}
+              />
+              
+              {/* Selected district outline with bright neon */}
               <Layer
                 id="selected-district-line"
                 type="line"
                 paint={{
-                  'line-color': '#a78bfa',  // Light purple
-                  'line-width': 3,          // Medium thick line
-                  'line-opacity': 0.9
+                  'line-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, '#a78bfa',
+                    12, '#c084fc',
+                    16, '#e9d5ff'
+                  ],
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 2,
+                    12, 3,
+                    16, 4
+                  ],
+                  'line-opacity': 0.95
                 }}
               />
             </Source>
