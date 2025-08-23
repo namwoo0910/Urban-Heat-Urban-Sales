@@ -336,21 +336,56 @@ export default function HexagonScene() {
 
   // 툴팁 핸들러 (Context7 권장 패턴)
   const getTooltip = (info: PickingInfo) => {
-    console.log('[Tooltip Debug] getTooltip called with info:', {
-      hasObject: !!info.object,
-      object: info.object,
-      x: info.x,
-      y: info.y,
-      layer: info.layer?.id
-    })
-    
     if (!info.object) {
-      console.log('[Tooltip Debug] No object found in info')
       return null
     }
     
     try {
-      // LayerConfig의 colorMode를 info에 추가
+      // ColumnLayer의 경우 (중분류 카테고리 데이터)
+      if (info.layer?.id === 'column-layer' && info.object.originalData) {
+        const { originalData } = info.object
+        const date = originalData.date || '날짜 정보 없음'
+        const guName = originalData.guName || '정보 없음'
+        const dongName = originalData.dongName || '정보 없음'
+        const middleCategory = originalData.middleCategory || info.object.middleCategory || '업종 정보 없음'
+        const sales = originalData.categorySales || info.object.weight || 0
+        
+        const tooltipHtml = `
+<div style="font-family: 'Noto Sans KR', sans-serif;">
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">📅</span> <strong>날짜:</strong> ${date}
+  </div>
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">📍</span> <strong>지역:</strong> ${guName} ${dongName}
+  </div>
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">💼</span> <strong>업종:</strong> ${middleCategory}
+  </div>
+  <div>
+    <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${sales.toLocaleString()}원
+  </div>
+</div>
+        `.trim()
+        
+        return {
+          html: tooltipHtml,
+          style: {
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            color: 'white',
+            fontSize: '13px',
+            padding: '14px',
+            borderRadius: '8px',
+            whiteSpace: 'normal',
+            maxWidth: '280px',
+            lineHeight: '1.6',
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            backdropFilter: 'blur(8px)'
+          }
+        }
+      }
+      
+      // 기존 HexagonLayer의 경우 (폴백)
       const enhancedInfo = {
         ...info,
         layer: {
@@ -362,9 +397,7 @@ export default function HexagonScene() {
         }
       }
       
-      // ScatterplotLayer용 툴팁 포맷터 사용 (구 이름 표시)
       const tooltipHtml = formatScatterplotTooltip(enhancedInfo)
-      console.log('[Tooltip Debug] Tooltip HTML generated:', tooltipHtml)
       
       return {
         html: tooltipHtml,
@@ -963,61 +996,6 @@ export default function HexagonScene() {
 
       {/* Middle Category Legend */}
       <MiddleCategoryLegend selectedCategory={selectedMiddleCategory} />
-
-      {/* 서울 정보 패널 - Enhanced modern design */}
-      <div className="absolute bottom-4 right-[226px] info-panel z-10">
-        <h3 className="info-panel-header">
-          <span>서울특별시</span>
-          <div className="flex items-center gap-2">
-            {showBoundary && <span className="badge badge-blue">경계표시</span>}
-            {layerConfig.visible && <span className="badge badge-green">데이터</span>}
-            {rotationEnabled && <span className="badge badge-purple">360°</span>}
-          </div>
-        </h3>
-        <div className="info-panel-content space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-purple-400">📍</span>
-            <span>위치: {SEOUL_COORDINATES[1].toFixed(4)}°N, {SEOUL_COORDINATES[0].toFixed(4)}°E</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-blue-400">🏙️</span>
-            <span>인구: 약 970만명</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-green-400">📏</span>
-            <span>면적: 605.21 km²</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-yellow-400">🏛️</span>
-            <span>자치구: 25개 구역</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-orange-400">🌡️</span>
-            <span>현재 시간: {new Date().toLocaleTimeString("ko-KR")}</span>
-          </div>
-          {hexagonData && (
-            <div className="flex items-center gap-2">
-              <span className="text-cyan-400">📊</span>
-              <span>데이터 포인트: {hexagonData.length.toLocaleString()}개</span>
-            </div>
-          )}
-          {rotationEnabled && (
-            <div className="flex items-center gap-2">
-              <span className="text-indigo-400">🧭</span>
-              <span>회전각도: {bearingDisplay} ({rotationDirectionText})</span>
-            </div>
-          )}
-          {(districtSelection.selectedDistrict || hoveredDistrict) && (
-            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
-              <span className="text-purple-400">🎯</span>
-              <span className="font-semibold">
-                {districtSelection.selectedDistrict || hoveredDistrict}
-                {selectedDong && ` - ${selectedDong}`}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* 오류 표시 */}
       {dataError && (

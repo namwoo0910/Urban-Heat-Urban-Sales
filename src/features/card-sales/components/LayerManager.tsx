@@ -473,6 +473,25 @@ export function formatScatterplotTooltip(info: any): string {
   }
 }
 
+// 툴팁 포매터 - ColumnLayer용
+function formatColumnTooltip(object: any): string {
+  if (!object || !object.originalData) return ''
+  
+  const { originalData } = object
+  const date = originalData.date || '날짜 정보 없음'
+  const guName = originalData.guName || '정보 없음'
+  const dongName = originalData.dongName || '정보 없음'
+  const middleCategory = originalData.middleCategory || object.middleCategory || '업종 정보 없음'
+  const sales = originalData.categorySales || object.weight || 0
+  
+  return `
+📅 날짜: ${date}
+📍 지역: ${guName} ${dongName}
+💼 업종: ${middleCategory}
+💰 매출액: ${sales.toLocaleString()}원
+  `.trim()
+}
+
 // ColumnLayer로 3D 바 표시 (구 이름도 표시 가능)
 export function createColumnLayer(data: HexagonLayerData[] | null, config: LayerConfig): Layer[] {
   if (!data || !config.visible) return []

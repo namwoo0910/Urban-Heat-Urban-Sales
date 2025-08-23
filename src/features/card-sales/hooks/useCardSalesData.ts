@@ -299,7 +299,11 @@ export function useLayerState(): UseLayerStateReturn {
             category: selectedMiddleCategory, // For backward compatibility
             originalData: {
               ...item,
-              middleCategory: selectedMiddleCategory
+              middleCategory: selectedMiddleCategory,
+              date: item.date,
+              guName: item.guName,
+              dongName: item.dongName,
+              categorySales: categorySales
             }
           })
         }
@@ -323,7 +327,11 @@ export function useLayerState(): UseLayerStateReturn {
             category: category,
             originalData: {
               ...item,
-              middleCategory: category
+              middleCategory: category,
+              date: item.date,
+              guName: item.guName,
+              dongName: item.dongName,
+              categorySales: sales
             }
           })
         }
