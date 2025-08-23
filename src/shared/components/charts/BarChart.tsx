@@ -27,7 +27,7 @@ export function BarChart({
         <ChartComponent 
           data={data} 
           margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-          layout={horizontal ? 'horizontal' : 'vertical'}
+          layout={horizontal ? 'horizontal' : undefined}
         >
           {showGrid && (
             <CartesianGrid strokeDasharray="3 3" className="stroke-muted/20" />

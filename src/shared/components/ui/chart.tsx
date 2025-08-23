@@ -98,6 +98,7 @@ export {
   CartesianGrid,
   Cell,
   ComposedChart,
+  ErrorBar,
   Funnel,
   FunnelChart,
   Label,

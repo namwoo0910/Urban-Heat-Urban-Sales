@@ -11,6 +11,15 @@ export function HeatmapChart({
   height = 300,
   className = ''
 }: HeatmapProps) {
+  console.log('[HeatmapChart] Rendering with:', {
+    dataLength: data?.length,
+    xLabels: xLabels?.length,
+    yLabels: yLabels?.length,
+    height,
+    width,
+    sampleData: data?.length > 0 ? data[0] : null
+  })
+  
   // Find min and max values for color scaling
   const values = data.map(d => d.value)
   const minValue = Math.min(...values)
@@ -38,13 +47,21 @@ export function HeatmapChart({
   })
 
   // Fill matrix with data
+  let filledCount = 0
   data.forEach(d => {
-    const x = String(d.x)
+    // Handle numeric indices by using them to look up labels
+    const xKey = typeof d.x === 'number' && xLabels.length > d.x 
+      ? xLabels[d.x]  // Use index to get label
+      : String(d.x)    // Use string value directly
     const y = String(d.y)
-    if (matrix[y]) {
-      matrix[y][x] = d.value
+    
+    if (matrix[y] && matrix[y][xKey] !== undefined) {
+      matrix[y][xKey] = d.value
+      filledCount++
     }
   })
+  
+  console.log('[HeatmapChart] Matrix filled:', filledCount, 'of', data.length, 'data points')
 
   const cellWidth = 100 / uniqueX.length
   const cellHeight = 100 / uniqueY.length
