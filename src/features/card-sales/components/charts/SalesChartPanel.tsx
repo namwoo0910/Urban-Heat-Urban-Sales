@@ -9,6 +9,7 @@ import { SalesPieChart } from './SalesPieChart'
 import { SalesRadarChart } from './SalesRadarChart'
 import { SalesComposedChart } from './SalesComposedChart'
 import { SalesHeatmapChart } from './SalesHeatmapChart'
+import { SalesBoxPlotChart } from './SalesBoxPlotChart'
 
 export function SalesChartPanel() {
   const [activeTab, setActiveTab] = useState('line')
@@ -21,6 +22,7 @@ export function SalesChartPanel() {
     { id: 'radar', label: '요일 패턴', component: SalesRadarChart },
     { id: 'composed', label: '복합 분석', component: SalesComposedChart },
     { id: 'heatmap', label: '히트맵', component: SalesHeatmapChart },
+    { id: 'boxplot', label: '날씨 영향', component: SalesBoxPlotChart },
   ]
 
   return (
@@ -31,12 +33,12 @@ export function SalesChartPanel() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="grid grid-cols-7 bg-black/40 border border-white/10 mb-4">
+        <TabsList className="grid grid-cols-4 gap-1 bg-black/40 border border-white/10 mb-4 h-auto p-1">
           {charts.map((chart) => (
             <TabsTrigger 
               key={chart.id} 
               value={chart.id}
-              className="text-xs data-[state=active]:bg-blue-600/20 data-[state=active]:text-blue-400"
+              className="text-xs data-[state=active]:bg-blue-600/20 data-[state=active]:text-blue-400 h-8"
             >
               {chart.label}
             </TabsTrigger>

@@ -58,16 +58,23 @@ const LocalEconomyPage = () => {
             <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
               <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
                 <div className="grid grid-cols-10 gap-3 opacity-20">
-                  {[...Array(80)].map((_, i) => (
-                    <div 
-                      key={i} 
-                      className="w-4 h-4 bg-white rounded-full animate-pulse"
-                      style={{ 
-                        animationDelay: `${i * 0.05}s`,
-                        transform: `scale(${0.5 + Math.random() * 0.5})`
-                      }}
-                    />
-                  ))}
+                  {[...Array(80)].map((_, i) => {
+                    // Use predetermined pattern for consistent server/client rendering
+                    const scalePattern = [0.7, 0.5, 0.9, 0.6, 0.8, 0.55, 0.75, 0.65, 0.85, 0.7, 
+                                        0.52, 0.88, 0.63, 0.77, 0.58, 0.92, 0.68, 0.73, 0.82, 0.56];
+                    const scaleValue = scalePattern[i % scalePattern.length];
+                    
+                    return (
+                      <div 
+                        key={i} 
+                        className="w-4 h-4 bg-white rounded-full animate-pulse"
+                        style={{ 
+                          animationDelay: `${i * 0.05}s`,
+                          transform: `scale(${scaleValue})`
+                        }}
+                      />
+                    );
+                  })}
                 </div>
               </div>
             </div>

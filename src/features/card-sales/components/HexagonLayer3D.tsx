@@ -1,21 +1,25 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { DeckGL } from '@deck.gl/react'
-import { Map, Source, Layer } from 'react-map-gl'
+import { Map as MapGL, Source, Layer } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
-import { LinearInterpolator } from '@deck.gl/core'
+import { LinearInterpolator, FlyToInterpolator } from '@deck.gl/core'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
-import { LayerManager, formatTooltip } from "./LayerManager"
+import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip } from "./LayerManager"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
+import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
+import { BusinessCategoryLegend } from "./BusinessCategoryLegend"
+import type { FilterState } from "./LocalEconomyFilterPanel"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
-import { DistrictModeControl } from "@/src/shared/components/DistrictModeControl"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
-import { DISTRICT_LAYER_PAINT, loadDistrictData } from "@/src/shared/utils/districtUtils"
+import { DISTRICT_LAYER_PAINT, DISTRICT_COLORS, loadDistrictData } from "@/src/shared/utils/districtUtils"
+import { getDistrictCenter } from "../data/districtCenters"
+import "../styles/HexagonLayer.css"
 
 export default function HexagonScene() {
   const mapRef = useRef<MapRef>(null)
@@ -26,14 +30,19 @@ export default function HexagonScene() {
   const {
     layerConfig,
     hexagonData,
+    climateData,
     isDataLoading,
     dataError,
+    colorMode,
+    selectedHour,
     setVisible,
     setRadius,
     setElevationScale,
     setCoverage,
     setUpperPercentile,
     setColorScheme,
+    setColorMode,
+    setSelectedHour,
     resetConfig,
     setHoveredObject,
     setSelectedObject,
@@ -60,7 +69,17 @@ export default function HexagonScene() {
     toggleRotation,
     updateBearing,
     onRotationInteractionStart,
-    onRotationInteractionEnd
+    onRotationInteractionEnd,
+    
+    // Hierarchical filter states and functions
+    selectedGu,
+    selectedDong,
+    selectedMiddleCategory,
+    selectedSubCategory,
+    setSelectedGu,
+    setSelectedDong,
+    setSelectedMiddleCategory,
+    setSelectedSubCategory
   } = useLayerState()
   
   // 기본 지도 상태
@@ -89,11 +108,39 @@ export default function HexagonScene() {
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
   
+  // Handle filter panel changes
+  const handleFilterChange = useCallback((filters: FilterState) => {
+    // Update the hierarchical filter states
+    if (filters.selectedGu !== selectedGu) setSelectedGu(filters.selectedGu)
+    if (filters.selectedDong !== selectedDong) setSelectedDong(filters.selectedDong)
+    if (filters.selectedMiddleCategory !== selectedMiddleCategory) setSelectedMiddleCategory(filters.selectedMiddleCategory)
+    if (filters.selectedSubCategory !== selectedSubCategory) setSelectedSubCategory(filters.selectedSubCategory)
+  }, [selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory, setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory])
+  
+  // Hover state for districts
+  const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
+  
+  // Animation state for selected districts
+  const [animatingDistrict, setAnimatingDistrict] = useState<string | null>(null)
+  const [previousSelectedDistrict, setPreviousSelectedDistrict] = useState<string | null>(null)
+
   // District selection hook
   const districtSelection = useDistrictSelection({ 
     mapRef,
-    onDistrictSelect: (districtName) => {
+    onDistrictSelect: (districtName, feature) => {
       console.log('Selected district:', districtName)
+      // Trigger animation for newly selected district
+      setAnimatingDistrict(districtName)
+      setPreviousSelectedDistrict(districtName)
+      
+      // Update filter panel when map is clicked
+      if (feature?.layer?.id === 'sgg-fill') {
+        setSelectedGu(districtName)
+        setSelectedDong(null)  // Clear dong when gu is selected
+      } else if (feature?.layer?.id === 'dong-fill') {
+        setSelectedDong(districtName)
+        // Don't change gu when dong is selected (dong belongs to current gu)
+      }
     }
   })
   
@@ -177,6 +224,44 @@ export default function HexagonScene() {
       districtSelection.stopDashAnimation()
     }
   }, [districtSelection.selectedFeature, districtSelection.selectionMode])
+  
+  // Manage animation state for selected districts
+  useEffect(() => {
+    if (districtSelection.selectedDistrict) {
+      // Start animation for new selection
+      setAnimatingDistrict(districtSelection.selectedDistrict)
+      
+      // Force re-render of layers to apply color changes
+      const map = mapRef.current?.getMap()
+      if (map) {
+        // Ensure layers are visible with proper opacity
+        const fillLayer = map.getLayer('sgg-select-fill')
+        const animatedLayer = map.getLayer('sgg-select-fill-animated')
+        
+        if (fillLayer) {
+          // Force the layer to update
+          map.setPaintProperty('sgg-select-fill', 'fill-opacity', 
+            map.getPaintProperty('sgg-select-fill', 'fill-opacity'))
+        }
+        
+        if (animatedLayer) {
+          // Force the animated layer to update
+          map.setPaintProperty('sgg-select-fill-animated', 'fill-opacity',
+            map.getPaintProperty('sgg-select-fill-animated', 'fill-opacity'))
+        }
+      }
+      
+      // Keep animation active
+      const animationTimer = setTimeout(() => {
+        // Animation continues indefinitely for selected district
+      }, 800)
+      
+      return () => clearTimeout(animationTimer)
+    } else {
+      // Clear animation when no district is selected
+      setAnimatingDistrict(null)
+    }
+  }, [districtSelection.selectedDistrict])
 
   // Sync bearing with MapBox when it changes
   useEffect(() => {
@@ -190,36 +275,119 @@ export default function HexagonScene() {
     currentBearingRef.current = initialViewState.bearing || 0
   }, [])
 
-  // DeckGL 레이어 생성
-  const deckLayers = LayerManager({
-    data: hexagonData,
-    config: layerConfig,
-    onHover: (info: PickingInfo) => {
-      setHoveredObject(info.object)
-    },
-    onClick: (info: PickingInfo) => {
-      setSelectedObject(info.object)
-    },
-    onAnimationInteractionStart,
-    onAnimationInteractionEnd
-  })
+  // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
+  const deckLayers = createColumnLayer(hexagonData, layerConfig)
+  
+  // 기존 HexagonLayer 코드 (주석 처리)
+  // const deckLayers = LayerManager({
+  //   data: hexagonData,
+  //   config: layerConfig,
+  //   onHover: (info: PickingInfo) => {
+  //     console.log('[HexagonLayer3D] onHover triggered:', {
+  //       hasObject: !!info.object,
+  //       object: info.object,
+  //       x: info.x,
+  //       y: info.y,
+  //       picked: info.picked,
+  //       layerId: info.layer?.id
+  //     })
+  //     setHoveredObject(info.object)
+  //   },
+  //   onClick: (info: PickingInfo) => {
+  //     console.log('[HexagonLayer3D] onClick triggered:', info)
+  //     setSelectedObject(info.object)
+  //   },
+  //   onAnimationInteractionStart,
+  //   onAnimationInteractionEnd
+  // })
+
+  // 자치구 선택 디버깅
+  useEffect(() => {
+    console.log('[District Selection Debug]', {
+      selectedDistrict: districtSelection.selectedDistrict,
+      selectedFeature: districtSelection.selectedFeature,
+      showDialog: districtSelection.showDialog,
+      selectionMode: districtSelection.selectionMode,
+      sggVisible: districtSelection.sggVisible
+    })
+  }, [districtSelection.selectedDistrict, districtSelection.selectedFeature])
 
   // 레이어 상태 디버깅
   useEffect(() => {
-  }, [hexagonData, layerConfig.visible, deckLayers.length, isDataLoading, dataError])
+    console.log('[Layer Debug] Layer state:', {
+      hasData: !!hexagonData,
+      dataLength: hexagonData?.length || 0,
+      layerVisible: layerConfig.visible,
+      layerCount: deckLayers.length,
+      isLoading: isDataLoading,
+      error: dataError,
+      selectionMode: districtSelection.selectionMode,
+      animationEnabled: layerConfig.animationEnabled
+    })
+    
+    if (hexagonData && hexagonData.length > 0) {
+      console.log('[Layer Debug] Sample data point:', hexagonData[0])
+    }
+  }, [hexagonData, layerConfig.visible, deckLayers.length, isDataLoading, dataError, districtSelection.selectionMode, layerConfig.animationEnabled])
 
   // 툴팁 핸들러 (Context7 권장 패턴)
   const getTooltip = (info: PickingInfo) => {
-    if (!info.object) return null
-    return {
-      html: formatTooltip(info),
-      style: {
-        backgroundColor: 'rgba(0, 0, 0, 0.8)',
-        color: 'white',
-        fontSize: '12px',
-        padding: '8px',
-        borderRadius: '4px',
-        whiteSpace: 'pre-line'
+    console.log('[Tooltip Debug] getTooltip called with info:', {
+      hasObject: !!info.object,
+      object: info.object,
+      x: info.x,
+      y: info.y,
+      layer: info.layer?.id
+    })
+    
+    if (!info.object) {
+      console.log('[Tooltip Debug] No object found in info')
+      return null
+    }
+    
+    try {
+      // LayerConfig의 colorMode를 info에 추가
+      const enhancedInfo = {
+        ...info,
+        layer: {
+          ...info.layer,
+          props: {
+            ...info.layer?.props,
+            colorMode: layerConfig.colorMode
+          }
+        }
+      }
+      
+      // ScatterplotLayer용 툴팁 포맷터 사용 (구 이름 표시)
+      const tooltipHtml = formatScatterplotTooltip(enhancedInfo)
+      console.log('[Tooltip Debug] Tooltip HTML generated:', tooltipHtml)
+      
+      return {
+        html: tooltipHtml,
+        style: {
+          backgroundColor: 'rgba(0, 0, 0, 0.95)',
+          color: 'white',
+          fontSize: '13px',
+          padding: '14px',
+          borderRadius: '8px',
+          whiteSpace: 'pre-line',
+          maxWidth: '380px',
+          lineHeight: '1.6',
+          boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4)',
+          border: '1px solid rgba(255, 255, 255, 0.15)',
+          backdropFilter: 'blur(8px)'
+        }
+      }
+    } catch (error) {
+      console.error('[Tooltip Debug] Error in getTooltip:', error)
+      return {
+        html: '⚠️ 툴팁 로드 중 오류 발생',
+        style: {
+          backgroundColor: 'rgba(255, 0, 0, 0.9)',
+          color: 'white',
+          padding: '8px',
+          borderRadius: '4px'
+        }
       }
     }
   }
@@ -291,27 +459,35 @@ export default function HexagonScene() {
       }
     }
 
-    // 서울 3D 입체 레이어 - 항상 추가하고 visibility로 제어 (Context7 패턴)
+    // 서울 경계선 레이어 - 경계만 표시, 내부 색칠 없음
     if (map.getSource("seoul-boundary")) {
-      addLayerSafely("seoul-3d-extrusion", {
-        id: "seoul-3d-extrusion",
-        type: "fill-extrusion",
+      // 서울 경계 그림자 효과 (선택적)
+      addLayerSafely("seoul-boundary-shadow", {
+        id: "seoul-boundary-shadow",
+        type: "line",
         source: "seoul-boundary",
         layout: {
-          visibility: showSeoulBase ? "visible" : "none"
+          "line-join": "round",
+          "line-cap": "round",
+          visibility: showBoundary ? "visible" : "none"
         },
         paint: {
-          "fill-extrusion-color": "#3b82f6", // 고정 색상 (Context7 권장)
-          "fill-extrusion-height": 1500,      // 고정 높이 (Context7 권장)
-          "fill-extrusion-base": 0,
-          "fill-extrusion-opacity": 0.7,
-          "fill-extrusion-vertical-gradient": true, // 3D 시각 효과
+          "line-color": "rgba(0, 0, 0, 0.2)",
+          "line-width": [
+            "interpolate",
+            ["linear"],
+            ["zoom"],
+            8, 3,
+            12, 5,
+            16, 7
+          ],
+          "line-blur": 2,
+          "line-opacity": 0.5,
+          "line-translate": [2, 2]
         },
       })
-    }
 
-    // 서울 경계선 레이어 - 항상 추가하고 visibility로 제어 (Context7 패턴)
-    if (map.getSource("seoul-boundary")) {
+      // 메인 서울 경계선 - 깔끔한 아웃라인만
       addLayerSafely("seoul-boundary-line", {
         id: "seoul-boundary-line",
         type: "line",
@@ -321,21 +497,178 @@ export default function HexagonScene() {
           "line-cap": "round",
           visibility: showBoundary ? "visible" : "none"
         },
+        paint: DISTRICT_LAYER_PAINT.seoulBoundaryLine,
+      })
+
+      // 서울 경계 하이라이트 효과 (선택적)
+      addLayerSafely("seoul-boundary-highlight", {
+        id: "seoul-boundary-highlight",
+        type: "line",
+        source: "seoul-boundary",
+        layout: {
+          "line-join": "round",
+          "line-cap": "round",
+          visibility: showBoundary ? "visible" : "none"
+        },
         paint: {
-          "line-color": "#ffffff", // 흰색 경계선
+          "line-color": "rgba(255, 255, 255, 0.3)",
           "line-width": [
             "interpolate",
             ["linear"],
             ["zoom"],
-            8, 2,
-            12, 4,
-            16, 6
+            8, 0.5,
+            12, 1,
+            16, 1.5
           ],
-          "line-opacity": 0.95,
+          "line-blur": 0.5,
+          "line-opacity": 0.6,
+          "line-translate": [-1, -1]
         },
       })
     }
   }
+
+  // District selection data for separate layers
+  const [selectedDistrictData, setSelectedDistrictData] = useState<any>(null)
+
+  // Create fast lookup indices for districts
+  const sggIndex = useMemo(() => {
+    if (!sggData?.features) return new Map()
+    const index = new Map()
+    
+    sggData.features.forEach((f: any) => {
+      const props = f.properties || {}
+      // Add all possible name variations to index
+      if (props.SIGUNGU_NM) index.set(props.SIGUNGU_NM, f)
+      if (props.SIG_KOR_NM) index.set(props.SIG_KOR_NM, f)
+      if (props.GU_NM) index.set(props.GU_NM, f)
+      if (props.nm) index.set(props.nm, f)
+    })
+    
+    return index
+  }, [sggData])
+
+  const dongIndex = useMemo(() => {
+    if (!dongData?.features) return new Map()
+    const index = new Map()
+    
+    dongData.features.forEach((f: any) => {
+      const props = f.properties || {}
+      // Add all possible name variations to index
+      if (props.ADM_NM) index.set(props.ADM_NM, f)
+      if (props.H_DONG_NM) index.set(props.H_DONG_NM, f)
+      if (props.DONG_NM) index.set(props.DONG_NM, f)
+      if (props.ADM_DR_NM) index.set(props.ADM_DR_NM, f)
+      if (props.nm) index.set(props.nm, f)
+    })
+    
+    return index
+  }, [dongData])
+
+  // Simple district selection logic using separate layers (from map click)
+  useEffect(() => {
+    if (districtSelection.selectedDistrict && districtSelection.selectedDistrict !== '없음' && districtSelection.selectedFeature) {
+      // Create a simple FeatureCollection with just the selected feature
+      const selectedFeatureData = {
+        type: 'FeatureCollection',
+        features: [districtSelection.selectedFeature]
+      }
+      
+      console.log('[Setting Selected District from Map Click]', {
+        districtName: districtSelection.selectedDistrict,
+        layerType: districtSelection.selectedFeature?.layer?.id,
+        hasFeature: !!districtSelection.selectedFeature
+      })
+      
+      setSelectedDistrictData(selectedFeatureData)
+    } else if (!selectedGu && !selectedDong) {
+      // Only clear if no filter is selected
+      console.log('[Clearing Selected District]')
+      setSelectedDistrictData(null)
+    }
+  }, [districtSelection.selectedDistrict, districtSelection.selectedFeature, selectedGu, selectedDong])
+
+  // Filter-based district selection (from filter panel) - OPTIMIZED with FlyTo animation
+  useEffect(() => {
+    // Skip if there's a map-clicked selection
+    if (districtSelection.selectedDistrict && districtSelection.selectedDistrict !== '없음') {
+      return
+    }
+
+    if (selectedGu || selectedDong) {
+      const targetName = selectedDong || selectedGu
+      
+      let foundFeature = null
+      
+      // Fast lookup using Map index - O(1) instead of O(n)
+      if (selectedDong) {
+        const dongFeature = dongIndex.get(selectedDong)
+        if (dongFeature) {
+          foundFeature = dongFeature
+        }
+      }
+      
+      // Fast lookup for sgg if dong not found
+      if (!foundFeature && selectedGu) {
+        const sggFeature = sggIndex.get(selectedGu)
+        if (sggFeature) {
+          foundFeature = sggFeature
+        }
+      }
+      
+      if (foundFeature) {
+        const selectedFeatureData = {
+          type: 'FeatureCollection',
+          features: [foundFeature]
+        }
+        
+        setSelectedDistrictData(selectedFeatureData)
+        
+        // Get pre-calculated center point for camera movement
+        const center = selectedDong 
+          ? getDistrictCenter('동', selectedDong)
+          : getDistrictCenter('구', selectedGu!)
+        
+        if (center) {
+          // Determine zoom level and pitch based on selection type
+          const isDistrictLevel = !selectedDong && selectedGu // 구 레벨
+          const zoom = isDistrictLevel ? 12.5 : 14 // 구: 12.5, 동: 14
+          const pitch = isDistrictLevel ? 45 : 50 // 구: 45도, 동: 50도
+          
+          // Smooth camera movement using FlyToInterpolator
+          setInitialViewState(prevState => ({
+            ...prevState,
+            longitude: center[0],
+            latitude: center[1],
+            zoom,
+            pitch,
+            bearing: prevState.bearing || 0, // Preserve current bearing
+            transitionDuration: 1000, // 1 second smooth animation (faster)
+            transitionInterpolator: new FlyToInterpolator(),
+            transitionEasing: (t: number) => t * (2 - t) // ease-in-out curve
+          }))
+        }
+      } else {
+        setSelectedDistrictData(null)
+      }
+    } else {
+      // Reset to Seoul overview when no filter is selected
+      setSelectedDistrictData(null)
+      
+      // Return to default Seoul view
+      setInitialViewState(prevState => ({
+        ...prevState,
+        longitude: SEOUL_COORDINATES[0],
+        latitude: SEOUL_COORDINATES[1],
+        zoom: 11,
+        pitch: 45,
+        bearing: prevState.bearing || 0,
+        transitionDuration: 800, // Faster return animation
+        transitionInterpolator: new FlyToInterpolator(),
+        transitionEasing: (t: number) => t * (2 - t)
+      }))
+    }
+  }, [selectedGu, selectedDong, districtSelection.selectedDistrict]) // Removed sggIndex, dongIndex from dependencies
 
   // Memory cleanup effect
   useEffect(() => {
@@ -356,11 +689,17 @@ export default function HexagonScene() {
       {/* Map Section - Left Side */}
       <div className={`relative transition-all duration-500 ${showChartPanel ? 'w-3/5' : 'w-full'}`}>
         {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
+        {console.log('[DeckGL Config]', {
+          selectionMode: districtSelection.selectionMode,
+          layersCount: deckLayers.length,
+          hasGetTooltip: !!getTooltip,
+          layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
+        })}
         <DeckGL
         initialViewState={initialViewState}
         controller={true}
-        layers={districtSelection.selectionMode ? [] : deckLayers}
-        getTooltip={districtSelection.selectionMode ? undefined : getTooltip}
+        layers={false ? [] : deckLayers} // 임시로 selectionMode 무시하고 항상 레이어 표시
+        getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
         onLoad={rotateCamera} // Start rotation when deck.gl loads
         onDragStart={() => {
           userInteractingRef.current = true
@@ -384,7 +723,7 @@ export default function HexagonScene() {
           }
         }}
       >
-        <Map
+        <MapGL
           ref={mapRef}
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyles[currentLayer as keyof typeof mapStyles]}
@@ -395,67 +734,90 @@ export default function HexagonScene() {
             }
           }}
           onDblClick={districtSelection.handleMapReset}
-          interactiveLayerIds={districtSelection.selectionMode ? ['sgg-fill'] : []}
+          onMouseMove={(e: MapLayerMouseEvent) => {
+            if (e.features && e.features.length > 0) {
+              const feature = e.features[0]
+              if (feature.properties?.SIGUNGU_NM) {
+                setHoveredDistrict(feature.properties.SIGUNGU_NM)
+                mapRef.current!.getCanvas().style.cursor = 'pointer'
+              }
+            } else {
+              setHoveredDistrict(null)
+              mapRef.current!.getCanvas().style.cursor = ''
+            }
+          }}
+          onMouseLeave={() => {
+            setHoveredDistrict(null)
+            mapRef.current!.getCanvas().style.cursor = ''
+          }}
+          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-fill', 'dong-line']}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
-          {/* District layers */}
+          {/* District layers with enhanced visualization */}
           {sggData && (
             <Source id="sgg-source" type="geojson" data={sggData}>
+              {/* District fill FIRST - base layer */}
               <Layer
                 id="sgg-fill"
                 type="fill"
                 paint={DISTRICT_LAYER_PAINT.sggFill}
                 layout={{ 
-                  visibility: (!districtSelection.selectionMode && districtSelection.sggVisible) || 
-                             districtSelection.selectionMode ? 'visible' : 'none' 
+                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
                 }}
               />
+              
+              {/* District lines ON TOP of fill */}
               <Layer
                 id="sgg-line"
                 type="line"
                 paint={DISTRICT_LAYER_PAINT.sggLine}
                 layout={{ 
-                  visibility: (!districtSelection.selectionMode && districtSelection.sggVisible) || 
-                             districtSelection.selectionMode ? 'visible' : 'none' 
+                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
                 }}
               />
               
-              {/* Selected district highlight */}
-              {districtSelection.selectionMode && districtSelection.selectedFeature && (
+              {/* Hover effect for districts */}
+              {hoveredDistrict && hoveredDistrict !== districtSelection.selectedDistrict && (
                 <>
                   <Layer
-                    id="sgg-select-fill"
+                    id="sgg-hover-fill"
                     type="fill"
-                    paint={DISTRICT_LAYER_PAINT.selectedFill}
-                    filter={['==', ['get', 'SIGUNGU_NM'], districtSelection.selectedDistrict]}
+                    paint={DISTRICT_LAYER_PAINT.hoverFill}
+                    filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
                   />
                   <Layer
-                    id="sgg-select-line"
+                    id="sgg-hover-line"
                     type="line"
-                    paint={DISTRICT_LAYER_PAINT.selectedLine(districtSelection.dashPhase)}
-                    filter={['==', ['get', 'SIGUNGU_NM'], districtSelection.selectedDistrict]}
+                    paint={DISTRICT_LAYER_PAINT.hoverLine}
+                    filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
                   />
                 </>
               )}
+              
+              {/* Removed - using setPaintProperty instead */}
             </Source>
           )}
           
           {/* Dong layers */}
-          {dongData && !districtSelection.selectionMode && (
+          {dongData && (
             <Source id="dong-source" type="geojson" data={dongData}>
+              {/* Dong fill FIRST - base layer */}
               <Layer
                 id="dong-fill"
                 type="fill"
                 paint={DISTRICT_LAYER_PAINT.dongFill}
                 layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
               />
+              {/* Dong lines ON TOP of fill */}
               <Layer
                 id="dong-line"
                 type="line"
                 paint={DISTRICT_LAYER_PAINT.dongLine}
                 layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
               />
+              
+              {/* Removed - using setPaintProperty instead */}
             </Source>
           )}
           
@@ -471,26 +833,45 @@ export default function HexagonScene() {
               />
             </Source>
           )}
-        </Map>
+
+          {/* Selected District Layer - SEPARATE LAYER ON TOP */}
+          {selectedDistrictData && (
+            <Source id="selected-district-source" type="geojson" data={selectedDistrictData}>
+              {/* Selected district fill - Purple gradient style */}
+              <Layer
+                id="selected-district-fill"
+                type="fill"
+                paint={{
+                  'fill-color': '#667eea',  // Modern purple
+                  'fill-opacity': 0.6       // Semi-transparent
+                }}
+              />
+              
+              {/* Selected district outline - Light purple */}
+              <Layer
+                id="selected-district-line"
+                type="line"
+                paint={{
+                  'line-color': '#a78bfa',  // Light purple
+                  'line-width': 3,          // Medium thick line
+                  'line-opacity': 0.9
+                }}
+              />
+            </Source>
+          )}
+        </MapGL>
       </DeckGL>
       
-      {/* District Mode Control */}
-      <DistrictModeControl
-        selectionMode={districtSelection.selectionMode}
-        onModeChange={districtSelection.setSelectionMode}
-        selectedDistrict={districtSelection.selectedDistrict}
-        sggVisible={districtSelection.sggVisible}
-        dongVisible={districtSelection.dongVisible}
-        jibVisible={districtSelection.jibVisible}
-        onSggVisibleChange={districtSelection.setSggVisible}
-        onDongVisibleChange={districtSelection.setDongVisible}
-        onJibVisibleChange={districtSelection.setJibVisible}
-        zoomLevel={initialViewState.zoom}
+
+      {/* LocalEconomy Filter Panel - Positioned properly above map */}
+      <LocalEconomyFilterPanel
+        hexagonData={hexagonData}
+        climateData={climateData}
+        onFilterChange={handleFilterChange}
       />
 
       {/* 통합 컨트롤 패널 */}
-      {!districtSelection.selectionMode && (
-        <UnifiedControls
+      <UnifiedControls
         // 지도 컨트롤 props
         onLayerChange={handleLayerChange}
         onTimeChange={handleTimeChange}
@@ -502,29 +883,24 @@ export default function HexagonScene() {
           setShowBoundary(show)
           const map = mapRef.current?.getMap()
           if (map) {
-            const layer = map.getLayer('seoul-boundary-line')
-            if (layer) {
-              try {
-                map.setLayoutProperty('seoul-boundary-line', 'visibility', show ? 'visible' : 'none')
-              } catch (error) {
-                console.warn('Failed to toggle seoul boundary visibility:', error)
+            // Toggle all Seoul boundary layers
+            const boundaryLayers = ['seoul-boundary-shadow', 'seoul-boundary-line', 'seoul-boundary-highlight']
+            boundaryLayers.forEach(layerId => {
+              const layer = map.getLayer(layerId)
+              if (layer) {
+                try {
+                  map.setLayoutProperty(layerId, 'visibility', show ? 'visible' : 'none')
+                } catch (error) {
+                  console.warn(`Failed to toggle ${layerId} visibility:`, error)
+                }
               }
-            }
+            })
           }
         }}
         onSeoulBaseToggle={(show) => {
           setShowSeoulBase(show)
-          const map = mapRef.current?.getMap()
-          if (map) {
-            const layer = map.getLayer('seoul-3d-extrusion')
-            if (layer) {
-              try {
-                map.setLayoutProperty('seoul-3d-extrusion', 'visibility', show ? 'visible' : 'none')
-              } catch (error) {
-                console.warn('Failed to toggle seoul 3D extrusion visibility:', error)
-              }
-            }
-          }
+          // Seoul base is now removed, this toggle can be deprecated or repurposed
+          console.log('Seoul base toggle is deprecated - boundary only mode active')
         }}
         // 레이어 컨트롤 props
         visible={layerConfig.visible}
@@ -542,6 +918,11 @@ export default function HexagonScene() {
         onUpperPercentileChange={setUpperPercentile}
         onColorSchemeChange={setColorScheme}
         onReset={resetConfig}
+        // 색상 모드 props
+        colorMode={colorMode}
+        onColorModeChange={setColorMode}
+        selectedHour={selectedHour}
+        onSelectedHourChange={setSelectedHour}
         // 애니메이션 props
         animationEnabled={layerConfig.animationEnabled}
         animationSpeed={layerConfig.animationSpeed}
@@ -563,39 +944,73 @@ export default function HexagonScene() {
         onRotationDirectionChange={setRotationDirection}
         onToggleRotation={toggleRotation}
         />
-      )}
 
       {showHint && (
-        <div className="absolute bottom-4 right-4 bg-black bg-opacity-70 text-white text-sm px-4 py-2 rounded-lg transition-opacity duration-1000 opacity-80 hover:opacity-100 z-10">
-          <div className="flex items-center space-x-2">
-            <span>🗺️</span>
-            <span>드래그하여 지도를 탐색하세요</span>
+        <div className="absolute bottom-4 right-4 info-panel glow-effect transition-all duration-1000 opacity-90 hover:opacity-100 z-10">
+          <div className="flex items-center gap-3">
+            <span className="text-2xl">🗺️</span>
+            <div>
+              <div className="font-semibold text-white mb-1">지도 탐색 가이드</div>
+              <div className="text-sm text-white/80">드래그하여 지도를 탐색하고, 클릭하여 자치구를 선택하세요</div>
+            </div>
           </div>
         </div>
       )}
 
-      {/* 서울 정보 패널 */}
-      <div className="absolute bottom-4 left-4 bg-black/80 backdrop-blur-md rounded-lg border border-white/20 p-4 text-white z-10">
-        <h3 className="font-bold text-lg mb-2 flex items-center space-x-2">
+      {/* Business Category Legend */}
+      <BusinessCategoryLegend />
+
+      {/* 서울 정보 패널 - Enhanced modern design */}
+      <div className="absolute bottom-4 right-[226px] info-panel z-10">
+        <h3 className="info-panel-header">
           <span>서울특별시</span>
-          {showBoundary && <span className="text-xs bg-blue-500/30 px-2 py-1 rounded">경계표시</span>}
-          {showSeoulBase && <span className="text-xs bg-purple-500/30 px-2 py-1 rounded">3D효과</span>}
-          {layerConfig.visible && <span className="text-xs bg-green-500/30 px-2 py-1 rounded">HexagonLayer</span>}
-          {rotationEnabled && <span className="text-xs bg-orange-500/30 px-2 py-1 rounded">360°회전</span>}
-        </h3>
-        <div className="text-sm space-y-1 text-white/80">
-          <div>
-            📍 위치: {SEOUL_COORDINATES[1].toFixed(4)}°N, {SEOUL_COORDINATES[0].toFixed(4)}°E
+          <div className="flex items-center gap-2">
+            {showBoundary && <span className="badge badge-blue">경계표시</span>}
+            {layerConfig.visible && <span className="badge badge-green">데이터</span>}
+            {rotationEnabled && <span className="badge badge-purple">360°</span>}
           </div>
-          <div>🏙️ 인구: 약 970만명</div>
-          <div>📏 면적: 605.21 km²</div>
-          <div>🏛️ 자치구: 25개 구역</div>
-          <div>🌡️ 현재 시간: {new Date().toLocaleTimeString("ko-KR")}</div>
+        </h3>
+        <div className="info-panel-content space-y-2">
+          <div className="flex items-center gap-2">
+            <span className="text-purple-400">📍</span>
+            <span>위치: {SEOUL_COORDINATES[1].toFixed(4)}°N, {SEOUL_COORDINATES[0].toFixed(4)}°E</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-blue-400">🏙️</span>
+            <span>인구: 약 970만명</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-green-400">📏</span>
+            <span>면적: 605.21 km²</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-yellow-400">🏛️</span>
+            <span>자치구: 25개 구역</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-orange-400">🌡️</span>
+            <span>현재 시간: {new Date().toLocaleTimeString("ko-KR")}</span>
+          </div>
           {hexagonData && (
-            <div>📊 데이터 포인트: {hexagonData.length}개</div>
+            <div className="flex items-center gap-2">
+              <span className="text-cyan-400">📊</span>
+              <span>데이터 포인트: {hexagonData.length.toLocaleString()}개</span>
+            </div>
           )}
           {rotationEnabled && (
-            <div>🧭 회전각도: {bearingDisplay} ({rotationDirectionText})</div>
+            <div className="flex items-center gap-2">
+              <span className="text-indigo-400">🧭</span>
+              <span>회전각도: {bearingDisplay} ({rotationDirectionText})</span>
+            </div>
+          )}
+          {(districtSelection.selectedDistrict || hoveredDistrict) && (
+            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
+              <span className="text-purple-400">🎯</span>
+              <span className="font-semibold">
+                {districtSelection.selectedDistrict || hoveredDistrict}
+                {selectedDong && ` - ${selectedDong}`}
+              </span>
+            </div>
           )}
         </div>
       </div>

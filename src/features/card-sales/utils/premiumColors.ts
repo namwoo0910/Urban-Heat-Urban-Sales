@@ -98,10 +98,62 @@ const PREMIUM_COLOR_RANGES = {
   ] as ColorRange
 } as const
 
+// 기후 관련 색상 팔레트 (새로 추가)
+const CLIMATE_COLOR_RANGES = {
+  // 기온 그라데이션 (한파 → 일반 → 온화 → 폭염)
+  temperature: [
+    [0, 100, 255],    // 한파 (파랑)
+    [0, 150, 200],    // 차가움 (청록)
+    [0, 200, 100],    // 일반 (초록)
+    [150, 200, 0],    // 온화 (연두)
+    [255, 200, 0],    // 따뜻함 (노랑)
+    [255, 50, 0]      // 폭염 (빨강)
+  ] as ColorRange,
+  
+  // 불쾌지수 그라데이션 (쾌적 → 보통 → 불쾌)
+  discomfort: [
+    [0, 200, 0],      // 매우 쾌적 (초록)
+    [100, 255, 100],  // 쾌적 (연초록)
+    [255, 255, 0],    // 보통 (노랑)
+    [255, 150, 0],    // 약간 불쾌 (주황)
+    [255, 50, 0],     // 불쾌 (빨강)
+    [200, 0, 0]       // 매우 불쾌 (진빨강)
+  ] as ColorRange,
+  
+  // 기후 경보 (정상 → 주의보 → 경보)
+  alert: [
+    [100, 100, 100],  // 정상 (회색)
+    [150, 150, 150],  // 정상 (밝은 회색)
+    [255, 200, 0],    // 주의 (노랑)
+    [255, 165, 0],    // 주의보 (주황)
+    [255, 50, 0],     // 경보 (빨강)
+    [200, 0, 0]       // 심각 (진빨강)
+  ] as ColorRange,
+  
+  // 강수량 그라데이션 (없음 → 많음)
+  precipitation: [
+    [255, 255, 200],  // 없음 (밝은 노랑)
+    [200, 200, 255],  // 약간 (연한 파랑)
+    [150, 150, 255],  // 보통 (파랑)
+    [100, 100, 255],  // 많음 (진한 파랑)
+    [50, 50, 200],    // 매우 많음 (진파랑)
+    [0, 0, 150]       // 폭우 (짙은 파랑)
+  ] as ColorRange
+} as const
+
+// 기온그룹별 고정 색상 (한파, 일반, 온화, 폭염)
+export const TEMPERATURE_GROUP_COLORS = {
+  '한파': [0, 100, 255],     // 파랑
+  '일반': [0, 200, 100],     // 초록
+  '온화': [255, 200, 0],     // 노랑
+  '폭염': [255, 50, 0]       // 빨강
+} as const
+
 // 전체 색상 팔레트 통합
 export const COLOR_RANGES = {
   ...CLASSIC_COLOR_RANGES,
-  ...PREMIUM_COLOR_RANGES
+  ...PREMIUM_COLOR_RANGES,
+  ...CLIMATE_COLOR_RANGES
 } as const
 
 export type ColorScheme = keyof typeof COLOR_RANGES
@@ -164,12 +216,49 @@ export const COLOR_PALETTE_INFO = {
     description: "신비로운 깊은 바다의 그라데이션", 
     category: "premium",
     gradient: "from-blue-900 via-blue-600 via-teal-400 to-cyan-200"
+  },
+  
+  // 기후 팔레트
+  temperature: {
+    name: "Temperature (기온)",
+    description: "한파에서 폭염까지 기온 변화",
+    category: "climate",
+    gradient: "from-blue-500 via-green-500 via-yellow-400 to-red-500"
+  },
+  discomfort: {
+    name: "Discomfort (불쾌지수)",
+    description: "쾌적함에서 불쾌함까지",
+    category: "climate",
+    gradient: "from-green-500 via-yellow-400 to-red-600"
+  },
+  alert: {
+    name: "Alert (경보)",
+    description: "정상에서 경보까지 단계별 표시",
+    category: "climate",
+    gradient: "from-gray-400 via-yellow-400 via-orange-500 to-red-600"
+  },
+  precipitation: {
+    name: "Precipitation (강수량)",
+    description: "맑음에서 폭우까지 강수량 표시",
+    category: "climate",
+    gradient: "from-yellow-200 via-blue-400 to-blue-800"
   }
 } as const
 
 // 색상 팔레트 미리보기 CSS 생성
 export const getColorPreviewStyle = (scheme: ColorScheme): CSSProperties => {
   const colors = COLOR_RANGES[scheme]
+  
+  // undefined 체크 - 기본값으로 oceanic 사용
+  if (!colors) {
+    console.warn(`[getColorPreviewStyle] Unknown color scheme: ${scheme}, using oceanic as fallback`)
+    const fallbackColors = COLOR_RANGES.oceanic
+    const rgbColors = fallbackColors.map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`).join(', ')
+    return {
+      background: `linear-gradient(to right, ${rgbColors})`
+    }
+  }
+  
   const rgbColors = colors.map(([r, g, b]) => `rgb(${r}, ${g}, ${b})`).join(', ')
   return {
     background: `linear-gradient(to right, ${rgbColors})`
