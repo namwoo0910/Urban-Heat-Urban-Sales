@@ -31,7 +31,7 @@ export class CoordinateMapper {
     if (this.isLoaded) return
 
     try {
-      const response = await fetch('/data/output_json/서울시_행정동_위경도좌표.csv')
+      const response = await fetch('/data/서울시_행정동_위경도좌표.csv')
       const text = await response.text()
       
       // CSV 파싱

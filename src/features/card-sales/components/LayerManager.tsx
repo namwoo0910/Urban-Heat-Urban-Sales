@@ -5,6 +5,7 @@ import { HexagonLayer } from '@deck.gl/aggregation-layers'
 import { ScatterplotLayer, ColumnLayer } from '@deck.gl/layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
+import { MIDDLE_CATEGORY_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/middleCategoryColors'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
 export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'
@@ -13,6 +14,7 @@ export interface HexagonLayerData {
   coordinates: [number, number]
   weight: number
   category?: string
+  middleCategory?: string // 중분류 카테고리 추가
   originalData?: any // 원본 ClimateCardSalesData 저장
 }
 
@@ -28,7 +30,9 @@ export interface LayerConfig {
   animationSpeed: number
   waveAmplitude: number
   // 색상 모드 설정
-  colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity'
+  colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity' | 'category'
+  // 선택된 중분류 카테고리
+  selectedMiddleCategory?: string | null
 }
 
 interface LayerManagerProps {
@@ -491,7 +495,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     
     // 3D 바 설정
     diskResolution: 6,  // 육각형 모양
-    radius: config.radius * 0.03 * config.coverage,  // 카테고리 데이터용 더 작은 반지름 (간격 확보)
+    radius: config.radius * 0.015 * config.coverage,  // 바가 겹치지 않도록 더 작게 조정
     extruded: true,  // 3D 활성화
     wireframe: false,
     filled: true,
@@ -526,7 +530,30 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     
     // 색상 (colorMode에 따라 변경)
     getFillColor: (d: HexagonLayerData) => {
-      // 카테고리 데이터인 경우 카테고리별 고유 색상 사용
+      // 중분류 카테고리 색상 모드인 경우
+      if (config.colorMode === 'category' || config.selectedMiddleCategory) {
+        // 데이터에 중분류가 있으면 해당 색상 사용
+        if (d.middleCategory) {
+          // 선택된 카테고리와 일치하면 해당 색상, 아니면 회색
+          if (!config.selectedMiddleCategory || d.middleCategory === config.selectedMiddleCategory) {
+            return MIDDLE_CATEGORY_COLOR_MAP[d.middleCategory] || DEFAULT_CATEGORY_COLOR
+          } else {
+            // 선택되지 않은 카테고리는 반투명 회색
+            return [128, 128, 128, 100]
+          }
+        }
+        // originalData에서 중분류 정보 확인
+        if (d.originalData?.middleCategory) {
+          const middleCategory = d.originalData.middleCategory
+          if (!config.selectedMiddleCategory || middleCategory === config.selectedMiddleCategory) {
+            return MIDDLE_CATEGORY_COLOR_MAP[middleCategory] || DEFAULT_CATEGORY_COLOR
+          } else {
+            return [128, 128, 128, 100]
+          }
+        }
+      }
+      
+      // 기존 카테고리 데이터인 경우 카테고리별 고유 색상 사용
       if (d.category) {
         const categoryColors: Record<string, [number, number, number, number]> = {
           '음식': [255, 107, 107, 200],      // 연한 빨강
@@ -608,7 +635,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     // 업데이트 트리거
     updateTriggers: {
       getElevation: [config.elevationScale, config.colorMode],  // colorMode 추가
-      getFillColor: [config.colorScheme, config.colorMode],
+      getFillColor: [config.colorScheme, config.colorMode, config.selectedMiddleCategory],
       radius: [config.radius, config.coverage]  // radius와 coverage 추가
     }
   })
@@ -674,7 +701,7 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   visible: true,
-  radius: 500,  // 반지름 500m로 설정
+  radius: 300,  // 반지름 300m로 조정 (바가 겹치지 않도록)
   elevationScale: 1,  // 높이 스케일 1x로 설정 (기본값)
   coverage: 1,
   upperPercentile: 100,
@@ -682,5 +709,6 @@ export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   animationEnabled: false, // 임시로 애니메이션 OFF (툴팁 테스트용)
   animationSpeed: 1.0,
   waveAmplitude: 2.0,
-  colorMode: 'sales' // 색상을 매출액 기반으로 설정
+  colorMode: 'category', // 색상을 카테고리별로 설정
+  selectedMiddleCategory: null // 기본적으로 모든 카테고리 표시
 }

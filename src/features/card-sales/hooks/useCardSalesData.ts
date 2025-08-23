@@ -7,6 +7,7 @@ import type { ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
 import { climateDataLoader } from '../utils/climateDataLoader'
 import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
+import { getCategoryOffset } from '../constants/categoryOffsets'
 
 interface UseLayerStateReturn {
   // 레이어 설정 상태
@@ -272,131 +273,62 @@ export function useLayerState(): UseLayerStateReturn {
     return filteredData
   }, [selectedGu, selectedDong])
 
-  // Create multiple data points for each business category
+  // Create data points with middle category information
   const createCategoryDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
     const categoryPoints: HexagonLayerData[] = []
-    
-    // Define main business categories and their colors (all 10 categories)
-    const mainCategories = [
-      { name: '음식', color: '#FF6B6B' },
-      { name: '쇼핑', color: '#4ECDC4' },
-      { name: '교통', color: '#FFD93D' },
-      { name: '문화/여가', color: '#A855F7' },
-      { name: '의료/건강', color: '#6BCF7F' },
-      { name: '교육', color: '#FF8C42' },
-      { name: '숙박', color: '#4682B4' },
-      { name: '금융', color: '#FD79A8' },
-      { name: '생활서비스', color: '#9370DB' },
-      { name: '공공/기관', color: '#A29BFE' }
-    ]
-    
-    // Grid layout offsets for 10 categories (3x4 grid layout) - 간격 증가
-    const gridOffsets = [
-      { dx: -0.003, dy: 0.004 },     // Row 1, Col 1
-      { dx: -0.001, dy: 0.004 },     // Row 1, Col 2
-      { dx: 0.001, dy: 0.004 },      // Row 1, Col 3
-      { dx: 0.003, dy: 0.004 },      // Row 1, Col 4
-      { dx: -0.003, dy: 0 },         // Row 2, Col 1
-      { dx: -0.001, dy: 0 },         // Row 2, Col 2
-      { dx: 0.001, dy: 0 },          // Row 2, Col 3
-      { dx: 0.003, dy: 0 },          // Row 2, Col 4
-      { dx: -0.002, dy: -0.004 },    // Row 3, Col 1-2
-      { dx: 0.002, dy: -0.004 }      // Row 3, Col 3-4
-    ]
     
     data.forEach(item => {
       if (!item.salesByCategory) return
       
-      // Aggregate sales by main categories
-      const categorySales: Record<string, number> = {
-        '음식': 0,
-        '쇼핑': 0,
-        '교통': 0,
-        '문화/여가': 0,
-        '의료/건강': 0,
-        '교육': 0,
-        '숙박': 0,
-        '금융': 0,
-        '생활서비스': 0,
-        '공공/기관': 0
+      // If a specific middle category is selected, create points only for that category
+      if (selectedMiddleCategory) {
+        // Find sales for the selected middle category
+        const categorySales = item.salesByCategory[selectedMiddleCategory] || 0
+        
+        if (categorySales > 0) {
+          // 선택된 카테고리에도 오프셋 적용 (일관성 유지)
+          const offset = getCategoryOffset(selectedMiddleCategory)
+          
+          categoryPoints.push({
+            coordinates: [
+              item.coordinates[0] + offset.dx,
+              item.coordinates[1] + offset.dy
+            ],
+            weight: categorySales,
+            middleCategory: selectedMiddleCategory,
+            category: selectedMiddleCategory, // For backward compatibility
+            originalData: {
+              ...item,
+              middleCategory: selectedMiddleCategory
+            }
+          })
+        }
+        return // Skip the rest of the processing for this item
       }
       
-      // Map detailed categories to main categories (새로운 구조 대응)
-      Object.entries(item.salesByCategory).forEach(([category, amount]) => {
-        // 중분류 카테고리 매핑 (업데이트된 구조에 맞춤)
-        const categoryName = category.replace('sub_', '') // Remove sub_ prefix if exists
-        
-        // 중분류 매핑
-        if (categoryName === '한식' || categoryName === '일식/양식/중식' || 
-            categoryName === '제과/커피/패스트푸드' || categoryName === '기타요식' ||
-            categoryName === '일식' || categoryName === '양식' || categoryName === '중식' ||
-            categoryName === '커피전문점' || categoryName === '제과점' || categoryName === '패스트푸드') {
-          categorySales['음식'] += amount
-        } else if (categoryName === '마트/생활잡화' || categoryName === '편의점' || 
-                   categoryName === '백화점' || categoryName === '패션/잡화' || 
-                   categoryName === '기타유통' || categoryName === '음/식료품' ||
-                   categoryName === '대형마트' || categoryName === '슈퍼마켓 기업형' || 
-                   categoryName === '슈퍼마켓 일반형') {
-          categorySales['쇼핑'] += amount
-        } else if (categoryName === '자동차서비스/용품' || categoryName === '자동차판매' || 
-                   categoryName === '주유' || categoryName === '주차장' || 
-                   categoryName === '자동차서비스' || categoryName === '자동차용품' ||
-                   categoryName === '주유소' || categoryName === 'LPG가스') {
-          categorySales['교통'] += amount
-        } else if (categoryName === '스포츠/문화/레저' || categoryName === '스포츠/문화/레저용품' || 
-                   categoryName === '유흥' || categoryName === '영화/공연' || 
-                   categoryName === '노래방' || categoryName === '스포츠시설' ||
-                   categoryName === '실내/실외골프장' || categoryName === '종합레저타운/놀이동산') {
-          categorySales['문화/여가'] += amount
-        } else if (categoryName === '병원' || categoryName === '약국' || 
-                   categoryName === '미용서비스' || categoryName === '일반병원' || 
-                   categoryName === '종합병원' || categoryName === '치과병원' || 
-                   categoryName === '한의원' || categoryName === '동물병원' ||
-                   categoryName === '미용실' || categoryName === '헬스장') {
-          categorySales['의료/건강'] += amount
-        } else if (categoryName === '학습' || categoryName === '학원/학습지' || 
-                   categoryName === '독서실' || categoryName === '서점') {
-          categorySales['교육'] += amount
-        } else if (categoryName === '숙박' || categoryName === '호텔/콘도' || 
-                   categoryName === '모텔,여관,기타숙박') {
-          categorySales['숙박'] += amount
-        } else if (categoryName === '상품권/복권') {
-          categorySales['금융'] += amount
-        } else if (categoryName === '생활서비스' || categoryName === '부동산중개' || 
-                   categoryName === '세탁소' || categoryName === '안마/마사지' ||
-                   categoryName === '싸우나/목욕탕' || categoryName === '예식장/결혼서비스') {
-          categorySales['생활서비스'] += amount
-        } else if (categoryName === '보건소') {
-          categorySales['공공/기관'] += amount
-        } else if (categoryName === '가전/가구' || categoryName === '화장품' || 
-                   categoryName === '사무기기/컴퓨터' || categoryName === '여행') {
-          // 기타 카테고리들을 적절한 메인 카테고리로 분류
-          if (categoryName === '가전/가구' || categoryName === '사무기기/컴퓨터') {
-            categorySales['쇼핑'] += amount
-          } else if (categoryName === '화장품') {
-            categorySales['의료/건강'] += amount
-          } else if (categoryName === '여행') {
-            categorySales['문화/여가'] += amount
-          }
-        }
-      })
-      
-      // Create a data point for each category with sales > 0
-      mainCategories.forEach((cat, index) => {
-        const sales = categorySales[cat.name]
-        if (sales > 0) {
-          const offset = gridOffsets[index]
+      // When no middle category is selected, create points for each category in the data
+      // This shows all categories with their respective colors
+      Object.entries(item.salesByCategory).forEach(([category, sales]) => {
+        if (sales && sales > 0 && !category.startsWith('sub_')) {
+          // 카테고리별 오프셋 적용하여 바가 겹치지 않도록 함
+          const offset = getCategoryOffset(category)
+          
           categoryPoints.push({
             coordinates: [
               item.coordinates[0] + offset.dx,
               item.coordinates[1] + offset.dy
             ],
             weight: sales,
-            category: cat.name,  // 카테고리 이름을 최상위 레벨에 저장
-            originalData: item  // 원본 데이터 그대로 저장
+            middleCategory: category,
+            category: category,
+            originalData: {
+              ...item,
+              middleCategory: category
+            }
           })
         }
       })
+      // The rest of the original category aggregation logic is now handled above
     })
     
     console.log(`[createCategoryDataPoints] Created ${categoryPoints.length} category data points`)
@@ -410,7 +342,7 @@ export function useLayerState(): UseLayerStateReturn {
     }
     
     return categoryPoints
-  }, [])
+  }, [selectedMiddleCategory])
 
   // 전체 데이터 로딩 함수
   const loadData = useCallback(async () => {
@@ -487,7 +419,7 @@ export function useLayerState(): UseLayerStateReturn {
       const hexData = createCategoryDataPoints(filteredData)
       setHexagonData(hexData)
     }
-  }, [selectedGu, selectedDong, climateData, applyHierarchicalFilters, createCategoryDataPoints])
+  }, [selectedGu, selectedDong, selectedMiddleCategory, climateData, applyHierarchicalFilters, createCategoryDataPoints])
   
   return {
     // 레이어 설정 상태

@@ -13,7 +13,7 @@ import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer,
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
-import { BusinessCategoryLegend } from "./BusinessCategoryLegend"
+import { MiddleCategoryLegend } from "./MiddleCategoryLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
@@ -276,7 +276,11 @@ export default function HexagonScene() {
   }, [])
 
   // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
-  const deckLayers = createColumnLayer(hexagonData, layerConfig)
+  const deckLayers = createColumnLayer(hexagonData, {
+    ...layerConfig,
+    selectedMiddleCategory: selectedMiddleCategory,
+    colorMode: selectedMiddleCategory ? 'category' : layerConfig.colorMode
+  })
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -957,8 +961,8 @@ export default function HexagonScene() {
         </div>
       )}
 
-      {/* Business Category Legend */}
-      <BusinessCategoryLegend />
+      {/* Middle Category Legend */}
+      <MiddleCategoryLegend selectedCategory={selectedMiddleCategory} />
 
       {/* 서울 정보 패널 - Enhanced modern design */}
       <div className="absolute bottom-4 right-[226px] info-panel z-10">
