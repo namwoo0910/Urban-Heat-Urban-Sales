@@ -210,6 +210,158 @@ export function truncateCategoryName(name: string, maxLength: number = 10): stri
   return name.substring(0, maxLength - 1) + '…'
 }
 
+// 날씨별 데이터 구조 (온도 그룹별 박스플롯)
+export interface WeatherGroupBoxPlotData {
+  temperatureGroup: '한파' | '온화' | '폭염'
+  min: number
+  Q1: number
+  median: number
+  Q3: number
+  max: number
+  mean: number
+  lowerWhisker: number  // min within 1.5*IQR
+  upperWhisker: number  // max within 1.5*IQR
+  error: [number, number]  // For ErrorBar
+}
+
+// 특정 업종의 박스플롯 데이터를 날씨별로 반환
+export function getBoxPlotByCategory(data: BoxPlotDataPoint[], categoryName: string): WeatherGroupBoxPlotData[] | null {
+  const categoryData = data.find(item => item.category === categoryName)
+  
+  if (!categoryData) {
+    return null
+  }
+  
+  // 해당 업종의 실제 박스플롯 통계값을 사용
+  return [
+    {
+      temperatureGroup: '한파',
+      min: categoryData.cold.min,
+      Q1: categoryData.cold.Q1,
+      median: categoryData.cold.median,
+      Q3: categoryData.cold.Q3,
+      max: categoryData.cold.max,
+      mean: categoryData.cold.mean,
+      lowerWhisker: categoryData.cold.lowerWhisker,
+      upperWhisker: categoryData.cold.upperWhisker,
+      error: [
+        categoryData.cold.median - categoryData.cold.lowerWhisker,
+        categoryData.cold.upperWhisker - categoryData.cold.median
+      ]
+    },
+    {
+      temperatureGroup: '온화',
+      min: categoryData.mild.min,
+      Q1: categoryData.mild.Q1,
+      median: categoryData.mild.median,
+      Q3: categoryData.mild.Q3,
+      max: categoryData.mild.max,
+      mean: categoryData.mild.mean,
+      lowerWhisker: categoryData.mild.lowerWhisker,
+      upperWhisker: categoryData.mild.upperWhisker,
+      error: [
+        categoryData.mild.median - categoryData.mild.lowerWhisker,
+        categoryData.mild.upperWhisker - categoryData.mild.median
+      ]
+    },
+    {
+      temperatureGroup: '폭염',
+      min: categoryData.hot.min,
+      Q1: categoryData.hot.Q1,
+      median: categoryData.hot.median,
+      Q3: categoryData.hot.Q3,
+      max: categoryData.hot.max,
+      mean: categoryData.hot.mean,
+      lowerWhisker: categoryData.hot.lowerWhisker,
+      upperWhisker: categoryData.hot.upperWhisker,
+      error: [
+        categoryData.hot.median - categoryData.hot.lowerWhisker,
+        categoryData.hot.upperWhisker - categoryData.hot.median
+      ]
+    }
+  ]
+}
+
+// 모든 업종 이름 가져오기
+export function getAllCategoryNames(data: BoxPlotDataPoint[]): string[] {
+  return data.map(item => item.category).sort()
+}
+
+// 모든 업종 데이터를 날씨 그룹별로 집계
+export function aggregateByWeatherGroup(data: BoxPlotDataPoint[]): WeatherGroupBoxPlotData[] {
+  // 각 날씨별로 모든 업종의 평균 매출액을 수집
+  const coldValues: number[] = []
+  const mildValues: number[] = []
+  const hotValues: number[] = []
+  
+  // 모든 업종의 평균 매출액(mean) 수집 - 각 업종이 하나의 데이터 포인트
+  data.forEach(item => {
+    // 각 업종의 평균 매출액을 사용
+    coldValues.push(item.cold.mean)
+    mildValues.push(item.mild.mean)
+    hotValues.push(item.hot.mean)
+  })
+  
+  // 각 날씨 그룹별로 박스플롯 통계 계산
+  const calculateBoxPlotStats = (values: number[]): Omit<WeatherGroupBoxPlotData, 'temperatureGroup'> => {
+    const sorted = values.sort((a, b) => a - b)
+    const n = sorted.length
+    
+    // 사분위수 계산
+    const Q1Index = Math.floor(n * 0.25)
+    const medianIndex = Math.floor(n * 0.5)
+    const Q3Index = Math.floor(n * 0.75)
+    
+    const Q1 = sorted[Q1Index]
+    const median = sorted[medianIndex]
+    const Q3 = sorted[Q3Index]
+    const IQR = Q3 - Q1
+    
+    // 1.5*IQR 범위 내의 min/max (outlier 제외)
+    const lowerBound = Q1 - 1.5 * IQR
+    const upperBound = Q3 + 1.5 * IQR
+    
+    const validValues = sorted.filter(v => v >= lowerBound && v <= upperBound)
+    const lowerWhisker = validValues.length > 0 ? validValues[0] : sorted[0]
+    const upperWhisker = validValues.length > 0 ? validValues[validValues.length - 1] : sorted[sorted.length - 1]
+    
+    // 평균 계산
+    const mean = values.reduce((sum, v) => sum + v, 0) / values.length
+    
+    return {
+      min: sorted[0],
+      Q1,
+      median,
+      Q3,
+      max: sorted[sorted.length - 1],
+      mean,
+      lowerWhisker,
+      upperWhisker,
+      error: [median - lowerWhisker, upperWhisker - median]
+    }
+  }
+  
+  // 로그 출력으로 데이터 확인
+  console.log('[BoxPlot Aggregation] Cold values:', coldValues.length, 'items')
+  console.log('[BoxPlot Aggregation] Mild values:', mildValues.length, 'items')
+  console.log('[BoxPlot Aggregation] Hot values:', hotValues.length, 'items')
+  
+  return [
+    {
+      temperatureGroup: '한파',
+      ...calculateBoxPlotStats(coldValues)
+    },
+    {
+      temperatureGroup: '온화',
+      ...calculateBoxPlotStats(mildValues)
+    },
+    {
+      temperatureGroup: '폭염',
+      ...calculateBoxPlotStats(hotValues)
+    }
+  ]
+}
+
 // 데이터 정렬 옵션
 export type SortOption = 'name' | 'cold' | 'mild' | 'hot' | 'variance'
 

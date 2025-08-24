@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from 'react'
 import { 
-  chartColors,
   ComposedChart, 
   Bar, 
   XAxis, 
@@ -12,71 +11,209 @@ import {
   Legend, 
   ResponsiveContainer,
   ErrorBar,
-  Scatter
+  Scatter,
+  Cell
 } from '@/src/shared/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/shared/components/ui/select'
 import { 
   loadMediumCategoryData, 
-  loadSmallCategoryData, 
-  type BoxPlotDataPoint,
-  type BoxPlotStats 
+  type BoxPlotDataPoint
 } from '../../data/boxplotData'
 import { 
-  processForErrorBar,
   formatSalesAmount,
-  filterTopCategories,
-  sortBoxPlotData,
-  truncateCategoryName,
-  getStatsSummary,
-  type SortOption,
-  type FlatBoxPlotData
+  aggregateByWeatherGroup,
+  getBoxPlotByCategory,
+  getAllCategoryNames,
+  type WeatherGroupBoxPlotData
 } from '../../utils/boxplotDataProcessor'
 
+// 날씨별 색상 정의
+const WEATHER_COLORS = {
+  '한파': '#3B82F6',  // Blue
+  '온화': '#10B981',  // Green  
+  '폭염': '#EF4444'   // Red
+}
+
+// 커스텀 박스플롯 Shape 컴포넌트
+const CustomBoxPlot = (props: any) => {
+  const { x, y, width, height, payload, background } = props
+  
+  if (!payload) return null
+  
+  const data = payload
+  const color = WEATHER_COLORS[data.temperatureGroup as keyof typeof WEATHER_COLORS]
+  
+  // Bar의 중심 x 좌표
+  const centerX = x + width / 2
+  const boxWidth = width * 0.8
+  const boxLeft = centerX - boxWidth / 2
+  const boxRight = centerX + boxWidth / 2
+  const whiskerWidth = boxWidth * 0.5
+  const whiskerLeft = centerX - whiskerWidth / 2
+  const whiskerRight = centerX + whiskerWidth / 2
+  
+  // background에서 차트 영역 정보 가져오기
+  const chartBottom = background?.y + background?.height || y + height
+  const chartTop = background?.y || y
+  const chartHeight = background?.height || height
+  
+  // Y축 스케일 함수 - 차트 영역 내에서 값의 위치 계산
+  const yScale = (value: number) => {
+    // yDomain은 차트 컴포넌트에서 설정한 값 사용
+    const yDomain = props.yDomain || [0, 100000000]
+    
+    // 값이 도메인 범위를 벗어나면 경계값으로 제한
+    const clampedValue = Math.max(yDomain[0], Math.min(yDomain[1], value))
+    
+    // 도메인 내에서의 비율 계산
+    const ratio = (clampedValue - yDomain[0]) / (yDomain[1] - yDomain[0])
+    
+    // 차트 영역 내에서의 y 좌표 계산 (위에서 아래로)
+    return chartTop + chartHeight * (1 - ratio)
+  }
+  
+  // Y 좌표 계산
+  const yMin = yScale(data.min)
+  const yLowerWhisker = yScale(data.lowerWhisker)
+  const yQ1 = yScale(data.Q1)
+  const yMedian = yScale(data.median)
+  const yQ3 = yScale(data.Q3)
+  const yUpperWhisker = yScale(data.upperWhisker)
+  const yMax = yScale(data.max)
+  const yMean = yScale(data.mean)
+  
+  return (
+    <g>
+      {/* 아래 수염 (lowerWhisker to Q1) */}
+      <line 
+        x1={centerX} 
+        y1={yLowerWhisker} 
+        x2={centerX} 
+        y2={yQ1}
+        stroke={color} 
+        strokeWidth={1.5}
+      />
+      
+      {/* 위 수염 (Q3 to upperWhisker) */}
+      <line 
+        x1={centerX} 
+        y1={yQ3} 
+        x2={centerX} 
+        y2={yUpperWhisker}
+        stroke={color} 
+        strokeWidth={1.5}
+      />
+      
+      {/* 아래 수염 캡 */}
+      <line 
+        x1={whiskerLeft} 
+        y1={yLowerWhisker} 
+        x2={whiskerRight} 
+        y2={yLowerWhisker}
+        stroke={color} 
+        strokeWidth={2}
+      />
+      
+      {/* 위 수염 캡 */}
+      <line 
+        x1={whiskerLeft} 
+        y1={yUpperWhisker} 
+        x2={whiskerRight} 
+        y2={yUpperWhisker}
+        stroke={color} 
+        strokeWidth={2}
+      />
+      
+      {/* IQR 박스 (Q1 to Q3) */}
+      <rect 
+        x={boxLeft} 
+        y={yQ3} 
+        width={boxWidth} 
+        height={Math.abs(yQ1 - yQ3)}
+        fill={color}
+        fillOpacity={0.3}
+        stroke={color}
+        strokeWidth={2}
+      />
+      
+      {/* 중앙값 선 */}
+      <line 
+        x1={boxLeft} 
+        y1={yMedian} 
+        x2={boxRight} 
+        y2={yMedian}
+        stroke={color} 
+        strokeWidth={3}
+      />
+      
+      {/* 평균값 다이아몬드 */}
+      <polygon
+        points={`${centerX},${yMean - 4} ${centerX + 4},${yMean} ${centerX},${yMean + 4} ${centerX - 4},${yMean}`}
+        fill="white"
+        stroke={color}
+        strokeWidth={2}
+      />
+      
+      {/* 이상치 - 아래 */}
+      {data.min < data.lowerWhisker && (
+        <circle 
+          cx={centerX} 
+          cy={yMin} 
+          r={3}
+          fill="none"
+          stroke={color}
+          strokeWidth={1.5}
+        />
+      )}
+      
+      {/* 이상치 - 위 */}
+      {data.max > data.upperWhisker && (
+        <circle 
+          cx={centerX} 
+          cy={yMax} 
+          r={3}
+          fill="none"
+          stroke={color}
+          strokeWidth={1.5}
+        />
+      )}
+    </g>
+  )
+}
+
 // 커스텀 툴팁 컴포넌트
-const CustomBoxPlotTooltip = ({ active, payload, label }: any) => {
+const CustomWeatherTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload || !payload[0]) return null
   
-  const data = payload[0].payload as FlatBoxPlotData
+  const data = payload[0].payload as WeatherGroupBoxPlotData
+  
+  // 온도 그룹별 아이콘
+  const getIcon = (group: string) => {
+    switch(group) {
+      case '한파': return '❄️'
+      case '온화': return '🌤️'
+      case '폭염': return '🔥'
+      default: return '🌡️'
+    }
+  }
   
   return (
     <div className="rounded-lg border bg-background p-3 shadow-lg">
-      <p className="font-semibold mb-2">{label}</p>
+      <p className="font-semibold mb-2 flex items-center gap-2">
+        <span>{getIcon(label)}</span>
+        <span>{label}</span>
+      </p>
       
-      <div className="space-y-3">
-        <div>
-          <p className="text-sm font-medium text-blue-400">❄️ 한파</p>
-          <div className="text-xs text-muted-foreground">
-            <div>최소: {formatSalesAmount(data.coldMin)}</div>
-            <div>Q1: {formatSalesAmount(data.coldQ1)}</div>
-            <div>중앙값: {formatSalesAmount(data.coldMedian)}</div>
-            <div>Q3: {formatSalesAmount(data.coldQ3)}</div>
-            <div>최대: {formatSalesAmount(data.coldMax)}</div>
-            <div>평균: {formatSalesAmount(data.coldMean)}</div>
-          </div>
-        </div>
-        
-        <div>
-          <p className="text-sm font-medium text-green-400">🌤️ 온화</p>
-          <div className="text-xs text-muted-foreground">
-            <div>최소: {formatSalesAmount(data.mildMin)}</div>
-            <div>Q1: {formatSalesAmount(data.mildQ1)}</div>
-            <div>중앙값: {formatSalesAmount(data.mildMedian)}</div>
-            <div>Q3: {formatSalesAmount(data.mildQ3)}</div>
-            <div>최대: {formatSalesAmount(data.mildMax)}</div>
-            <div>평균: {formatSalesAmount(data.mildMean)}</div>
-          </div>
-        </div>
-        
-        <div>
-          <p className="text-sm font-medium text-red-400">🔥 폭염</p>
-          <div className="text-xs text-muted-foreground">
-            <div>최소: {formatSalesAmount(data.hotMin)}</div>
-            <div>Q1: {formatSalesAmount(data.hotQ1)}</div>
-            <div>중앙값: {formatSalesAmount(data.hotMedian)}</div>
-            <div>Q3: {formatSalesAmount(data.hotQ3)}</div>
-            <div>최대: {formatSalesAmount(data.hotMax)}</div>
-            <div>평균: {formatSalesAmount(data.hotMean)}</div>
-          </div>
+      <div className="text-xs text-muted-foreground space-y-1">
+        <div>최소값: {formatSalesAmount(data.min)}</div>
+        <div>Q1: {formatSalesAmount(data.Q1)}</div>
+        <div className="font-semibold">중앙값: {formatSalesAmount(data.median)}</div>
+        <div>Q3: {formatSalesAmount(data.Q3)}</div>
+        <div>최대값: {formatSalesAmount(data.max)}</div>
+        <div className="border-t pt-1 mt-1">
+          <div>평균: {formatSalesAmount(data.mean)}</div>
+          <div>하한 (1.5*IQR): {formatSalesAmount(data.lowerWhisker)}</div>
+          <div>상한 (1.5*IQR): {formatSalesAmount(data.upperWhisker)}</div>
         </div>
       </div>
     </div>
@@ -84,80 +221,76 @@ const CustomBoxPlotTooltip = ({ active, payload, label }: any) => {
 }
 
 export function SalesBoxPlotChart() {
-  const [data, setData] = useState<BoxPlotDataPoint[]>([])
+  const [rawData, setRawData] = useState<BoxPlotDataPoint[]>([])
   const [loading, setLoading] = useState(true)
-  const [categoryType, setCategoryType] = useState<'medium' | 'small'>('medium')
-  const [sortBy, setSortBy] = useState<SortOption>('mild')
-  const [topN, setTopN] = useState<number>(15)
+  const [selectedCategory, setSelectedCategory] = useState<string>('전체')
+  const [categoryList, setCategoryList] = useState<string[]>([])
   
-  // 데이터 로드
+  // 데이터 로드 (중분류 데이터 사용)
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
       try {
-        const loadedData = categoryType === 'medium' 
-          ? await loadMediumCategoryData()
-          : await loadSmallCategoryData()
-        console.log('[BoxPlot] Data loaded:', loadedData.length, 'items')
-        if (loadedData.length > 0) {
-          console.log('[BoxPlot] Sample data:', loadedData[0])
-        }
-        setData(loadedData)
+        const loadedData = await loadMediumCategoryData()
+        console.log('[BoxPlot] Raw data loaded:', loadedData.length, 'categories')
+        setRawData(loadedData)
+        
+        // 업종 리스트 생성
+        const categories = getAllCategoryNames(loadedData)
+        setCategoryList(['전체', ...categories])
       } catch (error) {
         console.error('[BoxPlot] Failed to load data:', error)
-        setData([]) // Set empty array on error
+        setRawData([])
       } finally {
         setLoading(false)
       }
     }
     
     loadData()
-  }, [categoryType])
+  }, [])
   
-  // 데이터 처리 및 정렬
+  // 선택된 업종에 따라 데이터 처리
   const processedData = useMemo(() => {
-    if (!data.length) {
+    if (!rawData.length) {
       console.log('[BoxPlot] No data to process')
       return []
     }
     
-    // 정렬 및 필터링
-    const sorted = sortBoxPlotData(data, sortBy)
-    const filtered = filterTopCategories(sorted, topN, 'median')
-    
-    // 플랫한 구조로 변환 (ErrorBar 사용)
-    const flatData = processForErrorBar(filtered)
-    
-    // 카테고리명 축약
-    const result = flatData.map(item => ({
-      ...item,
-      category: truncateCategoryName(item.category, 12)
-    }))
-    
-    console.log('[BoxPlot] Processed data:', result.length, 'items')
-    if (result.length > 0) {
-      console.log('[BoxPlot] Sample processed:', result[0])
+    if (selectedCategory === '전체') {
+      // 모든 업종 데이터를 날씨 그룹별로 집계
+      const aggregatedData = aggregateByWeatherGroup(rawData)
+      console.log('[BoxPlot] Aggregated weather data:', aggregatedData)
+      return aggregatedData
+    } else {
+      // 특정 업종의 박스플롯 데이터
+      const categoryData = getBoxPlotByCategory(rawData, selectedCategory)
+      console.log('[BoxPlot] Category data for', selectedCategory, ':', categoryData)
+      return categoryData || []
     }
-    
-    return result
-  }, [data, sortBy, topN])
+  }, [rawData, selectedCategory])
   
-  // Y축 도메인 계산
+  // Y축 도메인 계산 (선택된 데이터에 맞게 조정)
   const yDomain = useMemo(() => {
     if (!processedData.length) return [0, 100000000]
     
-    const allValues = processedData.flatMap(item => [
-      item.coldUpperWhisker,
-      item.mildUpperWhisker,
-      item.hotUpperWhisker
-    ])
-    
-    const maxValue = Math.max(...allValues)
-    const minValue = 0
-    
-    return [minValue, maxValue * 1.1]
-  }, [processedData])
-  
+    if (selectedCategory === '전체') {
+      // 전체 선택시: Q3 값 기준으로 설정
+      const q3Values = processedData.map(item => item.Q3)
+      const maxQ3 = Math.max(...q3Values)
+      return [0, maxQ3 * 1.5]
+    } else {
+      // 특정 업종 선택시: upperWhisker 기준
+      const allValues = processedData.flatMap(item => [
+        item.lowerWhisker,
+        item.upperWhisker
+      ])
+      
+      const maxValue = Math.max(...allValues)
+      const minValue = Math.min(...allValues, 0)
+      
+      return [minValue * 0.9, maxValue * 1.1]
+    }
+  }, [processedData, selectedCategory])
   
   if (loading) {
     return (
@@ -167,44 +300,36 @@ export function SalesBoxPlotChart() {
     )
   }
   
+  if (!processedData.length) {
+    return (
+      <div className="flex items-center justify-center h-full">
+        <div className="text-muted-foreground">데이터가 없습니다</div>
+      </div>
+    )
+  }
+  
   return (
     <div className="w-full h-full flex flex-col">
       {/* 컨트롤 패널 */}
       <div className="flex items-center gap-4 mb-4">
-        <Select value={categoryType} onValueChange={(v) => setCategoryType(v as 'medium' | 'small')}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
+        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <SelectTrigger className="w-[200px] bg-white/10 border-white/20 text-white">
+            <SelectValue placeholder="업종 선택" />
           </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="medium">중분류</SelectItem>
-            <SelectItem value="small">소분류</SelectItem>
+          <SelectContent className="max-h-[300px] overflow-y-auto bg-black/90 border-white/20">
+            {categoryList.map(category => (
+              <SelectItem key={category} value={category} className="text-white hover:bg-white/10">
+                {category}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         
-        <Select value={sortBy} onValueChange={(v) => setSortBy(v as SortOption)}>
-          <SelectTrigger className="w-[140px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="name">이름순</SelectItem>
-            <SelectItem value="cold">한파 매출순</SelectItem>
-            <SelectItem value="mild">온화 매출순</SelectItem>
-            <SelectItem value="hot">폭염 매출순</SelectItem>
-            <SelectItem value="variance">변동성순</SelectItem>
-          </SelectContent>
-        </Select>
-        
-        <Select value={topN.toString()} onValueChange={(v) => setTopN(parseInt(v))}>
-          <SelectTrigger className="w-[100px]">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="10">상위 10개</SelectItem>
-            <SelectItem value="15">상위 15개</SelectItem>
-            <SelectItem value="20">상위 20개</SelectItem>
-            <SelectItem value="30">상위 30개</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="text-sm text-muted-foreground">
+          {selectedCategory === '전체' 
+            ? '모든 업종의 평균 매출 분포' 
+            : `${selectedCategory} 업종의 날씨별 매출 분포`}
+        </div>
       </div>
       
       {/* 차트 */}
@@ -212,127 +337,68 @@ export function SalesBoxPlotChart() {
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart 
             data={processedData}
-            margin={{ top: 20, right: 20, bottom: 80, left: 100 }}
+            margin={{ top: 20, right: 30, bottom: 60, left: 100 }}
           >
-              <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-              
-              <XAxis 
-                dataKey="category" 
-                angle={-45}
-                textAnchor="end"
-                height={100}
-                tick={{ fontSize: 11 }}
-              />
-              
-              <YAxis 
-                domain={yDomain}
-                tickFormatter={formatSalesAmount}
-                tick={{ fontSize: 11 }}
-                label={{ 
-                  value: '매출액 (원)', 
-                  angle: -90, 
-                  position: 'insideLeft',
-                  style: { textAnchor: 'middle' }
-                }}
-              />
-              
-              <Tooltip content={<CustomBoxPlotTooltip />} />
-              
-              <Legend 
-                wrapperStyle={{ paddingTop: '20px' }}
-                iconType="rect"
-              />
-              
-              {/* 한파 박스플롯 */}
-              <Bar 
-                dataKey="coldMedian" 
-                fill={chartColors.info}
-                name="한파"
-                barSize={20}
-              >
-                <ErrorBar 
-                  dataKey="coldError" 
-                  width={4} 
-                  stroke={chartColors.info}
-                  strokeWidth={1.5}
-                  direction="y"
-                />
-              </Bar>
-              
-              {/* 한파 평균값 */}
-              <Scatter 
-                dataKey="coldMean" 
-                fill="white"
-                stroke={chartColors.info}
-                strokeWidth={2}
-                shape="circle"
-                name="한파 평균"
-                legendType="none"
-              />
-              
-              {/* 온화 박스플롯 */}
-              <Bar 
-                dataKey="mildMedian" 
-                fill={chartColors.success}
-                name="온화"
-                barSize={20}
-              >
-                <ErrorBar 
-                  dataKey="mildError" 
-                  width={4} 
-                  stroke={chartColors.success}
-                  strokeWidth={1.5}
-                  direction="y"
-                />
-              </Bar>
-              
-              {/* 온화 평균값 */}
-              <Scatter 
-                dataKey="mildMean" 
-                fill="white"
-                stroke={chartColors.success}
-                strokeWidth={2}
-                shape="circle"
-                name="온화 평균"
-                legendType="none"
-              />
-              
-              {/* 폭염 박스플롯 */}
-              <Bar 
-                dataKey="hotMedian" 
-                fill={chartColors.error}
-                name="폭염"
-                barSize={20}
-              >
-                <ErrorBar 
-                  dataKey="hotError" 
-                  width={4} 
-                  stroke={chartColors.error}
-                  strokeWidth={1.5}
-                  direction="y"
-                />
-              </Bar>
-              
-              {/* 폭염 평균값 */}
-              <Scatter 
-                dataKey="hotMean" 
-                fill="white"
-                stroke={chartColors.error}
-                strokeWidth={2}
-                shape="circle"
-                name="폭염 평균"
-                legendType="none"
-              />
-            </ComposedChart>
+            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+            
+            <XAxis 
+              dataKey="temperatureGroup" 
+              tick={{ fontSize: 14, fontWeight: 'bold' }}
+              interval={0}
+            />
+            
+            <YAxis 
+              domain={yDomain}
+              tickFormatter={formatSalesAmount}
+              tick={{ fontSize: 11 }}
+              label={{ 
+                value: '매출액 (원)', 
+                angle: -90, 
+                position: 'insideLeft',
+                style: { textAnchor: 'middle' }
+              }}
+            />
+            
+            <Tooltip content={<CustomWeatherTooltip />} />
+            
+            <Legend 
+              wrapperStyle={{ paddingTop: '20px' }}
+              iconType="rect"
+            />
+            
+            {/* 커스텀 박스플롯 렌더링 */}
+            <Bar 
+              dataKey="median"
+              name="박스플롯"
+              barSize={80}
+              shape={(props: any) => <CustomBoxPlot {...props} yDomain={yDomain} />}
+            />
+          </ComposedChart>
         </ResponsiveContainer>
       </div>
       
       {/* 범례 설명 */}
       <div className="mt-4 text-xs text-muted-foreground border-t pt-3">
         <div className="flex items-center gap-6">
-          <span>📊 막대: 중앙값</span>
-          <span>│ 오차막대: 최소-최대 범위</span>
-          <span>● 흰점: 평균값</span>
+          <span>□ 박스: Q1-Q3 (IQR)</span>
+          <span>─ 중앙선: 중앙값 (Q2)</span>
+          <span>┬┴ 수염: 1.5*IQR 범위</span>
+          <span>◆ 다이아몬드: 평균값</span>
+          <span>○ 원: 이상치</span>
+        </div>
+        <div className="flex items-center gap-4 mt-2">
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded" style={{backgroundColor: WEATHER_COLORS['한파']}}></span>
+            한파
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded" style={{backgroundColor: WEATHER_COLORS['온화']}}></span>
+            온화
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded" style={{backgroundColor: WEATHER_COLORS['폭염']}}></span>
+            폭염
+          </span>
         </div>
       </div>
     </div>
