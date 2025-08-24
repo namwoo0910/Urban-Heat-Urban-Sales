@@ -71,9 +71,9 @@ export class ClimateDataLoader {
       const rawData: RawClimateCardSalesData[] = await response.json()
       
       
-      // 좌표 매칭 및 변환
+      // 좌표 매칭 및 변환 - 구 정보 전달
       const transformedData = rawData
-        .map(item => this.transformData(item))
+        .map(item => this.transformData(item, districtName))
         .filter((item): item is ClimateCardSalesData => item !== null)
       
       // 필터링 적용
@@ -92,12 +92,23 @@ export class ClimateDataLoader {
   /**
    * 원본 데이터를 HexagonLayer 형식으로 변환
    */
-  private transformData(raw: RawClimateCardSalesData): ClimateCardSalesData | null {
-    // 좌표 매칭
-    const coordinate = this.coordinateMapper.getCoordinate(raw.행정동)
+  private transformData(raw: RawClimateCardSalesData, districtName?: string): ClimateCardSalesData | null {
+    // 좌표 매칭 - 구 정보를 활용한 우선순위 처리
+    let coordinate = this.coordinateMapper.getCoordinate(raw.행정동)
+    
+    // 괄호가 포함된 경우 먼저 시도 (예: "신사동(강남)")
+    if (!coordinate && raw.행정동.includes('(')) {
+      // 괄호 제거하고 다시 시도
+      const nameWithoutParens = raw.행정동.split('(')[0].trim()
+      coordinate = this.coordinateMapper.getCoordinate(nameWithoutParens)
+      
+      // 여러 개가 있을 수 있으므로 구 정보로 검증이 필요
+      // 하지만 현재 CSV에는 구 정보가 없으므로 일단 찾은 것 사용
+    }
     
     if (!coordinate) {
-      console.warn(`[ClimateDataLoader] ${raw.행정동}의 좌표를 찾을 수 없습니다`)
+      // 정말 못 찾은 경우만 에러 로그
+      console.error(`[ClimateDataLoader] ⚠️ ${raw.행정동}의 좌표를 찾을 수 없습니다. CSV 파일 확인 필요.`)
       return null
     }
 

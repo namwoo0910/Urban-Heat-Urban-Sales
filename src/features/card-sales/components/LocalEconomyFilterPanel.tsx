@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, Filter, MapPin, Briefcase, BarChart3, RefreshCw } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
@@ -34,6 +34,8 @@ interface LocalEconomyFilterPanelProps {
   externalSelectedDong?: string | null
   externalSelectedMiddleCategory?: string | null
   externalSelectedSubCategory?: string | null
+  // 레이어 초기화 함수
+  onResetLayers?: () => void
 }
 
 // Color palette for business categories
@@ -102,10 +104,15 @@ export default function LocalEconomyFilterPanel({
   externalSelectedGu,
   externalSelectedDong,
   externalSelectedMiddleCategory,
-  externalSelectedSubCategory
+  externalSelectedSubCategory,
+  // 레이어 초기화 함수
+  onResetLayers
 }: LocalEconomyFilterPanelProps) {
   // Panel state
   const [isExpanded, setIsExpanded] = useState(false)
+  
+  // Track if update is from external props to prevent circular updates
+  const isExternalUpdateRef = useRef(false)
   
   // Filter states
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
@@ -144,16 +151,23 @@ export default function LocalEconomyFilterPanel({
     setSelectedSubCategory(value === '전체' ? null : value)
   }
   
-  // Reset all filters
+  // Reset all filters and layers
   const handleReset = () => {
     setSelectedGu(null)
     setSelectedDong(null)
     setSelectedMiddleCategory(null)
     setSelectedSubCategory(null)
+    
+    // 레이어 설정도 초기화
+    if (onResetLayers) {
+      onResetLayers()
+    }
   }
   
-  // Sync external filter state with internal state
+  // Sync external filter state with internal state - FIXED infinite loop with ref
   useEffect(() => {
+    isExternalUpdateRef.current = true
+    
     if (externalSelectedGu !== undefined && externalSelectedGu !== selectedGu) {
       setSelectedGu(externalSelectedGu)
     }
@@ -166,11 +180,16 @@ export default function LocalEconomyFilterPanel({
     if (externalSelectedSubCategory !== undefined && externalSelectedSubCategory !== selectedSubCategory) {
       setSelectedSubCategory(externalSelectedSubCategory)
     }
-  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory, externalSelectedSubCategory])
+    
+    // Reset flag after state updates
+    setTimeout(() => {
+      isExternalUpdateRef.current = false
+    }, 0)
+  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory, externalSelectedSubCategory, selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory])
 
-  // Notify parent of filter changes
+  // Notify parent of filter changes - only if not from external update
   useEffect(() => {
-    if (onFilterChange) {
+    if (onFilterChange && !isExternalUpdateRef.current) {
       onFilterChange({
         selectedGu,
         selectedDong,
@@ -455,11 +474,11 @@ export default function LocalEconomyFilterPanel({
                     variant="outline"
                     size="sm"
                     onClick={handleReset}
-                    className="w-full text-white border-white/20 hover:bg-white/10"
+                    className="w-full bg-white/10 text-white border-white/20 hover:bg-white/20 disabled:opacity-50"
                     disabled={activeFilterCount === 0}
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
-                    필터 초기화
+                    <span>필터 및 레이어 초기화</span>
                   </Button>
                 </div>
                 

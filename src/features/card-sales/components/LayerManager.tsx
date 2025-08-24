@@ -155,7 +155,7 @@ export function LayerManager({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
-        console.log('Wave animation stopped')
+        // Animation stopped
       }
       return
     }
@@ -171,14 +171,14 @@ export function LayerManager({
       animationFrameRef.current = requestAnimationFrame(animate)
     }
     
-    console.log('Wave animation started')
+    // Animation started
     animationFrameRef.current = requestAnimationFrame(animate)
     
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
-        console.log('Wave animation stopped')
+        // Animation stopped
       }
     }
   }, [config.animationEnabled])
@@ -191,23 +191,16 @@ export function LayerManager({
 
   // Create layers with proper dependency management
   const layers = useMemo<Layer[]>(() => {
-    console.log('[LayerManager] Creating layers with:', {
-      hasData: !!data,
-      dataLength: data?.length || 0,
-      visible: config.visible,
-      animationEnabled: config.animationEnabled,
-      radius: config.radius,
-      elevationScale: config.elevationScale
-    })
+    // Creating layers with data
 
     if (!data || !config.visible) {
-      console.log('[LayerManager] No layers created:', { hasData: !!data, visible: config.visible })
+      // No layers created
       return []
     }
 
     // 애니메이션이 활성화된 경우 다중 레이어 생성
     if (config.animationEnabled && groupedData) {
-      console.log(`[LayerManager] Creating ${WAVE_LAYERS} wave layers with ${data.length} total points`)
+      // Creating wave layers
       
       return groupedData.map((groupData, index) => {
         // 각 레이어의 위상차 계산 (0 ~ 2π)
@@ -269,7 +262,7 @@ export function LayerManager({
     }
 
     // 애니메이션이 비활성화된 경우 단일 HexagonLayer
-    console.log('[LayerManager] Creating single static hexagon layer')
+    // Creating single static hexagon layer
     
     const hexagonLayer = new HexagonLayer<HexagonLayerData>({
       id: 'hexagon-layer',
@@ -313,7 +306,7 @@ export function LayerManager({
       }
     })
 
-    console.log('[LayerManager] Single layer created successfully')
+    // Single layer created
     return [hexagonLayer]
   }, [
     data, 
@@ -332,7 +325,7 @@ export function LayerManager({
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current)
         animationFrameRef.current = null
-        console.log('Component unmounted - Wave animation cleaned up')
+        // Component unmounted - cleanup done
       }
     }
   }, [])
@@ -382,28 +375,13 @@ function formatColorValue(value: number | undefined | null, mode: string): strin
 
 // 툴팁 포맷터 (HexagonLayer의 실제 구조에 맞게 수정)
 export function formatTooltip(info: any): string {
-  console.log('[formatTooltip Debug] Input info:', {
-    hasObject: !!info?.object,
-    objectKeys: info?.object ? Object.keys(info.object) : [],
-    object: info?.object,
-    layerId: info?.layer?.id
-  })
-  
   if (!info?.object) {
-    console.log('[formatTooltip Debug] No object found, returning empty string')
     return ''
   }
   
   try {
     // HexagonLayer의 집계된 객체 구조 (deck.gl 문서 기준)
     const { colorValue, elevationValue, count, position } = info.object
-    
-    console.log('[formatTooltip Debug] Extracted values:', {
-      colorValue,
-      elevationValue,
-      count,
-      position
-    })
     
     // colorMode는 LayerConfig에서 가져오기
     const colorMode = info.layer?.props?.colorMode || 'sales'
@@ -428,18 +406,16 @@ export function formatTooltip(info: any): string {
 📌 육각형 반경: ${safeRadius}m
   `.trim()
     
-    console.log('[formatTooltip Debug] Generated tooltip:', tooltipText)
     return tooltipText
     
   } catch (error) {
-    console.error('[formatTooltip Debug] Error generating tooltip:', error)
+    // Error generating tooltip
     return '⚠️ 데이터 로드 중...'
   }
 }
 
 // ScatterplotLayer용 툴팁 포맷터 (구 이름 표시 가능)
 export function formatScatterplotTooltip(info: any): string {
-  console.log('[formatScatterplotTooltip] Input:', info)
   
   if (!info?.object) return ''
   
@@ -471,7 +447,7 @@ export function formatScatterplotTooltip(info: any): string {
 📅 날짜: ${originalData.date || '정보 없음'}
     `.trim()
   } catch (error) {
-    console.error('[formatScatterplotTooltip] Error:', error)
+    // Error in formatScatterplotTooltip
     return '⚠️ 데이터 로드 오류'
   }
 }
@@ -506,7 +482,7 @@ function formatColumnTooltip(object: any): string {
   `.trim()
 }
 
-// ColumnLayer로 3D 바 표시 (구 이름도 표시 가능)
+// ColumnLayer로 3D 바 표시 (구 이름도 표시 가능) - OPTIMIZED with memoization
 export function createColumnLayer(data: HexagonLayerData[] | null, config: LayerConfig & { 
   onHover?: (info: any) => void, 
   onClick?: (info: any) => void,
@@ -514,14 +490,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
 }): Layer[] {
   if (!data || !config.visible) return []
   
-  console.log('[ColumnLayer] Creating with', data.length, 'columns')
-  if (data.length > 0) {
-    console.log('[ColumnLayer] Sample data:', {
-      category: data[0].category,
-      weight: data[0].weight,
-      coordinates: data[0].coordinates
-    })
-  }
+  // Creating column layer
   
   const layer = new ColumnLayer<HexagonLayerData>({
     id: 'column-layer',
@@ -744,7 +713,6 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
 export function createScatterplotLayer(data: HexagonLayerData[] | null, config: LayerConfig): Layer[] {
   if (!data || !config.visible) return []
   
-  console.log('[ScatterplotLayer] Creating with', data.length, 'points')
   
   const layer = new ScatterplotLayer<HexagonLayerData>({
     id: 'scatterplot-layer',

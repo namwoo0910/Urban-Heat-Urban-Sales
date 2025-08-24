@@ -281,20 +281,37 @@ export function useLayerState(): UseLayerStateReturn {
     return filteredData
   }, [selectedGu, selectedDong])
 
-  // Create data points with middle category information
-  const createCategoryDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
+  // Create data points with middle category information - OPTIMIZED for memory and viewport
+  const createCategoryDataPoints = useCallback((data: ClimateCardSalesData[], viewportBounds?: { 
+    north?: number, 
+    south?: number, 
+    east?: number, 
+    west?: number 
+  }): HexagonLayerData[] => {
     const categoryPoints: HexagonLayerData[] = []
+    
+    // Limit data processing to reduce memory usage
+    const MAX_POINTS = 500 // Further reduced for better performance
+    const MAX_CATEGORIES_PER_DONG = 3 // Show only top 3 categories per dong
     
     data.forEach(item => {
       if (!item.salesByCategory) return
+      if (categoryPoints.length >= MAX_POINTS) return // Stop if we have enough points
+      
+      // Viewport filtering - skip points outside current view
+      if (viewportBounds) {
+        const [lng, lat] = item.coordinates
+        if (viewportBounds.north && lat > viewportBounds.north) return
+        if (viewportBounds.south && lat < viewportBounds.south) return
+        if (viewportBounds.east && lng > viewportBounds.east) return
+        if (viewportBounds.west && lng < viewportBounds.west) return
+      }
       
       // If a specific middle category is selected, create points only for that category
       if (selectedMiddleCategory) {
-        // Find sales for the selected middle category
         const categorySales = item.salesByCategory[selectedMiddleCategory] || 0
         
         if (categorySales > 0) {
-          // 선택된 카테고리에도 오프셋 적용 (일관성 유지)
           const offset = getCategoryOffset(selectedMiddleCategory)
           
           categoryPoints.push({
@@ -304,63 +321,61 @@ export function useLayerState(): UseLayerStateReturn {
             ],
             weight: categorySales,
             middleCategory: selectedMiddleCategory,
-            category: selectedMiddleCategory, // For backward compatibility
+            category: selectedMiddleCategory,
+            // Minimize originalData to only essential fields
             originalData: {
-              ...item,
-              middleCategory: selectedMiddleCategory,
-              date: item.date,
               guName: item.guName,
               dongName: item.dongName,
-              categorySales: categorySales
+              categorySales: categorySales,
+              middleCategory: selectedMiddleCategory,
+              coordinates: item.coordinates,
+              temperature: item.temperature,
+              discomfortIndex: item.discomfortIndex,
+              humidity: item.humidity
             }
           })
         }
-        return // Skip the rest of the processing for this item
+        return
       }
       
-      // When no middle category is selected, create points for each category in the data
-      // This shows all categories with their respective colors
-      Object.entries(item.salesByCategory).forEach(([category, sales]) => {
-        if (sales && sales > 0 && !category.startsWith('sub_')) {
-          // 카테고리별 오프셋 적용하여 바가 겹치지 않도록 함
-          const offset = getCategoryOffset(category)
-          
-          categoryPoints.push({
-            coordinates: [
-              item.coordinates[0] + offset.dx,
-              item.coordinates[1] + offset.dy
-            ],
-            weight: sales,
+      // When no category selected, limit to top categories to reduce memory
+      const sortedCategories = Object.entries(item.salesByCategory)
+        .filter(([cat, sales]) => sales && sales > 0 && !cat.startsWith('sub_'))
+        .sort(([, a], [, b]) => (b || 0) - (a || 0))
+        .slice(0, MAX_CATEGORIES_PER_DONG) // Take only top N categories
+      
+      sortedCategories.forEach(([category, sales]) => {
+        if (categoryPoints.length >= MAX_POINTS) return
+        
+        const offset = getCategoryOffset(category)
+        
+        categoryPoints.push({
+          coordinates: [
+            item.coordinates[0] + offset.dx,
+            item.coordinates[1] + offset.dy
+          ],
+          weight: sales,
+          middleCategory: category,
+          category: category,
+          // Minimize originalData
+          originalData: {
+            guName: item.guName,
+            dongName: item.dongName,
+            categorySales: sales,
             middleCategory: category,
-            category: category,
-            originalData: {
-              ...item,
-              middleCategory: category,
-              date: item.date,
-              guName: item.guName,
-              dongName: item.dongName,
-              categorySales: sales
-            }
-          })
-        }
+            coordinates: item.coordinates,
+            temperature: item.temperature,
+            discomfortIndex: item.discomfortIndex,
+            humidity: item.humidity
+          }
+        })
       })
-      // The rest of the original category aggregation logic is now handled above
     })
-    
-    console.log(`[createCategoryDataPoints] Created ${categoryPoints.length} category data points`)
-    if (categoryPoints.length > 0) {
-      const samplePoint = categoryPoints[0]
-      console.log('[createCategoryDataPoints] Sample point:', {
-        category: samplePoint.category,
-        weight: samplePoint.weight,
-        coordinates: samplePoint.coordinates
-      })
-    }
     
     return categoryPoints
   }, [selectedMiddleCategory])
 
-  // Create simple data points with total sales per dong (행정동별 총 매출액)
+  // Create simple data points with total sales per dong (행정동별 총 매출액) - OPTIMIZED
   const createSimpleDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
     const simplePoints: HexagonLayerData[] = []
     
@@ -391,28 +406,25 @@ export function useLayerState(): UseLayerStateReturn {
     })
     
     // Create one point per dong with total sales
-    dongGroups.forEach(({ totalSales, item }, dongKey) => {
+    dongGroups.forEach(({ totalSales, item }) => {
       simplePoints.push({
         coordinates: item.coordinates,
         weight: totalSales,
-        category: '전체',  // Total category
+        category: '전체',
+        // Minimize originalData to only essential fields
         originalData: {
-          ...item,
+          guName: item.guName,
+          dongName: item.dongName,
           categorySales: totalSales,
-          displayMode: 'simple'
+          displayMode: 'simple',
+          coordinates: item.coordinates,
+          temperature: item.temperature,
+          discomfortIndex: item.discomfortIndex,
+          humidity: item.humidity,
+          salesByCategory: item.salesByCategory // Keep for detailed mode switching
         }
       })
     })
-    
-    console.log(`[createSimpleDataPoints] Created ${simplePoints.length} simple data points (one per dong)`)
-    if (simplePoints.length > 0) {
-      const samplePoint = simplePoints[0]
-      console.log('[createSimpleDataPoints] Sample point:', {
-        dongKey: `${samplePoint.originalData?.guName}_${samplePoint.originalData?.dongName}`,
-        totalSales: samplePoint.weight,
-        coordinates: samplePoint.coordinates
-      })
-    }
     
     return simplePoints
   }, [])
@@ -486,22 +498,21 @@ export function useLayerState(): UseLayerStateReturn {
     setLayerConfig(prev => ({ ...prev, colorMode: mode as any }))
   }, [setColorScheme])
   
-  // 컴포넌트 마운트 시 데이터 자동 로딩
+  // Single useEffect for data loading and filtering - OPTIMIZED to prevent duplicate processing
   useEffect(() => {
-    loadData()
-  }, [loadData])
-  
-  // Re-filter data when hierarchical filters or display mode change
-  useEffect(() => {
-    if (climateData && climateData.length > 0) {
-      const filteredData = applyHierarchicalFilters(climateData)
-      // Create data points based on display mode
-      const hexData = displayMode === 'simple' 
-        ? createSimpleDataPoints(filteredData)
-        : createCategoryDataPoints(filteredData)
-      setHexagonData(hexData)
+    // Initial load only when filterOptions change
+    if (!climateData) {
+      loadData()
+      return
     }
-  }, [selectedGu, selectedDong, selectedMiddleCategory, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, displayMode])
+    
+    // Re-filter existing data when filters or display mode change
+    const filteredData = applyHierarchicalFilters(climateData)
+    const hexData = displayMode === 'simple' 
+      ? createSimpleDataPoints(filteredData)
+      : createCategoryDataPoints(filteredData)
+    setHexagonData(hexData)
+  }, [selectedGu, selectedDong, selectedMiddleCategory, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
   
   return {
     // 레이어 설정 상태

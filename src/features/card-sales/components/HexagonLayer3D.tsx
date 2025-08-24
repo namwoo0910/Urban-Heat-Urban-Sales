@@ -38,6 +38,7 @@ export default function HexagonScene() {
     
     // 표시 모드
     displayMode,
+    setDisplayMode,
     toggleDisplayMode,
     selectedHour,
     setVisible,
@@ -173,6 +174,38 @@ export default function HexagonScene() {
   const handleTimeChange = (time: number) => {
     setCurrentTime(time)
   }
+  
+  // 전체 초기화 함수 - 필터, 레이어, 뷰 모두 리셋
+  const handleFullReset = useCallback(() => {
+    // 1. 레이어 설정 초기화
+    resetConfig()
+    
+    // 2. 필터 상태 초기화
+    setSelectedGu(null)
+    setSelectedDong(null)
+    setSelectedMiddleCategory(null)
+    setSelectedSubCategory(null)
+    
+    // 3. 표시 모드를 simple로 리셋
+    setDisplayMode('simple')
+    
+    // 4. 뷰포트를 서울 전체로 리셋
+    isProgrammaticUpdateRef.current = true
+    setViewState({
+      longitude: SEOUL_COORDINATES[0],
+      latitude: SEOUL_COORDINATES[1],
+      zoom: 11,
+      pitch: 60,
+      bearing: 0,
+      transitionDuration: 800,
+      transitionInterpolator: new FlyToInterpolator(),
+      transitionEasing: (t: number) => t * (2 - t)
+    })
+    
+    setTimeout(() => {
+      isProgrammaticUpdateRef.current = false
+    }, 900)
+  }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory, setDisplayMode])
 
   // Official deck.gl rotation pattern implementation (fixed with ref)
   const rotateCamera = useCallback(() => {
@@ -314,7 +347,7 @@ export default function HexagonScene() {
     }
   }, [setHoveredObject])
 
-  // Handle hexagon click for zoom - optimized to match data filter logic
+  // Handle hexagon click for zoom - optimized to match data filter logic + auto switch to detailed mode
   const handleHexagonClick = useCallback((info: PickingInfo) => {
     if (info.object && info.object.originalData) {
       const { guName, dongName } = info.object.originalData
@@ -333,14 +366,18 @@ export default function HexagonScene() {
       if (dongName && guName) {
         setSelectedGu(guName)
         setSelectedDong(dongName)
+        // 클릭으로 줌인 시 자동으로 상세보기 모드로 전환
+        setDisplayMode('detailed')
       } else if (guName) {
         setSelectedGu(guName)
         setSelectedDong(null)
+        // 구 레벨 클릭 시에도 상세보기 모드로 전환
+        setDisplayMode('detailed')
       }
       
-      console.log('[Hexagon Click] Selected:', { guName, dongName })
+      console.log('[Hexagon Click] Selected:', { guName, dongName }, '- Switched to detailed mode')
     }
-  }, [setSelectedGu, setSelectedDong])
+  }, [setSelectedGu, setSelectedDong, setDisplayMode])
 
   // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
   const deckLayers = createColumnLayer(hexagonData, {
@@ -773,6 +810,9 @@ export default function HexagonScene() {
       // Reset to Seoul overview when no filter is selected
       setSelectedDistrictData(null)
       
+      // 전체 서울로 돌아갈 때 단순보기 모드로 자동 복귀
+      setDisplayMode('simple')
+      
       // Return to default Seoul view
       isProgrammaticUpdateRef.current = true
       setViewState(prevState => ({
@@ -792,7 +832,7 @@ export default function HexagonScene() {
         isProgrammaticUpdateRef.current = false
       }, 900)
     }
-  }, [selectedGu, selectedDong, districtSelection.selectedDistrict]) // Removed sggIndex, dongIndex from dependencies
+  }, [selectedGu, selectedDong, districtSelection.selectedDistrict, setDisplayMode]) // Added setDisplayMode for auto mode switching
 
   // Memory cleanup effect
   useEffect(() => {
@@ -1178,6 +1218,8 @@ export default function HexagonScene() {
         externalSelectedDong={selectedDong}
         externalSelectedMiddleCategory={selectedMiddleCategory}
         externalSelectedSubCategory={selectedSubCategory}
+        // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
+        onResetLayers={handleFullReset}
       />
 
       {/* 통합 컨트롤 패널 */}
