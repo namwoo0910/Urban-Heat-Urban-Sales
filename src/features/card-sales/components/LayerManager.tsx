@@ -34,6 +34,8 @@ export interface LayerConfig {
   colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity' | 'category'
   // 선택된 중분류 카테고리
   selectedMiddleCategory?: string | null
+  // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
+  displayMode?: 'simple' | 'detailed'
 }
 
 interface LayerManagerProps {
@@ -484,7 +486,18 @@ function formatColumnTooltip(object: any): string {
   const dongName = originalData.dongName || '정보 없음'
   const middleCategory = originalData.middleCategory || object.middleCategory || '업종 정보 없음'
   const sales = originalData.categorySales || object.weight || 0
+  const displayMode = originalData.displayMode
   
+  // Simple 모드에서는 총 매출액만 표시
+  if (displayMode === 'simple') {
+    return `
+📅 날짜: ${date}
+📍 지역: ${guName} ${dongName}
+💰 총 매출액: ${sales.toLocaleString()}원
+    `.trim()
+  }
+  
+  // Detailed 모드에서는 카테고리별 정보 표시
   return `
 📅 날짜: ${date}
 📍 지역: ${guName} ${dongName}
@@ -494,7 +507,11 @@ function formatColumnTooltip(object: any): string {
 }
 
 // ColumnLayer로 3D 바 표시 (구 이름도 표시 가능)
-export function createColumnLayer(data: HexagonLayerData[] | null, config: LayerConfig): Layer[] {
+export function createColumnLayer(data: HexagonLayerData[] | null, config: LayerConfig & { 
+  onHover?: (info: any) => void, 
+  onClick?: (info: any) => void,
+  hoveredDistrict?: string | null 
+}): Layer[] {
   if (!data || !config.visible) return []
   
   console.log('[ColumnLayer] Creating with', data.length, 'columns')
@@ -510,12 +527,19 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     id: 'column-layer',
     data,
     
-    // 위치
-    getPosition: (d: HexagonLayerData) => d.coordinates,
+    // 위치 - simple 모드에서는 오프셋 없이 원래 좌표 사용
+    getPosition: (d: HexagonLayerData) => {
+      // Simple 모드에서는 오프셋 없이 중앙에 하나의 바만 표시
+      if (config.displayMode === 'simple') {
+        return d.originalData?.coordinates || d.coordinates
+      }
+      // Detailed 모드에서는 카테고리별 오프셋 적용
+      return d.coordinates
+    },
     
     // 3D 바 설정
     diskResolution: 6,  // 육각형 모양
-    radius: 100,  // 100m로 반지름 설정
+    radius: config.displayMode === 'simple' ? 150 : 100,  // Simple 모드에서는 더 큰 반지름
     extruded: true,  // 3D 활성화
     wireframe: false,
     filled: true,
@@ -546,14 +570,75 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     },
     elevationScale: 1,
     
-    // 색상 (colorMode에 따라 변경)
+    // 색상 (colorMode와 displayMode에 따라 변경)
     getFillColor: (d: HexagonLayerData) => {
-      // 중분류 카테고리 색상 모드인 경우
-      if (config.colorMode === 'category' || config.selectedMiddleCategory) {
+      // 호버된 구역(동)과 같은 구역이면 전체 색상 변경
+      const isHoveredDistrict = config.hoveredDistrict && d.originalData?.dongName === config.hoveredDistrict
+      
+      // Simple 모드에서는 매출액 범위별 색상 (7단계 세분화)
+      if (config.displayMode === 'simple') {
+        const sales = d.weight
+        let baseColor: [number, number, number, number]
+        
+        if (sales < 5000000) baseColor = [0, 50, 200, 200]    // 500만원 미만: 진한 파랑
+        else if (sales < 20000000) baseColor = [0, 100, 255, 200]  // 2천만원 미만: 파랑
+        else if (sales < 50000000) baseColor = [0, 200, 200, 200]  // 5천만원 미만: 청록색
+        else if (sales < 100000000) baseColor = [0, 255, 100, 200] // 1억원 미만: 초록색
+        else if (sales < 200000000) baseColor = [255, 200, 0, 200] // 2억원 미만: 노란색
+        else if (sales < 500000000) baseColor = [255, 140, 0, 200] // 5억원 미만: 주황색
+        else baseColor = [255, 50, 0, 200]  // 5억원 이상: 빨간색
+        
+        // 호버된 구역이면 밝기와 채도 증가
+        if (isHoveredDistrict) {
+          return [
+            Math.min(255, baseColor[0] * 1.3),
+            Math.min(255, baseColor[1] * 1.3), 
+            Math.min(255, baseColor[2] * 1.3),
+            240  // 불투명도 증가
+          ]
+        }
+        
+        return baseColor
+      }
+      
+      // Detailed 모드에서는 카테고리별 색상 (실제 중분류 데이터 사용)
+      if (config.displayMode === 'detailed') {
+        // 카테고리 확인 (category, middleCategory, originalData 순서로)
+        const category = d.category || d.middleCategory || d.originalData?.middleCategory || '전체'
+        let baseColor: [number, number, number, number]
+        
+        // 선택된 카테고리가 있을 때만 필터링
+        if (config.selectedMiddleCategory) {
+          // 선택된 카테고리와 일치하면 색상 표시, 아니면 회색
+          if (category === config.selectedMiddleCategory) {
+            baseColor = MIDDLE_CATEGORY_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
+          } else {
+            baseColor = [128, 128, 128, 100]  // 선택되지 않은 카테고리는 회색
+          }
+        } else {
+          // 선택된 카테고리가 없으면 모든 카테고리 색상 표시
+          baseColor = MIDDLE_CATEGORY_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
+        }
+        
+        // 호버된 구역이면 색상 강화
+        if (isHoveredDistrict) {
+          return [
+            Math.min(255, baseColor[0] * 1.4),
+            Math.min(255, baseColor[1] * 1.4), 
+            Math.min(255, baseColor[2] * 1.4),
+            Math.min(255, baseColor[3] * 1.2)
+          ]
+        }
+        
+        return baseColor
+      }
+      
+      // 중분류 카테고리 색상 모드인 경우 (기존 코드 유지)
+      if (config.colorMode === 'category' && config.selectedMiddleCategory) {
         // 데이터에 중분류가 있으면 해당 색상 사용
         if (d.middleCategory) {
           // 선택된 카테고리와 일치하면 해당 색상, 아니면 회색
-          if (!config.selectedMiddleCategory || d.middleCategory === config.selectedMiddleCategory) {
+          if (d.middleCategory === config.selectedMiddleCategory) {
             return MIDDLE_CATEGORY_COLOR_MAP[d.middleCategory] || DEFAULT_CATEGORY_COLOR
           } else {
             // 선택되지 않은 카테고리는 반투명 회색
@@ -563,29 +648,12 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
         // originalData에서 중분류 정보 확인
         if (d.originalData?.middleCategory) {
           const middleCategory = d.originalData.middleCategory
-          if (!config.selectedMiddleCategory || middleCategory === config.selectedMiddleCategory) {
+          if (middleCategory === config.selectedMiddleCategory) {
             return MIDDLE_CATEGORY_COLOR_MAP[middleCategory] || DEFAULT_CATEGORY_COLOR
           } else {
             return [128, 128, 128, 100]
           }
         }
-      }
-      
-      // 기존 카테고리 데이터인 경우 카테고리별 고유 색상 사용
-      if (d.category) {
-        const categoryColors: Record<string, [number, number, number, number]> = {
-          '음식': [255, 107, 107, 200],      // 연한 빨강
-          '쇼핑': [78, 205, 196, 200],       // 청록색
-          '교통': [255, 217, 61, 200],       // 노랑
-          '문화/여가': [168, 85, 247, 200],  // 보라
-          '의료/건강': [107, 207, 127, 200], // 연두
-          '교육': [255, 140, 66, 200],       // 주황
-          '숙박': [70, 130, 180, 200],       // 스틸블루
-          '금융': [253, 121, 168, 200],      // 핑크
-          '생활서비스': [147, 112, 219, 200], // 연보라
-          '공공/기관': [162, 155, 254, 200]  // 라벤더
-        }
-        return categoryColors[d.category] || [128, 128, 128, 200]
       }
       
       const mode = config.colorMode || 'sales'
@@ -634,7 +702,17 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     // 상호작용
     pickable: true,
     autoHighlight: true,
-    highlightColor: [255, 255, 255, 100],
+    highlightColor: (info: any) => {
+      // 호버된 구역(동)과 같은 구역이면 특별한 색상으로 하이라이트
+      if (config.hoveredDistrict && info.object?.originalData?.dongName === config.hoveredDistrict) {
+        return [0, 255, 255, 180]  // 청록색 하이라이트
+      }
+      return [255, 255, 255, 100]  // 기본 하이라이트
+    },
+    
+    // 이벤트 핸들러
+    onHover: config.onHover,
+    onClick: config.onClick,
     
     // 성능
     material: {
@@ -653,7 +731,8 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     // 업데이트 트리거
     updateTriggers: {
       getElevation: [config.elevationScale, config.colorMode],  // colorMode 추가
-      getFillColor: [config.colorScheme, config.colorMode, config.selectedMiddleCategory],
+      getFillColor: [config.colorScheme, config.colorMode, config.selectedMiddleCategory, config.displayMode, config.hoveredDistrict],
+      highlightColor: [config.hoveredDistrict],  // 호버 상태 업데이트
       radius: [config.radius, config.coverage]  // radius와 coverage 추가
     }
   })

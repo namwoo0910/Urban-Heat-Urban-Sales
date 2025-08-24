@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react"
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL, Source, Layer } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
@@ -35,6 +35,10 @@ export default function HexagonScene() {
     isDataLoading,
     dataError,
     colorMode,
+    
+    // 표시 모드
+    displayMode,
+    toggleDisplayMode,
     selectedHour,
     setVisible,
     setRadius,
@@ -105,6 +109,9 @@ export default function HexagonScene() {
   const rotationEnabledRef = useRef(false)
   const userInteractingRef = useRef(false)
   const currentBearingRef = useRef(0)
+  
+  // Track programmatic vs user-initiated view changes to prevent infinite loops
+  const isProgrammaticUpdateRef = useRef(false)
 
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
@@ -188,6 +195,8 @@ export default function HexagonScene() {
     // Update bearing state for UI display
     updateBearing(normalizedBearing)
     
+    // Set programmatic flag for rotation animation
+    isProgrammaticUpdateRef.current = true
     setViewState(prevViewState => {
       return {
         ...prevViewState,
@@ -195,6 +204,7 @@ export default function HexagonScene() {
         transitionDuration,
         transitionInterpolator: new LinearInterpolator(['bearing']),
         onTransitionEnd: () => {
+          isProgrammaticUpdateRef.current = false
           if (rotationEnabledRef.current) {
             rotateCamera()
           }
@@ -276,11 +286,73 @@ export default function HexagonScene() {
     currentBearingRef.current = viewState.bearing || 0
   }, [])
 
+  // Handle hexagon hover for district-wide highlighting
+  const handleHexagonHover = useCallback((info: PickingInfo) => {
+    const canvas = mapRef.current?.getCanvas()
+    
+    if (info.object && info.object.originalData) {
+      const dongName = info.object.originalData.dongName
+      setHoveredObject(info.object)
+      
+      // Set hovered district for district-wide highlighting
+      if (dongName) {
+        setHoveredDistrict(dongName)
+      }
+      
+      // Change cursor to pointer for better UX
+      if (canvas) {
+        canvas.style.cursor = 'pointer'
+      }
+    } else {
+      setHoveredObject(null)
+      setHoveredDistrict(null)
+      
+      // Reset cursor
+      if (canvas) {
+        canvas.style.cursor = 'grab'
+      }
+    }
+  }, [setHoveredObject])
+
+  // Handle hexagon click for zoom - optimized to match data filter logic
+  const handleHexagonClick = useCallback((info: PickingInfo) => {
+    if (info.object && info.object.originalData) {
+      const { guName, dongName } = info.object.originalData
+      
+      // Add visual feedback for click
+      const canvas = mapRef.current?.getCanvas()
+      if (canvas) {
+        canvas.style.cursor = 'grabbing'
+        setTimeout(() => {
+          canvas.style.cursor = 'grab'
+        }, 200)
+      }
+      
+      // Set district selections to trigger zoom - same as data filter
+      // The existing useEffect (lines 703-802) will handle the zoom efficiently
+      if (dongName && guName) {
+        setSelectedGu(guName)
+        setSelectedDong(dongName)
+      } else if (guName) {
+        setSelectedGu(guName)
+        setSelectedDong(null)
+      }
+      
+      console.log('[Hexagon Click] Selected:', { guName, dongName })
+    }
+  }, [setSelectedGu, setSelectedDong])
+
   // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
   const deckLayers = createColumnLayer(hexagonData, {
     ...layerConfig,
     selectedMiddleCategory: selectedMiddleCategory,
-    colorMode: selectedMiddleCategory ? 'category' : layerConfig.colorMode
+    colorMode: selectedMiddleCategory ? 'category' : layerConfig.colorMode,
+    displayMode: displayMode,
+    // Enable interaction handlers
+    onHover: handleHexagonHover,
+    onClick: handleHexagonClick,
+    // District highlighting
+    hoveredDistrict: hoveredDistrict
   })
   
   // 기존 HexagonLayer 코드 (주석 처리)
@@ -674,6 +746,9 @@ export default function HexagonScene() {
           const pitch = isDistrictLevel ? 60 : 65 // 구: 60도, 동: 65도 - Increased for better 3D effect
           
           // Smooth camera movement using FlyToInterpolator
+          // Set programmatic flag to prevent infinite loop
+          isProgrammaticUpdateRef.current = true
+          
           setViewState(prevState => ({
             ...prevState,
             longitude: center[0],
@@ -685,6 +760,11 @@ export default function HexagonScene() {
             transitionInterpolator: new FlyToInterpolator(),
             transitionEasing: (t: number) => t * (2 - t) // ease-in-out curve
           }))
+          
+          // Clear programmatic flag after a delay to allow transition to complete
+          setTimeout(() => {
+            isProgrammaticUpdateRef.current = false
+          }, 1100) // Slightly longer than transition duration
         }
       } else {
         setSelectedDistrictData(null)
@@ -694,6 +774,7 @@ export default function HexagonScene() {
       setSelectedDistrictData(null)
       
       // Return to default Seoul view
+      isProgrammaticUpdateRef.current = true
       setViewState(prevState => ({
         ...prevState,
         longitude: SEOUL_COORDINATES[0],
@@ -705,6 +786,11 @@ export default function HexagonScene() {
         transitionInterpolator: new FlyToInterpolator(),
         transitionEasing: (t: number) => t * (2 - t)
       }))
+      
+      // Clear programmatic flag after transition
+      setTimeout(() => {
+        isProgrammaticUpdateRef.current = false
+      }, 900)
     }
   }, [selectedGu, selectedDong, districtSelection.selectedDistrict]) // Removed sggIndex, dongIndex from dependencies
 
@@ -755,11 +841,17 @@ export default function HexagonScene() {
           }
         }}
         onViewStateChange={({ viewState: newViewState }) => {
+          // Skip if this is a programmatic update to prevent infinite loops
+          if (isProgrammaticUpdateRef.current) {
+            return
+          }
+          
           // Update the viewState to keep DeckGL and MapGL synchronized
-          setViewState(newViewState)
+          const mapViewState = newViewState as MapViewState
+          setViewState(mapViewState)
           
           // Sync bearing ref when view state changes (e.g., during user interaction)
-          if ('bearing' in newViewState && newViewState.bearing !== undefined && newViewState.bearing !== currentBearingRef.current) {
+          if ('bearing' in newViewState && newViewState.bearing !== undefined) {
             currentBearingRef.current = newViewState.bearing
             updateBearing(newViewState.bearing)
           }
@@ -887,34 +979,35 @@ export default function HexagonScene() {
               />
               
               {/* Modern hover effect with neon glow and 3D */}
-              {hoveredDistrict && hoveredDistrict !== districtSelection.selectedDistrict && (
-                <>
-                  
-                  {/* Hover glow effect */}
-                  <Layer
-                    id="sgg-hover-glow"
-                    type="line"
-                    paint={{
-                      'line-color': 'rgba(0, 255, 255, 0.3)',
-                      'line-width': 8,
-                      'line-blur': 4
-                    }}
-                    filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
-                  />
-                  
-                  {/* Hover line with bright neon */}
-                  <Layer
-                    id="sgg-hover-line"
-                    type="line"
-                    paint={{
-                      'line-color': 'rgba(0, 255, 255, 0.9)',
-                      'line-width': 2.5,
-                      'line-opacity': 1
-                    }}
-                    filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
-                  />
-                </>
-              )}
+              {hoveredDistrict && hoveredDistrict !== districtSelection.selectedDistrict && [
+                /* Hover glow effect */
+                <Layer
+                  key="sgg-hover-glow"
+                  id="sgg-hover-glow"
+                  type="line"
+                  source="sgg-source"
+                  paint={{
+                    'line-color': 'rgba(0, 255, 255, 0.3)',
+                    'line-width': 8,
+                    'line-blur': 4
+                  }}
+                  filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
+                />,
+                
+                /* Hover line with bright neon */
+                <Layer
+                  key="sgg-hover-line"
+                  id="sgg-hover-line"
+                  type="line"
+                  source="sgg-source"
+                  paint={{
+                    'line-color': 'rgba(0, 255, 255, 0.9)',
+                    'line-width': 2.5,
+                    'line-opacity': 1
+                  }}
+                  filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
+                />
+              ]}
               
               {/* Removed - using setPaintProperty instead */}
             </Source>
@@ -1078,6 +1171,13 @@ export default function HexagonScene() {
         hexagonData={hexagonData}
         climateData={climateData}
         onFilterChange={handleFilterChange}
+        displayMode={displayMode}
+        onToggleDisplayMode={toggleDisplayMode}
+        // Sync filter state with hexagon interactions
+        externalSelectedGu={selectedGu}
+        externalSelectedDong={selectedDong}
+        externalSelectedMiddleCategory={selectedMiddleCategory}
+        externalSelectedSubCategory={selectedSubCategory}
       />
 
       {/* 통합 컨트롤 패널 */}
@@ -1129,7 +1229,7 @@ export default function HexagonScene() {
         onColorSchemeChange={setColorScheme}
         onReset={resetConfig}
         // 색상 모드 props
-        colorMode={colorMode}
+        colorMode={colorMode === 'alert' ? 'sales' : colorMode}
         onColorModeChange={setColorMode}
         selectedHour={selectedHour}
         onSelectedHourChange={setSelectedHour}

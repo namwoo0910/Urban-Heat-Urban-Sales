@@ -27,6 +27,13 @@ interface LocalEconomyFilterPanelProps {
   climateData?: any[] | null
   onFilterChange?: (filters: FilterState) => void
   className?: string
+  displayMode?: 'simple' | 'detailed'
+  onToggleDisplayMode?: () => void
+  // External filter state synchronization
+  externalSelectedGu?: string | null
+  externalSelectedDong?: string | null
+  externalSelectedMiddleCategory?: string | null
+  externalSelectedSubCategory?: string | null
 }
 
 // Color palette for business categories
@@ -88,7 +95,14 @@ export default function LocalEconomyFilterPanel({
   hexagonData = null,
   climateData = null,
   onFilterChange,
-  className = ""
+  className = "",
+  displayMode = 'simple',
+  onToggleDisplayMode,
+  // External filter state synchronization
+  externalSelectedGu,
+  externalSelectedDong,
+  externalSelectedMiddleCategory,
+  externalSelectedSubCategory
 }: LocalEconomyFilterPanelProps) {
   // Panel state
   const [isExpanded, setIsExpanded] = useState(false)
@@ -138,6 +152,22 @@ export default function LocalEconomyFilterPanel({
     setSelectedSubCategory(null)
   }
   
+  // Sync external filter state with internal state
+  useEffect(() => {
+    if (externalSelectedGu !== undefined && externalSelectedGu !== selectedGu) {
+      setSelectedGu(externalSelectedGu)
+    }
+    if (externalSelectedDong !== undefined && externalSelectedDong !== selectedDong) {
+      setSelectedDong(externalSelectedDong)
+    }
+    if (externalSelectedMiddleCategory !== undefined && externalSelectedMiddleCategory !== selectedMiddleCategory) {
+      setSelectedMiddleCategory(externalSelectedMiddleCategory)
+    }
+    if (externalSelectedSubCategory !== undefined && externalSelectedSubCategory !== selectedSubCategory) {
+      setSelectedSubCategory(externalSelectedSubCategory)
+    }
+  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory, externalSelectedSubCategory])
+
   // Notify parent of filter changes
   useEffect(() => {
     if (onFilterChange) {
@@ -254,6 +284,24 @@ export default function LocalEconomyFilterPanel({
               style={{ overflow: "hidden" }}
             >
               <div className="px-3 pb-3 space-y-3">
+                <Separator className="bg-white/20" />
+                
+                {/* Display Mode Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <BarChart3 size={14} className="text-blue-400" />
+                    <Label className="text-white font-semibold text-xs">표시 모드</Label>
+                  </div>
+                  <Button
+                    onClick={onToggleDisplayMode}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs"
+                  >
+                    {displayMode === 'simple' ? '상세 보기' : '단순 보기'}
+                  </Button>
+                </div>
+                
                 <Separator className="bg-white/20" />
                 
                 {/* District Selection Section */}
