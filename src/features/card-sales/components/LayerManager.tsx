@@ -6,6 +6,7 @@ import { ScatterplotLayer, ColumnLayer } from '@deck.gl/layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import { MIDDLE_CATEGORY_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/middleCategoryColors'
+import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
 export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'
@@ -519,30 +520,28 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     wireframe: false,
     filled: true,
     
-    // 높이 (colorMode에 따라 변경)
+    // 높이 (colorMode에 따라 변경) - 공통 상수 사용
     getElevation: (d: HexagonLayerData) => {
       const mode = config.colorMode || 'sales'
       
       switch(mode) {
         case 'temperature':
-          // 기온: -11.5°C ~ 31.9°C → 높이로 변환
           const temp = d.originalData?.temperature || 20
-          return ((temp + 20) * 100) * config.elevationScale
+          return calculateDataElevation(temp, 'temperature', config.elevationScale)
           
         case 'discomfort':
-          // 불쾌지수: 24 ~ 80 → 높이로 변환
           const discomfort = d.originalData?.discomfortIndex || 50
-          return (discomfort * 50) * config.elevationScale
+          return calculateDataElevation(discomfort, 'discomfort', config.elevationScale)
           
         case 'humidity':
-          // 습도: 0 ~ 100% → 높이로 변환
           const humidity = d.originalData?.humidity || 50
-          return (humidity * 30) * config.elevationScale
+          return calculateDataElevation(humidity, 'humidity', config.elevationScale)
           
         case 'sales':
         default:
-          // 매출액 (기본)
-          return (d.weight / 100000) * config.elevationScale
+          // 매출액은 데이터 포인트가 아닌 카테고리별 합계 사용
+          const salesValue = d.originalData?.categorySales || d.weight || 0
+          return calculateDataElevation(salesValue, 'sales', config.elevationScale)
       }
     },
     elevationScale: 1,
@@ -721,7 +720,7 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   visible: true,
   radius: 300,  // 반지름 300m로 조정 (바가 겹치지 않도록)
-  elevationScale: 1,  // 높이 스케일 1x로 설정 (기본값)
+  elevationScale: 2,  // 높이 스케일 2x로 조정 (서울 경계선과 균형 맞추기)
   coverage: 1,
   upperPercentile: 100,
   colorScheme: 'oceanic', // oceanic으로 변경 (sales는 COLOR_RANGES에 없음)

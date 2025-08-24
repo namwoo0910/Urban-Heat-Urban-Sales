@@ -19,6 +19,7 @@ import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { DISTRICT_LAYER_PAINT, DISTRICT_COLORS, loadDistrictData } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
+import { calculateBoundaryElevation } from "@/src/shared/constants/elevationConstants"
 import "../styles/HexagonLayer.css"
 
 export default function HexagonScene() {
@@ -89,8 +90,8 @@ export default function HexagonScene() {
   const [showBoundary, setShowBoundary] = useState(false)
   const [showSeoulBase, setShowSeoulBase] = useState(false)
   
-  // DeckGL 초기 뷰 상태 (official deck.gl pattern)
-  const [initialViewState, setInitialViewState] = useState<MapViewState>({
+  // DeckGL 뷰 상태 - controlled component pattern for synchronization
+  const [viewState, setViewState] = useState<MapViewState>({
     longitude: 126.978,
     latitude: 37.5665,
     zoom: 11,
@@ -187,9 +188,9 @@ export default function HexagonScene() {
     // Update bearing state for UI display
     updateBearing(normalizedBearing)
     
-    setInitialViewState(viewState => {
+    setViewState(prevViewState => {
       return {
-        ...viewState,
+        ...prevViewState,
         bearing: normalizedBearing,
         transitionDuration,
         transitionInterpolator: new LinearInterpolator(['bearing']),
@@ -265,14 +266,14 @@ export default function HexagonScene() {
 
   // Sync bearing with MapBox when it changes
   useEffect(() => {
-    if (mapRef.current && initialViewState.bearing !== undefined) {
-      mapRef.current.setBearing(initialViewState.bearing)
+    if (mapRef.current && viewState.bearing !== undefined) {
+      mapRef.current.setBearing(viewState.bearing)
     }
-  }, [initialViewState.bearing])
+  }, [viewState.bearing])
 
   // Initialize bearing ref
   useEffect(() => {
-    currentBearingRef.current = initialViewState.bearing || 0
+    currentBearingRef.current = viewState.bearing || 0
   }, [])
 
   // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
@@ -673,7 +674,7 @@ export default function HexagonScene() {
           const pitch = isDistrictLevel ? 60 : 65 // 구: 60도, 동: 65도 - Increased for better 3D effect
           
           // Smooth camera movement using FlyToInterpolator
-          setInitialViewState(prevState => ({
+          setViewState(prevState => ({
             ...prevState,
             longitude: center[0],
             latitude: center[1],
@@ -693,7 +694,7 @@ export default function HexagonScene() {
       setSelectedDistrictData(null)
       
       // Return to default Seoul view
-      setInitialViewState(prevState => ({
+      setViewState(prevState => ({
         ...prevState,
         longitude: SEOUL_COORDINATES[0],
         latitude: SEOUL_COORDINATES[1],
@@ -721,19 +722,20 @@ export default function HexagonScene() {
     }
   }, [])
 
+  console.log('[DeckGL Config]', {
+    selectionMode: districtSelection.selectionMode,
+    layersCount: deckLayers.length,
+    hasGetTooltip: !!getTooltip,
+    layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
+  })
+
   return (
     <div className="relative w-full h-screen flex">
       {/* Map Section - Left Side */}
       <div className={`relative transition-all duration-500 ${showChartPanel ? 'w-3/5' : 'w-full'}`}>
         {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
-        {console.log('[DeckGL Config]', {
-          selectionMode: districtSelection.selectionMode,
-          layersCount: deckLayers.length,
-          hasGetTooltip: !!getTooltip,
-          layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
-        })}
         <DeckGL
-        initialViewState={initialViewState}
+        viewState={viewState}
         controller={true}
         layers={false ? [] : deckLayers} // 임시로 selectionMode 무시하고 항상 레이어 표시
         getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
@@ -752,11 +754,14 @@ export default function HexagonScene() {
             setTimeout(rotateCamera, 1000) // 1 second delay before resuming
           }
         }}
-        onViewStateChange={({ viewState }) => {
+        onViewStateChange={({ viewState: newViewState }) => {
+          // Update the viewState to keep DeckGL and MapGL synchronized
+          setViewState(newViewState)
+          
           // Sync bearing ref when view state changes (e.g., during user interaction)
-          if ('bearing' in viewState && viewState.bearing !== undefined && viewState.bearing !== currentBearingRef.current) {
-            currentBearingRef.current = viewState.bearing
-            updateBearing(viewState.bearing)
+          if ('bearing' in newViewState && newViewState.bearing !== undefined && newViewState.bearing !== currentBearingRef.current) {
+            currentBearingRef.current = newViewState.bearing
+            updateBearing(newViewState.bearing)
           }
         }}
       >
@@ -764,6 +769,7 @@ export default function HexagonScene() {
           ref={mapRef}
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyles[currentLayer as keyof typeof mapStyles]}
+          {...viewState}
           onLoad={handleMapLoad}
           onClick={(e: MapLayerMouseEvent) => {
             if (!districtSelection.handleDistrictClick(e)) {
@@ -794,54 +800,6 @@ export default function HexagonScene() {
           {/* District layers with enhanced 3D visualization */}
           {sggData && (
             <Source id="sgg-source" type="geojson" data={sggData}>
-              {/* 3D Extrusion layer for districts */}
-              <Layer
-                id="sgg-extrusion"
-                type="fill-extrusion"
-                paint={{
-                  'fill-extrusion-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, 'rgba(100, 150, 255, 0.8)',
-                    12, 'rgba(100, 200, 255, 0.85)',
-                    16, 'rgba(150, 220, 255, 0.9)'
-                  ],
-                  'fill-extrusion-height': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, 400,
-                    10, 600,
-                    12, 750,
-                    14, 900,
-                    16, 1000
-                  ],
-                  'fill-extrusion-base': 0,
-                  'fill-extrusion-opacity': 0.6,
-                  'fill-extrusion-ambient-occlusion-intensity': 0.3,
-                  'fill-extrusion-ambient-occlusion-radius': 5
-                }}
-                layout={{ 
-                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                }}
-              />
-              
-              {/* 3D 효과를 위한 그림자 레이어 */}
-              <Layer
-                id="sgg-shadow"
-                type="line"
-                paint={{
-                  'line-color': 'rgba(0, 0, 0, 0.3)',
-                  'line-width': 6,
-                  'line-blur': 4,
-                  'line-translate': [3, 3],
-                  'line-translate-anchor': 'viewport'
-                }}
-                layout={{ 
-                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                }}
-              />
               
               {/* District fill - 2D 배경 (fallback) */}
               <Layer
@@ -931,25 +889,6 @@ export default function HexagonScene() {
               {/* Modern hover effect with neon glow and 3D */}
               {hoveredDistrict && hoveredDistrict !== districtSelection.selectedDistrict && (
                 <>
-                  {/* Hover 3D extrusion effect */}
-                  <Layer
-                    id="sgg-hover-extrusion"
-                    type="fill-extrusion"
-                    paint={{
-                      'fill-extrusion-color': 'rgba(0, 255, 255, 0.8)',
-                      'fill-extrusion-height': [
-                        'interpolate',
-                        ['linear'],
-                        ['zoom'],
-                        8, 600,
-                        12, 1000,
-                        16, 1250
-                      ],
-                      'fill-extrusion-base': 0,
-                      'fill-extrusion-opacity': 0.7
-                    }}
-                    filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
-                  />
                   
                   {/* Hover glow effect */}
                   <Layer
@@ -984,55 +923,6 @@ export default function HexagonScene() {
           {/* Dong layers with 3D effects */}
           {dongData && (
             <Source id="dong-source" type="geojson" data={dongData}>
-              {/* 3D Extrusion layer for dong */}
-              <Layer
-                id="dong-extrusion"
-                type="fill-extrusion"
-                paint={{
-                  'fill-extrusion-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    10, 'rgba(180, 130, 255, 0.7)',
-                    14, 'rgba(200, 150, 255, 0.75)',
-                    18, 'rgba(220, 180, 255, 0.8)'
-                  ],
-                  'fill-extrusion-height': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    10, 200,
-                    12, 300,
-                    14, 400,
-                    16, 500,
-                    18, 600
-                  ],
-                  'fill-extrusion-base': 0,
-                  'fill-extrusion-opacity': 0.5,
-                  'fill-extrusion-ambient-occlusion-intensity': 0.2,
-                  'fill-extrusion-ambient-occlusion-radius': 3
-                }}
-                layout={{ 
-                  visibility: districtSelection.dongVisible ? 'visible' : 'none' 
-                }}
-                minzoom={10}
-              />
-              
-              {/* 3D Shadow layer for dong */}
-              <Layer
-                id="dong-shadow"
-                type="line"
-                paint={{
-                  'line-color': 'rgba(0, 0, 0, 0.2)',
-                  'line-width': 3,
-                  'line-blur': 2,
-                  'line-translate': [1.5, 1.5],
-                  'line-translate-anchor': 'viewport'
-                }}
-                layout={{ 
-                  visibility: districtSelection.dongVisible ? 'visible' : 'none' 
-                }}
-              />
               
               {/* Dong fill with modern gradient (fallback) */}
               <Layer
@@ -1102,7 +992,7 @@ export default function HexagonScene() {
           )}
           
           {/* Jib layers */}
-          {jibData && !districtSelection.selectionMode && initialViewState.zoom > 10 && (
+          {jibData && !districtSelection.selectionMode && viewState.zoom > 10 && (
             <Source id="jib-source" type="geojson" data={jibData}>
               <Layer
                 id="jib-line"
@@ -1117,33 +1007,6 @@ export default function HexagonScene() {
           {/* Selected District Layer with modern 3D effect */}
           {selectedDistrictData && (
             <Source id="selected-district-source" type="geojson" data={selectedDistrictData}>
-              {/* Selected 3D extrusion */}
-              <Layer
-                id="selected-extrusion"
-                type="fill-extrusion"
-                paint={{
-                  'fill-extrusion-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, '#667eea',
-                    12, '#7c3aed',
-                    16, '#8b5cf6'
-                  ],
-                  'fill-extrusion-height': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, 750,
-                    12, 1250,
-                    16, 1500
-                  ],
-                  'fill-extrusion-base': 0,
-                  'fill-extrusion-opacity': 0.8,
-                  'fill-extrusion-ambient-occlusion-intensity': 0.4,
-                  'fill-extrusion-ambient-occlusion-radius': 6
-                }}
-              />
               
               {/* Selected shadow for depth */}
               <Layer
