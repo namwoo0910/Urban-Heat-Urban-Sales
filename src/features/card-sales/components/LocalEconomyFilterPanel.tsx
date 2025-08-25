@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/src/shared/components/ui/button"
 import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
+import { Switch } from "@/src/shared/components/ui/switch"
 import { BarChart } from '@/src/shared/components/charts'
 import { 
   districtHierarchy, 
@@ -36,6 +37,11 @@ interface LocalEconomyFilterPanelProps {
   externalSelectedSubCategory?: string | null
   // 레이어 초기화 함수
   onResetLayers?: () => void
+  // Grid interpolation controls
+  gridInterpolationEnabled?: boolean
+  onGridInterpolationEnabledChange?: (enabled: boolean) => void
+  gridDistributionMethod?: string
+  onGridDistributionMethodChange?: (method: string) => void
 }
 
 // Color palette for business categories
@@ -106,7 +112,12 @@ export default function LocalEconomyFilterPanel({
   externalSelectedMiddleCategory,
   externalSelectedSubCategory,
   // 레이어 초기화 함수
-  onResetLayers
+  onResetLayers,
+  // Grid interpolation controls
+  gridInterpolationEnabled = true,
+  onGridInterpolationEnabledChange,
+  gridDistributionMethod = 'gaussian',
+  onGridDistributionMethodChange
 }: LocalEconomyFilterPanelProps) {
   // Panel state
   const [isExpanded, setIsExpanded] = useState(false)
@@ -164,20 +175,22 @@ export default function LocalEconomyFilterPanel({
     }
   }
   
-  // Sync external filter state with internal state - FIXED infinite loop with ref
+  // External sync disabled to prevent infinite loops
+  // Now using unidirectional data flow: Panel -> Parent only
+  /*
   useEffect(() => {
     isExternalUpdateRef.current = true
     
-    if (externalSelectedGu !== undefined && externalSelectedGu !== selectedGu) {
+    if (externalSelectedGu !== undefined) {
       setSelectedGu(externalSelectedGu)
     }
-    if (externalSelectedDong !== undefined && externalSelectedDong !== selectedDong) {
+    if (externalSelectedDong !== undefined) {
       setSelectedDong(externalSelectedDong)
     }
-    if (externalSelectedMiddleCategory !== undefined && externalSelectedMiddleCategory !== selectedMiddleCategory) {
+    if (externalSelectedMiddleCategory !== undefined) {
       setSelectedMiddleCategory(externalSelectedMiddleCategory)
     }
-    if (externalSelectedSubCategory !== undefined && externalSelectedSubCategory !== selectedSubCategory) {
+    if (externalSelectedSubCategory !== undefined) {
       setSelectedSubCategory(externalSelectedSubCategory)
     }
     
@@ -185,11 +198,12 @@ export default function LocalEconomyFilterPanel({
     setTimeout(() => {
       isExternalUpdateRef.current = false
     }, 0)
-  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory, externalSelectedSubCategory, selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory])
+  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory, externalSelectedSubCategory])
+  */
 
-  // Notify parent of filter changes - only if not from external update
+  // Notify parent of filter changes
   useEffect(() => {
-    if (onFilterChange && !isExternalUpdateRef.current) {
+    if (onFilterChange) {
       onFilterChange({
         selectedGu,
         selectedDong,
@@ -303,6 +317,30 @@ export default function LocalEconomyFilterPanel({
               style={{ overflow: "hidden" }}
             >
               <div className="px-3 pb-3 space-y-3">
+                <Separator className="bg-white/20" />
+                
+                {/* Grid Interpolation Toggle */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-white/80 text-xs">80x80 격자 보간</Label>
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 text-white/60 border-white/30">
+                        가우시안
+                      </Badge>
+                    </div>
+                    <Switch
+                      checked={gridInterpolationEnabled}
+                      onCheckedChange={onGridInterpolationEnabledChange}
+                      className="scale-90"
+                    />
+                  </div>
+                  {gridInterpolationEnabled && (
+                    <div className="text-[10px] text-white/60 italic">
+                      행정동 중심에서 주변으로 자연스럽게 분산
+                    </div>
+                  )}
+                </div>
+                
                 <Separator className="bg-white/20" />
                 
                 {/* Display Mode Toggle */}

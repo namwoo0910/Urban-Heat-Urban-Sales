@@ -15,6 +15,7 @@ import { SalesChartPanel } from "./charts/SalesChartPanel"
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
 import { MiddleCategoryLegend } from "./MiddleCategoryLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
+import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { DISTRICT_LAYER_PAINT, DISTRICT_COLORS, loadDistrictData } from "@/src/shared/utils/districtUtils"
@@ -85,7 +86,13 @@ export default function HexagonScene() {
     setSelectedGu,
     setSelectedDong,
     setSelectedMiddleCategory,
-    setSelectedSubCategory
+    setSelectedSubCategory,
+    
+    // Grid 보간 관련
+    gridInterpolationEnabled,
+    setGridInterpolationEnabled,
+    gridDistributionMethod,
+    setGridDistributionMethod
   } = useLayerState()
   
   // 기본 지도 상태
@@ -117,14 +124,15 @@ export default function HexagonScene() {
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
   
-  // Handle filter panel changes
+  // Handle filter panel changes - simplified to prevent loops
   const handleFilterChange = useCallback((filters: FilterState) => {
-    // Update the hierarchical filter states
-    if (filters.selectedGu !== selectedGu) setSelectedGu(filters.selectedGu)
-    if (filters.selectedDong !== selectedDong) setSelectedDong(filters.selectedDong)
-    if (filters.selectedMiddleCategory !== selectedMiddleCategory) setSelectedMiddleCategory(filters.selectedMiddleCategory)
-    if (filters.selectedSubCategory !== selectedSubCategory) setSelectedSubCategory(filters.selectedSubCategory)
-  }, [selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory, setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory])
+    // Directly update states without checking current values
+    // This prevents unnecessary re-renders and loops
+    setSelectedGu(filters.selectedGu)
+    setSelectedDong(filters.selectedDong)
+    setSelectedMiddleCategory(filters.selectedMiddleCategory)
+    setSelectedSubCategory(filters.selectedSubCategory)
+  }, [setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
@@ -375,7 +383,7 @@ export default function HexagonScene() {
         setDisplayMode('detailed')
       }
       
-      console.log('[Hexagon Click] Selected:', { guName, dongName }, '- Switched to detailed mode')
+      // Hexagon clicked - zoom to selected area
     }
   }, [setSelectedGu, setSelectedDong, setDisplayMode])
 
@@ -737,8 +745,11 @@ export default function HexagonScene() {
 
   // Filter-based district selection (from filter panel) - OPTIMIZED with FlyTo animation
   useEffect(() => {
-    // Skip if there's a map-clicked selection
-    if (districtSelection.selectedDistrict && districtSelection.selectedDistrict !== '없음') {
+    // Skip if there's a map-clicked selection that's different from filter selection
+    if (districtSelection.selectedDistrict && 
+        districtSelection.selectedDistrict !== '없음' &&
+        districtSelection.selectedDistrict !== selectedDong &&
+        districtSelection.selectedDistrict !== selectedGu) {
       return
     }
 
@@ -779,7 +790,7 @@ export default function HexagonScene() {
         if (center) {
           // Determine zoom level and pitch based on selection type
           const isDistrictLevel = !selectedDong && selectedGu // 구 레벨
-          const zoom = isDistrictLevel ? 12.5 : 14 // 구: 12.5, 동: 14
+          const zoom = isDistrictLevel ? 13 : 15 // 구: 13 (더 가까이), 동: 15 (더 상세하게)
           const pitch = isDistrictLevel ? 60 : 65 // 구: 60도, 동: 65도 - Increased for better 3D effect
           
           // Smooth camera movement using FlyToInterpolator
@@ -793,15 +804,15 @@ export default function HexagonScene() {
             zoom,
             pitch,
             bearing: prevState.bearing || 0, // Preserve current bearing
-            transitionDuration: 1000, // 1 second smooth animation (faster)
-            transitionInterpolator: new FlyToInterpolator(),
-            transitionEasing: (t: number) => t * (2 - t) // ease-in-out curve
+            transitionDuration: 1500, // 1.5 seconds for smoother animation
+            transitionInterpolator: new FlyToInterpolator({ speed: 1.2 }),
+            transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t) // smoother ease-in-out
           }))
           
           // Clear programmatic flag after a delay to allow transition to complete
           setTimeout(() => {
             isProgrammaticUpdateRef.current = false
-          }, 1100) // Slightly longer than transition duration
+          }, 1600) // Slightly longer than transition duration
         }
       } else {
         setSelectedDistrictData(null)
@@ -865,6 +876,15 @@ export default function HexagonScene() {
         controller={true}
         layers={false ? [] : deckLayers} // 임시로 selectionMode 무시하고 항상 레이어 표시
         getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
+        getCursor={({isDragging, isHovering}) => {
+          if (isDragging) return 'grabbing'
+          if (isHovering) return 'pointer'
+          return 'grab'
+        }}
+        onClick={(info, event) => {
+          // 이벤트가 레이어로 전파되도록 함
+          return true
+        }}
         onLoad={rotateCamera} // Start rotation when deck.gl loads
         onDragStart={() => {
           userInteractingRef.current = true
@@ -1181,23 +1201,34 @@ export default function HexagonScene() {
                 id="selected-district-line"
                 type="line"
                 paint={{
-                  'line-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, '#a78bfa',
-                    12, '#c084fc',
-                    16, '#e9d5ff'
-                  ],
+                  'line-color': '#00ff88',
                   'line-width': [
                     'interpolate',
                     ['linear'],
                     ['zoom'],
-                    8, 2,
-                    12, 3,
-                    16, 4
+                    8, 3,
+                    12, 5,
+                    16, 7
                   ],
                   'line-opacity': 0.95
+                }}
+              />
+              
+              {/* Inner bright line for emphasis */}
+              <Layer
+                id="selected-district-inner"
+                type="line"
+                paint={{
+                  'line-color': '#ffffff',
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 1,
+                    12, 2,
+                    16, 3
+                  ],
+                  'line-opacity': 0.8
                 }}
               />
             </Source>
@@ -1213,14 +1244,26 @@ export default function HexagonScene() {
         onFilterChange={handleFilterChange}
         displayMode={displayMode}
         onToggleDisplayMode={toggleDisplayMode}
-        // Sync filter state with hexagon interactions
-        externalSelectedGu={selectedGu}
-        externalSelectedDong={selectedDong}
-        externalSelectedMiddleCategory={selectedMiddleCategory}
-        externalSelectedSubCategory={selectedSubCategory}
+        // Grid interpolation props
+        gridInterpolationEnabled={gridInterpolationEnabled}
+        onGridInterpolationEnabledChange={setGridInterpolationEnabled}
+        gridDistributionMethod={gridDistributionMethod}
+        onGridDistributionMethodChange={setGridDistributionMethod}
+        isProcessing={isDataLoading}
         // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
         onResetLayers={handleFullReset}
       />
+
+      {/* 선택된 지역 매출액 정보 */}
+      <SelectedAreaSalesInfo
+        selectedGu={selectedGu}
+        selectedDong={selectedDong}
+        hexagonData={hexagonData}
+        climateData={climateData}
+        gridInterpolationEnabled={gridInterpolationEnabled}
+        visible={!!(selectedGu || selectedDong)}
+      />
+
 
       {/* 통합 컨트롤 패널 */}
       <UnifiedControls

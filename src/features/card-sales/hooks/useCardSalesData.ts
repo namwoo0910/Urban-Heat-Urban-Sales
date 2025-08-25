@@ -8,6 +8,8 @@ import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
 import { climateDataLoader } from '../utils/climateDataLoader'
 import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
 import { getCategoryOffset } from '../constants/categoryOffsets'
+import { useGridInterpolation } from './useGridInterpolation'
+import type { DistributionMethod } from '../types/grid.types'
 
 interface UseLayerStateReturn {
   // 레이어 설정 상태
@@ -18,6 +20,12 @@ interface UseLayerStateReturn {
   climateData: ClimateCardSalesData[] | null
   isDataLoading: boolean
   dataError: string | null
+  
+  // Grid 보간 상태
+  gridInterpolationEnabled: boolean
+  setGridInterpolationEnabled: (enabled: boolean) => void
+  gridDistributionMethod: DistributionMethod
+  setGridDistributionMethod: (method: DistributionMethod) => void
   
   // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
   displayMode: 'simple' | 'detailed'
@@ -290,9 +298,11 @@ export function useLayerState(): UseLayerStateReturn {
   }): HexagonLayerData[] => {
     const categoryPoints: HexagonLayerData[] = []
     
-    // Limit data processing to reduce memory usage
-    const MAX_POINTS = 500 // Further reduced for better performance
-    const MAX_CATEGORIES_PER_DONG = 3 // Show only top 3 categories per dong
+    // Dynamic limits based on data scope
+    // If filtering by dong or gu, allow more points for detailed view
+    const isFiltered = selectedGu || selectedDong
+    const MAX_POINTS = isFiltered ? 5000 : 3000 // More points when zoomed to specific area
+    const MAX_CATEGORIES_PER_DONG = isFiltered ? 10 : 5 // Show more categories when filtered
     
     data.forEach(item => {
       if (!item.salesByCategory) return
@@ -344,8 +354,12 @@ export function useLayerState(): UseLayerStateReturn {
         .sort(([, a], [, b]) => (b || 0) - (a || 0))
         .slice(0, MAX_CATEGORIES_PER_DONG) // Take only top N categories
       
+      // Additional optimization: skip small sales in unfiltered view
+      const minSalesThreshold = isFiltered ? 0 : 1000000 // 100만원 미만 제외 (전체 보기 시)
+      
       sortedCategories.forEach(([category, sales]) => {
         if (categoryPoints.length >= MAX_POINTS) return
+        if (sales < minSalesThreshold) return // Skip small sales in unfiltered view
         
         const offset = getCategoryOffset(category)
         
@@ -373,7 +387,7 @@ export function useLayerState(): UseLayerStateReturn {
     })
     
     return categoryPoints
-  }, [selectedMiddleCategory])
+  }, [selectedMiddleCategory, selectedGu, selectedDong])
 
   // Create simple data points with total sales per dong (행정동별 총 매출액) - OPTIMIZED
   const createSimpleDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
@@ -514,15 +528,53 @@ export function useLayerState(): UseLayerStateReturn {
     setHexagonData(hexData)
   }, [selectedGu, selectedDong, selectedMiddleCategory, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
   
+  // Grid Interpolation Hook
+  const {
+    gridData,
+    isProcessing: isGridProcessing,
+    error: gridError,
+    setEnabled: setGridInterpolationEnabled,
+    setDistributionMethod: setGridDistributionMethod,
+    setDistributionRadius: setGridDistributionRadius,
+    setSmoothing: setGridSmoothing,
+    reprocessData: reprocessGridData
+  } = useGridInterpolation(hexagonData, climateData, {
+    enabled: true, // 기본값 활성화 - Gaussian grid as default
+    gridSize: 80,
+    distributionMethod: 'gaussian',
+    distributionRadius: 1000,
+    enableSmoothing: true,
+    smoothingSigma: 500
+  })
+  
+  // Grid 보간 상태
+  const [gridInterpolationEnabled, setGridEnabled] = useState(true) // Default to true
+  const [gridDistributionMethod, setGridMethod] = useState<DistributionMethod>('gaussian')
+  
+  // Grid 보간 활성화 시 gridData 사용
+  const finalHexagonData = gridInterpolationEnabled && gridData ? gridData : hexagonData
+  
   return {
     // 레이어 설정 상태
     layerConfig,
     
     // 데이터 상태
-    hexagonData,
+    hexagonData: finalHexagonData,
     climateData,
-    isDataLoading,
-    dataError,
+    isDataLoading: isDataLoading || isGridProcessing,
+    dataError: dataError || gridError,
+    
+    // Grid 보간 상태
+    gridInterpolationEnabled,
+    setGridInterpolationEnabled: (enabled: boolean) => {
+      setGridEnabled(enabled)
+      setGridInterpolationEnabled(enabled)
+    },
+    gridDistributionMethod,
+    setGridDistributionMethod: (method: DistributionMethod) => {
+      setGridMethod(method)
+      setGridDistributionMethod(method)
+    },
     
     // 표시 모드
     displayMode,

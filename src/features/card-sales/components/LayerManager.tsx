@@ -36,6 +36,9 @@ export interface LayerConfig {
   selectedMiddleCategory?: string | null
   // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
   displayMode?: 'simple' | 'detailed'
+  // 선택된 지역 필터
+  selectedGu?: string | null
+  selectedDong?: string | null
 }
 
 interface LayerManagerProps {
@@ -264,9 +267,33 @@ export function LayerManager({
     // 애니메이션이 비활성화된 경우 단일 HexagonLayer
     // Creating single static hexagon layer
     
+    // 선택된 지역이 있을 때 필터링된 데이터 생성
+    const filteredData = useMemo(() => {
+      if (!data || (!config.selectedGu && !config.selectedDong)) {
+        return data
+      }
+      
+      // 선택된 지역의 데이터만 강조
+      return data.map(point => {
+        if (point.originalData) {
+          const matchesGu = !config.selectedGu || point.originalData.guName === config.selectedGu
+          const matchesDong = !config.selectedDong || point.originalData.dongName === config.selectedDong
+          
+          if (!matchesGu || !matchesDong) {
+            // 선택되지 않은 지역은 가중치를 줄여서 투명하게 표시
+            return {
+              ...point,
+              weight: point.weight * 0.2 // 20% 투명도
+            }
+          }
+        }
+        return point
+      })
+    }, [data, config.selectedGu, config.selectedDong])
+    
     const hexagonLayer = new HexagonLayer<HexagonLayerData>({
       id: 'hexagon-layer',
-      data,
+      data: filteredData || data,
       
       // 위치 접근자
       getPosition: (d: HexagonLayerData) => d.coordinates,
@@ -301,8 +328,9 @@ export function LayerManager({
       
       // 업데이트 트리거
       updateTriggers: {
-        getColorWeight: [config.colorScheme, config.colorMode],
-        getElevationWeight: [config.elevationScale]
+        getColorWeight: [config.colorScheme, config.colorMode, config.selectedGu, config.selectedDong],
+        getElevationWeight: [config.elevationScale, config.selectedGu, config.selectedDong],
+        data: [config.selectedGu, config.selectedDong]
       }
     })
 
