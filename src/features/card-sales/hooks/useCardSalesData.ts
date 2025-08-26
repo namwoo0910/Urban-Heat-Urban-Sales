@@ -12,6 +12,14 @@ import { useGridInterpolation } from './useGridInterpolation'
 import type { DistributionMethod } from '../types/grid.types'
 
 interface UseLayerStateReturn {
+  // Grid interpolation detailed controls
+  gridDistributionRadius?: number
+  setGridDistributionRadius?: (radius: number) => void
+  gridSmoothingSigma?: number
+  setGridSmoothingSigma?: (sigma: number) => void
+  reprocessGridData?: () => Promise<void>
+  isGridProcessing?: boolean
+  
   // 레이어 설정 상태
   layerConfig: LayerConfig
   
@@ -542,14 +550,16 @@ export function useLayerState(): UseLayerStateReturn {
     enabled: true, // 기본값 활성화 - Gaussian grid as default
     gridSize: 80,
     distributionMethod: 'gaussian',
-    distributionRadius: 1000,
+    distributionRadius: 2500,  // Increased from 1000m to 2500m
     enableSmoothing: true,
-    smoothingSigma: 500
+    smoothingSigma: 1000      // Increased from 500m to 1000m
   })
   
   // Grid 보간 상태
   const [gridInterpolationEnabled, setGridEnabled] = useState(true) // Default to true
   const [gridDistributionMethod, setGridMethod] = useState<DistributionMethod>('gaussian')
+  const [gridDistributionRadius, setGridRadius] = useState(2500)
+  const [gridSmoothingSigma, setGridSigma] = useState(1000)
   
   // Grid 보간 활성화 시 gridData 사용
   const finalHexagonData = gridInterpolationEnabled && gridData ? gridData : hexagonData
@@ -575,6 +585,18 @@ export function useLayerState(): UseLayerStateReturn {
       setGridMethod(method)
       setGridDistributionMethod(method)
     },
+    gridDistributionRadius,
+    setGridDistributionRadius: (radius: number) => {
+      setGridRadius(radius)
+      setGridDistributionRadius(radius)
+    },
+    gridSmoothingSigma,
+    setGridSmoothingSigma: (sigma: number) => {
+      setGridSigma(sigma)
+      setGridSmoothing(true, sigma)
+    },
+    reprocessGridData,
+    isGridProcessing,
     
     // 표시 모드
     displayMode,

@@ -42,7 +42,7 @@ export function Research() {
     // Preload heavy data files in background
     geoJSONLoader.preload([
       '/data/eda/gu.geojson',
-      '/data/eda/dong.geojson',
+      '/data/local_economy/local_economy_dong.geojson',
       '/data/eda/ct.geojson'
     ]).catch(e => console.warn('Preload failed:', e))
   }

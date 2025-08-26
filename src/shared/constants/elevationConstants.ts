@@ -70,10 +70,10 @@ export function calculateDataElevation(
     case 'sales':
     default:
       // 매출액을 선형 스케일로 변경하여 차이를 명확하게 표현
-      // 1백만원 = 10m, 1억원 = 1000m
-      const scaledValue = (value / 100000) // 10만원 단위로 나눔
+      // 1백만원 = 1m, 1억원 = 100m
+      const scaledValue = (value / 1000000) // 100만원 단위로 나눔
       return Math.max(DATA_LAYER_ELEVATION.SALES.MIN_HEIGHT, 
-                     Math.min(DATA_LAYER_ELEVATION.SALES.MAX_HEIGHT, scaledValue * elevationScale))
+                     Math.min(10000, scaledValue * elevationScale))
   }
 }
 

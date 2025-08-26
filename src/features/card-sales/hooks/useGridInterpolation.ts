@@ -87,15 +87,34 @@ export function useGridInterpolation(
     const loadBoundaries = async () => {
       try {
         // Load dong boundaries
-        const dongResponse = await fetch('/data/eda/dong.geojson')
+        const dongResponse = await fetch('/data/local_economy/local_economy_dong.geojson')
+        
+        // Check if response is OK
+        if (!dongResponse.ok) {
+          throw new Error(`Failed to load dong boundaries: ${dongResponse.status} ${dongResponse.statusText}`)
+        }
+        
+        // Check content type (accept both application/json and application/geo+json)
+        const contentType = dongResponse.headers.get('content-type')
+        if (!contentType || (!contentType.includes('application/json') && !contentType.includes('application/geo+json'))) {
+          console.error('Received non-JSON response:', contentType)
+          throw new Error(`Expected JSON but received ${contentType}`)
+        }
+        
         const dongGeoJson = await dongResponse.json()
         
         // Convert to DongBoundary format
-        const dongBounds: DongBoundary[] = dongGeoJson.features.map((feature: any) => ({
-          adm_cd: feature.properties.ADM_CD,
-          adm_nm: feature.properties.ADM_NM,
-          geometry: feature.geometry
-        }))
+        const dongBounds: DongBoundary[] = dongGeoJson.features.map((feature: any, index: number) => {
+          // Handle both old format (ADM_CD, ADM_NM) and new format (자치구, 행정동)
+          const adm_nm = feature.properties.행정동 || feature.properties.ADM_NM
+          const adm_cd = feature.properties.ADM_CD || `dong_${index}_${adm_nm}` // Generate ID if not present
+          
+          return {
+            adm_cd: adm_cd,
+            adm_nm: adm_nm,
+            geometry: feature.geometry
+          }
+        })
         
         setDongBoundaries(dongBounds)
         setSeoulBoundary(dongGeoJson)

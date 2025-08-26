@@ -67,7 +67,7 @@ export class ClimateDataLoader {
     options?: ClimateFilterOptions
   ): Promise<ClimateCardSalesData[]> {
     try {
-      const response = await fetch(`/data/output_json_v2/${districtName}.json`)
+      const response = await fetch(`/data/local_economy/${districtName}.json`)
       const rawData: RawClimateCardSalesData[] = await response.json()
       
       

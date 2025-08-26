@@ -64,7 +64,7 @@ export function useDistrictSelection({ mapRef, onDistrictSelect }: UseDistrictSe
       }
       // For 행정동 (dong)
       else if (feature.layer.id === 'dong-fill') {
-        districtName = props.ADM_NM || props.H_DONG_NM || props.DONG_NM || props.ADM_DR_NM || props.nm || '행정동'
+        districtName = props.행정동 || props.ADM_NM || props.H_DONG_NM || props.DONG_NM || props.ADM_DR_NM || props.nm || '행정동'
       }
       
       setSelectedDistrict(districtName)

@@ -117,7 +117,7 @@ export default function EdaCombinedOptimized() {
         // Phase 2: Load secondary data in parallel
         setLoadingMessage('상세 데이터 로딩 중...');
         const [dong, jib] = await Promise.all([
-          geoJSONLoader.loadWithCache('/data/eda/dong.geojson'),
+          geoJSONLoader.loadWithCache('/data/local_economy/local_economy_dong.geojson'),
           geoJSONLoader.loadWithCache('/data/eda/ct.geojson')
         ]);
         

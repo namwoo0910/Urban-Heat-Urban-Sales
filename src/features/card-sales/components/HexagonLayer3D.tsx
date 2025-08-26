@@ -16,6 +16,7 @@ import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
 import { MiddleCategoryLegend } from "./MiddleCategoryLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
+import { DistrictLabelsLayer, DistrictLabelsOverlay } from "./DistrictLabelsLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { DISTRICT_LAYER_PAINT, DISTRICT_COLORS, loadDistrictData } from "@/src/shared/utils/districtUtils"
@@ -92,7 +93,13 @@ export default function HexagonScene() {
     gridInterpolationEnabled,
     setGridInterpolationEnabled,
     gridDistributionMethod,
-    setGridDistributionMethod
+    setGridDistributionMethod,
+    gridDistributionRadius,
+    setGridDistributionRadius,
+    gridSmoothingSigma,
+    setGridSmoothingSigma,
+    reprocessGridData,
+    isGridProcessing
   } = useLayerState()
   
   // 기본 지도 상태
@@ -101,6 +108,7 @@ export default function HexagonScene() {
   const [showHint, setShowHint] = useState(true)
   const [showBoundary, setShowBoundary] = useState(false)
   const [showSeoulBase, setShowSeoulBase] = useState(false)
+  const [showDistrictLabels, setShowDistrictLabels] = useState(true) // 구 이름 표시
   
   // DeckGL 뷰 상태 - controlled component pattern for synchronization
   const [viewState, setViewState] = useState<MapViewState>({
@@ -182,6 +190,31 @@ export default function HexagonScene() {
   const handleTimeChange = (time: number) => {
     setCurrentTime(time)
   }
+  
+  // 구 이름 클릭 핸들러
+  const handleDistrictLabelClick = useCallback((districtName: string) => {
+    console.log('District label clicked:', districtName)
+    setSelectedGu(districtName)
+    setSelectedDong(null)
+    
+    // 해당 구로 줌인
+    const center = getDistrictCenter(districtName)
+    if (center) {
+      isProgrammaticUpdateRef.current = true
+      setViewState(prev => ({
+        ...prev,
+        longitude: center[0],
+        latitude: center[1],
+        zoom: 12,
+        transitionDuration: 1000,
+        transitionInterpolator: new FlyToInterpolator(),
+        transitionEasing: (t: number) => t * (2 - t)
+      }))
+      setTimeout(() => {
+        isProgrammaticUpdateRef.current = false
+      }, 1100)
+    }
+  }, [setSelectedGu, setSelectedDong])
   
   // 전체 초기화 함수 - 필터, 레이어, 뷰 모두 리셋
   const handleFullReset = useCallback(() => {
@@ -1233,8 +1266,18 @@ export default function HexagonScene() {
               />
             </Source>
           )}
+          
         </MapGL>
       </DeckGL>
+      
+      {/* District Labels Layer - 구 이름 표시 (MapGL 밖에 위치하여 최상위 레이어로) */}
+      {showDistrictLabels && viewState.zoom >= 10 && (
+        <DistrictLabelsOverlay 
+          visible={true}
+          onClick={handleDistrictLabelClick}
+          viewState={viewState}
+        />
+      )}
       
 
       {/* LocalEconomy Filter Panel - Positioned properly above map */}
@@ -1249,7 +1292,12 @@ export default function HexagonScene() {
         onGridInterpolationEnabledChange={setGridInterpolationEnabled}
         gridDistributionMethod={gridDistributionMethod}
         onGridDistributionMethodChange={setGridDistributionMethod}
-        isProcessing={isDataLoading}
+        gridDistributionRadius={gridDistributionRadius}
+        onGridDistributionRadiusChange={setGridDistributionRadius}
+        gridSmoothingSigma={gridSmoothingSigma}
+        onGridSmoothingSigmaChange={setGridSmoothingSigma}
+        onGridReprocess={reprocessGridData}
+        isGridProcessing={isGridProcessing}
         // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
         onResetLayers={handleFullReset}
       />

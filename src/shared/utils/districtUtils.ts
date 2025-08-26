@@ -166,7 +166,7 @@ export const DISTRICT_LAYER_PAINT = {
 
 export const DISTRICT_DATA_URLS = {
   sgg: '/data/eda/gu.geojson',
-  dong: '/data/eda/dong.geojson',
+  dong: '/data/local_economy/local_economy_dong.geojson',
   jib: '/data/eda/ct.geojson'
 }
 

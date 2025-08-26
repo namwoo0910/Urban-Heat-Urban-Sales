@@ -10,7 +10,7 @@ interface MiddleCategoryLegendProps {
 }
 
 export function MiddleCategoryLegend({ selectedCategory }: MiddleCategoryLegendProps) {
-  const [isVisible, setIsVisible] = useState(true)
+  const [isVisible, setIsVisible] = useState(false)
   const [showAll, setShowAll] = useState(false)
 
   // 표시할 카테고리 결정
@@ -20,9 +20,9 @@ export function MiddleCategoryLegend({ selectedCategory }: MiddleCategoryLegendP
 
   return (
     <>
-      {/* Toggle Button */}
+      {/* Toggle Button - positioned at top */}
       <motion.button
-        className="absolute bottom-4 right-4 z-10 bg-gray-900/90 backdrop-blur-sm text-white px-3 py-2 rounded-lg border border-white/10 hover:bg-gray-800/90 transition-colors flex items-center gap-2"
+        className="absolute top-28 right-4 z-10 bg-gray-900/90 backdrop-blur-sm text-white px-3 py-2 rounded-lg border border-white/10 hover:bg-gray-800/90 transition-colors flex items-center gap-2"
         onClick={() => setIsVisible(!isVisible)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
@@ -39,7 +39,7 @@ export function MiddleCategoryLegend({ selectedCategory }: MiddleCategoryLegendP
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 100 }}
             transition={{ duration: 0.3 }}
-            className="absolute bottom-16 right-4 z-10 bg-gray-900/90 backdrop-blur-sm rounded-lg border border-white/10 p-4"
+            className="absolute top-40 right-4 z-10 bg-gray-900/90 backdrop-blur-sm rounded-lg border border-white/10 p-4"
             style={{ minWidth: "220px", maxHeight: "400px", overflowY: "auto" }}
           >
             <div className="flex items-center justify-between mb-3">

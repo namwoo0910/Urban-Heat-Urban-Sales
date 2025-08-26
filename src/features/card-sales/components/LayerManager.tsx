@@ -565,7 +565,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
           return calculateDataElevation(salesValue, 'sales', config.elevationScale)
       }
     },
-    elevationScale: 1,
+    elevationScale: config.elevationScale,
     
     // 색상 (colorMode와 displayMode에 따라 변경)
     getFillColor: (d: HexagonLayerData) => {
@@ -728,6 +728,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     // 업데이트 트리거
     updateTriggers: {
       getElevation: [config.elevationScale, config.colorMode],  // colorMode 추가
+      elevationScale: [config.elevationScale],  // elevationScale 자체도 추가
       getFillColor: [config.colorScheme, config.colorMode, config.selectedMiddleCategory, config.displayMode, config.hoveredDistrict],
       highlightColor: [config.hoveredDistrict],  // 호버 상태 업데이트
       radius: [config.radius, config.coverage]  // radius와 coverage 추가

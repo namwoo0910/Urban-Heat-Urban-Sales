@@ -11,6 +11,8 @@ import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
 import { Switch } from "@/src/shared/components/ui/switch"
 import { BarChart } from '@/src/shared/components/charts'
+import { GridInterpolationControls } from './GridInterpolationControls'
+import type { DistributionMethod } from '../types/grid.types'
 import { 
   districtHierarchy, 
   getAllDistricts, 
@@ -40,8 +42,14 @@ interface LocalEconomyFilterPanelProps {
   // Grid interpolation controls
   gridInterpolationEnabled?: boolean
   onGridInterpolationEnabledChange?: (enabled: boolean) => void
-  gridDistributionMethod?: string
-  onGridDistributionMethodChange?: (method: string) => void
+  gridDistributionMethod?: DistributionMethod
+  onGridDistributionMethodChange?: (method: DistributionMethod) => void
+  gridDistributionRadius?: number
+  onGridDistributionRadiusChange?: (radius: number) => void
+  gridSmoothingSigma?: number
+  onGridSmoothingSigmaChange?: (sigma: number) => void
+  onGridReprocess?: () => void
+  isGridProcessing?: boolean
 }
 
 // Color palette for business categories
@@ -117,7 +125,13 @@ export default function LocalEconomyFilterPanel({
   gridInterpolationEnabled = true,
   onGridInterpolationEnabledChange,
   gridDistributionMethod = 'gaussian',
-  onGridDistributionMethodChange
+  onGridDistributionMethodChange,
+  gridDistributionRadius = 2500,
+  onGridDistributionRadiusChange,
+  gridSmoothingSigma = 1000,
+  onGridSmoothingSigmaChange,
+  onGridReprocess,
+  isGridProcessing = false
 }: LocalEconomyFilterPanelProps) {
   // Panel state
   const [isExpanded, setIsExpanded] = useState(false)
@@ -324,9 +338,11 @@ export default function LocalEconomyFilterPanel({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Label className="text-white/80 text-xs">80x80 격자 보간</Label>
-                      <Badge variant="outline" className="text-[10px] px-1 py-0 text-white/60 border-white/30">
-                        가우시안
-                      </Badge>
+                      {gridInterpolationEnabled && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 text-white/60 border-white/30">
+                          {gridDistributionMethod}
+                        </Badge>
+                      )}
                     </div>
                     <Switch
                       checked={gridInterpolationEnabled}
@@ -334,10 +350,22 @@ export default function LocalEconomyFilterPanel({
                       className="scale-90"
                     />
                   </div>
-                  {gridInterpolationEnabled && (
-                    <div className="text-[10px] text-white/60 italic">
-                      행정동 중심에서 주변으로 자연스럽게 분산
-                    </div>
+                  
+                  {/* GridInterpolationControls - shown when enabled */}
+                  {gridInterpolationEnabled && onGridDistributionMethodChange && (
+                    <>
+                      <Separator className="bg-white/20" />
+                      <GridInterpolationControls
+                        distributionRadius={gridDistributionRadius}
+                        smoothingSigma={gridSmoothingSigma}
+                        distributionMethod={gridDistributionMethod}
+                        isProcessing={isGridProcessing}
+                        onDistributionRadiusChange={onGridDistributionRadiusChange || (() => {})}
+                        onSmoothingSigmaChange={onGridSmoothingSigmaChange || (() => {})}
+                        onDistributionMethodChange={onGridDistributionMethodChange}
+                        onReprocess={onGridReprocess}
+                      />
+                    </>
                   )}
                 </div>
                 
