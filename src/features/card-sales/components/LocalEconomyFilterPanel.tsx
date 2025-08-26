@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown, Filter, MapPin, Briefcase, BarChart3, RefreshCw } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Button } from "@/src/shared/components/ui/button"
 import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
+import { Switch } from "@/src/shared/components/ui/switch"
 import { BarChart } from '@/src/shared/components/charts'
 import { 
   districtHierarchy, 
@@ -27,6 +28,20 @@ interface LocalEconomyFilterPanelProps {
   climateData?: any[] | null
   onFilterChange?: (filters: FilterState) => void
   className?: string
+  displayMode?: 'simple' | 'detailed'
+  onToggleDisplayMode?: () => void
+  // External filter state synchronization
+  externalSelectedGu?: string | null
+  externalSelectedDong?: string | null
+  externalSelectedMiddleCategory?: string | null
+  externalSelectedSubCategory?: string | null
+  // 레이어 초기화 함수
+  onResetLayers?: () => void
+  // Grid interpolation controls
+  gridInterpolationEnabled?: boolean
+  onGridInterpolationEnabledChange?: (enabled: boolean) => void
+  gridDistributionMethod?: string
+  onGridDistributionMethodChange?: (method: string) => void
 }
 
 // Color palette for business categories
@@ -88,10 +103,27 @@ export default function LocalEconomyFilterPanel({
   hexagonData = null,
   climateData = null,
   onFilterChange,
-  className = ""
+  className = "",
+  displayMode = 'simple',
+  onToggleDisplayMode,
+  // External filter state synchronization
+  externalSelectedGu,
+  externalSelectedDong,
+  externalSelectedMiddleCategory,
+  externalSelectedSubCategory,
+  // 레이어 초기화 함수
+  onResetLayers,
+  // Grid interpolation controls
+  gridInterpolationEnabled = true,
+  onGridInterpolationEnabledChange,
+  gridDistributionMethod = 'gaussian',
+  onGridDistributionMethodChange
 }: LocalEconomyFilterPanelProps) {
   // Panel state
   const [isExpanded, setIsExpanded] = useState(false)
+  
+  // Track if update is from external props to prevent circular updates
+  const isExternalUpdateRef = useRef(false)
   
   // Filter states
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
@@ -130,14 +162,45 @@ export default function LocalEconomyFilterPanel({
     setSelectedSubCategory(value === '전체' ? null : value)
   }
   
-  // Reset all filters
+  // Reset all filters and layers
   const handleReset = () => {
     setSelectedGu(null)
     setSelectedDong(null)
     setSelectedMiddleCategory(null)
     setSelectedSubCategory(null)
+    
+    // 레이어 설정도 초기화
+    if (onResetLayers) {
+      onResetLayers()
+    }
   }
   
+  // External sync disabled to prevent infinite loops
+  // Now using unidirectional data flow: Panel -> Parent only
+  /*
+  useEffect(() => {
+    isExternalUpdateRef.current = true
+    
+    if (externalSelectedGu !== undefined) {
+      setSelectedGu(externalSelectedGu)
+    }
+    if (externalSelectedDong !== undefined) {
+      setSelectedDong(externalSelectedDong)
+    }
+    if (externalSelectedMiddleCategory !== undefined) {
+      setSelectedMiddleCategory(externalSelectedMiddleCategory)
+    }
+    if (externalSelectedSubCategory !== undefined) {
+      setSelectedSubCategory(externalSelectedSubCategory)
+    }
+    
+    // Reset flag after state updates
+    setTimeout(() => {
+      isExternalUpdateRef.current = false
+    }, 0)
+  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory, externalSelectedSubCategory])
+  */
+
   // Notify parent of filter changes
   useEffect(() => {
     if (onFilterChange) {
@@ -254,6 +317,48 @@ export default function LocalEconomyFilterPanel({
               style={{ overflow: "hidden" }}
             >
               <div className="px-3 pb-3 space-y-3">
+                <Separator className="bg-white/20" />
+                
+                {/* Grid Interpolation Toggle */}
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Label className="text-white/80 text-xs">80x80 격자 보간</Label>
+                      <Badge variant="outline" className="text-[10px] px-1 py-0 text-white/60 border-white/30">
+                        가우시안
+                      </Badge>
+                    </div>
+                    <Switch
+                      checked={gridInterpolationEnabled}
+                      onCheckedChange={onGridInterpolationEnabledChange}
+                      className="scale-90"
+                    />
+                  </div>
+                  {gridInterpolationEnabled && (
+                    <div className="text-[10px] text-white/60 italic">
+                      행정동 중심에서 주변으로 자연스럽게 분산
+                    </div>
+                  )}
+                </div>
+                
+                <Separator className="bg-white/20" />
+                
+                {/* Display Mode Toggle */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    <BarChart3 size={14} className="text-blue-400" />
+                    <Label className="text-white font-semibold text-xs">표시 모드</Label>
+                  </div>
+                  <Button
+                    onClick={onToggleDisplayMode}
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-3 bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs"
+                  >
+                    {displayMode === 'simple' ? '상세 보기' : '단순 보기'}
+                  </Button>
+                </div>
+                
                 <Separator className="bg-white/20" />
                 
                 {/* District Selection Section */}
@@ -407,11 +512,11 @@ export default function LocalEconomyFilterPanel({
                     variant="outline"
                     size="sm"
                     onClick={handleReset}
-                    className="w-full text-white border-white/20 hover:bg-white/10"
+                    className="w-full bg-white/10 text-white border-white/20 hover:bg-white/20 disabled:opacity-50"
                     disabled={activeFilterCount === 0}
                   >
                     <RefreshCw className="w-4 h-4 mr-2" />
-                    필터 초기화
+                    <span>필터 및 레이어 초기화</span>
                   </Button>
                 </div>
                 

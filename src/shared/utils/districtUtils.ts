@@ -1,41 +1,46 @@
 export const DISTRICT_COLORS = {
   sgg: {
-    fill: 'rgba(147, 197, 253, 0.15)',  // More visible fill for interaction
-    line: 'rgba(147, 197, 253, 0.4)',  // Subtle blue outline
-    fillOpacity: 0.15,  // More visible but still subtle
-    lineWidth: 1.2
+    fill: 'rgba(100, 120, 255, 0.08)',  // 더 세련된 파란색 반투명
+    line: 'rgba(100, 200, 255, 0.5)',  // 네온 파란색 테두리
+    fillOpacity: 0.08,
+    lineWidth: 1.5,
+    glowLine: 'rgba(0, 255, 255, 0.3)',  // 시안 글로우
+    shadowLine: 'rgba(0, 0, 0, 0.4)'  // 그림자 효과
   },
   dong: {
-    fill: 'rgba(134, 239, 172, 0.1)',  // More visible green fill
-    line: 'rgba(134, 239, 172, 0.3)',  // Subtle green outline
-    fillOpacity: 0.1,  // More visible
-    lineWidth: 0.8
+    fill: 'rgba(160, 100, 255, 0.06)',  // 보라색 반투명
+    line: 'rgba(180, 150, 255, 0.35)',  // 연한 보라색 테두리
+    fillOpacity: 0.06,
+    lineWidth: 1.0,
+    glowLine: 'rgba(200, 100, 255, 0.2)',  // 보라색 글로우
   },
   jib: {
-    line: 'rgba(252, 165, 165, 0.25)',  // Very subtle pink
+    line: 'rgba(255, 200, 100, 0.2)',  // 금색 테두리
     lineWidth: 0.5
   },
   selected: {
     fill: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',  // Modern gradient
     fillSolid: '#667eea',  // Solid fallback for Mapbox
-    line: '#a78bfa',  // Purple outline
-    fillOpacity: 0.7,  // Much more visible
-    lineWidth: 3.0,  // Thicker outline
-    glowColor: 'rgba(139, 92, 246, 0.4)',  // Glow effect
-    shadowColor: 'rgba(0, 0, 0, 0.2)'
+    line: '#00ffff',  // 네온 시안 테두리
+    fillOpacity: 0.5,
+    lineWidth: 4.0,  // 두껍게
+    glowColor: 'rgba(0, 255, 255, 0.6)',  // 강한 글로우
+    shadowColor: 'rgba(0, 0, 0, 0.5)'
   },
   seoul: {
-    fill: 'transparent',  // No fill, only boundary
-    line: 'rgba(255, 255, 255, 0.6)',  // White outline for Seoul boundary
-    lineWidth: 2.0,
-    lineDasharray: [0, 0],  // Solid line
-    fillOpacity: 0
+    fill: 'transparent',
+    line: 'rgba(100, 255, 255, 0.8)',  // 네온 시안 테두리
+    lineWidth: 3.0,
+    lineDasharray: [0, 0],
+    fillOpacity: 0,
+    glowLine: 'rgba(0, 255, 255, 0.4)',  // 글로우 효과
   },
   hover: {
-    fill: 'rgba(139, 92, 246, 0.15)',  // Subtle hover fill
-    line: 'rgba(139, 92, 246, 0.6)',
-    fillOpacity: 0.15,
-    lineWidth: 2.0
+    fill: 'rgba(0, 255, 255, 0.12)',  // 네온 호버 효과
+    line: 'rgba(0, 255, 255, 0.8)',
+    fillOpacity: 0.12,
+    lineWidth: 2.5,
+    glowLine: 'rgba(0, 255, 255, 0.5)'
   }
 }
 

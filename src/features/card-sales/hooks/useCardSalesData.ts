@@ -7,6 +7,9 @@ import type { ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
 import { climateDataLoader } from '../utils/climateDataLoader'
 import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
+import { getCategoryOffset } from '../constants/categoryOffsets'
+import { useGridInterpolation } from './useGridInterpolation'
+import type { DistributionMethod } from '../types/grid.types'
 
 interface UseLayerStateReturn {
   // 레이어 설정 상태
@@ -17,6 +20,17 @@ interface UseLayerStateReturn {
   climateData: ClimateCardSalesData[] | null
   isDataLoading: boolean
   dataError: string | null
+  
+  // Grid 보간 상태
+  gridInterpolationEnabled: boolean
+  setGridInterpolationEnabled: (enabled: boolean) => void
+  gridDistributionMethod: DistributionMethod
+  setGridDistributionMethod: (method: DistributionMethod) => void
+  
+  // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
+  displayMode: 'simple' | 'detailed'
+  setDisplayMode: (mode: 'simple' | 'detailed') => void
+  toggleDisplayMode: () => void
   
   // 필터 상태
   filterOptions: ClimateFilterOptions
@@ -105,6 +119,9 @@ export function useLayerState(): UseLayerStateReturn {
   const [climateData, setClimateData] = useState<ClimateCardSalesData[] | null>(null)
   const [isDataLoading, setIsDataLoading] = useState(false)
   const [dataError, setDataError] = useState<string | null>(null)
+  
+  // 표시 모드 상태 (simple: 행정동별 총합, detailed: 카테고리별 상세)
+  const [displayMode, setDisplayMode] = useState<'simple' | 'detailed'>('simple')
   
   // 필터 상태
   const [filterOptions, setFilterOptions] = useState<ClimateFilterOptions>({
@@ -272,144 +289,163 @@ export function useLayerState(): UseLayerStateReturn {
     return filteredData
   }, [selectedGu, selectedDong])
 
-  // Create multiple data points for each business category
-  const createCategoryDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
+  // Create data points with middle category information - OPTIMIZED for memory and viewport
+  const createCategoryDataPoints = useCallback((data: ClimateCardSalesData[], viewportBounds?: { 
+    north?: number, 
+    south?: number, 
+    east?: number, 
+    west?: number 
+  }): HexagonLayerData[] => {
     const categoryPoints: HexagonLayerData[] = []
     
-    // Define main business categories and their colors (all 10 categories)
-    const mainCategories = [
-      { name: '음식', color: '#FF6B6B' },
-      { name: '쇼핑', color: '#4ECDC4' },
-      { name: '교통', color: '#FFD93D' },
-      { name: '문화/여가', color: '#A855F7' },
-      { name: '의료/건강', color: '#6BCF7F' },
-      { name: '교육', color: '#FF8C42' },
-      { name: '숙박', color: '#4682B4' },
-      { name: '금융', color: '#FD79A8' },
-      { name: '생활서비스', color: '#9370DB' },
-      { name: '공공/기관', color: '#A29BFE' }
-    ]
-    
-    // Grid layout offsets for 10 categories (3x4 grid layout) - 간격 증가
-    const gridOffsets = [
-      { dx: -0.003, dy: 0.004 },     // Row 1, Col 1
-      { dx: -0.001, dy: 0.004 },     // Row 1, Col 2
-      { dx: 0.001, dy: 0.004 },      // Row 1, Col 3
-      { dx: 0.003, dy: 0.004 },      // Row 1, Col 4
-      { dx: -0.003, dy: 0 },         // Row 2, Col 1
-      { dx: -0.001, dy: 0 },         // Row 2, Col 2
-      { dx: 0.001, dy: 0 },          // Row 2, Col 3
-      { dx: 0.003, dy: 0 },          // Row 2, Col 4
-      { dx: -0.002, dy: -0.004 },    // Row 3, Col 1-2
-      { dx: 0.002, dy: -0.004 }      // Row 3, Col 3-4
-    ]
+    // Dynamic limits based on data scope
+    // If filtering by dong or gu, allow more points for detailed view
+    const isFiltered = selectedGu || selectedDong
+    const MAX_POINTS = isFiltered ? 5000 : 3000 // More points when zoomed to specific area
+    const MAX_CATEGORIES_PER_DONG = isFiltered ? 10 : 5 // Show more categories when filtered
     
     data.forEach(item => {
       if (!item.salesByCategory) return
+      if (categoryPoints.length >= MAX_POINTS) return // Stop if we have enough points
       
-      // Aggregate sales by main categories
-      const categorySales: Record<string, number> = {
-        '음식': 0,
-        '쇼핑': 0,
-        '교통': 0,
-        '문화/여가': 0,
-        '의료/건강': 0,
-        '교육': 0,
-        '숙박': 0,
-        '금융': 0,
-        '생활서비스': 0,
-        '공공/기관': 0
+      // Viewport filtering - skip points outside current view
+      if (viewportBounds) {
+        const [lng, lat] = item.coordinates
+        if (viewportBounds.north && lat > viewportBounds.north) return
+        if (viewportBounds.south && lat < viewportBounds.south) return
+        if (viewportBounds.east && lng > viewportBounds.east) return
+        if (viewportBounds.west && lng < viewportBounds.west) return
       }
       
-      // Map detailed categories to main categories (새로운 구조 대응)
-      Object.entries(item.salesByCategory).forEach(([category, amount]) => {
-        // 중분류 카테고리 매핑 (업데이트된 구조에 맞춤)
-        const categoryName = category.replace('sub_', '') // Remove sub_ prefix if exists
+      // If a specific middle category is selected, create points only for that category
+      if (selectedMiddleCategory) {
+        const categorySales = item.salesByCategory[selectedMiddleCategory] || 0
         
-        // 중분류 매핑
-        if (categoryName === '한식' || categoryName === '일식/양식/중식' || 
-            categoryName === '제과/커피/패스트푸드' || categoryName === '기타요식' ||
-            categoryName === '일식' || categoryName === '양식' || categoryName === '중식' ||
-            categoryName === '커피전문점' || categoryName === '제과점' || categoryName === '패스트푸드') {
-          categorySales['음식'] += amount
-        } else if (categoryName === '마트/생활잡화' || categoryName === '편의점' || 
-                   categoryName === '백화점' || categoryName === '패션/잡화' || 
-                   categoryName === '기타유통' || categoryName === '음/식료품' ||
-                   categoryName === '대형마트' || categoryName === '슈퍼마켓 기업형' || 
-                   categoryName === '슈퍼마켓 일반형') {
-          categorySales['쇼핑'] += amount
-        } else if (categoryName === '자동차서비스/용품' || categoryName === '자동차판매' || 
-                   categoryName === '주유' || categoryName === '주차장' || 
-                   categoryName === '자동차서비스' || categoryName === '자동차용품' ||
-                   categoryName === '주유소' || categoryName === 'LPG가스') {
-          categorySales['교통'] += amount
-        } else if (categoryName === '스포츠/문화/레저' || categoryName === '스포츠/문화/레저용품' || 
-                   categoryName === '유흥' || categoryName === '영화/공연' || 
-                   categoryName === '노래방' || categoryName === '스포츠시설' ||
-                   categoryName === '실내/실외골프장' || categoryName === '종합레저타운/놀이동산') {
-          categorySales['문화/여가'] += amount
-        } else if (categoryName === '병원' || categoryName === '약국' || 
-                   categoryName === '미용서비스' || categoryName === '일반병원' || 
-                   categoryName === '종합병원' || categoryName === '치과병원' || 
-                   categoryName === '한의원' || categoryName === '동물병원' ||
-                   categoryName === '미용실' || categoryName === '헬스장') {
-          categorySales['의료/건강'] += amount
-        } else if (categoryName === '학습' || categoryName === '학원/학습지' || 
-                   categoryName === '독서실' || categoryName === '서점') {
-          categorySales['교육'] += amount
-        } else if (categoryName === '숙박' || categoryName === '호텔/콘도' || 
-                   categoryName === '모텔,여관,기타숙박') {
-          categorySales['숙박'] += amount
-        } else if (categoryName === '상품권/복권') {
-          categorySales['금융'] += amount
-        } else if (categoryName === '생활서비스' || categoryName === '부동산중개' || 
-                   categoryName === '세탁소' || categoryName === '안마/마사지' ||
-                   categoryName === '싸우나/목욕탕' || categoryName === '예식장/결혼서비스') {
-          categorySales['생활서비스'] += amount
-        } else if (categoryName === '보건소') {
-          categorySales['공공/기관'] += amount
-        } else if (categoryName === '가전/가구' || categoryName === '화장품' || 
-                   categoryName === '사무기기/컴퓨터' || categoryName === '여행') {
-          // 기타 카테고리들을 적절한 메인 카테고리로 분류
-          if (categoryName === '가전/가구' || categoryName === '사무기기/컴퓨터') {
-            categorySales['쇼핑'] += amount
-          } else if (categoryName === '화장품') {
-            categorySales['의료/건강'] += amount
-          } else if (categoryName === '여행') {
-            categorySales['문화/여가'] += amount
-          }
-        }
-      })
-      
-      // Create a data point for each category with sales > 0
-      mainCategories.forEach((cat, index) => {
-        const sales = categorySales[cat.name]
-        if (sales > 0) {
-          const offset = gridOffsets[index]
+        if (categorySales > 0) {
+          const offset = getCategoryOffset(selectedMiddleCategory)
+          
           categoryPoints.push({
             coordinates: [
               item.coordinates[0] + offset.dx,
               item.coordinates[1] + offset.dy
             ],
-            weight: sales,
-            category: cat.name,  // 카테고리 이름을 최상위 레벨에 저장
-            originalData: item  // 원본 데이터 그대로 저장
+            weight: categorySales,
+            middleCategory: selectedMiddleCategory,
+            category: selectedMiddleCategory,
+            // Minimize originalData to only essential fields
+            originalData: {
+              guName: item.guName,
+              dongName: item.dongName,
+              categorySales: categorySales,
+              middleCategory: selectedMiddleCategory,
+              coordinates: item.coordinates,
+              temperature: item.temperature,
+              discomfortIndex: item.discomfortIndex,
+              humidity: item.humidity
+            }
           })
+        }
+        return
+      }
+      
+      // When no category selected, limit to top categories to reduce memory
+      const sortedCategories = Object.entries(item.salesByCategory)
+        .filter(([cat, sales]) => sales && sales > 0 && !cat.startsWith('sub_'))
+        .sort(([, a], [, b]) => (b || 0) - (a || 0))
+        .slice(0, MAX_CATEGORIES_PER_DONG) // Take only top N categories
+      
+      // Additional optimization: skip small sales in unfiltered view
+      const minSalesThreshold = isFiltered ? 0 : 1000000 // 100만원 미만 제외 (전체 보기 시)
+      
+      sortedCategories.forEach(([category, sales]) => {
+        if (categoryPoints.length >= MAX_POINTS) return
+        if (sales < minSalesThreshold) return // Skip small sales in unfiltered view
+        
+        const offset = getCategoryOffset(category)
+        
+        categoryPoints.push({
+          coordinates: [
+            item.coordinates[0] + offset.dx,
+            item.coordinates[1] + offset.dy
+          ],
+          weight: sales,
+          middleCategory: category,
+          category: category,
+          // Minimize originalData
+          originalData: {
+            guName: item.guName,
+            dongName: item.dongName,
+            categorySales: sales,
+            middleCategory: category,
+            coordinates: item.coordinates,
+            temperature: item.temperature,
+            discomfortIndex: item.discomfortIndex,
+            humidity: item.humidity
+          }
+        })
+      })
+    })
+    
+    return categoryPoints
+  }, [selectedMiddleCategory, selectedGu, selectedDong])
+
+  // Create simple data points with total sales per dong (행정동별 총 매출액) - OPTIMIZED
+  const createSimpleDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
+    const simplePoints: HexagonLayerData[] = []
+    
+    // Group data by dong (행정동)
+    const dongGroups = new Map<string, { totalSales: number, item: ClimateCardSalesData }>()
+    
+    data.forEach(item => {
+      if (!item.salesByCategory) return
+      
+      const dongKey = `${item.guName}_${item.dongName}`
+      
+      // Calculate total sales for this dong
+      let totalSales = 0
+      Object.entries(item.salesByCategory).forEach(([category, sales]) => {
+        if (sales && sales > 0 && !category.startsWith('sub_')) {
+          totalSales += sales
+        }
+      })
+      
+      if (totalSales > 0) {
+        const existing = dongGroups.get(dongKey)
+        if (existing) {
+          existing.totalSales += totalSales
+        } else {
+          dongGroups.set(dongKey, { totalSales, item })
+        }
+      }
+    })
+    
+    // Create one point per dong with total sales
+    dongGroups.forEach(({ totalSales, item }) => {
+      simplePoints.push({
+        coordinates: item.coordinates,
+        weight: totalSales,
+        category: '전체',
+        // Minimize originalData to only essential fields
+        originalData: {
+          guName: item.guName,
+          dongName: item.dongName,
+          categorySales: totalSales,
+          displayMode: 'simple',
+          coordinates: item.coordinates,
+          temperature: item.temperature,
+          discomfortIndex: item.discomfortIndex,
+          humidity: item.humidity,
+          salesByCategory: item.salesByCategory // Keep for detailed mode switching
         }
       })
     })
     
-    console.log(`[createCategoryDataPoints] Created ${categoryPoints.length} category data points`)
-    if (categoryPoints.length > 0) {
-      const samplePoint = categoryPoints[0]
-      console.log('[createCategoryDataPoints] Sample point:', {
-        category: samplePoint.category,
-        weight: samplePoint.weight,
-        coordinates: samplePoint.coordinates
-      })
-    }
-    
-    return categoryPoints
+    return simplePoints
+  }, [])
+  
+  // Toggle display mode function
+  const toggleDisplayMode = useCallback(() => {
+    setDisplayMode(prev => prev === 'simple' ? 'detailed' : 'simple')
   }, [])
 
   // 전체 데이터 로딩 함수
@@ -427,8 +463,10 @@ export function useLayerState(): UseLayerStateReturn {
       // Apply hierarchical filters
       const filteredData = applyHierarchicalFilters(data)
       
-      // Create separate data points for each business category
-      const hexData = createCategoryDataPoints(filteredData)
+      // Create data points based on display mode
+      const hexData = displayMode === 'simple' 
+        ? createSimpleDataPoints(filteredData)
+        : createCategoryDataPoints(filteredData)
       
       setClimateData(data) // Keep original data
       setHexagonData(hexData) // Set filtered hexagon data
@@ -445,7 +483,7 @@ export function useLayerState(): UseLayerStateReturn {
     } finally {
       setIsDataLoading(false)
     }
-  }, [filterOptions, applyHierarchicalFilters])
+  }, [filterOptions, applyHierarchicalFilters, displayMode, createSimpleDataPoints, createCategoryDataPoints])
   
   // 필터 업데이트 함수들
   const setSelectedDate = useCallback((date: string) => {
@@ -474,30 +512,74 @@ export function useLayerState(): UseLayerStateReturn {
     setLayerConfig(prev => ({ ...prev, colorMode: mode as any }))
   }, [setColorScheme])
   
-  // 컴포넌트 마운트 시 데이터 자동 로딩
+  // Single useEffect for data loading and filtering - OPTIMIZED to prevent duplicate processing
   useEffect(() => {
-    loadData()
-  }, [loadData])
-  
-  // Re-filter data when hierarchical filters change
-  useEffect(() => {
-    if (climateData && climateData.length > 0) {
-      const filteredData = applyHierarchicalFilters(climateData)
-      // Create separate data points for each business category
-      const hexData = createCategoryDataPoints(filteredData)
-      setHexagonData(hexData)
+    // Initial load only when filterOptions change
+    if (!climateData) {
+      loadData()
+      return
     }
-  }, [selectedGu, selectedDong, climateData, applyHierarchicalFilters, createCategoryDataPoints])
+    
+    // Re-filter existing data when filters or display mode change
+    const filteredData = applyHierarchicalFilters(climateData)
+    const hexData = displayMode === 'simple' 
+      ? createSimpleDataPoints(filteredData)
+      : createCategoryDataPoints(filteredData)
+    setHexagonData(hexData)
+  }, [selectedGu, selectedDong, selectedMiddleCategory, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
+  
+  // Grid Interpolation Hook
+  const {
+    gridData,
+    isProcessing: isGridProcessing,
+    error: gridError,
+    setEnabled: setGridInterpolationEnabled,
+    setDistributionMethod: setGridDistributionMethod,
+    setDistributionRadius: setGridDistributionRadius,
+    setSmoothing: setGridSmoothing,
+    reprocessData: reprocessGridData
+  } = useGridInterpolation(hexagonData, climateData, {
+    enabled: true, // 기본값 활성화 - Gaussian grid as default
+    gridSize: 80,
+    distributionMethod: 'gaussian',
+    distributionRadius: 1000,
+    enableSmoothing: true,
+    smoothingSigma: 500
+  })
+  
+  // Grid 보간 상태
+  const [gridInterpolationEnabled, setGridEnabled] = useState(true) // Default to true
+  const [gridDistributionMethod, setGridMethod] = useState<DistributionMethod>('gaussian')
+  
+  // Grid 보간 활성화 시 gridData 사용
+  const finalHexagonData = gridInterpolationEnabled && gridData ? gridData : hexagonData
   
   return {
     // 레이어 설정 상태
     layerConfig,
     
     // 데이터 상태
-    hexagonData,
+    hexagonData: finalHexagonData,
     climateData,
-    isDataLoading,
-    dataError,
+    isDataLoading: isDataLoading || isGridProcessing,
+    dataError: dataError || gridError,
+    
+    // Grid 보간 상태
+    gridInterpolationEnabled,
+    setGridInterpolationEnabled: (enabled: boolean) => {
+      setGridEnabled(enabled)
+      setGridInterpolationEnabled(enabled)
+    },
+    gridDistributionMethod,
+    setGridDistributionMethod: (method: DistributionMethod) => {
+      setGridMethod(method)
+      setGridDistributionMethod(method)
+    },
+    
+    // 표시 모드
+    displayMode,
+    setDisplayMode,
+    toggleDisplayMode,
     
     // 필터 상태
     filterOptions,

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback, useMemo } from "react"
+import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL, Source, Layer } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
@@ -13,12 +13,14 @@ import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer,
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
-import { BusinessCategoryLegend } from "./BusinessCategoryLegend"
+import { MiddleCategoryLegend } from "./MiddleCategoryLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
+import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { DISTRICT_LAYER_PAINT, DISTRICT_COLORS, loadDistrictData } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
+import { calculateBoundaryElevation } from "@/src/shared/constants/elevationConstants"
 import "../styles/HexagonLayer.css"
 
 export default function HexagonScene() {
@@ -34,6 +36,11 @@ export default function HexagonScene() {
     isDataLoading,
     dataError,
     colorMode,
+    
+    // 표시 모드
+    displayMode,
+    setDisplayMode,
+    toggleDisplayMode,
     selectedHour,
     setVisible,
     setRadius,
@@ -79,7 +86,13 @@ export default function HexagonScene() {
     setSelectedGu,
     setSelectedDong,
     setSelectedMiddleCategory,
-    setSelectedSubCategory
+    setSelectedSubCategory,
+    
+    // Grid 보간 관련
+    gridInterpolationEnabled,
+    setGridInterpolationEnabled,
+    gridDistributionMethod,
+    setGridDistributionMethod
   } = useLayerState()
   
   // 기본 지도 상태
@@ -89,12 +102,12 @@ export default function HexagonScene() {
   const [showBoundary, setShowBoundary] = useState(false)
   const [showSeoulBase, setShowSeoulBase] = useState(false)
   
-  // DeckGL 초기 뷰 상태 (official deck.gl pattern)
-  const [initialViewState, setInitialViewState] = useState<MapViewState>({
+  // DeckGL 뷰 상태 - controlled component pattern for synchronization
+  const [viewState, setViewState] = useState<MapViewState>({
     longitude: 126.978,
     latitude: 37.5665,
     zoom: 11,
-    pitch: 45,
+    pitch: 60,  // Increased for better 3D effect
     bearing: 0,
     minZoom: 5,
     maxZoom: 15
@@ -104,18 +117,22 @@ export default function HexagonScene() {
   const rotationEnabledRef = useRef(false)
   const userInteractingRef = useRef(false)
   const currentBearingRef = useRef(0)
+  
+  // Track programmatic vs user-initiated view changes to prevent infinite loops
+  const isProgrammaticUpdateRef = useRef(false)
 
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
   
-  // Handle filter panel changes
+  // Handle filter panel changes - simplified to prevent loops
   const handleFilterChange = useCallback((filters: FilterState) => {
-    // Update the hierarchical filter states
-    if (filters.selectedGu !== selectedGu) setSelectedGu(filters.selectedGu)
-    if (filters.selectedDong !== selectedDong) setSelectedDong(filters.selectedDong)
-    if (filters.selectedMiddleCategory !== selectedMiddleCategory) setSelectedMiddleCategory(filters.selectedMiddleCategory)
-    if (filters.selectedSubCategory !== selectedSubCategory) setSelectedSubCategory(filters.selectedSubCategory)
-  }, [selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory, setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory])
+    // Directly update states without checking current values
+    // This prevents unnecessary re-renders and loops
+    setSelectedGu(filters.selectedGu)
+    setSelectedDong(filters.selectedDong)
+    setSelectedMiddleCategory(filters.selectedMiddleCategory)
+    setSelectedSubCategory(filters.selectedSubCategory)
+  }, [setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
@@ -165,6 +182,38 @@ export default function HexagonScene() {
   const handleTimeChange = (time: number) => {
     setCurrentTime(time)
   }
+  
+  // 전체 초기화 함수 - 필터, 레이어, 뷰 모두 리셋
+  const handleFullReset = useCallback(() => {
+    // 1. 레이어 설정 초기화
+    resetConfig()
+    
+    // 2. 필터 상태 초기화
+    setSelectedGu(null)
+    setSelectedDong(null)
+    setSelectedMiddleCategory(null)
+    setSelectedSubCategory(null)
+    
+    // 3. 표시 모드를 simple로 리셋
+    setDisplayMode('simple')
+    
+    // 4. 뷰포트를 서울 전체로 리셋
+    isProgrammaticUpdateRef.current = true
+    setViewState({
+      longitude: SEOUL_COORDINATES[0],
+      latitude: SEOUL_COORDINATES[1],
+      zoom: 11,
+      pitch: 60,
+      bearing: 0,
+      transitionDuration: 800,
+      transitionInterpolator: new FlyToInterpolator(),
+      transitionEasing: (t: number) => t * (2 - t)
+    })
+    
+    setTimeout(() => {
+      isProgrammaticUpdateRef.current = false
+    }, 900)
+  }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory, setDisplayMode])
 
   // Official deck.gl rotation pattern implementation (fixed with ref)
   const rotateCamera = useCallback(() => {
@@ -187,13 +236,16 @@ export default function HexagonScene() {
     // Update bearing state for UI display
     updateBearing(normalizedBearing)
     
-    setInitialViewState(viewState => {
+    // Set programmatic flag for rotation animation
+    isProgrammaticUpdateRef.current = true
+    setViewState(prevViewState => {
       return {
-        ...viewState,
+        ...prevViewState,
         bearing: normalizedBearing,
         transitionDuration,
         transitionInterpolator: new LinearInterpolator(['bearing']),
         onTransitionEnd: () => {
+          isProgrammaticUpdateRef.current = false
           if (rotationEnabledRef.current) {
             rotateCamera()
           }
@@ -265,18 +317,88 @@ export default function HexagonScene() {
 
   // Sync bearing with MapBox when it changes
   useEffect(() => {
-    if (mapRef.current && initialViewState.bearing !== undefined) {
-      mapRef.current.setBearing(initialViewState.bearing)
+    if (mapRef.current && viewState.bearing !== undefined) {
+      mapRef.current.setBearing(viewState.bearing)
     }
-  }, [initialViewState.bearing])
+  }, [viewState.bearing])
 
   // Initialize bearing ref
   useEffect(() => {
-    currentBearingRef.current = initialViewState.bearing || 0
+    currentBearingRef.current = viewState.bearing || 0
   }, [])
 
+  // Handle hexagon hover for district-wide highlighting
+  const handleHexagonHover = useCallback((info: PickingInfo) => {
+    const canvas = mapRef.current?.getCanvas()
+    
+    if (info.object && info.object.originalData) {
+      const dongName = info.object.originalData.dongName
+      setHoveredObject(info.object)
+      
+      // Set hovered district for district-wide highlighting
+      if (dongName) {
+        setHoveredDistrict(dongName)
+      }
+      
+      // Change cursor to pointer for better UX
+      if (canvas) {
+        canvas.style.cursor = 'pointer'
+      }
+    } else {
+      setHoveredObject(null)
+      setHoveredDistrict(null)
+      
+      // Reset cursor
+      if (canvas) {
+        canvas.style.cursor = 'grab'
+      }
+    }
+  }, [setHoveredObject])
+
+  // Handle hexagon click for zoom - optimized to match data filter logic + auto switch to detailed mode
+  const handleHexagonClick = useCallback((info: PickingInfo) => {
+    if (info.object && info.object.originalData) {
+      const { guName, dongName } = info.object.originalData
+      
+      // Add visual feedback for click
+      const canvas = mapRef.current?.getCanvas()
+      if (canvas) {
+        canvas.style.cursor = 'grabbing'
+        setTimeout(() => {
+          canvas.style.cursor = 'grab'
+        }, 200)
+      }
+      
+      // Set district selections to trigger zoom - same as data filter
+      // The existing useEffect (lines 703-802) will handle the zoom efficiently
+      if (dongName && guName) {
+        setSelectedGu(guName)
+        setSelectedDong(dongName)
+        // 클릭으로 줌인 시 자동으로 상세보기 모드로 전환
+        setDisplayMode('detailed')
+      } else if (guName) {
+        setSelectedGu(guName)
+        setSelectedDong(null)
+        // 구 레벨 클릭 시에도 상세보기 모드로 전환
+        setDisplayMode('detailed')
+      }
+      
+      // Hexagon clicked - zoom to selected area
+    }
+  }, [setSelectedGu, setSelectedDong, setDisplayMode])
+
   // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
-  const deckLayers = createColumnLayer(hexagonData, layerConfig)
+  const deckLayers = createColumnLayer(hexagonData, {
+    ...layerConfig,
+    selectedMiddleCategory: selectedMiddleCategory,
+    colorMode: selectedMiddleCategory ? 'category' : layerConfig.colorMode,
+    displayMode: displayMode,
+    // Enable interaction handlers
+    onHover: handleHexagonHover,
+    onClick: handleHexagonClick,
+    // District highlighting
+    hoveredDistrict: hoveredDistrict
+  })
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -332,21 +454,56 @@ export default function HexagonScene() {
 
   // 툴팁 핸들러 (Context7 권장 패턴)
   const getTooltip = (info: PickingInfo) => {
-    console.log('[Tooltip Debug] getTooltip called with info:', {
-      hasObject: !!info.object,
-      object: info.object,
-      x: info.x,
-      y: info.y,
-      layer: info.layer?.id
-    })
-    
     if (!info.object) {
-      console.log('[Tooltip Debug] No object found in info')
       return null
     }
     
     try {
-      // LayerConfig의 colorMode를 info에 추가
+      // ColumnLayer의 경우 (중분류 카테고리 데이터)
+      if (info.layer?.id === 'column-layer' && info.object.originalData) {
+        const { originalData } = info.object
+        const date = originalData.date || '날짜 정보 없음'
+        const guName = originalData.guName || '정보 없음'
+        const dongName = originalData.dongName || '정보 없음'
+        const middleCategory = originalData.middleCategory || info.object.middleCategory || '업종 정보 없음'
+        const sales = originalData.categorySales || info.object.weight || 0
+        
+        const tooltipHtml = `
+<div style="font-family: 'Noto Sans KR', sans-serif;">
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">📅</span> <strong>날짜:</strong> ${date}
+  </div>
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">📍</span> <strong>지역:</strong> ${guName} ${dongName}
+  </div>
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">💼</span> <strong>업종:</strong> ${middleCategory}
+  </div>
+  <div>
+    <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${sales.toLocaleString()}원
+  </div>
+</div>
+        `.trim()
+        
+        return {
+          html: tooltipHtml,
+          style: {
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            color: 'white',
+            fontSize: '13px',
+            padding: '14px',
+            borderRadius: '8px',
+            whiteSpace: 'normal',
+            maxWidth: '280px',
+            lineHeight: '1.6',
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            backdropFilter: 'blur(8px)'
+          }
+        }
+      }
+      
+      // 기존 HexagonLayer의 경우 (폴백)
       const enhancedInfo = {
         ...info,
         layer: {
@@ -358,9 +515,7 @@ export default function HexagonScene() {
         }
       }
       
-      // ScatterplotLayer용 툴팁 포맷터 사용 (구 이름 표시)
       const tooltipHtml = formatScatterplotTooltip(enhancedInfo)
-      console.log('[Tooltip Debug] Tooltip HTML generated:', tooltipHtml)
       
       return {
         html: tooltipHtml,
@@ -590,8 +745,11 @@ export default function HexagonScene() {
 
   // Filter-based district selection (from filter panel) - OPTIMIZED with FlyTo animation
   useEffect(() => {
-    // Skip if there's a map-clicked selection
-    if (districtSelection.selectedDistrict && districtSelection.selectedDistrict !== '없음') {
+    // Skip if there's a map-clicked selection that's different from filter selection
+    if (districtSelection.selectedDistrict && 
+        districtSelection.selectedDistrict !== '없음' &&
+        districtSelection.selectedDistrict !== selectedDong &&
+        districtSelection.selectedDistrict !== selectedGu) {
       return
     }
 
@@ -632,21 +790,29 @@ export default function HexagonScene() {
         if (center) {
           // Determine zoom level and pitch based on selection type
           const isDistrictLevel = !selectedDong && selectedGu // 구 레벨
-          const zoom = isDistrictLevel ? 12.5 : 14 // 구: 12.5, 동: 14
-          const pitch = isDistrictLevel ? 45 : 50 // 구: 45도, 동: 50도
+          const zoom = isDistrictLevel ? 13 : 15 // 구: 13 (더 가까이), 동: 15 (더 상세하게)
+          const pitch = isDistrictLevel ? 60 : 65 // 구: 60도, 동: 65도 - Increased for better 3D effect
           
           // Smooth camera movement using FlyToInterpolator
-          setInitialViewState(prevState => ({
+          // Set programmatic flag to prevent infinite loop
+          isProgrammaticUpdateRef.current = true
+          
+          setViewState(prevState => ({
             ...prevState,
             longitude: center[0],
             latitude: center[1],
             zoom,
             pitch,
             bearing: prevState.bearing || 0, // Preserve current bearing
-            transitionDuration: 1000, // 1 second smooth animation (faster)
-            transitionInterpolator: new FlyToInterpolator(),
-            transitionEasing: (t: number) => t * (2 - t) // ease-in-out curve
+            transitionDuration: 1500, // 1.5 seconds for smoother animation
+            transitionInterpolator: new FlyToInterpolator({ speed: 1.2 }),
+            transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t) // smoother ease-in-out
           }))
+          
+          // Clear programmatic flag after a delay to allow transition to complete
+          setTimeout(() => {
+            isProgrammaticUpdateRef.current = false
+          }, 1600) // Slightly longer than transition duration
         }
       } else {
         setSelectedDistrictData(null)
@@ -655,20 +821,29 @@ export default function HexagonScene() {
       // Reset to Seoul overview when no filter is selected
       setSelectedDistrictData(null)
       
+      // 전체 서울로 돌아갈 때 단순보기 모드로 자동 복귀
+      setDisplayMode('simple')
+      
       // Return to default Seoul view
-      setInitialViewState(prevState => ({
+      isProgrammaticUpdateRef.current = true
+      setViewState(prevState => ({
         ...prevState,
         longitude: SEOUL_COORDINATES[0],
         latitude: SEOUL_COORDINATES[1],
         zoom: 11,
-        pitch: 45,
+        pitch: 60,  // Increased for better 3D effect
         bearing: prevState.bearing || 0,
         transitionDuration: 800, // Faster return animation
         transitionInterpolator: new FlyToInterpolator(),
         transitionEasing: (t: number) => t * (2 - t)
       }))
+      
+      // Clear programmatic flag after transition
+      setTimeout(() => {
+        isProgrammaticUpdateRef.current = false
+      }, 900)
     }
-  }, [selectedGu, selectedDong, districtSelection.selectedDistrict]) // Removed sggIndex, dongIndex from dependencies
+  }, [selectedGu, selectedDong, districtSelection.selectedDistrict, setDisplayMode]) // Added setDisplayMode for auto mode switching
 
   // Memory cleanup effect
   useEffect(() => {
@@ -684,22 +859,32 @@ export default function HexagonScene() {
     }
   }, [])
 
+  console.log('[DeckGL Config]', {
+    selectionMode: districtSelection.selectionMode,
+    layersCount: deckLayers.length,
+    hasGetTooltip: !!getTooltip,
+    layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
+  })
+
   return (
     <div className="relative w-full h-screen flex">
       {/* Map Section - Left Side */}
       <div className={`relative transition-all duration-500 ${showChartPanel ? 'w-3/5' : 'w-full'}`}>
         {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
-        {console.log('[DeckGL Config]', {
-          selectionMode: districtSelection.selectionMode,
-          layersCount: deckLayers.length,
-          hasGetTooltip: !!getTooltip,
-          layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
-        })}
         <DeckGL
-        initialViewState={initialViewState}
+        viewState={viewState}
         controller={true}
         layers={false ? [] : deckLayers} // 임시로 selectionMode 무시하고 항상 레이어 표시
         getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
+        getCursor={({isDragging, isHovering}) => {
+          if (isDragging) return 'grabbing'
+          if (isHovering) return 'pointer'
+          return 'grab'
+        }}
+        onClick={(info, event) => {
+          // 이벤트가 레이어로 전파되도록 함
+          return true
+        }}
         onLoad={rotateCamera} // Start rotation when deck.gl loads
         onDragStart={() => {
           userInteractingRef.current = true
@@ -715,11 +900,20 @@ export default function HexagonScene() {
             setTimeout(rotateCamera, 1000) // 1 second delay before resuming
           }
         }}
-        onViewStateChange={({ viewState }) => {
+        onViewStateChange={({ viewState: newViewState }) => {
+          // Skip if this is a programmatic update to prevent infinite loops
+          if (isProgrammaticUpdateRef.current) {
+            return
+          }
+          
+          // Update the viewState to keep DeckGL and MapGL synchronized
+          const mapViewState = newViewState as MapViewState
+          setViewState(mapViewState)
+          
           // Sync bearing ref when view state changes (e.g., during user interaction)
-          if ('bearing' in viewState && viewState.bearing !== undefined && viewState.bearing !== currentBearingRef.current) {
-            currentBearingRef.current = viewState.bearing
-            updateBearing(viewState.bearing)
+          if ('bearing' in newViewState && newViewState.bearing !== undefined) {
+            currentBearingRef.current = newViewState.bearing
+            updateBearing(newViewState.bearing)
           }
         }}
       >
@@ -727,6 +921,7 @@ export default function HexagonScene() {
           ref={mapRef}
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyles[currentLayer as keyof typeof mapStyles]}
+          {...viewState}
           onLoad={handleMapLoad}
           onClick={(e: MapLayerMouseEvent) => {
             if (!districtSelection.handleDistrictClick(e)) {
@@ -750,79 +945,207 @@ export default function HexagonScene() {
             setHoveredDistrict(null)
             mapRef.current!.getCanvas().style.cursor = ''
           }}
-          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-fill', 'dong-line']}
+          interactiveLayerIds={['sgg-extrusion', 'sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-extrusion', 'dong-fill', 'dong-line']}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
-          {/* District layers with enhanced visualization */}
+          {/* District layers with enhanced 3D visualization */}
           {sggData && (
             <Source id="sgg-source" type="geojson" data={sggData}>
-              {/* District fill FIRST - base layer */}
+              
+              {/* District fill - 2D 배경 (fallback) */}
               <Layer
                 id="sgg-fill"
                 type="fill"
-                paint={DISTRICT_LAYER_PAINT.sggFill}
+                paint={{
+                  'fill-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 'rgba(100, 120, 255, 0.05)',
+                    12, 'rgba(100, 120, 255, 0.08)',
+                    16, 'rgba(100, 120, 255, 0.1)'
+                  ],
+                  'fill-opacity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 0.3,
+                    12, 0.4,
+                    16, 0.5
+                  ]
+                }}
                 layout={{ 
                   visibility: districtSelection.sggVisible ? 'visible' : 'none' 
                 }}
               />
               
-              {/* District lines ON TOP of fill */}
+              {/* 네온 글로우 효과 - 외곽 글로우 */}
+              <Layer
+                id="sgg-glow-outer"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(0, 255, 255, 0.2)',
+                  'line-width': 8,
+                  'line-blur': 6,
+                  'line-opacity': 0.5
+                }}
+                layout={{ 
+                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* 네온 글로우 효과 - 중간 글로우 */}
+              <Layer
+                id="sgg-glow-mid"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(100, 200, 255, 0.4)',
+                  'line-width': 4,
+                  'line-blur': 3,
+                  'line-opacity': 0.7
+                }}
+                layout={{ 
+                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* 메인 경계선 - 네온 코어 */}
               <Layer
                 id="sgg-line"
                 type="line"
-                paint={DISTRICT_LAYER_PAINT.sggLine}
+                paint={{
+                  'line-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 'rgba(100, 200, 255, 0.6)',
+                    12, 'rgba(0, 255, 255, 0.7)',
+                    16, 'rgba(0, 255, 255, 0.8)'
+                  ],
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 1.5,
+                    12, 2,
+                    16, 2.5
+                  ],
+                  'line-opacity': 0.9
+                }}
                 layout={{ 
                   visibility: districtSelection.sggVisible ? 'visible' : 'none' 
                 }}
               />
               
-              {/* Hover effect for districts */}
-              {hoveredDistrict && hoveredDistrict !== districtSelection.selectedDistrict && (
-                <>
-                  <Layer
-                    id="sgg-hover-fill"
-                    type="fill"
-                    paint={DISTRICT_LAYER_PAINT.hoverFill}
-                    filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
-                  />
-                  <Layer
-                    id="sgg-hover-line"
-                    type="line"
-                    paint={DISTRICT_LAYER_PAINT.hoverLine}
-                    filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
-                  />
-                </>
-              )}
+              {/* Modern hover effect with neon glow and 3D */}
+              {hoveredDistrict && hoveredDistrict !== districtSelection.selectedDistrict && [
+                /* Hover glow effect */
+                <Layer
+                  key="sgg-hover-glow"
+                  id="sgg-hover-glow"
+                  type="line"
+                  source="sgg-source"
+                  paint={{
+                    'line-color': 'rgba(0, 255, 255, 0.3)',
+                    'line-width': 8,
+                    'line-blur': 4
+                  }}
+                  filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
+                />,
+                
+                /* Hover line with bright neon */
+                <Layer
+                  key="sgg-hover-line"
+                  id="sgg-hover-line"
+                  type="line"
+                  source="sgg-source"
+                  paint={{
+                    'line-color': 'rgba(0, 255, 255, 0.9)',
+                    'line-width': 2.5,
+                    'line-opacity': 1
+                  }}
+                  filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
+                />
+              ]}
               
               {/* Removed - using setPaintProperty instead */}
             </Source>
           )}
           
-          {/* Dong layers */}
+          {/* Dong layers with 3D effects */}
           {dongData && (
             <Source id="dong-source" type="geojson" data={dongData}>
-              {/* Dong fill FIRST - base layer */}
+              
+              {/* Dong fill with modern gradient (fallback) */}
               <Layer
                 id="dong-fill"
                 type="fill"
-                paint={DISTRICT_LAYER_PAINT.dongFill}
-                layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
-              />
-              {/* Dong lines ON TOP of fill */}
-              <Layer
-                id="dong-line"
-                type="line"
-                paint={DISTRICT_LAYER_PAINT.dongLine}
+                paint={{
+                  'fill-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 'rgba(160, 100, 255, 0.03)',
+                    14, 'rgba(160, 100, 255, 0.05)',
+                    18, 'rgba(160, 100, 255, 0.07)'
+                  ],
+                  'fill-opacity': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 0.3,
+                    14, 0.4,
+                    18, 0.5
+                  ]
+                }}
                 layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
               />
               
-              {/* Removed - using setPaintProperty instead */}
+              {/* Dong neon glow lines */}
+              <Layer
+                id="dong-glow"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(200, 100, 255, 0.15)',
+                  'line-width': 4,
+                  'line-blur': 3
+                }}
+                layout={{ 
+                  visibility: districtSelection.dongVisible ? 'visible' : 'none' 
+                }}
+              />
+              
+              {/* Dong main lines with modern style */}
+              <Layer
+                id="dong-line"
+                type="line"
+                paint={{
+                  'line-color': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 'rgba(180, 150, 255, 0.3)',
+                    14, 'rgba(180, 150, 255, 0.4)',
+                    18, 'rgba(180, 150, 255, 0.5)'
+                  ],
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    10, 0.8,
+                    14, 1.0,
+                    18, 1.2
+                  ],
+                  'line-opacity': 0.8
+                }}
+                layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
+              />
             </Source>
           )}
           
           {/* Jib layers */}
-          {jibData && !districtSelection.selectionMode && initialViewState.zoom > 10 && (
+          {jibData && !districtSelection.selectionMode && viewState.zoom > 10 && (
             <Source id="jib-source" type="geojson" data={jibData}>
               <Layer
                 id="jib-line"
@@ -834,27 +1157,78 @@ export default function HexagonScene() {
             </Source>
           )}
 
-          {/* Selected District Layer - SEPARATE LAYER ON TOP */}
+          {/* Selected District Layer with modern 3D effect */}
           {selectedDistrictData && (
             <Source id="selected-district-source" type="geojson" data={selectedDistrictData}>
-              {/* Selected district fill - Purple gradient style */}
+              
+              {/* Selected shadow for depth */}
               <Layer
-                id="selected-district-fill"
-                type="fill"
+                id="selected-shadow"
+                type="line"
                 paint={{
-                  'fill-color': '#667eea',  // Modern purple
-                  'fill-opacity': 0.6       // Semi-transparent
+                  'line-color': 'rgba(0, 0, 0, 0.4)',
+                  'line-width': 8,
+                  'line-blur': 5,
+                  'line-translate': [4, 4],
+                  'line-translate-anchor': 'viewport'
                 }}
               />
               
-              {/* Selected district outline - Light purple */}
+              {/* Selected glow effect - outer */}
+              <Layer
+                id="selected-glow-outer"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(102, 126, 234, 0.3)',
+                  'line-width': 12,
+                  'line-blur': 6
+                }}
+              />
+              
+              {/* Selected glow effect - mid */}
+              <Layer
+                id="selected-glow-mid"
+                type="line"
+                paint={{
+                  'line-color': 'rgba(102, 126, 234, 0.5)',
+                  'line-width': 6,
+                  'line-blur': 3
+                }}
+              />
+              
+              {/* Selected district outline with bright neon */}
               <Layer
                 id="selected-district-line"
                 type="line"
                 paint={{
-                  'line-color': '#a78bfa',  // Light purple
-                  'line-width': 3,          // Medium thick line
-                  'line-opacity': 0.9
+                  'line-color': '#00ff88',
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 3,
+                    12, 5,
+                    16, 7
+                  ],
+                  'line-opacity': 0.95
+                }}
+              />
+              
+              {/* Inner bright line for emphasis */}
+              <Layer
+                id="selected-district-inner"
+                type="line"
+                paint={{
+                  'line-color': '#ffffff',
+                  'line-width': [
+                    'interpolate',
+                    ['linear'],
+                    ['zoom'],
+                    8, 1,
+                    12, 2,
+                    16, 3
+                  ],
+                  'line-opacity': 0.8
                 }}
               />
             </Source>
@@ -868,7 +1242,28 @@ export default function HexagonScene() {
         hexagonData={hexagonData}
         climateData={climateData}
         onFilterChange={handleFilterChange}
+        displayMode={displayMode}
+        onToggleDisplayMode={toggleDisplayMode}
+        // Grid interpolation props
+        gridInterpolationEnabled={gridInterpolationEnabled}
+        onGridInterpolationEnabledChange={setGridInterpolationEnabled}
+        gridDistributionMethod={gridDistributionMethod}
+        onGridDistributionMethodChange={setGridDistributionMethod}
+        isProcessing={isDataLoading}
+        // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
+        onResetLayers={handleFullReset}
       />
+
+      {/* 선택된 지역 매출액 정보 */}
+      <SelectedAreaSalesInfo
+        selectedGu={selectedGu}
+        selectedDong={selectedDong}
+        hexagonData={hexagonData}
+        climateData={climateData}
+        gridInterpolationEnabled={gridInterpolationEnabled}
+        visible={!!(selectedGu || selectedDong)}
+      />
+
 
       {/* 통합 컨트롤 패널 */}
       <UnifiedControls
@@ -919,7 +1314,7 @@ export default function HexagonScene() {
         onColorSchemeChange={setColorScheme}
         onReset={resetConfig}
         // 색상 모드 props
-        colorMode={colorMode}
+        colorMode={colorMode === 'alert' ? 'sales' : colorMode}
         onColorModeChange={setColorMode}
         selectedHour={selectedHour}
         onSelectedHourChange={setSelectedHour}
@@ -957,63 +1352,8 @@ export default function HexagonScene() {
         </div>
       )}
 
-      {/* Business Category Legend */}
-      <BusinessCategoryLegend />
-
-      {/* 서울 정보 패널 - Enhanced modern design */}
-      <div className="absolute bottom-4 right-[226px] info-panel z-10">
-        <h3 className="info-panel-header">
-          <span>서울특별시</span>
-          <div className="flex items-center gap-2">
-            {showBoundary && <span className="badge badge-blue">경계표시</span>}
-            {layerConfig.visible && <span className="badge badge-green">데이터</span>}
-            {rotationEnabled && <span className="badge badge-purple">360°</span>}
-          </div>
-        </h3>
-        <div className="info-panel-content space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-purple-400">📍</span>
-            <span>위치: {SEOUL_COORDINATES[1].toFixed(4)}°N, {SEOUL_COORDINATES[0].toFixed(4)}°E</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-blue-400">🏙️</span>
-            <span>인구: 약 970만명</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-green-400">📏</span>
-            <span>면적: 605.21 km²</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-yellow-400">🏛️</span>
-            <span>자치구: 25개 구역</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-orange-400">🌡️</span>
-            <span>현재 시간: {new Date().toLocaleTimeString("ko-KR")}</span>
-          </div>
-          {hexagonData && (
-            <div className="flex items-center gap-2">
-              <span className="text-cyan-400">📊</span>
-              <span>데이터 포인트: {hexagonData.length.toLocaleString()}개</span>
-            </div>
-          )}
-          {rotationEnabled && (
-            <div className="flex items-center gap-2">
-              <span className="text-indigo-400">🧭</span>
-              <span>회전각도: {bearingDisplay} ({rotationDirectionText})</span>
-            </div>
-          )}
-          {(districtSelection.selectedDistrict || hoveredDistrict) && (
-            <div className="flex items-center gap-2 pt-2 border-t border-white/10">
-              <span className="text-purple-400">🎯</span>
-              <span className="font-semibold">
-                {districtSelection.selectedDistrict || hoveredDistrict}
-                {selectedDong && ` - ${selectedDong}`}
-              </span>
-            </div>
-          )}
-        </div>
-      </div>
+      {/* Middle Category Legend */}
+      <MiddleCategoryLegend selectedCategory={selectedMiddleCategory} />
 
       {/* 오류 표시 */}
       {dataError && (

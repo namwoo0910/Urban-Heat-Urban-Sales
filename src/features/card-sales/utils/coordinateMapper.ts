@@ -31,7 +31,7 @@ export class CoordinateMapper {
     if (this.isLoaded) return
 
     try {
-      const response = await fetch('/data/output_json/서울시_행정동_위경도좌표.csv')
+      const response = await fetch('/data/서울시_행정동_위경도좌표.csv')
       const text = await response.text()
       
       // CSV 파싱
@@ -60,6 +60,12 @@ export class CoordinateMapper {
         
         if (dongName && !isNaN(x) && !isNaN(y)) {
           this.coordinateMap.set(dongName, { x, y })
+          
+          // 가운뎃점(·)이 포함된 경우, 일반 점(.)으로도 매핑 추가
+          if (dongName.includes('·')) {
+            const normalizedName = dongName.replace(/·/g, '.')
+            this.coordinateMap.set(normalizedName, { x, y })
+          }
         }
       }
       
@@ -73,10 +79,19 @@ export class CoordinateMapper {
   }
 
   /**
-   * 행정동명으로 좌표 조회
+   * 행정동명으로 좌표 조회 - 괄호 처리 포함
    */
   getCoordinate(dongName: string): { x: number; y: number } | null {
-    return this.coordinateMap.get(dongName) || null
+    // 직접 조회 (CSV 로드 시 양쪽 모두 매핑했으므로)
+    let coord = this.coordinateMap.get(dongName)
+    
+    // 괄호가 포함된 경우 (예: "신사동(강남)") 괄호 제거하고 다시 시도
+    if (!coord && dongName.includes('(')) {
+      const nameWithoutParens = dongName.split('(')[0].trim()
+      coord = this.coordinateMap.get(nameWithoutParens)
+    }
+    
+    return coord || null
   }
 
   /**
