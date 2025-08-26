@@ -75,7 +75,7 @@ async function generateDistrictCenters() {
   
   // Paths to GeoJSON files
   const guPath = path.join(__dirname, '../public/data/eda/gu.geojson');
-  const dongPath = path.join(__dirname, '../public/data/eda/dong.geojson');
+  const dongPath = path.join(__dirname, '../public/data/local_economy/local_economy_dong.geojson');
   
   // Process 구 (districts)
   console.log('Processing 구 data...');
@@ -84,7 +84,7 @@ async function generateDistrictCenters() {
   
   // Process 동 (neighborhoods)
   console.log('Processing 동 data...');
-  const dongCenters = processGeoJSON(dongPath, ['ADM_NM', 'H_DONG_NM', 'DONG_NM', 'ADM_DR_NM', 'nm']);
+  const dongCenters = processGeoJSON(dongPath, ['행정동', 'ADM_NM', 'H_DONG_NM', 'DONG_NM', 'ADM_DR_NM', 'nm']);
   console.log(`Found ${Object.keys(dongCenters).length} 동 centers`);
   
   // Generate TypeScript file content

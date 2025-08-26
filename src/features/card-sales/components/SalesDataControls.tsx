@@ -59,8 +59,10 @@ interface UnifiedControlsProps {
   currentTime: number
   showBoundary?: boolean
   showSeoulBase?: boolean
+  showDistrictLabels?: boolean
   onBoundaryToggle?: (show: boolean) => void
   onSeoulBaseToggle?: (show: boolean) => void
+  onDistrictLabelsToggle?: (show: boolean) => void
   
   // LayerControls props
   visible: boolean
@@ -116,8 +118,10 @@ export default function UnifiedControls({
   currentTime,
   showBoundary = true,
   showSeoulBase = false,
+  showDistrictLabels = true,
   onBoundaryToggle,
   onSeoulBaseToggle,
+  onDistrictLabelsToggle,
   
   // LayerControls props
   visible,

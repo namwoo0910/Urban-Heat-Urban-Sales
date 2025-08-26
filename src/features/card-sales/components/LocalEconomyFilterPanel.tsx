@@ -11,6 +11,8 @@ import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
 import { Switch } from "@/src/shared/components/ui/switch"
 import { BarChart } from '@/src/shared/components/charts'
+import { GridInterpolationControls } from './GridInterpolationControls'
+import type { DistributionMethod } from '../types/grid.types'
 import { 
   districtHierarchy, 
   getAllDistricts, 
@@ -40,8 +42,23 @@ interface LocalEconomyFilterPanelProps {
   // Grid interpolation controls
   gridInterpolationEnabled?: boolean
   onGridInterpolationEnabledChange?: (enabled: boolean) => void
-  gridDistributionMethod?: string
-  onGridDistributionMethodChange?: (method: string) => void
+  gridDistributionMethod?: DistributionMethod
+  onGridDistributionMethodChange?: (method: DistributionMethod) => void
+  gridDistributionRadius?: number
+  onGridDistributionRadiusChange?: (radius: number) => void
+  gridSmoothingSigma?: number
+  onGridSmoothingSigmaChange?: (sigma: number) => void
+  onGridReprocess?: () => void
+  isGridProcessing?: boolean
+  // Dong Boundary Gradient controls
+  dongBoundaryGradientEnabled?: boolean
+  onDongBoundaryGradientEnabledChange?: (enabled: boolean) => void
+  dongBoundaryHeight?: number
+  onDongBoundaryHeightChange?: (height: number) => void
+  dongInterpolationType?: 'linear' | 'exponential' | 'logarithmic' | 'smooth'
+  onDongInterpolationTypeChange?: (type: 'linear' | 'exponential' | 'logarithmic' | 'smooth') => void
+  onDongReprocess?: () => void
+  isDongProcessing?: boolean
 }
 
 // Color palette for business categories
@@ -117,7 +134,22 @@ export default function LocalEconomyFilterPanel({
   gridInterpolationEnabled = true,
   onGridInterpolationEnabledChange,
   gridDistributionMethod = 'gaussian',
-  onGridDistributionMethodChange
+  onGridDistributionMethodChange,
+  gridDistributionRadius = 2500,
+  onGridDistributionRadiusChange,
+  gridSmoothingSigma = 1000,
+  onGridSmoothingSigmaChange,
+  onGridReprocess,
+  isGridProcessing = false,
+  // Dong Boundary Gradient controls
+  dongBoundaryGradientEnabled = false,
+  onDongBoundaryGradientEnabledChange,
+  dongBoundaryHeight = 100,
+  onDongBoundaryHeightChange,
+  dongInterpolationType = 'linear',
+  onDongInterpolationTypeChange,
+  onDongReprocess,
+  isDongProcessing = false
 }: LocalEconomyFilterPanelProps) {
   // Panel state
   const [isExpanded, setIsExpanded] = useState(false)
@@ -324,9 +356,11 @@ export default function LocalEconomyFilterPanel({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Label className="text-white/80 text-xs">80x80 격자 보간</Label>
-                      <Badge variant="outline" className="text-[10px] px-1 py-0 text-white/60 border-white/30">
-                        가우시안
-                      </Badge>
+                      {gridInterpolationEnabled && (
+                        <Badge variant="outline" className="text-[10px] px-1 py-0 text-white/60 border-white/30">
+                          {gridDistributionMethod}
+                        </Badge>
+                      )}
                     </div>
                     <Switch
                       checked={gridInterpolationEnabled}
@@ -334,9 +368,113 @@ export default function LocalEconomyFilterPanel({
                       className="scale-90"
                     />
                   </div>
-                  {gridInterpolationEnabled && (
-                    <div className="text-[10px] text-white/60 italic">
-                      행정동 중심에서 주변으로 자연스럽게 분산
+                  
+                  {/* GridInterpolationControls - shown when enabled */}
+                  {gridInterpolationEnabled && onGridDistributionMethodChange && (
+                    <>
+                      <Separator className="bg-white/20" />
+                      <GridInterpolationControls
+                        distributionRadius={gridDistributionRadius}
+                        smoothingSigma={gridSmoothingSigma}
+                        distributionMethod={gridDistributionMethod}
+                        isProcessing={isGridProcessing}
+                        onDistributionRadiusChange={onGridDistributionRadiusChange || (() => {})}
+                        onSmoothingSigmaChange={onGridSmoothingSigmaChange || (() => {})}
+                        onDistributionMethodChange={onGridDistributionMethodChange}
+                        onReprocess={onGridReprocess}
+                      />
+                    </>
+                  )}
+                </div>
+                
+                <Separator className="bg-white/20" />
+                
+                {/* Dong Boundary Gradient Section */}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <MapPin size={14} className="text-purple-400" />
+                      <Label className="text-white font-semibold text-xs">행정동 경계 그라데이션</Label>
+                    </div>
+                    <Switch
+                      checked={dongBoundaryGradientEnabled}
+                      onCheckedChange={(checked) => {
+                        // 다른 보간법과 동시 사용 불가
+                        if (checked && gridInterpolationEnabled) {
+                          onGridInterpolationEnabledChange?.(false)
+                        }
+                        onDongBoundaryGradientEnabledChange?.(checked)
+                      }}
+                      className="scale-90"
+                    />
+                  </div>
+                  
+                  {/* Dong Gradient Controls - shown when enabled */}
+                  {dongBoundaryGradientEnabled && (
+                    <div className="pl-4 space-y-2">
+                      {/* Boundary Height Setting */}
+                      <div className="space-y-1">
+                        <Label className="text-white/80 text-xs">경계 높이값</Label>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="range"
+                            min="100000"
+                            max="10000000"
+                            step="100000"
+                            value={dongBoundaryHeight}
+                            onChange={(e) => onDongBoundaryHeightChange?.(Number(e.target.value))}
+                            className="flex-1"
+                          />
+                          <span className="text-white/60 text-xs w-20 text-right">{(dongBoundaryHeight / 1000000).toFixed(1)}M</span>
+                        </div>
+                      </div>
+                      
+                      {/* Interpolation Type */}
+                      <div className="space-y-1">
+                        <Label className="text-white/80 text-xs">보간 방식</Label>
+                        <Select 
+                          value={dongInterpolationType} 
+                          onValueChange={(value) => onDongInterpolationTypeChange?.(value as 'linear' | 'exponential' | 'logarithmic' | 'smooth')}
+                        >
+                          <SelectTrigger className="bg-white/10 border-white/20 text-white text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-900 border-white/20">
+                            <SelectItem value="smooth" className="text-white hover:bg-white/10">
+                              부드러운 (Smooth S-curve)
+                            </SelectItem>
+                            <SelectItem value="linear" className="text-white hover:bg-white/10">
+                              선형 (Linear)
+                            </SelectItem>
+                            <SelectItem value="exponential" className="text-white hover:bg-white/10">
+                              지수 (Exponential)
+                            </SelectItem>
+                            <SelectItem value="logarithmic" className="text-white hover:bg-white/10">
+                              로그 (Logarithmic)
+                            </SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div className="text-xs text-white/40 mt-1">
+                        중심부는 원래 매출액, 경계는 {dongBoundaryHeight} 고정
+                      </div>
+                      
+                      {/* Processing indicator */}
+                      {isDongProcessing && (
+                        <div className="mt-2 space-y-1">
+                          <div className="flex items-center justify-between text-xs text-white/60">
+                            <span>처리 중...</span>
+                            <span className="text-blue-400">Web Worker 사용</span>
+                          </div>
+                          <div className="w-full bg-white/10 rounded-full h-1.5">
+                            <div 
+                              className="bg-gradient-to-r from-blue-500 to-cyan-500 h-1.5 rounded-full transition-all duration-300"
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
