@@ -53,6 +53,62 @@ interface LayerManagerProps {
 // Seoul 중심점 (경위도)
 const SEOUL_CENTER: [number, number] = [126.978, 37.5665]
 
+/**
+ * Generate smooth heatmap color based on normalized value
+ * @param value Normalized value between 0 and 1
+ * @returns RGBA color array
+ */
+function getHeatmapColor(value: number): [number, number, number, number] {
+  // Clamp value between 0 and 1
+  const v = Math.max(0, Math.min(1, value))
+  
+  // Smooth heatmap gradient: blue -> cyan -> green -> yellow -> orange -> red
+  let r, g, b: number
+  
+  if (v < 0.167) {
+    // Blue to cyan
+    const t = v / 0.167
+    r = 0
+    g = Math.floor(100 + 155 * t)
+    b = 255
+  } else if (v < 0.333) {
+    // Cyan to green
+    const t = (v - 0.167) / 0.167
+    r = 0
+    g = 255
+    b = Math.floor(255 - 155 * t)
+  } else if (v < 0.5) {
+    // Green to yellow-green
+    const t = (v - 0.333) / 0.167
+    r = Math.floor(128 * t)
+    g = 255
+    b = Math.floor(100 - 100 * t)
+  } else if (v < 0.667) {
+    // Yellow-green to yellow
+    const t = (v - 0.5) / 0.167
+    r = Math.floor(128 + 127 * t)
+    g = 255
+    b = 0
+  } else if (v < 0.833) {
+    // Yellow to orange
+    const t = (v - 0.667) / 0.167
+    r = 255
+    g = Math.floor(255 - 115 * t)
+    b = 0
+  } else {
+    // Orange to red
+    const t = (v - 0.833) / 0.167
+    r = 255
+    g = Math.floor(140 - 140 * t)
+    b = 0
+  }
+  
+  // Calculate alpha based on value (higher values = more opaque)
+  const alpha = 160 + Math.floor(95 * v)  // Range: 160-255
+  
+  return [r, g, b, alpha]
+}
+
 // 기온그룹을 숫자값으로 변환
 function temperatureGroupToValue(group?: string): number {
   switch(group) {
@@ -519,6 +575,16 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
   if (!data || !config.visible) return []
   
   // Creating column layer
+  console.log('[LayerManager] Creating ColumnLayer with:', {
+    dataCount: data?.length,
+    elevationScale: config.elevationScale,
+    displayMode: config.displayMode,
+    firstItem: data?.[0] ? {
+      coordinates: data[0].coordinates,
+      weight: data[0].weight,
+      hasOriginalData: !!data[0].originalData
+    } : null
+  })
   
   const layer = new ColumnLayer<HexagonLayerData>({
     id: 'column-layer',
@@ -534,9 +600,9 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
       return d.coordinates
     },
     
-    // 3D 바 설정
-    diskResolution: 6,  // 육각형 모양
-    radius: config.displayMode === 'simple' ? 150 : 100,  // Simple 모드에서는 더 큰 반지름
+    // 3D 바 설정 - 더 부드러운 원형을 위해 해상도 증가
+    diskResolution: 12,  // 더 부드러운 원형 (기존 6에서 12로 증가)
+    radius: config.displayMode === 'simple' ? 180 : 120,  // 셀 간 오버랩 증가로 부드러운 연결
     extruded: true,  // 3D 활성화
     wireframe: false,
     filled: true,
@@ -572,18 +638,14 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
       // 호버된 구역(동)과 같은 구역이면 전체 색상 변경
       const isHoveredDistrict = config.hoveredDistrict && d.originalData?.dongName === config.hoveredDistrict
       
-      // Simple 모드에서는 매출액 범위별 색상 (7단계 세분화)
-      if (config.displayMode === 'simple') {
-        const sales = d.weight
-        let baseColor: [number, number, number, number]
+      // Heatmap 색상 스킴 - 부드러운 그라데이션
+      if (config.displayMode === 'simple' || config.colorMode === 'heatmap') {
+        const value = d.weight
+        const maxValue = 500000000  // 5억원 기준 (더 선명한 색상 변화)
+        const normalizedValue = Math.min(1, value / maxValue)
         
-        if (sales < 5000000) baseColor = [0, 50, 200, 200]    // 500만원 미만: 진한 파랑
-        else if (sales < 20000000) baseColor = [0, 100, 255, 200]  // 2천만원 미만: 파랑
-        else if (sales < 50000000) baseColor = [0, 200, 200, 200]  // 5천만원 미만: 청록색
-        else if (sales < 100000000) baseColor = [0, 255, 100, 200] // 1억원 미만: 초록색
-        else if (sales < 200000000) baseColor = [255, 200, 0, 200] // 2억원 미만: 노란색
-        else if (sales < 500000000) baseColor = [255, 140, 0, 200] // 5억원 미만: 주황색
-        else baseColor = [255, 50, 0, 200]  // 5억원 이상: 빨간색
+        // 히트맵 색상 그라데이션 함수 사용
+        let baseColor = getHeatmapColor(normalizedValue)
         
         // 호버된 구역이면 밝기와 채도 증가
         if (isHoveredDistrict) {

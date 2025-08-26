@@ -57,7 +57,7 @@ export interface InterpolatorConfig {
  * 행정동 경계 데이터
  */
 export interface DongBoundary {
-  adm_cd: string      // 행정동 코드
+  adm_cd: string      // 행정동 코드 (String으로 통일)
   adm_nm: string      // 행정동 이름
   geometry: Polygon   // 경계 폴리곤
 }

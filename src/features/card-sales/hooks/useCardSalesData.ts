@@ -9,6 +9,8 @@ import { climateDataLoader } from '../utils/climateDataLoader'
 import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
 import { getCategoryOffset } from '../constants/categoryOffsets'
 import { useGridInterpolation } from './useGridInterpolation'
+import { useDongBoundaryGradient } from './useDongBoundaryGradient'
+import { useCentroidGradient } from './useCentroidGradient'
 import type { DistributionMethod } from '../types/grid.types'
 
 interface UseLayerStateReturn {
@@ -34,6 +36,14 @@ interface UseLayerStateReturn {
   setGridInterpolationEnabled: (enabled: boolean) => void
   gridDistributionMethod: DistributionMethod
   setGridDistributionMethod: (method: DistributionMethod) => void
+  
+  // Dong Boundary Gradient 상태
+  dongBoundaryGradientEnabled: boolean
+  setDongBoundaryGradientEnabled: (enabled: boolean) => void
+  dongBoundaryHeight: number
+  setDongBoundaryHeight: (height: number) => void
+  dongInterpolationType: 'linear' | 'exponential' | 'logarithmic' | 'smooth'
+  setDongInterpolationType: (type: 'linear' | 'exponential' | 'logarithmic') => void
   
   // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
   displayMode: 'simple' | 'detailed'
@@ -144,6 +154,18 @@ export function useLayerState(): UseLayerStateReturn {
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedMiddleCategory, setSelectedMiddleCategory] = useState<string | null>(null)
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
+  
+  // Dong Boundary Gradient states
+  const [dongBoundaryGradientEnabled, setDongBoundaryGradientEnabled] = useState(false)
+  const [dongBoundaryHeight, setDongBoundaryHeight] = useState(1000000)  // Changed to 1M for better gradient
+  const [dongInterpolationType, setDongInterpolationType] = useState<'linear' | 'exponential' | 'logarithmic' | 'smooth'>('smooth')
+  const [useCentroidMethod, setUseCentroidMethod] = useState(true)  // Use memory-efficient centroid method by default
+  
+  // Grid 보간 상태 - Hook 사용 전에 선언
+  const [gridInterpolationEnabled, setGridEnabled] = useState(true) // Default to true
+  const [gridDistributionMethod, setGridMethod] = useState<DistributionMethod>('gaussian')
+  const [gridDistributionRadius, setGridRadius] = useState(2500)
+  const [gridSmoothingSigma, setGridSigma] = useState(1000)
   
   // 상호작용 상태
   const [hoveredObject, setHoveredObject] = useState<any>(null)
@@ -344,6 +366,7 @@ export function useLayerState(): UseLayerStateReturn {
             originalData: {
               guName: item.guName,
               dongName: item.dongName,
+              dongCode: item.dongCode, // 행정동코드 추가
               categorySales: categorySales,
               middleCategory: selectedMiddleCategory,
               coordinates: item.coordinates,
@@ -383,6 +406,7 @@ export function useLayerState(): UseLayerStateReturn {
           originalData: {
             guName: item.guName,
             dongName: item.dongName,
+            dongCode: item.dongCode, // 행정동코드 추가
             categorySales: sales,
             middleCategory: category,
             coordinates: item.coordinates,
@@ -437,6 +461,7 @@ export function useLayerState(): UseLayerStateReturn {
         originalData: {
           guName: item.guName,
           dongName: item.dongName,
+          dongCode: item.dongCode, // 행정동코듍 추가
           categorySales: totalSales,
           displayMode: 'simple',
           coordinates: item.coordinates,
@@ -547,7 +572,7 @@ export function useLayerState(): UseLayerStateReturn {
     setSmoothing: setGridSmoothing,
     reprocessData: reprocessGridData
   } = useGridInterpolation(hexagonData, climateData, {
-    enabled: true, // 기본값 활성화 - Gaussian grid as default
+    enabled: gridInterpolationEnabled && !dongBoundaryGradientEnabled, // Dong gradient와 상호 배타적
     gridSize: 80,
     distributionMethod: 'gaussian',
     distributionRadius: 2500,  // Increased from 1000m to 2500m
@@ -555,14 +580,57 @@ export function useLayerState(): UseLayerStateReturn {
     smoothingSigma: 1000      // Increased from 500m to 1000m
   })
   
-  // Grid 보간 상태
-  const [gridInterpolationEnabled, setGridEnabled] = useState(true) // Default to true
-  const [gridDistributionMethod, setGridMethod] = useState<DistributionMethod>('gaussian')
-  const [gridDistributionRadius, setGridRadius] = useState(2500)
-  const [gridSmoothingSigma, setGridSigma] = useState(1000)
+  // Centroid Gradient Hook (NEW - Memory Efficient)
+  const {
+    gradientData: centroidGradientData,
+    isProcessing: isCentroidProcessing,
+    error: centroidGradientError,
+    setEnabled: setCentroidGradientEnabled,
+    setBoundaryHeight: setCentroidBoundaryHeight,
+    setInterpolationType: setCentroidInterpolationType,
+    reprocessData: reprocessCentroidGradient
+  } = useCentroidGradient(hexagonData, climateData, {
+    enabled: dongBoundaryGradientEnabled && useCentroidMethod,
+    boundaryHeight: dongBoundaryHeight,
+    interpolationType: dongInterpolationType as any,
+    gridSize: 80
+  })
   
-  // Grid 보간 활성화 시 gridData 사용
-  const finalHexagonData = gridInterpolationEnabled && gridData ? gridData : hexagonData
+  // Original Dong Boundary Gradient Hook (OLD - Memory Heavy)
+  const {
+    gradientData: dongGradientData,
+    isProcessing: isDongGradientProcessing,
+    error: dongGradientError,
+    setEnabled: setDongGradientEnabled,
+    setBoundaryHeight: setDongBoundaryHeightHook,
+    setInterpolationType: setDongInterpolationTypeHook,
+    reprocessData: reprocessDongGradient
+  } = useDongBoundaryGradient(hexagonData, climateData, {
+    enabled: dongBoundaryGradientEnabled && !useCentroidMethod,
+    boundaryHeight: dongBoundaryHeight,
+    interpolationType: dongInterpolationType,
+    gridSize: 80  // Optimized grid size for performance and quality balance
+  })
+  
+  // 데이터 우선순위: Centroid/Dong Gradient > Grid Interpolation > Original
+  const finalHexagonData = useMemo(() => {
+    // Use centroid method if enabled (memory efficient)
+    if (dongBoundaryGradientEnabled && useCentroidMethod && centroidGradientData) {
+      console.log('[CardSalesData] Using Centroid Gradient data (memory efficient):', centroidGradientData?.length, 'cells')
+      return centroidGradientData
+    }
+    // Fallback to original dong gradient
+    if (dongBoundaryGradientEnabled && !useCentroidMethod && dongGradientData) {
+      console.log('[CardSalesData] Using Dong Gradient data:', dongGradientData?.length, 'cells')
+      return dongGradientData
+    }
+    if (gridInterpolationEnabled && gridData) {
+      console.log('[CardSalesData] Using Grid Interpolation data:', gridData?.length, 'cells')
+      return gridData
+    }
+    console.log('[CardSalesData] Using original hexagon data:', hexagonData?.length, 'cells')
+    return hexagonData
+  }, [dongBoundaryGradientEnabled, useCentroidMethod, centroidGradientData, dongGradientData, gridInterpolationEnabled, gridData, hexagonData])
   
   return {
     // 레이어 설정 상태
@@ -571,8 +639,8 @@ export function useLayerState(): UseLayerStateReturn {
     // 데이터 상태
     hexagonData: finalHexagonData,
     climateData,
-    isDataLoading: isDataLoading || isGridProcessing,
-    dataError: dataError || gridError,
+    isDataLoading: isDataLoading || isGridProcessing || (useCentroidMethod ? isCentroidProcessing : isDongGradientProcessing),
+    dataError: dataError || gridError || (useCentroidMethod ? centroidGradientError : dongGradientError),
     
     // Grid 보간 상태
     gridInterpolationEnabled,
@@ -597,6 +665,33 @@ export function useLayerState(): UseLayerStateReturn {
     },
     reprocessGridData,
     isGridProcessing,
+    
+    // Dong Boundary Gradient 상태
+    dongBoundaryGradientEnabled,
+    setDongBoundaryGradientEnabled: (enabled: boolean) => {
+      console.log('[CardSalesData] Setting Dong Boundary Gradient:', enabled)
+      setDongBoundaryGradientEnabled(enabled)
+      setDongGradientEnabled(enabled)
+      // Grid와 상호 배타적
+      if (enabled) {
+        console.log('[CardSalesData] Disabling Grid Interpolation (mutually exclusive)')
+        setGridEnabled(false)
+        setGridInterpolationEnabled(false)
+      }
+    },
+    dongBoundaryHeight,
+    setDongBoundaryHeight: (height: number) => {
+      setDongBoundaryHeight(height)
+      setDongBoundaryHeightHook(height)
+    },
+    dongInterpolationType,
+    setDongInterpolationType: (type: 'linear' | 'exponential' | 'logarithmic') => {
+      setDongInterpolationType(type)
+      setDongInterpolationTypeHook(type)
+    },
+    reprocessDongGradient: useCentroidMethod ? reprocessCentroidGradient : reprocessDongGradient,
+    isDongGradientProcessing: useCentroidMethod ? isCentroidProcessing : isDongGradientProcessing,
+    dongGradientError: useCentroidMethod ? centroidGradientError : dongGradientError,
     
     // 표시 모드
     displayMode,

@@ -99,7 +99,16 @@ export default function HexagonScene() {
     gridSmoothingSigma,
     setGridSmoothingSigma,
     reprocessGridData,
-    isGridProcessing
+    isGridProcessing,
+    // Dong Boundary Gradient states
+    dongBoundaryGradientEnabled,
+    setDongBoundaryGradientEnabled,
+    dongBoundaryHeight,
+    setDongBoundaryHeight,
+    dongInterpolationType,
+    setDongInterpolationType,
+    reprocessDongGradient,
+    isDongGradientProcessing
   } = useLayerState()
   
   // 기본 지도 상태
@@ -1298,6 +1307,15 @@ export default function HexagonScene() {
         onGridSmoothingSigmaChange={setGridSmoothingSigma}
         onGridReprocess={reprocessGridData}
         isGridProcessing={isGridProcessing}
+        // Dong Boundary Gradient props
+        dongBoundaryGradientEnabled={dongBoundaryGradientEnabled}
+        onDongBoundaryGradientEnabledChange={setDongBoundaryGradientEnabled}
+        dongBoundaryHeight={dongBoundaryHeight}
+        onDongBoundaryHeightChange={setDongBoundaryHeight}
+        dongInterpolationType={dongInterpolationType}
+        onDongInterpolationTypeChange={setDongInterpolationType}
+        onDongReprocess={reprocessDongGradient}
+        isDongProcessing={isDongGradientProcessing}
         // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
         onResetLayers={handleFullReset}
       />

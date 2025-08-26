@@ -31,14 +31,15 @@ export class SeoulGridInterpolator {
   private dy: number = 0
 
   constructor(config: InterpolatorConfig = {}) {
+    // grid_0811.py의 nearest_only 설정 사용 (라인 417-421)
     this.config = {
       gridSize: config.gridSize || 80,
       crsEqualArea: config.crsEqualArea || 'EPSG:5186',
       crsWGS84: config.crsWGS84 || 'EPSG:4326',
-      distributionMethod: config.distributionMethod || 'gaussian',
-      distributionRadius: config.distributionRadius || 1000.0,
+      distributionMethod: config.distributionMethod || 'nearest',  // 가장 가까운 셀에만 100%
+      distributionRadius: config.distributionRadius || 1000.0,  // nearest에서는 의미없음
       enableSmoothing: config.enableSmoothing ?? true,
-      smoothingSigma: config.smoothingSigma || 500.0
+      smoothingSigma: config.smoothingSigma || 800.0  // 스무싱으로 경계 생성
     }
     
     this.gaussianBlur = new GaussianBlur()
@@ -245,7 +246,8 @@ export class SeoulGridInterpolator {
     switch (this.config.distributionMethod) {
       case 'gaussian': {
         // 가우시안 가중치: exp(-d²/2σ²)
-        const sigma = this.config.distributionRadius / 3.0 // 3σ = radius
+        // grid_0811.py 라인 201과 동일한 로직
+        const sigma = this.config.distributionRadius / 3.0 // 3σ = radius (grid_0811.py와 동일)
         return distances.map(d => Math.exp(-(d * d) / (2 * sigma * sigma)))
       }
       

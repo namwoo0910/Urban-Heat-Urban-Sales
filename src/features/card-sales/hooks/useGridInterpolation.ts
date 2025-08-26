@@ -47,18 +47,18 @@ export function useGridInterpolation(
   const [isProcessing, setIsProcessing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   
-  // Configuration state
+  // Configuration state - grid_0811.py의 nearest_only 설정 사용 (라인 417-421)
   const [distributionMethod, setDistributionMethod] = useState<DistributionMethod>(
-    options.distributionMethod || 'gaussian'
+    options.distributionMethod || 'nearest'  // 가장 가까운 셀에만 100% 할당
   )
   const [distributionRadius, setDistributionRadius] = useState(
-    options.distributionRadius || 1000
+    options.distributionRadius || 1000  // nearest에서는 의미없음 (grid_0811.py 라인 419)
   )
   const [enableSmoothing, setEnableSmoothing] = useState(
     options.enableSmoothing ?? true
   )
   const [smoothingSigma, setSmoothingSigma] = useState(
-    options.smoothingSigma || 500
+    options.smoothingSigma || 800  // 스무싱으로 경계 생성 (grid_0811.py 라인 420)
   )
   
   // Boundaries data (cached)
@@ -103,11 +103,11 @@ export function useGridInterpolation(
         
         const dongGeoJson = await dongResponse.json()
         
-        // Convert to DongBoundary format
-        const dongBounds: DongBoundary[] = dongGeoJson.features.map((feature: any, index: number) => {
-          // Handle both old format (ADM_CD, ADM_NM) and new format (자치구, 행정동)
-          const adm_nm = feature.properties.행정동 || feature.properties.ADM_NM
-          const adm_cd = feature.properties.ADM_CD || `dong_${index}_${adm_nm}` // Generate ID if not present
+        // Convert to DongBoundary format - 행정동코드로 통일
+        const dongBounds: DongBoundary[] = dongGeoJson.features.map((feature: any) => {
+          // 행정동코드를 String으로 통일
+          const adm_cd = String(feature.properties.행정동코드 || feature.properties.ADM_CD || '')
+          const adm_nm = feature.properties.행정동 || feature.properties.ADM_NM || ''
           
           return {
             adm_cd: adm_cd,
@@ -144,22 +144,22 @@ export function useGridInterpolation(
     try {
       console.log('🔄 격자 보간 시작...')
       
-      // Prepare dong data map (aggregate by dong)
+      // Prepare dong data map (aggregate by dong code)
       const dongDataMap = new Map<string, number>()
-      const dongCodeMap = new Map<string, string>()
       
-      // Create dong name to code mapping from boundaries
-      dongBoundaries.forEach(dong => {
-        dongCodeMap.set(dong.adm_nm, dong.adm_cd)
-      })
-      
-      // Aggregate sales data by dong
+      // Aggregate sales data by dong using 행정동코드
       hexagonData.forEach(point => {
-        if (point.originalData?.dongName) {
-          const dongName = point.originalData.dongName
-          const dongCode = dongCodeMap.get(dongName)
+        if (point.originalData) {
+          // Try to get dong code from various fields
+          const dongCode = String(
+            point.originalData.dongCode || 
+            point.originalData.행정동코드 ||
+            point.originalData.admCd || 
+            point.originalData.adm_cd ||
+            point.originalData.ADM_CD || ''
+          )
           
-          if (dongCode) {
+          if (dongCode && dongCode !== '') {
             const currentValue = dongDataMap.get(dongCode) || 0
             dongDataMap.set(dongCode, currentValue + point.weight)
           }
