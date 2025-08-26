@@ -10,6 +10,7 @@ import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip } from "./LayerManager"
+import { SimpleWebGLGradientLayer } from "@/src/features/card-sales/layers/WebGLGradientLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
@@ -108,7 +109,15 @@ export default function HexagonScene() {
     dongInterpolationType,
     setDongInterpolationType,
     reprocessDongGradient,
-    isDongGradientProcessing
+    isDongGradientProcessing,
+    // WebGL gradient states
+    webglEnabled,
+    webglRadiusPixels,
+    webglIntensity,
+    webglThreshold,
+    webglGradientData,
+    gpuGradientData,
+    useCustomWebGL
   } = useLayerState()
   
   // 기본 지도 상태
@@ -430,7 +439,7 @@ export default function HexagonScene() {
   }, [setSelectedGu, setSelectedDong, setDisplayMode])
 
   // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
-  const deckLayers = createColumnLayer(hexagonData, {
+  const columnLayers = createColumnLayer(hexagonData, {
     ...layerConfig,
     selectedMiddleCategory: selectedMiddleCategory,
     colorMode: selectedMiddleCategory ? 'category' : layerConfig.colorMode,
@@ -441,6 +450,36 @@ export default function HexagonScene() {
     // District highlighting
     hoveredDistrict: hoveredDistrict
   })
+  
+  // Create gradient layers when enabled
+  const gradientLayers = useMemo(() => {
+    const layers = []
+    
+    // Add WebGL gradient layer when dong boundary gradient is enabled
+    if (dongBoundaryGradientEnabled && webglGradientData && webglGradientData.length > 0) {
+      console.log('[HexagonLayer3D] Adding dong boundary gradient layer', {
+        dataCount: webglGradientData.length,
+        radiusPixels: webglRadiusPixels,
+        intensity: webglIntensity
+      })
+      
+      // Use simple WebGL gradient layer (CustomWebGLGradientLayer has compatibility issues)
+      layers.push(new SimpleWebGLGradientLayer({
+        id: 'dong-gradient-overlay',
+        data: webglGradientData,
+        radiusPixels: webglRadiusPixels || 80,
+        intensity: webglIntensity || 0.5,
+        threshold: webglThreshold || 0.03
+      }))
+    }
+    
+    return layers
+  }, [dongBoundaryGradientEnabled, webglGradientData, webglRadiusPixels, webglIntensity, webglThreshold])
+  
+  // Combine all layers
+  const deckLayers = useMemo(() => {
+    return [...gradientLayers, ...columnLayers]
+  }, [gradientLayers, columnLayers])
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -922,6 +961,13 @@ export default function HexagonScene() {
           if (isDragging) return 'grabbing'
           if (isHovering) return 'pointer'
           return 'grab'
+        }}
+        parameters={{
+          depthTest: true,
+          depthFunc: 0x0203, // GL.LEQUAL
+          blend: true,
+          blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
+          blendEquation: 0x8006 // GL.FUNC_ADD
         }}
         onClick={(info, event) => {
           // 이벤트가 레이어로 전파되도록 함

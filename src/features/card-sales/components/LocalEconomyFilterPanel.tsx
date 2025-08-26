@@ -20,9 +20,7 @@ import {
 } from "../data/districtHierarchy"
 import { 
   actualMiddleCategories,
-  actualSubCategories,
-  getAllMiddleCategories,
-  getAllSubCategories
+  getAllMiddleCategories
 } from "../data/businessHierarchy"
 
 interface LocalEconomyFilterPanelProps {
@@ -36,7 +34,6 @@ interface LocalEconomyFilterPanelProps {
   externalSelectedGu?: string | null
   externalSelectedDong?: string | null
   externalSelectedMiddleCategory?: string | null
-  externalSelectedSubCategory?: string | null
   // 레이어 초기화 함수
   onResetLayers?: () => void
   // Grid interpolation controls
@@ -59,6 +56,16 @@ interface LocalEconomyFilterPanelProps {
   onDongInterpolationTypeChange?: (type: 'linear' | 'exponential' | 'logarithmic' | 'smooth') => void
   onDongReprocess?: () => void
   isDongProcessing?: boolean
+  // WebGL rendering controls
+  webglEnabled?: boolean
+  onWebglEnabledChange?: (enabled: boolean) => void
+  webglRadiusPixels?: number
+  onWebglRadiusPixelsChange?: (radius: number) => void
+  webglIntensity?: number
+  onWebglIntensityChange?: (intensity: number) => void
+  webglThreshold?: number
+  onWebglThresholdChange?: (threshold: number) => void
+  gpuMemoryEstimate?: number // GPU memory usage estimate
 }
 
 // Color palette for business categories
@@ -113,7 +120,6 @@ export interface FilterState {
   selectedGu: string | null
   selectedDong: string | null
   selectedMiddleCategory: string | null
-  selectedSubCategory: string | null
 }
 
 export default function LocalEconomyFilterPanel({
@@ -127,7 +133,6 @@ export default function LocalEconomyFilterPanel({
   externalSelectedGu,
   externalSelectedDong,
   externalSelectedMiddleCategory,
-  externalSelectedSubCategory,
   // 레이어 초기화 함수
   onResetLayers,
   // Grid interpolation controls
@@ -149,7 +154,17 @@ export default function LocalEconomyFilterPanel({
   dongInterpolationType = 'linear',
   onDongInterpolationTypeChange,
   onDongReprocess,
-  isDongProcessing = false
+  isDongProcessing = false,
+  // WebGL rendering controls
+  webglEnabled = true, // DEFAULT: GPU ON
+  onWebglEnabledChange,
+  webglRadiusPixels = 80,
+  onWebglRadiusPixelsChange,
+  webglIntensity = 1,
+  onWebglIntensityChange,
+  webglThreshold = 0.03,
+  onWebglThresholdChange,
+  gpuMemoryEstimate = 0
 }: LocalEconomyFilterPanelProps) {
   // Panel state
   const [isExpanded, setIsExpanded] = useState(false)
@@ -161,7 +176,6 @@ export default function LocalEconomyFilterPanel({
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedMiddleCategory, setSelectedMiddleCategory] = useState<string | null>(null)
-  const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
   
   // Get available options
   const availableDistricts = useMemo(() => getAllDistricts(), [])
@@ -170,7 +184,6 @@ export default function LocalEconomyFilterPanel({
   }, [selectedGu])
   
   const availableMiddleCategories = useMemo(() => getAllMiddleCategories(), [])
-  const availableSubCategories = useMemo(() => getAllSubCategories(), [])
   
   // Handle district selection
   const handleGuChange = (value: string) => {
@@ -186,12 +199,6 @@ export default function LocalEconomyFilterPanel({
   // Handle middle category selection
   const handleMiddleCategoryChange = (value: string) => {
     setSelectedMiddleCategory(value === '전체' ? null : value)
-    setSelectedSubCategory(null) // Reset subcategory when middle category changes
-  }
-  
-  // Handle subcategory selection
-  const handleSubCategoryChange = (value: string) => {
-    setSelectedSubCategory(value === '전체' ? null : value)
   }
   
   // Reset all filters and layers
@@ -199,7 +206,6 @@ export default function LocalEconomyFilterPanel({
     setSelectedGu(null)
     setSelectedDong(null)
     setSelectedMiddleCategory(null)
-    setSelectedSubCategory(null)
     
     // 레이어 설정도 초기화
     if (onResetLayers) {
@@ -222,15 +228,12 @@ export default function LocalEconomyFilterPanel({
     if (externalSelectedMiddleCategory !== undefined) {
       setSelectedMiddleCategory(externalSelectedMiddleCategory)
     }
-    if (externalSelectedSubCategory !== undefined) {
-      setSelectedSubCategory(externalSelectedSubCategory)
-    }
     
     // Reset flag after state updates
     setTimeout(() => {
       isExternalUpdateRef.current = false
     }, 0)
-  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory, externalSelectedSubCategory])
+  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory])
   */
 
   // Notify parent of filter changes
@@ -239,11 +242,10 @@ export default function LocalEconomyFilterPanel({
       onFilterChange({
         selectedGu,
         selectedDong,
-        selectedMiddleCategory,
-        selectedSubCategory
+        selectedMiddleCategory
       })
     }
-  }, [selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory, onFilterChange])
+  }, [selectedGu, selectedDong, selectedMiddleCategory, onFilterChange])
   
   // Process data for bar chart based on filters
   const chartData = useMemo(() => {
@@ -272,28 +274,21 @@ export default function LocalEconomyFilterPanel({
       if (item.salesByCategory) {
         Object.entries(item.salesByCategory).forEach(([category, amount]) => {
           // Filter by selected categories if any
-          if (selectedSubCategory) {
-            // 소분류는 'sub_' 접두사가 있을 수 있음
-            if (category === selectedSubCategory || category === `sub_${selectedSubCategory}`) {
-              categoryTotals[selectedSubCategory] = (categoryTotals[selectedSubCategory] || 0) + (amount as number)
-            }
-          } else if (selectedMiddleCategory) {
+          if (selectedMiddleCategory) {
             // 중분류 선택 시 해당 중분류만 표시
             if (category === selectedMiddleCategory) {
               categoryTotals[selectedMiddleCategory] = (categoryTotals[selectedMiddleCategory] || 0) + (amount as number)
             }
           } else {
-            // 전체 카테고리 표시 - 중분류와 소분류 모두 집계
+            // 전체 카테고리 표시
             if (amount && amount > 0) {
-              // sub_ 접두사 제거
-              const cleanCategory = category.startsWith('sub_') ? category.substring(4) : category
-              categoryTotals[cleanCategory] = (categoryTotals[cleanCategory] || 0) + (amount as number)
+              categoryTotals[category] = (categoryTotals[category] || 0) + (amount as number)
             }
           }
         })
       } else {
         // Fallback to total sales if no category breakdown
-        const category = selectedSubCategory || selectedMiddleCategory || '전체'
+        const category = selectedMiddleCategory || '전체'
         categoryTotals[category] = (categoryTotals[category] || 0) + (item.totalSales || item.weight || 0)
       }
     })
@@ -307,10 +302,10 @@ export default function LocalEconomyFilterPanel({
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10) // Top 10 categories
-  }, [climateData, selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory])
+  }, [climateData, selectedGu, selectedDong, selectedMiddleCategory])
   
   // Count active filters
-  const activeFilterCount = [selectedGu, selectedDong, selectedMiddleCategory, selectedSubCategory]
+  const activeFilterCount = [selectedGu, selectedDong, selectedMiddleCategory]
     .filter(Boolean).length
   
   return (
@@ -319,7 +314,7 @@ export default function LocalEconomyFilterPanel({
         {/* Clickable Header */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-3 hover:bg-white/5 transition-colors group"
+          className="w-full flex items-center justify-between p-2 hover:bg-white/5 transition-colors group"
         >
           <div className="flex items-center space-x-2">
             <Filter size={14} className="text-blue-400" />
@@ -348,11 +343,11 @@ export default function LocalEconomyFilterPanel({
               transition={{ duration: 0.3, ease: "easeInOut" }}
               style={{ overflow: "hidden" }}
             >
-              <div className="px-3 pb-3 space-y-3">
+              <div className="px-2 pb-2 space-y-2">
                 <Separator className="bg-white/20" />
                 
                 {/* Grid Interpolation Toggle */}
-                <div className="space-y-3">
+                <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <Label className="text-white/80 text-xs">80x80 격자 보간</Label>
@@ -390,7 +385,7 @@ export default function LocalEconomyFilterPanel({
                 <Separator className="bg-white/20" />
                 
                 {/* Dong Boundary Gradient Section */}
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
                       <MapPin size={14} className="text-purple-400" />
@@ -460,16 +455,29 @@ export default function LocalEconomyFilterPanel({
                         중심부는 원래 매출액, 경계는 {dongBoundaryHeight} 고정
                       </div>
                       
+                      {/* GPU Status indicator */}
+                      <div className="mt-2 space-y-1">
+                        <div className="flex items-center justify-between text-xs">
+                          <span className="text-green-400">✅ GPU 렌더링 활성화</span>
+                          <span className="text-cyan-400">WebGL 2.0</span>
+                        </div>
+                        {webglEnabled && (
+                          <div className="text-xs text-white/60">
+                            GPU 메모리: ~{(gpuMemoryEstimate || 0).toFixed(1)}MB
+                          </div>
+                        )}
+                      </div>
+                      
                       {/* Processing indicator */}
                       {isDongProcessing && (
                         <div className="mt-2 space-y-1">
                           <div className="flex items-center justify-between text-xs text-white/60">
-                            <span>처리 중...</span>
-                            <span className="text-blue-400">Web Worker 사용</span>
+                            <span>GPU 처리 중...</span>
+                            <span className="text-green-400">WebGL Shader</span>
                           </div>
                           <div className="w-full bg-white/10 rounded-full h-1.5">
                             <div 
-                              className="bg-gradient-to-r from-blue-500 to-cyan-500 h-1.5 rounded-full transition-all duration-300"
+                              className="bg-gradient-to-r from-green-500 to-cyan-500 h-1.5 rounded-full transition-all duration-300"
                               style={{ width: '100%' }}
                             />
                           </div>
@@ -478,8 +486,6 @@ export default function LocalEconomyFilterPanel({
                     </div>
                   )}
                 </div>
-                
-                <Separator className="bg-white/20" />
                 
                 {/* Display Mode Toggle */}
                 <div className="flex items-center justify-between">
@@ -500,14 +506,14 @@ export default function LocalEconomyFilterPanel({
                 <Separator className="bg-white/20" />
                 
                 {/* District Selection Section */}
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <MapPin size={14} className="text-blue-400" />
                     <Label className="text-white font-semibold text-xs">지역선택</Label>
                   </div>
                   
                   {/* 자치구 Selection */}
-                  <div className="space-y-1 pl-4">
+                  <div className="space-y-0.5 pl-3">
                     <Label className="text-white/80 text-xs">자치구</Label>
                     <Select value={selectedGu || "전체"} onValueChange={handleGuChange}>
                       <SelectTrigger className="bg-white/10 border-white/20 text-white">
@@ -534,7 +540,7 @@ export default function LocalEconomyFilterPanel({
                   </div>
                   
                   {/* 행정동 Selection */}
-                  <div className="space-y-1 pl-4">
+                  <div className="space-y-0.5 pl-3">
                     <Label className="text-white/80 text-xs">행정동</Label>
                     <Select 
                       value={selectedDong || "전체"} 
@@ -572,14 +578,14 @@ export default function LocalEconomyFilterPanel({
                 <Separator className="bg-white/20" />
                 
                 {/* Business Category Selection Section */}
-                <div className="space-y-2">
+                <div className="space-y-1">
                   <div className="flex items-center space-x-2">
                     <Briefcase size={14} className="text-green-400" />
                     <Label className="text-white font-semibold text-xs">업종선택</Label>
                   </div>
                   
                   {/* 중분류 Selection */}
-                  <div className="space-y-1 pl-4">
+                  <div className="space-y-0.5 pl-3">
                     <Label className="text-white/80 text-xs">중분류</Label>
                     <Select 
                       value={selectedMiddleCategory || "전체"} 
@@ -607,45 +613,10 @@ export default function LocalEconomyFilterPanel({
                       </SelectContent>
                     </Select>
                   </div>
-                  
-                  {/* 소분류 Selection */}
-                  <div className="space-y-1 pl-4">
-                    <Label className="text-white/80 text-xs">소분류</Label>
-                    <Select 
-                      value={selectedSubCategory || "전체"} 
-                      onValueChange={handleSubCategoryChange}
-                      disabled={!selectedMiddleCategory}
-                    >
-                      <SelectTrigger className="bg-white/10 border-white/20 text-white disabled:opacity-50">
-                        <SelectValue 
-                          placeholder={selectedMiddleCategory ? "소분류를 선택하세요" : "먼저 중분류를 선택하세요"} 
-                        />
-                      </SelectTrigger>
-                      <SelectContent className="bg-gray-900 border-white/20 max-h-64 overflow-y-auto">
-                        {selectedMiddleCategory && (
-                          <SelectItem 
-                            value="전체"
-                            className="text-white hover:bg-white/10 font-semibold border-b border-white/10"
-                          >
-                            전체
-                          </SelectItem>
-                        )}
-                        {availableSubCategories.map(subCategory => (
-                          <SelectItem 
-                            key={subCategory} 
-                            value={subCategory}
-                            className="text-white hover:bg-white/10"
-                          >
-                            {subCategory}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
                 </div>
                 
                 {/* Reset Button */}
-                <div className="pt-2">
+                <div className="pt-1">
                   <Button
                     variant="outline"
                     size="sm"

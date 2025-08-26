@@ -11,6 +11,7 @@ import { getCategoryOffset } from '../constants/categoryOffsets'
 import { useGridInterpolation } from './useGridInterpolation'
 import { useDongBoundaryGradient } from './useDongBoundaryGradient'
 import { useCentroidGradient } from './useCentroidGradient'
+import { useWebGLGradient } from './useWebGLGradient'
 import type { DistributionMethod } from '../types/grid.types'
 
 interface UseLayerStateReturn {
@@ -126,6 +127,18 @@ interface UseLayerStateReturn {
   updateBearing: (bearing: number) => void
   onRotationInteractionStart: () => void
   onRotationInteractionEnd: () => void
+  
+  // WebGL rendering states
+  webglEnabled?: boolean
+  setWebglEnabled?: (enabled: boolean) => void
+  webglRadiusPixels?: number
+  setWebglRadiusPixels?: (radius: number) => void
+  webglIntensity?: number
+  setWebglIntensity?: (intensity: number) => void
+  webglThreshold?: number
+  setWebglThreshold?: (threshold: number) => void
+  webglGradientData?: any
+  isWebglProcessing?: boolean
 }
 
 export function useLayerState(): UseLayerStateReturn {
@@ -160,6 +173,12 @@ export function useLayerState(): UseLayerStateReturn {
   const [dongBoundaryHeight, setDongBoundaryHeight] = useState(1000000)  // Changed to 1M for better gradient
   const [dongInterpolationType, setDongInterpolationType] = useState<'linear' | 'exponential' | 'logarithmic' | 'smooth'>('smooth')
   const [useCentroidMethod, setUseCentroidMethod] = useState(true)  // Use memory-efficient centroid method by default
+  
+  // WebGL rendering states - GPU ENABLED BY DEFAULT
+  const [webglEnabled, setWebglEnabled] = useState(true) // DEFAULT: GPU rendering ON
+  const [webglRadiusPixels, setWebglRadiusPixels] = useState(80)
+  const [webglIntensity, setWebglIntensity] = useState(1)
+  const [webglThreshold, setWebglThreshold] = useState(0.03)
   
   // Grid 보간 상태 - Hook 사용 전에 선언
   const [gridInterpolationEnabled, setGridEnabled] = useState(true) // Default to true
@@ -580,7 +599,7 @@ export function useLayerState(): UseLayerStateReturn {
     smoothingSigma: 1000      // Increased from 500m to 1000m
   })
   
-  // Centroid Gradient Hook (NEW - Memory Efficient)
+  // Centroid Gradient Hook (DISABLED - Using GPU instead)
   const {
     gradientData: centroidGradientData,
     isProcessing: isCentroidProcessing,
@@ -590,13 +609,13 @@ export function useLayerState(): UseLayerStateReturn {
     setInterpolationType: setCentroidInterpolationType,
     reprocessData: reprocessCentroidGradient
   } = useCentroidGradient(hexagonData, climateData, {
-    enabled: dongBoundaryGradientEnabled && useCentroidMethod,
+    enabled: false, // DISABLED - GPU WebGL is used instead
     boundaryHeight: dongBoundaryHeight,
     interpolationType: dongInterpolationType as any,
     gridSize: 80
   })
   
-  // Original Dong Boundary Gradient Hook (OLD - Memory Heavy)
+  // Original Dong Boundary Gradient Hook (DISABLED - Using GPU instead)
   const {
     gradientData: dongGradientData,
     isProcessing: isDongGradientProcessing,
@@ -606,31 +625,55 @@ export function useLayerState(): UseLayerStateReturn {
     setInterpolationType: setDongInterpolationTypeHook,
     reprocessData: reprocessDongGradient
   } = useDongBoundaryGradient(hexagonData, climateData, {
-    enabled: dongBoundaryGradientEnabled && !useCentroidMethod,
+    enabled: false, // DISABLED - GPU WebGL is used instead
     boundaryHeight: dongBoundaryHeight,
     interpolationType: dongInterpolationType,
     gridSize: 80  // Optimized grid size for performance and quality balance
   })
   
-  // 데이터 우선순위: Centroid/Dong Gradient > Grid Interpolation > Original
+  // WebGL Gradient Hook (GPU Accelerated) - ALWAYS USE CUSTOM WEBGL
+  const webglGradientHook = useWebGLGradient(hexagonData, climateData, {
+    enabled: webglEnabled || dongBoundaryGradientEnabled, // Enable on dong gradient too
+    radiusPixels: webglRadiusPixels,
+    intensity: webglIntensity,
+    threshold: webglThreshold,
+    useCustomWebGL: true, // ALWAYS use custom WebGL layer
+    useGPUAggregation: true // ALWAYS use GPU aggregation
+  })
+  
+  const {
+    gradientData: webglGradientData,
+    gpuGradientData,
+    isProcessing: isWebglProcessing,
+    error: webglError,
+    setEnabled: setWebglEnabledHook,
+    setRadiusPixels: setWebglRadiusPixelsHook,
+    setIntensity: setWebglIntensityHook,
+    setThreshold: setWebglThresholdHook,
+    reprocessData: reprocessWebglData
+  } = webglGradientHook
+  
+  // 데이터 우선순위: Always return hexagon data for bars rendering
   const finalHexagonData = useMemo(() => {
-    // Use centroid method if enabled (memory efficient)
-    if (dongBoundaryGradientEnabled && useCentroidMethod && centroidGradientData) {
-      console.log('[CardSalesData] Using Centroid Gradient data (memory efficient):', centroidGradientData?.length, 'cells')
-      return centroidGradientData
-    }
-    // Fallback to original dong gradient
-    if (dongBoundaryGradientEnabled && !useCentroidMethod && dongGradientData) {
-      console.log('[CardSalesData] Using Dong Gradient data:', dongGradientData?.length, 'cells')
-      return dongGradientData
-    }
+    // IMPORTANT: Always return data for HexagonLayer to render bars
+    // WebGL gradient is handled as a separate overlay layer
+    
+    // PRIORITY 1: Grid interpolation if enabled
     if (gridInterpolationEnabled && gridData) {
-      console.log('[CardSalesData] Using Grid Interpolation data:', gridData?.length, 'cells')
+      console.log('[CardSalesData] Using Grid Interpolation for bars:', gridData?.length, 'cells')
       return gridData
     }
-    console.log('[CardSalesData] Using original hexagon data:', hexagonData?.length, 'cells')
-    return hexagonData
-  }, [dongBoundaryGradientEnabled, useCentroidMethod, centroidGradientData, dongGradientData, gridInterpolationEnabled, gridData, hexagonData])
+    
+    // PRIORITY 2: Original hexagon data (default)
+    console.log('[CardSalesData] Using original hexagon data for bars:', hexagonData?.length, 'cells')
+    
+    // Note: WebGL gradient is rendered as separate layer in LayerManager
+    if ((webglEnabled || dongBoundaryGradientEnabled) && webglGradientData) {
+      console.log('[CardSalesData] 🚀 WebGL Gradient will render as overlay')
+    }
+    
+    return hexagonData // Always return data for HexagonLayer bars
+  }, [webglEnabled, webglGradientData, dongBoundaryGradientEnabled, gridInterpolationEnabled, gridData, hexagonData])
   
   return {
     // 레이어 설정 상태
@@ -671,12 +714,25 @@ export function useLayerState(): UseLayerStateReturn {
     setDongBoundaryGradientEnabled: (enabled: boolean) => {
       console.log('[CardSalesData] Setting Dong Boundary Gradient:', enabled)
       setDongBoundaryGradientEnabled(enabled)
-      setDongGradientEnabled(enabled)
-      // Grid와 상호 배타적
+      
+      // GPU WebGL 자동 활성화 - CPU 기반 렌더링 방지
       if (enabled) {
+        console.log('[CardSalesData] Enabling GPU WebGL rendering for dong gradient')
+        setWebglEnabled(true) // GPU 자동 활성화
+        setWebglEnabledHook(true) // Hook에도 GPU 활성화
+        
+        // CPU 기반 렌더링 비활성화
+        setDongGradientEnabled(false) // CPU dong gradient OFF
+        setCentroidGradientEnabled(false) // CPU centroid gradient OFF
+        
+        // Grid와 상호 배타적
         console.log('[CardSalesData] Disabling Grid Interpolation (mutually exclusive)')
         setGridEnabled(false)
         setGridInterpolationEnabled(false)
+      } else {
+        // GPU WebGL도 비활성화
+        setWebglEnabled(false)
+        setWebglEnabledHook(false)
       }
     },
     dongBoundaryHeight,
@@ -773,6 +829,22 @@ export function useLayerState(): UseLayerStateReturn {
     toggleRotation,
     updateBearing,
     onRotationInteractionStart,
-    onRotationInteractionEnd
+    onRotationInteractionEnd,
+    
+    // WebGL rendering states
+    webglEnabled,
+    setWebglEnabled,
+    webglRadiusPixels,
+    setWebglRadiusPixels,
+    webglIntensity,
+    setWebglIntensity,
+    webglThreshold,
+    setWebglThreshold,
+    webglGradientData,
+    gpuGradientData,
+    isWebglProcessing,
+    useCustomWebGL: webglGradientHook.setUseCustomWebGL,
+    useGPUAggregation: webglGradientHook.setUseGPUAggregation,
+    gpuMemoryEstimate: webglGradientHook.gpuMemoryEstimate
   }
 }

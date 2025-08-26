@@ -7,6 +7,8 @@ import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import { MIDDLE_CATEGORY_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/middleCategoryColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
+import { SimpleWebGLGradientLayer, type DongGradientData } from '@/src/features/card-sales/layers/WebGLGradientLayer'
+import { CustomWebGLGradientLayer, type GPUGradientData } from '@/src/features/card-sales/layers/CustomWebGLGradientLayer'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
 export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'
@@ -39,6 +41,13 @@ export interface LayerConfig {
   // 선택된 지역 필터
   selectedGu?: string | null
   selectedDong?: string | null
+  // WebGL 렌더링 설정
+  webglEnabled?: boolean
+  webglRadiusPixels?: number
+  webglIntensity?: number
+  webglThreshold?: number
+  useCustomWebGL?: boolean // Use custom WebGL layer
+  gpuGradientData?: GPUGradientData[] | null // GPU gradient data for custom layer
 }
 
 interface LayerManagerProps {
@@ -48,6 +57,8 @@ interface LayerManagerProps {
   onClick?: (info: any) => void
   onAnimationInteractionStart?: () => void
   onAnimationInteractionEnd?: () => void
+  // WebGL gradient data (optional)
+  webglGradientData?: DongGradientData[] | null
 }
 
 // Seoul 중심점 (경위도)
@@ -201,7 +212,8 @@ export function LayerManager({
   onHover,
   onClick,
   onAnimationInteractionStart,
-  onAnimationInteractionEnd
+  onAnimationInteractionEnd,
+  webglGradientData
 }: LayerManagerProps) {
   // 애니메이션 시간 추적 (throttled updates)
   const [animationTime, setAnimationTime] = useState(0)
@@ -250,148 +262,156 @@ export function LayerManager({
 
   // Create layers with proper dependency management
   const layers = useMemo<Layer[]>(() => {
-    // Creating layers with data
-
-    if (!data || !config.visible) {
-      // No layers created
-      return []
-    }
-
-    // 애니메이션이 활성화된 경우 다중 레이어 생성
-    if (config.animationEnabled && groupedData) {
-      // Creating wave layers
+    // Creating layers array to support multiple layers
+    const layerArray: Layer[] = []
+    
+    // LAYER 1: HexagonLayer for 3D bars (main visualization)
+    if (data && config.visible && data.length > 0) {
+      console.log('[LayerManager] Creating HexagonLayer for bars with', data.length, 'points')
       
-      return groupedData.map((groupData, index) => {
-        // 각 레이어의 위상차 계산 (0 ~ 2π)
-        const phaseOffset = (index / WAVE_LAYERS) * Math.PI * 2
-        
-        // 시간에 따른 사인파 계산 (throttled animationTime)
-        const waveValue = Math.sin(animationTime * config.animationSpeed + phaseOffset)
-        const waveScale = config.elevationScale * (1 + waveValue * (config.waveAmplitude - 1) * 0.5)
-        
-        return new HexagonLayer<HexagonLayerData>({
-          id: `hexagon-wave-layer-${index}`,
-          data: groupData,
+      // 애니메이션이 활성화된 경우 다중 레이어 생성
+      if (config.animationEnabled && groupedData) {
+        // Creating wave layers for animation
+        groupedData.forEach((groupData, index) => {
+          const phaseOffset = (index / WAVE_LAYERS) * Math.PI * 2
+          const waveValue = Math.sin(animationTime * config.animationSpeed + phaseOffset)
+          const waveScale = config.elevationScale * (1 + waveValue * (config.waveAmplitude - 1) * 0.5)
           
-          // 위치 접근자
+          layerArray.push(new HexagonLayer<HexagonLayerData>({
+            id: `hexagon-wave-layer-${index}`,
+            data: groupData,
+            getPosition: (d: HexagonLayerData) => d.coordinates,
+            getColorWeight: (d: HexagonLayerData) => getColorWeightByMode(d, config.colorMode),
+            getElevationWeight: (d: HexagonLayerData) => d.weight,
+            radius: config.radius,
+            elevationScale: waveScale,
+            coverage: config.coverage,
+            extruded: true, // IMPORTANT: Enable 3D bars
+            pickable: true,
+            colorRange: COLOR_RANGES[config.colorScheme],
+            upperPercentile: config.upperPercentile,
+            onHover: (info, event) => {
+              if (onHover) onHover(info)
+              if (onAnimationInteractionStart && info.object) {
+                onAnimationInteractionStart()
+              }
+              return true
+            },
+            onClick: (info, event) => {
+              if (onClick) onClick(info)
+              return true
+            },
+            onDragStart: onAnimationInteractionStart,
+            onDragEnd: onAnimationInteractionEnd,
+            gpuAggregation: true, // FORCE GPU aggregation
+            updateTriggers: {
+              getColorWeight: [config.colorScheme, config.colorMode],
+              getElevationWeight: [waveScale]
+            }
+          }))
+        })
+      } else {
+        // 애니메이션이 비활성화된 경우 단일 HexagonLayer
+        const filteredData = useMemo(() => {
+          if (!data || (!config.selectedGu && !config.selectedDong)) {
+            return data
+          }
+          
+          return data.map(point => {
+            const matchesGu = !config.selectedGu || 
+              point.originalData?.guName === config.selectedGu
+            const matchesDong = !config.selectedDong || 
+              point.originalData?.dongName === config.selectedDong
+            
+            if (matchesGu && matchesDong) {
+              return { ...point, weight: point.weight * 2 }
+            }
+            return { ...point, weight: point.weight * 0.3 }
+          })
+        }, [data, config.selectedGu, config.selectedDong])
+        
+        layerArray.push(new HexagonLayer<HexagonLayerData>({
+          id: 'hexagon-layer',
+          data: filteredData || data,
           getPosition: (d: HexagonLayerData) => d.coordinates,
-          
-          // 가중치 설정 - 이중 인코딩
-          getColorWeight: (d: HexagonLayerData) => getColorWeightByMode(d, config.colorMode),
-          getElevationWeight: (d: HexagonLayerData) => d.weight, // 높이는 항상 매출액
-          
-          // 시각적 속성
+          getColorWeight: (d: HexagonLayerData) => d.weight,
+          getElevationWeight: (d: HexagonLayerData) => d.weight,
           radius: config.radius,
-          elevationScale: waveScale,  // 파도 효과 적용
+          elevationScale: config.elevationScale,
           coverage: config.coverage,
-          extruded: true,
+          extruded: true, // IMPORTANT: Enable 3D bars
           pickable: true,
-          
-          // 색상 설정
           colorRange: COLOR_RANGES[config.colorScheme],
           upperPercentile: config.upperPercentile,
-          
-          // 상호작용
           onHover: (info, event) => {
             if (onHover) onHover(info)
-            if (onAnimationInteractionStart && info.object) {
-              onAnimationInteractionStart()
-            }
             return true
           },
           onClick: (info, event) => {
             if (onClick) onClick(info)
             return true
           },
-          
-          // 애니메이션 중 상호작용 처리
-          onDragStart: onAnimationInteractionStart,
-          onDragEnd: onAnimationInteractionEnd,
-          
-          // 성능 최적화
-          gpuAggregation: true,
-          
-          // 업데이트 트리거 (throttled animationTime)
+          gpuAggregation: true, // FORCE GPU aggregation
           updateTriggers: {
-            getColorWeight: [config.colorScheme, config.colorMode],
-            getElevationWeight: [waveScale]
+            getColorWeight: [config.colorScheme, config.colorMode, config.selectedGu, config.selectedDong],
+            getElevationWeight: [config.elevationScale, config.selectedGu, config.selectedDong],
+            data: [config.selectedGu, config.selectedDong]
           }
-        })
-      })
+        }))
+      }
     }
-
-    // 애니메이션이 비활성화된 경우 단일 HexagonLayer
-    // Creating single static hexagon layer
     
-    // 선택된 지역이 있을 때 필터링된 데이터 생성
-    const filteredData = useMemo(() => {
-      if (!data || (!config.selectedGu && !config.selectedDong)) {
-        return data
-      }
+    // LAYER 2: WebGL Gradient Overlay (optional, rendered on top)
+    if (config.webglEnabled && webglGradientData && webglGradientData.length > 0) {
+      console.log('[LayerManager] Adding WebGL gradient overlay')
       
-      // 선택된 지역의 데이터만 강조
-      return data.map(point => {
-        if (point.originalData) {
-          const matchesGu = !config.selectedGu || point.originalData.guName === config.selectedGu
-          const matchesDong = !config.selectedDong || point.originalData.dongName === config.selectedDong
-          
-          if (!matchesGu || !matchesDong) {
-            // 선택되지 않은 지역은 가중치를 줄여서 투명하게 표시
-            return {
-              ...point,
-              weight: point.weight * 0.2 // 20% 투명도
-            }
+      if (config.useCustomWebGL && config.gpuGradientData && config.gpuGradientData.length > 0) {
+        // Custom WebGL layer with shader-based gradients
+        layerArray.push(new CustomWebGLGradientLayer({
+          id: 'custom-webgl-gradient-overlay',
+          data: config.gpuGradientData,
+          gradientRadius: 2000,
+          gradientPower: 2.0,
+          colorDomain: [0, Math.max(...config.gpuGradientData.map(d => d.value))],
+          colorRange: [
+            [0, 0, 255, 100],     // Blue (low) with transparency
+            [0, 255, 255, 100],   // Cyan
+            [0, 255, 0, 100],     // Green
+            [255, 255, 0, 100],   // Yellow
+            [255, 0, 0, 100]      // Red (high)
+          ],
+          opacity: 0.3, // Lower opacity for overlay
+          useTextureData: true,
+          maxTextureSize: 4096,
+          enableLOD: true,
+          pickable: false, // Don't interfere with HexagonLayer picking
+          updateTriggers: {
+            data: [config.gpuGradientData],
+            gradientRadius: [config.webglRadiusPixels],
+            opacity: [config.webglIntensity]
           }
-        }
-        return point
-      })
-    }, [data, config.selectedGu, config.selectedDong])
-    
-    const hexagonLayer = new HexagonLayer<HexagonLayerData>({
-      id: 'hexagon-layer',
-      data: filteredData || data,
-      
-      // 위치 접근자
-      getPosition: (d: HexagonLayerData) => d.coordinates,
-      
-      // 가중치 설정
-      getColorWeight: (d: HexagonLayerData) => d.weight,
-      getElevationWeight: (d: HexagonLayerData) => d.weight,
-      
-      // 시각적 속성
-      radius: config.radius,
-      elevationScale: config.elevationScale,
-      coverage: config.coverage,
-      extruded: true,
-      pickable: true,
-      
-      // 색상 설정
-      colorRange: COLOR_RANGES[config.colorScheme],
-      upperPercentile: config.upperPercentile,
-      
-      // 상호작용
-      onHover: (info, event) => {
-        if (onHover) onHover(info)
-        return true
-      },
-      onClick: (info, event) => {
-        if (onClick) onClick(info)
-        return true
-      },
-      
-      // 성능 최적화
-      gpuAggregation: true,
-      
-      // 업데이트 트리거
-      updateTriggers: {
-        getColorWeight: [config.colorScheme, config.colorMode, config.selectedGu, config.selectedDong],
-        getElevationWeight: [config.elevationScale, config.selectedGu, config.selectedDong],
-        data: [config.selectedGu, config.selectedDong]
+        }) as any)
+      } else {
+        // Simple WebGL gradient layer (HeatmapLayer-based)
+        layerArray.push(new SimpleWebGLGradientLayer({
+          id: 'webgl-gradient-overlay',
+          data: webglGradientData,
+          radiusPixels: config.webglRadiusPixels || 80,
+          intensity: config.webglIntensity || 0.5,
+          threshold: config.webglThreshold || 0.03,
+          opacity: 0.3, // Lower opacity for overlay
+          pickable: false, // Don't interfere with HexagonLayer picking
+          updateTriggers: {
+            getWeight: [config.colorMode],
+            radiusPixels: [config.webglRadiusPixels],
+            intensity: [config.webglIntensity],
+            threshold: [config.webglThreshold]
+          }
+        }) as any)
       }
-    })
-
-    // Single layer created
-    return [hexagonLayer]
+    }
+    
+    return layerArray
   }, [
     data, 
     config,
@@ -400,7 +420,8 @@ export function LayerManager({
     onHover, 
     onClick, 
     onAnimationInteractionStart, 
-    onAnimationInteractionEnd
+    onAnimationInteractionEnd,
+    webglGradientData // Add WebGL gradient data dependency
   ])
 
   // Cleanup animation on unmount
@@ -866,5 +887,11 @@ export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   animationSpeed: 1.0,
   waveAmplitude: 2.0,
   colorMode: 'category', // 색상을 카테고리별로 설정
-  selectedMiddleCategory: null // 기본적으로 모든 카테고리 표시
+  selectedMiddleCategory: null, // 기본적으로 모든 카테고리 표시
+  // GPU WebGL 설정 - DEFAULT ON
+  webglEnabled: true, // GPU rendering ON by default
+  webglRadiusPixels: 80,
+  webglIntensity: 1,
+  webglThreshold: 0.03,
+  useCustomWebGL: true // Use custom WebGL layer by default
 }
