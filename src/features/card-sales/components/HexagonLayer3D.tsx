@@ -10,7 +10,6 @@ import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip } from "./LayerManager"
-import { DongGradientLayer } from "@/src/features/card-sales/layers/DongGradientLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
@@ -90,30 +89,6 @@ export default function HexagonScene() {
     setSelectedMiddleCategory,
     setSelectedSubCategory,
     
-    // Grid 보간 관련
-    gridInterpolationEnabled,
-    setGridInterpolationEnabled,
-    gridDistributionMethod,
-    setGridDistributionMethod,
-    gridDistributionRadius,
-    setGridDistributionRadius,
-    gridSmoothingSigma,
-    setGridSmoothingSigma,
-    reprocessGridData,
-    isGridProcessing,
-    // Dong Boundary Gradient states
-    dongBoundaryGradientEnabled,
-    setDongBoundaryGradientEnabled,
-    dongBoundaryHeight,
-    setDongBoundaryHeight,
-    dongInterpolationType,
-    setDongInterpolationType,
-    reprocessDongGradient,
-    isDongGradientProcessing,
-    useCentroidMethod,
-    setUseCentroidMethod,
-    // Dong gradient data
-    webglGradientData
   } = useLayerState()
   
   // 기본 지도 상태
@@ -447,33 +422,8 @@ export default function HexagonScene() {
     hoveredDistrict: hoveredDistrict
   })
   
-  // Create gradient layers when enabled
-  const gradientLayers = useMemo(() => {
-    const layers = []
-    
-    // Add dong gradient layer when enabled
-    if (dongBoundaryGradientEnabled && webglGradientData && webglGradientData.length > 0) {
-      console.log('[HexagonLayer3D] Adding dong boundary gradient layer', {
-        dataCount: webglGradientData.length,
-        firstItem: webglGradientData[0]
-      })
-      
-      layers.push(new DongGradientLayer({
-        id: 'dong-gradient-overlay',
-        data: webglGradientData,
-        opacity: 0.7, // Slightly transparent for blending
-        elevationScale: dongBoundaryHeight / 100, // Adjusted scale factor
-        baseHeight: 100 // Not used anymore - sales data determines height
-      }))
-    }
-    
-    return layers
-  }, [dongBoundaryGradientEnabled, webglGradientData, dongBoundaryHeight])
-  
-  // Combine all layers
-  const deckLayers = useMemo(() => {
-    return [...gradientLayers, ...columnLayers]
-  }, [gradientLayers, columnLayers])
+  // Use column layers directly
+  const deckLayers = columnLayers
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -1336,28 +1286,6 @@ export default function HexagonScene() {
         onFilterChange={handleFilterChange}
         displayMode={displayMode}
         onToggleDisplayMode={toggleDisplayMode}
-        // Grid interpolation props
-        gridInterpolationEnabled={gridInterpolationEnabled}
-        onGridInterpolationEnabledChange={setGridInterpolationEnabled}
-        gridDistributionMethod={gridDistributionMethod}
-        onGridDistributionMethodChange={setGridDistributionMethod}
-        gridDistributionRadius={gridDistributionRadius}
-        onGridDistributionRadiusChange={setGridDistributionRadius}
-        gridSmoothingSigma={gridSmoothingSigma}
-        onGridSmoothingSigmaChange={setGridSmoothingSigma}
-        onGridReprocess={reprocessGridData}
-        isGridProcessing={isGridProcessing}
-        // Dong Boundary Gradient props
-        dongBoundaryGradientEnabled={dongBoundaryGradientEnabled}
-        onDongBoundaryGradientEnabledChange={setDongBoundaryGradientEnabled}
-        dongBoundaryHeight={dongBoundaryHeight}
-        onDongBoundaryHeightChange={setDongBoundaryHeight}
-        dongInterpolationType={dongInterpolationType}
-        onDongInterpolationTypeChange={setDongInterpolationType}
-        onDongReprocess={reprocessDongGradient}
-        isDongProcessing={isDongGradientProcessing}
-        useCentroidMethod={useCentroidMethod}
-        onUseCentroidMethodChange={setUseCentroidMethod}
         // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
         onResetLayers={handleFullReset}
       />
@@ -1368,7 +1296,6 @@ export default function HexagonScene() {
         selectedDong={selectedDong}
         hexagonData={hexagonData}
         climateData={climateData}
-        gridInterpolationEnabled={gridInterpolationEnabled}
         visible={!!(selectedGu || selectedDong)}
       />
 

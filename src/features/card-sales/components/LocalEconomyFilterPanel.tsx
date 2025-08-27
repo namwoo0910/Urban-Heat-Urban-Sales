@@ -11,8 +11,6 @@ import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
 import { Switch } from "@/src/shared/components/ui/switch"
 import { BarChart } from '@/src/shared/components/charts'
-import { GridInterpolationControls } from './GridInterpolationControls'
-import type { DistributionMethod } from '../types/grid.types'
 import { 
   districtHierarchy, 
   getAllDistricts, 
@@ -36,39 +34,6 @@ interface LocalEconomyFilterPanelProps {
   externalSelectedMiddleCategory?: string | null
   // 레이어 초기화 함수
   onResetLayers?: () => void
-  // Grid interpolation controls
-  gridInterpolationEnabled?: boolean
-  onGridInterpolationEnabledChange?: (enabled: boolean) => void
-  gridDistributionMethod?: DistributionMethod
-  onGridDistributionMethodChange?: (method: DistributionMethod) => void
-  gridDistributionRadius?: number
-  onGridDistributionRadiusChange?: (radius: number) => void
-  gridSmoothingSigma?: number
-  onGridSmoothingSigmaChange?: (sigma: number) => void
-  onGridReprocess?: () => void
-  isGridProcessing?: boolean
-  // Dong Boundary Gradient controls
-  dongBoundaryGradientEnabled?: boolean
-  onDongBoundaryGradientEnabledChange?: (enabled: boolean) => void
-  dongBoundaryHeight?: number
-  onDongBoundaryHeightChange?: (height: number) => void
-  dongInterpolationType?: 'linear' | 'exponential' | 'logarithmic' | 'smooth'
-  onDongInterpolationTypeChange?: (type: 'linear' | 'exponential' | 'logarithmic' | 'smooth') => void
-  onDongReprocess?: () => void
-  isDongProcessing?: boolean
-  // Centroid gradient method toggle
-  useCentroidMethod?: boolean
-  onUseCentroidMethodChange?: (use: boolean) => void
-  // WebGL rendering controls
-  webglEnabled?: boolean
-  onWebglEnabledChange?: (enabled: boolean) => void
-  webglRadiusPixels?: number
-  onWebglRadiusPixelsChange?: (radius: number) => void
-  webglIntensity?: number
-  onWebglIntensityChange?: (intensity: number) => void
-  webglThreshold?: number
-  onWebglThresholdChange?: (threshold: number) => void
-  gpuMemoryEstimate?: number // GPU memory usage estimate
 }
 
 // Color palette for business categories
@@ -138,39 +103,6 @@ export default function LocalEconomyFilterPanel({
   externalSelectedMiddleCategory,
   // 레이어 초기화 함수
   onResetLayers,
-  // Grid interpolation controls
-  gridInterpolationEnabled = true,
-  onGridInterpolationEnabledChange,
-  gridDistributionMethod = 'gaussian',
-  onGridDistributionMethodChange,
-  gridDistributionRadius = 2500,
-  onGridDistributionRadiusChange,
-  gridSmoothingSigma = 1000,
-  onGridSmoothingSigmaChange,
-  onGridReprocess,
-  isGridProcessing = false,
-  // Dong Boundary Gradient controls
-  dongBoundaryGradientEnabled = false,
-  onDongBoundaryGradientEnabledChange,
-  dongBoundaryHeight = 100,
-  onDongBoundaryHeightChange,
-  dongInterpolationType = 'linear',
-  onDongInterpolationTypeChange,
-  onDongReprocess,
-  isDongProcessing = false,
-  // Centroid gradient method toggle
-  useCentroidMethod = false,
-  onUseCentroidMethodChange,
-  // WebGL rendering controls
-  webglEnabled = true, // DEFAULT: GPU ON
-  onWebglEnabledChange,
-  webglRadiusPixels = 80,
-  onWebglRadiusPixelsChange,
-  webglIntensity = 1,
-  onWebglIntensityChange,
-  webglThreshold = 0.03,
-  onWebglThresholdChange,
-  gpuMemoryEstimate = 0
 }: LocalEconomyFilterPanelProps) {
   // Panel state
   const [isExpanded, setIsExpanded] = useState(false)
@@ -316,7 +248,7 @@ export default function LocalEconomyFilterPanel({
   
   return (
     <div className={`fixed bottom-[266px] left-4 z-50 ${className}`}>
-      <Card className="bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden min-w-[320px] max-w-[380px]">
+      <Card className={`bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden ${isExpanded ? 'w-[360px]' : 'w-auto'}`}>
         {/* Clickable Header */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
@@ -351,174 +283,6 @@ export default function LocalEconomyFilterPanel({
             >
               <div className="px-2 pb-2 space-y-2">
                 <Separator className="bg-white/20" />
-                
-                {/* Grid Interpolation Toggle */}
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <Label className="text-white/80 text-xs">80x80 격자 보간</Label>
-                      {gridInterpolationEnabled && (
-                        <Badge variant="outline" className="text-[10px] px-1 py-0 text-white/60 border-white/30">
-                          {gridDistributionMethod}
-                        </Badge>
-                      )}
-                    </div>
-                    <Switch
-                      checked={gridInterpolationEnabled}
-                      onCheckedChange={onGridInterpolationEnabledChange}
-                      className="scale-90"
-                    />
-                  </div>
-                  
-                  {/* GridInterpolationControls - shown when enabled */}
-                  {gridInterpolationEnabled && onGridDistributionMethodChange && (
-                    <>
-                      <Separator className="bg-white/20" />
-                      <GridInterpolationControls
-                        distributionRadius={gridDistributionRadius}
-                        smoothingSigma={gridSmoothingSigma}
-                        distributionMethod={gridDistributionMethod}
-                        isProcessing={isGridProcessing}
-                        onDistributionRadiusChange={onGridDistributionRadiusChange || (() => {})}
-                        onSmoothingSigmaChange={onGridSmoothingSigmaChange || (() => {})}
-                        onDistributionMethodChange={onGridDistributionMethodChange}
-                        onReprocess={onGridReprocess}
-                      />
-                    </>
-                  )}
-                </div>
-                
-                <Separator className="bg-white/20" />
-                
-                {/* Dong Boundary Gradient Section */}
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center space-x-2">
-                      <MapPin size={14} className="text-purple-400" />
-                      <Label className="text-white font-semibold text-xs">행정동 경계 그라데이션</Label>
-                    </div>
-                    <Switch
-                      checked={dongBoundaryGradientEnabled}
-                      onCheckedChange={(checked) => {
-                        // 다른 보간법과 동시 사용 불가
-                        if (checked && gridInterpolationEnabled) {
-                          onGridInterpolationEnabledChange?.(false)
-                        }
-                        onDongBoundaryGradientEnabledChange?.(checked)
-                      }}
-                      className="scale-90"
-                    />
-                  </div>
-                  
-                  {/* Dong Gradient Controls - shown when enabled */}
-                  {dongBoundaryGradientEnabled && (
-                    <div className="pl-4 space-y-2">
-                      {/* Boundary Height Setting */}
-                      <div className="space-y-1">
-                        <Label className="text-white/80 text-xs">경계 높이값</Label>
-                        <div className="flex items-center space-x-2">
-                          <input
-                            type="range"
-                            min="100000"
-                            max="10000000"
-                            step="100000"
-                            value={dongBoundaryHeight}
-                            onChange={(e) => onDongBoundaryHeightChange?.(Number(e.target.value))}
-                            className="flex-1"
-                          />
-                          <span className="text-white/60 text-xs w-20 text-right">{(dongBoundaryHeight / 1000000).toFixed(1)}M</span>
-                        </div>
-                      </div>
-                      
-                      {/* Gradient Method Toggle */}
-                      <div className="space-y-1">
-                        <Label className="text-white/80 text-xs">그라데이션 방식</Label>
-                        <div className="flex items-center justify-between p-2 bg-white/5 rounded">
-                          <div className="flex items-center space-x-2">
-                            <input
-                              type="checkbox"
-                              id="centroid-method"
-                              checked={useCentroidMethod}
-                              onChange={(e) => onUseCentroidMethodChange?.(e.target.checked)}
-                              className="rounded border-white/20"
-                            />
-                            <Label htmlFor="centroid-method" className="text-white/80 text-xs cursor-pointer">
-                              Centroid Gaussian (중심점 가우시안)
-                            </Label>
-                          </div>
-                          <Badge variant="outline" className="text-xs">
-                            {useCentroidMethod ? '✨ New' : 'Classic'}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-white/60 pl-2">
-                          {useCentroidMethod 
-                            ? '부드러운 가우시안 분포 (grid_0811.py 방식)'
-                            : '기존 방사형 그라데이션'}
-                        </div>
-                      </div>
-                      
-                      {/* Interpolation Type */}
-                      <div className="space-y-1">
-                        <Label className="text-white/80 text-xs">보간 방식</Label>
-                        <Select 
-                          value={dongInterpolationType} 
-                          onValueChange={(value) => onDongInterpolationTypeChange?.(value as 'linear' | 'exponential' | 'logarithmic' | 'smooth')}
-                        >
-                          <SelectTrigger className="bg-white/10 border-white/20 text-white text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="bg-gray-900 border-white/20">
-                            <SelectItem value="smooth" className="text-white hover:bg-white/10">
-                              부드러운 (Smooth S-curve)
-                            </SelectItem>
-                            <SelectItem value="linear" className="text-white hover:bg-white/10">
-                              선형 (Linear)
-                            </SelectItem>
-                            <SelectItem value="exponential" className="text-white hover:bg-white/10">
-                              지수 (Exponential)
-                            </SelectItem>
-                            <SelectItem value="logarithmic" className="text-white hover:bg-white/10">
-                              로그 (Logarithmic)
-                            </SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                      
-                      <div className="text-xs text-white/40 mt-1">
-                        중심부는 원래 매출액, 경계는 {dongBoundaryHeight} 고정
-                      </div>
-                      
-                      {/* GPU Status indicator */}
-                      <div className="mt-2 space-y-1">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-green-400">✅ GPU 렌더링 활성화</span>
-                          <span className="text-cyan-400">WebGL 2.0</span>
-                        </div>
-                        {webglEnabled && (
-                          <div className="text-xs text-white/60">
-                            GPU 메모리: ~{(gpuMemoryEstimate || 0).toFixed(1)}MB
-                          </div>
-                        )}
-                      </div>
-                      
-                      {/* Processing indicator */}
-                      {isDongProcessing && (
-                        <div className="mt-2 space-y-1">
-                          <div className="flex items-center justify-between text-xs text-white/60">
-                            <span>GPU 처리 중...</span>
-                            <span className="text-green-400">WebGL Shader</span>
-                          </div>
-                          <div className="w-full bg-white/10 rounded-full h-1.5">
-                            <div 
-                              className="bg-gradient-to-r from-green-500 to-cyan-500 h-1.5 rounded-full transition-all duration-300"
-                              style={{ width: '100%' }}
-                            />
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
                 
                 {/* Display Mode Toggle */}
                 <div className="flex items-center justify-between">

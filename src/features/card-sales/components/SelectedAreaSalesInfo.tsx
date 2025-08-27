@@ -14,7 +14,6 @@ interface SelectedAreaSalesInfoProps {
   selectedDong: string | null
   hexagonData: HexagonLayerData[] | null
   climateData: ClimateCardSalesData[] | null
-  gridInterpolationEnabled: boolean
   visible?: boolean
 }
 
@@ -23,7 +22,6 @@ export function SelectedAreaSalesInfo({
   selectedDong,
   hexagonData,
   climateData,
-  gridInterpolationEnabled,
   visible = true
 }: SelectedAreaSalesInfoProps) {
   // 선택된 지역의 총 매출액 계산
@@ -37,38 +35,20 @@ export function SelectedAreaSalesInfo({
     let avgTemperature = 0
     let avgDiscomfort = 0
 
-    // 격자 보간이 활성화된 경우와 아닌 경우 다르게 처리
-    if (gridInterpolationEnabled) {
-      // 격자 데이터에서 집계 (이미 분산된 데이터)
-      hexagonData.forEach(point => {
-        if (point.originalData) {
-          const matchesGu = !selectedGu || point.originalData.guName === selectedGu
-          const matchesDong = !selectedDong || point.originalData.dongName === selectedDong
-          
-          if (matchesGu && matchesDong) {
-            totalSales += point.weight
-            dataPoints++
-            avgTemperature += point.originalData.temperature || 0
-            avgDiscomfort += point.originalData.discomfortIndex || 0
-          }
+    // 원본 hexagon 데이터에서 집계
+    hexagonData.forEach(point => {
+      if (point.originalData) {
+        const matchesGu = !selectedGu || point.originalData.guName === selectedGu
+        const matchesDong = !selectedDong || point.originalData.dongName === selectedDong
+        
+        if (matchesGu && matchesDong) {
+          totalSales += point.weight
+          dataPoints++
+          avgTemperature += point.originalData.temperature || 0
+          avgDiscomfort += point.originalData.discomfortIndex || 0
         }
-      })
-    } else {
-      // 원본 hexagon 데이터에서 집계
-      hexagonData.forEach(point => {
-        if (point.originalData) {
-          const matchesGu = !selectedGu || point.originalData.guName === selectedGu
-          const matchesDong = !selectedDong || point.originalData.dongName === selectedDong
-          
-          if (matchesGu && matchesDong) {
-            totalSales += point.weight
-            dataPoints++
-            avgTemperature += point.originalData.temperature || 0
-            avgDiscomfort += point.originalData.discomfortIndex || 0
-          }
-        }
-      })
-    }
+      }
+    })
 
     if (dataPoints > 0) {
       avgTemperature = avgTemperature / dataPoints
@@ -81,7 +61,7 @@ export function SelectedAreaSalesInfo({
       avgTemperature,
       avgDiscomfort
     }
-  }, [hexagonData, selectedGu, selectedDong, gridInterpolationEnabled])
+  }, [hexagonData, selectedGu, selectedDong])
 
   // 숫자 포맷팅
   const formatCurrency = (value: number): string => {
@@ -111,11 +91,6 @@ export function SelectedAreaSalesInfo({
           <h3 className="text-lg font-bold text-white">
             {areaName}
           </h3>
-          {gridInterpolationEnabled && (
-            <span className="ml-auto text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
-              격자 보간
-            </span>
-          )}
         </div>
 
         {/* 총 매출액 */}
@@ -149,10 +124,7 @@ export function SelectedAreaSalesInfo({
         <div className="flex items-center gap-2 pt-2 border-t border-gray-800">
           <Activity className="w-3 h-3 text-gray-500" />
           <span className="text-xs text-gray-500">
-            {gridInterpolationEnabled 
-              ? `${areaStats.dataPoints}개 격자 셀`
-              : `${areaStats.dataPoints}개 데이터 포인트`
-            }
+            {`${areaStats.dataPoints}개 데이터 포인트`}
           </span>
         </div>
       </div>

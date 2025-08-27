@@ -7,8 +7,6 @@ import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import { MIDDLE_CATEGORY_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/middleCategoryColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
-import { SimpleWebGLGradientLayer, type DongGradientData } from '@/src/features/card-sales/layers/WebGLGradientLayer'
-import { CustomWebGLGradientLayer, type GPUGradientData } from '@/src/features/card-sales/layers/CustomWebGLGradientLayer'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
 export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'
@@ -47,7 +45,6 @@ export interface LayerConfig {
   webglIntensity?: number
   webglThreshold?: number
   useCustomWebGL?: boolean // Use custom WebGL layer
-  gpuGradientData?: GPUGradientData[] | null // GPU gradient data for custom layer
 }
 
 interface LayerManagerProps {
@@ -58,7 +55,6 @@ interface LayerManagerProps {
   onAnimationInteractionStart?: () => void
   onAnimationInteractionEnd?: () => void
   // WebGL gradient data (optional)
-  webglGradientData?: DongGradientData[] | null
 }
 
 // Seoul 중심점 (경위도)
@@ -214,7 +210,6 @@ export function LayerManager({
   onClick,
   onAnimationInteractionStart,
   onAnimationInteractionEnd,
-  webglGradientData
 }: LayerManagerProps) {
   // 애니메이션 시간 추적 (throttled updates)
   const [animationTime, setAnimationTime] = useState(0)
@@ -362,55 +357,6 @@ export function LayerManager({
       }
     }
     
-    // LAYER 2: WebGL Gradient Overlay (optional, rendered on top)
-    if (config.webglEnabled && webglGradientData && webglGradientData.length > 0) {
-      console.log('[LayerManager] Adding WebGL gradient overlay')
-      
-      if (config.useCustomWebGL && config.gpuGradientData && config.gpuGradientData.length > 0) {
-        // Custom WebGL layer with shader-based gradients
-        layerArray.push(new CustomWebGLGradientLayer({
-          id: 'custom-webgl-gradient-overlay',
-          data: config.gpuGradientData,
-          gradientRadius: 2000,
-          gradientPower: 2.0,
-          colorDomain: [0, Math.max(...config.gpuGradientData.map(d => d.value))],
-          colorRange: [
-            [0, 0, 255, 100],     // Blue (low) with transparency
-            [0, 255, 255, 100],   // Cyan
-            [0, 255, 0, 100],     // Green
-            [255, 255, 0, 100],   // Yellow
-            [255, 0, 0, 100]      // Red (high)
-          ],
-          opacity: 0.3, // Lower opacity for overlay
-          useTextureData: true,
-          maxTextureSize: 4096,
-          enableLOD: true,
-          pickable: false, // Don't interfere with HexagonLayer picking
-          updateTriggers: {
-            data: [config.gpuGradientData],
-            gradientRadius: [config.webglRadiusPixels],
-            opacity: [config.webglIntensity]
-          }
-        }) as any)
-      } else {
-        // Simple WebGL gradient layer (HeatmapLayer-based)
-        layerArray.push(new SimpleWebGLGradientLayer({
-          id: 'webgl-gradient-overlay',
-          data: webglGradientData,
-          radiusPixels: config.webglRadiusPixels || 80,
-          intensity: config.webglIntensity || 0.5,
-          threshold: config.webglThreshold || 0.03,
-          opacity: 0.3, // Lower opacity for overlay
-          pickable: false, // Don't interfere with HexagonLayer picking
-          updateTriggers: {
-            getWeight: [config.colorMode],
-            radiusPixels: [config.webglRadiusPixels],
-            intensity: [config.webglIntensity],
-            threshold: [config.webglThreshold]
-          }
-        }) as any)
-      }
-    }
     
     return layerArray
   }, [
@@ -421,8 +367,7 @@ export function LayerManager({
     onHover, 
     onClick, 
     onAnimationInteractionStart, 
-    onAnimationInteractionEnd,
-    webglGradientData // Add WebGL gradient data dependency
+    onAnimationInteractionEnd
   ])
 
   // Cleanup animation on unmount
@@ -624,7 +569,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     
     // 3D 바 설정 - 더 부드러운 원형을 위해 해상도 증가
     diskResolution: 12,  // 더 부드러운 원형 (기존 6에서 12로 증가)
-    radius: config.displayMode === 'simple' ? 90 : 120,  // 단순보기에서는 반지름 절반으로
+    radius: config.displayMode === 'simple' ? config.radius / 4 : config.radius / 3,  // config.radius 사용
     extruded: true,  // 3D 활성화
     wireframe: false,
     filled: true,
@@ -655,22 +600,21 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     },
     elevationScale: config.displayMode === 'simple' ? 2 : config.elevationScale,  // 단순보기에서는 높이 절반으로
     
-    // 색상 (colorMode와 displayMode에 따라 변경)
+    // 색상 (colorScheme 사용)
     getFillColor: (d: HexagonLayerData) => {
       // 호버된 구역(동)과 같은 구역이면 전체 색상 변경
       const isHoveredDistrict = config.hoveredDistrict && d.originalData?.dongName === config.hoveredDistrict
       
-      // Heatmap 색상 스킴 - 부드러운 그라데이션
-      if (config.displayMode === 'simple' || config.colorMode === 'heatmap') {
+      // COLOR_RANGES를 사용한 색상 적용
+      if (config.displayMode === 'simple') {
         const value = d.weight
-        const maxValue = 500000000  // 5억원 기준 (더 선명한 색상 변화)
+        const maxValue = 500000000  // 5억원 기준
         const normalizedValue = Math.min(1, value / maxValue)
         
-        // 히트맵 색상 그라데이션 함수 사용
-        let baseColor = getHeatmapColor(normalizedValue)
-        
-        // 단순보기 모드에서는 불투명하게 설정
-        baseColor[3] = 255  // 완전 불투명
+        // 선택된 colorScheme의 색상 팔레트 사용
+        const colorRange = COLOR_RANGES[config.colorScheme]
+        const colorIndex = Math.min(Math.floor(normalizedValue * (colorRange.length - 1)), colorRange.length - 1)
+        const baseColor = [...colorRange[colorIndex], 255] as [number, number, number, number]
         
         // 호버된 구역이면 밝기와 채도 증가
         if (isHoveredDistrict) {
@@ -678,7 +622,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
             Math.min(255, baseColor[0] * 1.3),
             Math.min(255, baseColor[1] * 1.3), 
             Math.min(255, baseColor[2] * 1.3),
-            255  // 완전 불투명 유지
+            255
           ]
         }
         
@@ -881,12 +825,12 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
 }
 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
-  visible: true,
-  radius: 300,  // 반지름 300m로 조정 (바가 겹치지 않도록)
-  elevationScale: 4,  // 높이 스케일 4x로 조정 (적절한 3D 효과)
+  visible: true, // 항상 true로 고정
+  radius: 500,  // 반지름 500m (기본값)
+  elevationScale: 1,  // 높이 스케일 1x로 변경 (기본값)
   coverage: 1,
   upperPercentile: 100,
-  colorScheme: 'oceanic', // oceanic으로 변경 (sales는 COLOR_RANGES에 없음)
+  colorScheme: 'heat', // heat로 변경 (기본값)
   animationEnabled: false, // 임시로 애니메이션 OFF (툴팁 테스트용)
   animationSpeed: 1.0,
   waveAmplitude: 2.0,

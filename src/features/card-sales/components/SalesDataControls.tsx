@@ -180,18 +180,16 @@ export default function UnifiedControls({
   }
 
   return (
-    <div className="fixed top-[76px] left-4 z-50">
-      <Card className="bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden">
+    <div className="fixed bottom-[266px] left-[380px] z-50">
+      <Card className={`bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden ${isExpanded ? 'w-[280px]' : 'w-auto'}`}>
         {/* Clickable Header to expand/collapse */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors group"
+          className="w-full flex items-center justify-between p-2 hover:bg-white/5 transition-colors group"
         >
           <div className="flex items-center space-x-2">
-            <MapPin size={18} className="text-blue-400" />
-            <span className="font-bold">서울특별시</span>
-            <span className="text-xs bg-blue-500/30 px-2 py-1 rounded">LIVE</span>
-            {visible && <span className="text-xs bg-green-500/30 px-2 py-1 rounded">HexagonLayer</span>}
+            <MapPin size={14} className="text-blue-400" />
+            <span className="font-bold text-sm">레이어 컨트롤</span>
           </div>
           <div className="flex items-center space-x-2">
             {isDataLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -218,63 +216,38 @@ export default function UnifiedControls({
               style={{ overflow: "hidden" }}
             >
               {/* Reset Button */}
-              <div className="px-4 pt-2 pb-3 border-b border-white/20">
+              <div className="px-2 pt-1 pb-2 border-b border-white/20">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={onReset}
-                  className="text-white hover:bg-white/10 w-full justify-center"
+                  className="text-white hover:bg-white/10 w-full justify-center h-7 text-xs"
                   title="설정 초기화"
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
+                  <RefreshCw className="w-3 h-3 mr-1" />
                   설정 초기화
                 </Button>
               </div>
 
               {/* 오류 표시 */}
               {dataError && (
-                <div className="mx-4 mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
-                  <div className="text-sm text-red-200">
+                <div className="mx-2 mt-2 p-2 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <div className="text-xs text-red-200">
                     <strong>오류:</strong> {dataError}
                   </div>
                 </div>
               )}
 
-              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-            {/* 레이어 활성화 토글 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="layer-visible" className="text-white">
-                  헥사곤 레이어 표시
-                </Label>
-                <Badge variant={visible ? "default" : "secondary"} className="text-xs">
-                  {visible ? "ON" : "OFF"}
-                </Badge>
-              </div>
-              <Switch
-                id="layer-visible"
-                checked={visible}
-                onCheckedChange={onVisibleChange}
-                disabled={isDataLoading}
-              />
-            </div>
-
-            <Separator className="bg-white/20" />
+              <div className="p-2 space-y-3 max-h-96 overflow-y-auto">
+            {/* 레이어는 항상 ON 상태로 유지 */}
 
             {/* 형태 설정 */}
-            <div className="space-y-4">
-              <Label className="text-white text-sm flex items-center space-x-2">
-                <Settings size={16} />
-                <span>형태 설정</span>
-              </Label>
+            <div className="space-y-3">
 
               {/* 반지름 */}
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">반지름</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {radius}m
-                  </Badge>
+                  <Label className="text-white text-xs">반지름: {radius}m</Label>
                 </div>
                 <Slider
                   value={[radius]}
@@ -282,7 +255,7 @@ export default function UnifiedControls({
                   min={100}
                   max={3000}
                   step={100}
-                  disabled={!visible || isDataLoading}
+                  disabled={isDataLoading}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-white/60">
@@ -292,12 +265,9 @@ export default function UnifiedControls({
               </div>
 
               {/* 높이 스케일 */}
-              <div className="space-y-2">
+              <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">높이 스케일</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {elevationScale}x
-                  </Badge>
+                  <Label className="text-white text-xs">높이 스케일: {elevationScale}x</Label>
                 </div>
                 <Slider
                   value={[elevationScale]}
@@ -305,7 +275,7 @@ export default function UnifiedControls({
                   min={0.1}
                   max={5}
                   step={0.1}
-                  disabled={!visible || isDataLoading}
+                  disabled={isDataLoading}
                   className="w-full"
                 />
                 <div className="flex justify-between text-xs text-white/60">
@@ -314,46 +284,20 @@ export default function UnifiedControls({
                 </div>
               </div>
 
-              {/* 커버리지 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">커버리지</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {Math.round(coverage * 100)}%
-                  </Badge>
-                </div>
-                <Slider
-                  value={[coverage]}
-                  onValueChange={(value) => onCoverageChange(value[0])}
-                  min={0.1}
-                  max={1.0}
-                  step={0.1}
-                  disabled={!visible || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>10%</span>
-                  <span>100%</span>
-                </div>
-              </div>
             </div>
 
             <Separator className="bg-white/20" />
 
             {/* 시각 설정 */}
-            <div className="space-y-4">
-              <Label className="text-white text-sm flex items-center space-x-2">
-                <Palette size={16} />
-                <span>시각 설정</span>
-              </Label>
+            <div className="space-y-3">
 
               {/* 색상 스킴 */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">색상 스킴</Label>
+              <div className="space-y-1">
+                <Label className="text-white text-xs">색상 스킴</Label>
                 <Select
                   value={colorScheme}
                   onValueChange={(value: ColorScheme) => onColorSchemeChange(value)}
-                  disabled={!visible || isDataLoading}
+                  disabled={isDataLoading}
                 >
                   <SelectTrigger className="bg-white/10 border-white/20 text-white">
                     <SelectValue />
@@ -377,62 +321,10 @@ export default function UnifiedControls({
                 </Select>
               </div>
 
-              {/* 색상 모드 선택 */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">색상 데이터 기준</Label>
-                <Select
-                  value={colorMode}
-                  onValueChange={onColorModeChange}
-                  disabled={!visible || isDataLoading}
-                >
-                  <SelectTrigger className="bg-white/10 border-white/20 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-white/20">
-                    <SelectItem value="sales" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>💳</span>
-                        <span>매출액</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="temperature" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>🌡️</span>
-                        <span>기온</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="temperatureGroup" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>🌡️</span>
-                        <span>기온 그룹</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="discomfort" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>😓</span>
-                        <span>불쾌지수</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="humidity" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>💧</span>
-                        <span>습도</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="text-xs text-white/60">
-                  {colorMode === 'sales' && '카드 매출액을 기준으로 색상을 표시합니다'}
-                  {colorMode === 'temperature' && '일평균 기온 (-11.5°C ~ 31.9°C)을 기준으로 표시합니다'}
-                  {colorMode === 'temperatureGroup' && '한파/일반/온화/폭염 그룹별로 표시합니다'}
-                  {colorMode === 'discomfort' && '불쾌지수 (24 ~ 80+)를 기준으로 표시합니다'}
-                  {colorMode === 'humidity' && '일평균 습도 (0 ~ 100%)를 기준으로 표시합니다'}
-                </div>
-              </div>
 
               {/* 색상 미리보기 */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">색상 미리보기</Label>
+              <div className="space-y-1">
+                <Label className="text-white text-xs">색상 미리보기</Label>
                 <div 
                   className="h-6 rounded-lg"
                   style={getColorPreviewStyle(colorScheme)}
@@ -446,144 +338,9 @@ export default function UnifiedControls({
                 </div>
               </div>
 
-              {/* 상위 백분위수 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">상위 백분위수</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {upperPercentile}%
-                  </Badge>
-                </div>
-                <Slider
-                  value={[upperPercentile]}
-                  onValueChange={(value) => onUpperPercentileChange(value[0])}
-                  min={50}
-                  max={100}
-                  step={5}
-                  disabled={!visible || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>50%</span>
-                  <span>100%</span>
-                </div>
-                <div className="text-xs text-white/60">
-                  높은 값의 {100 - upperPercentile}%를 필터링합니다
-                </div>
-              </div>
             </div>
 
-            <Separator className="bg-white/20" />
-            
-            {/* 애니메이션 설정 */}
-            <div className="space-y-4">
-              <Label className="text-white text-sm flex items-center space-x-2">
-                <RefreshCw size={16} />
-                <span>파도 애니메이션</span>
-              </Label>
 
-              {/* 애니메이션 활성화 토글 */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="animation-enabled" className="text-white text-sm">
-                    자동 애니메이션
-                  </Label>
-                  <Badge variant={animationEnabled ? "default" : "secondary"} className="text-xs">
-                    {animationEnabled ? "ON" : "OFF"}
-                  </Badge>
-                  {isAnimating && (
-                    <Badge variant="outline" className="text-xs animate-pulse">
-                      실행중
-                    </Badge>
-                  )}
-                </div>
-                <Switch
-                  id="animation-enabled"
-                  checked={animationEnabled}
-                  onCheckedChange={onAnimationEnabledChange}
-                  disabled={!visible || isDataLoading}
-                />
-              </div>
-
-              {/* 애니메이션 속도 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">애니메이션 속도</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {animationSpeed}x
-                  </Badge>
-                </div>
-                <Slider
-                  value={[animationSpeed]}
-                  onValueChange={(value) => onAnimationSpeedChange?.(value[0])}
-                  min={0.5}
-                  max={2.0}
-                  step={0.1}
-                  disabled={!visible || !animationEnabled || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>0.5x (느림)</span>
-                  <span>2.0x (빠름)</span>
-                </div>
-              </div>
-
-              {/* 파도 진폭 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">파도 강도</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {waveAmplitude}x
-                  </Badge>
-                </div>
-                <Slider
-                  value={[waveAmplitude]}
-                  onValueChange={(value) => onWaveAmplitudeChange?.(value[0])}
-                  min={1.0}
-                  max={4.0}
-                  step={0.1}
-                  disabled={!visible || !animationEnabled || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>1.0x (작음)</span>
-                  <span>4.0x (큼)</span>
-                </div>
-              </div>
-
-              {/* 애니메이션 제어 버튼 */}
-              {animationEnabled && (
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onToggleAnimation}
-                    disabled={!visible || isDataLoading}
-                    className="text-white border-white/20 hover:bg-white/10 flex-1"
-                  >
-                    {isAnimating ? (
-                      <>
-                        <EyeOff className="w-4 h-4 mr-1" />
-                        일시정지
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-4 h-4 mr-1" />
-                        재생
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
-            </div>
-
-                {/* 정보 패널 */}
-                <div className="bg-white/5 rounded-lg p-3 text-xs text-white/60 space-y-1">
-                  <div>💡 팁: 반지름과 높이를 조정하여 3D 효과를 변경하세요</div>
-                  <div>🎨 색상: 프리미엄 팔레트로 세련된 시각화를 경험하세요</div>
-                  <div>📏 높이: 데이터 밀도를 3D로 표현합니다</div>
-                  <div>🌊 애니메이션: 파도 효과로 생동감 있는 데이터 시각화</div>
-                </div>
               </div>
             </motion.div>
           )}

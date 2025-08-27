@@ -8,8 +8,7 @@
     "lint": "next lint",
     "start": "next start",
     "generate-particles": "node scripts/generate-static-particles-optimized.js",
-    "generate-dong-gradient": "node scripts/generate-dong-gradient-data.js",
-    "prebuild": "npm run generate-particles && npm run generate-dong-gradient"
+    "prebuild": "npm run generate-particles"
   },
   "dependencies": {
     "@deck.gl/aggregation-layers": "^9.1.14",

@@ -8,20 +8,8 @@ import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
 import { climateDataLoader } from '../utils/climateDataLoader'
 import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
 import { getCategoryOffset } from '../constants/categoryOffsets'
-import { useGridInterpolation } from './useGridInterpolation'
-import { useDongBoundaryGradient } from './useDongBoundaryGradient'
-import { useCentroidGradient } from './useCentroidGradient'
-import { useDongGradient } from './useDongGradient'
-import type { DistributionMethod } from '../types/grid.types'
 
 interface UseLayerStateReturn {
-  // Grid interpolation detailed controls
-  gridDistributionRadius?: number
-  setGridDistributionRadius?: (radius: number) => void
-  gridSmoothingSigma?: number
-  setGridSmoothingSigma?: (sigma: number) => void
-  reprocessGridData?: () => Promise<void>
-  isGridProcessing?: boolean
   
   // 레이어 설정 상태
   layerConfig: LayerConfig
@@ -32,19 +20,6 @@ interface UseLayerStateReturn {
   isDataLoading: boolean
   dataError: string | null
   
-  // Grid 보간 상태
-  gridInterpolationEnabled: boolean
-  setGridInterpolationEnabled: (enabled: boolean) => void
-  gridDistributionMethod: DistributionMethod
-  setGridDistributionMethod: (method: DistributionMethod) => void
-  
-  // Dong Boundary Gradient 상태
-  dongBoundaryGradientEnabled: boolean
-  setDongBoundaryGradientEnabled: (enabled: boolean) => void
-  dongBoundaryHeight: number
-  setDongBoundaryHeight: (height: number) => void
-  dongInterpolationType: 'linear' | 'exponential' | 'logarithmic' | 'smooth'
-  setDongInterpolationType: (type: 'linear' | 'exponential' | 'logarithmic') => void
   
   // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
   displayMode: 'simple' | 'detailed'
@@ -127,10 +102,6 @@ interface UseLayerStateReturn {
   updateBearing: (bearing: number) => void
   onRotationInteractionStart: () => void
   onRotationInteractionEnd: () => void
-  
-  // Dong gradient states
-  webglGradientData?: any
-  isWebglProcessing?: boolean
 }
 
 export function useLayerState(): UseLayerStateReturn {
@@ -160,19 +131,6 @@ export function useLayerState(): UseLayerStateReturn {
   const [selectedMiddleCategory, setSelectedMiddleCategory] = useState<string | null>(null)
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
   
-  // Dong Boundary Gradient states
-  const [dongBoundaryGradientEnabled, setDongBoundaryGradientEnabled] = useState(false)
-  const [dongBoundaryHeight, setDongBoundaryHeight] = useState(100)  // Set to 100 for proper gradient scaling
-  const [dongInterpolationType, setDongInterpolationType] = useState<'linear' | 'exponential' | 'logarithmic' | 'smooth'>('smooth')
-  const [useCentroidMethod, setUseCentroidMethod] = useState(true)  // Use memory-efficient centroid method by default
-  
-  // WebGL rendering states - GPU ENABLED BY DEFAULT
-  
-  // Grid 보간 상태 - Hook 사용 전에 선언
-  const [gridInterpolationEnabled, setGridEnabled] = useState(true) // Default to true
-  const [gridDistributionMethod, setGridMethod] = useState<DistributionMethod>('gaussian')
-  const [gridDistributionRadius, setGridRadius] = useState(2500)
-  const [gridSmoothingSigma, setGridSigma] = useState(1000)
   
   // 상호작용 상태
   const [hoveredObject, setHoveredObject] = useState<any>(null)
@@ -205,7 +163,8 @@ export function useLayerState(): UseLayerStateReturn {
   
   // 개별 설정 업데이트 함수들
   const setVisible = useCallback((visible: boolean) => {
-    setLayerConfig(prev => ({ ...prev, visible }))
+    // 항상 true로 고정 - 레이어는 항상 표시됨
+    setLayerConfig(prev => ({ ...prev, visible: true }))
   }, [])
   
   const setRadius = useCallback((radius: number) => {
@@ -568,85 +527,9 @@ export function useLayerState(): UseLayerStateReturn {
     setHexagonData(hexData)
   }, [selectedGu, selectedDong, selectedMiddleCategory, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
   
-  // Grid Interpolation Hook
-  const {
-    gridData,
-    isProcessing: isGridProcessing,
-    error: gridError,
-    setEnabled: setGridInterpolationEnabled,
-    setDistributionMethod: setGridDistributionMethod,
-    setDistributionRadius: setGridDistributionRadius,
-    setSmoothing: setGridSmoothing,
-    reprocessData: reprocessGridData
-  } = useGridInterpolation(hexagonData, climateData, {
-    enabled: gridInterpolationEnabled && !dongBoundaryGradientEnabled, // Dong gradient와 상호 배타적
-    gridSize: 80,
-    distributionMethod: 'gaussian',
-    distributionRadius: 2500,  // Increased from 1000m to 2500m
-    enableSmoothing: true,
-    smoothingSigma: 1000      // Increased from 500m to 1000m
-  })
   
-  // Centroid Gradient Hook (DISABLED - Using GPU instead)
-  const {
-    gradientData: centroidGradientData,
-    isProcessing: isCentroidProcessing,
-    error: centroidGradientError,
-    setEnabled: setCentroidGradientEnabled,
-    setBoundaryHeight: setCentroidBoundaryHeight,
-    setInterpolationType: setCentroidInterpolationType,
-    reprocessData: reprocessCentroidGradient
-  } = useCentroidGradient(hexagonData, climateData, {
-    enabled: false, // DISABLED - GPU WebGL is used instead
-    boundaryHeight: dongBoundaryHeight,
-    interpolationType: dongInterpolationType as any,
-    gridSize: 80
-  })
-  
-  // Original Dong Boundary Gradient Hook (DISABLED - Using GPU instead)
-  const {
-    gradientData: dongGradientData,
-    isProcessing: isDongGradientProcessing,
-    error: dongGradientError,
-    setEnabled: setDongGradientEnabled,
-    setBoundaryHeight: setDongBoundaryHeightHook,
-    setInterpolationType: setDongInterpolationTypeHook,
-    reprocessData: reprocessDongGradient
-  } = useDongBoundaryGradient(hexagonData, climateData, {
-    enabled: false, // DISABLED - GPU WebGL is used instead
-    boundaryHeight: dongBoundaryHeight,
-    interpolationType: dongInterpolationType,
-    gridSize: 80  // Optimized grid size for performance and quality balance
-  })
-  
-  // Simplified Dong Gradient Hook
-  const {
-    gradientData: webglGradientData,
-    isProcessing: isWebglProcessing,
-    error: webglError
-  } = useDongGradient(hexagonData, climateData, dongBoundaryGradientEnabled)
-  
-  // 데이터 우선순위: Always return hexagon data for bars rendering
-  const finalHexagonData = useMemo(() => {
-    // IMPORTANT: Always return data for HexagonLayer to render bars
-    // WebGL gradient is handled as a separate overlay layer
-    
-    // PRIORITY 1: Grid interpolation if enabled
-    if (gridInterpolationEnabled && gridData) {
-      console.log('[CardSalesData] Using Grid Interpolation for bars:', gridData?.length, 'cells')
-      return gridData
-    }
-    
-    // PRIORITY 2: Original hexagon data (default)
-    console.log('[CardSalesData] Using original hexagon data for bars:', hexagonData?.length, 'cells')
-    
-    // Note: Dong gradient is rendered as separate layer
-    if (dongBoundaryGradientEnabled && webglGradientData) {
-      console.log('[CardSalesData] 🚀 Dong Gradient will render as overlay')
-    }
-    
-    return hexagonData // Always return data for HexagonLayer bars
-  }, [webglGradientData, dongBoundaryGradientEnabled, gridInterpolationEnabled, gridData, hexagonData])
+  // Return hexagon data directly
+  const finalHexagonData = hexagonData
   
   return {
     // 레이어 설정 상태
@@ -655,69 +538,9 @@ export function useLayerState(): UseLayerStateReturn {
     // 데이터 상태
     hexagonData: finalHexagonData,
     climateData,
-    isDataLoading: isDataLoading || isGridProcessing || (useCentroidMethod ? isCentroidProcessing : isDongGradientProcessing),
-    dataError: dataError || gridError || (useCentroidMethod ? centroidGradientError : dongGradientError),
+    isDataLoading,
+    dataError,
     
-    // Grid 보간 상태
-    gridInterpolationEnabled,
-    setGridInterpolationEnabled: (enabled: boolean) => {
-      setGridEnabled(enabled)
-      setGridInterpolationEnabled(enabled)
-    },
-    gridDistributionMethod,
-    setGridDistributionMethod: (method: DistributionMethod) => {
-      setGridMethod(method)
-      setGridDistributionMethod(method)
-    },
-    gridDistributionRadius,
-    setGridDistributionRadius: (radius: number) => {
-      setGridRadius(radius)
-      setGridDistributionRadius(radius)
-    },
-    gridSmoothingSigma,
-    setGridSmoothingSigma: (sigma: number) => {
-      setGridSigma(sigma)
-      setGridSmoothing(true, sigma)
-    },
-    reprocessGridData,
-    isGridProcessing,
-    
-    // Dong Boundary Gradient 상태
-    dongBoundaryGradientEnabled,
-    setDongBoundaryGradientEnabled: (enabled: boolean) => {
-      console.log('[CardSalesData] Setting Dong Boundary Gradient:', enabled)
-      setDongBoundaryGradientEnabled(enabled)
-      
-      // GPU WebGL 자동 활성화 - CPU 기반 렌더링 방지
-      if (enabled) {
-        console.log('[CardSalesData] Enabling GPU WebGL rendering for dong gradient')
-        updateConfig({ webglEnabled: true }) // GPU 자동 활성화
-        
-        // CPU 기반 렌더링 비활성화 (hooks는 자체적으로 활성화 상태 관리)
-        // setDongGradientEnabled, setCentroidGradientEnabled는 훅 내부에서 처리
-        
-        // Grid와 상호 배타적
-        console.log('[CardSalesData] Disabling Grid Interpolation (mutually exclusive)')
-        setGridEnabled(false)
-        setGridInterpolationEnabled(false)
-      } else {
-        // GPU WebGL도 비활성화
-        updateConfig({ webglEnabled: false })
-      }
-    },
-    dongBoundaryHeight,
-    setDongBoundaryHeight: (height: number) => {
-      setDongBoundaryHeight(height)
-    },
-    dongInterpolationType,
-    setDongInterpolationType: (type: 'linear' | 'exponential' | 'logarithmic') => {
-      setDongInterpolationType(type)
-    },
-    reprocessDongGradient: useCentroidMethod ? reprocessCentroidGradient : reprocessDongGradient,
-    isDongGradientProcessing: useCentroidMethod ? isCentroidProcessing : isDongGradientProcessing,
-    dongGradientError: useCentroidMethod ? centroidGradientError : dongGradientError,
-    useCentroidMethod,
-    setUseCentroidMethod,
     
     // 표시 모드
     displayMode,
@@ -800,9 +623,5 @@ export function useLayerState(): UseLayerStateReturn {
     updateBearing,
     onRotationInteractionStart,
     onRotationInteractionEnd,
-    
-    // Dong gradient data
-    webglGradientData,
-    isWebglProcessing
   }
 }
