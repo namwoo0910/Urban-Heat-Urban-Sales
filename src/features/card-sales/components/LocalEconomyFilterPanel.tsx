@@ -56,6 +56,9 @@ interface LocalEconomyFilterPanelProps {
   onDongInterpolationTypeChange?: (type: 'linear' | 'exponential' | 'logarithmic' | 'smooth') => void
   onDongReprocess?: () => void
   isDongProcessing?: boolean
+  // Centroid gradient method toggle
+  useCentroidMethod?: boolean
+  onUseCentroidMethodChange?: (use: boolean) => void
   // WebGL rendering controls
   webglEnabled?: boolean
   onWebglEnabledChange?: (enabled: boolean) => void
@@ -155,6 +158,9 @@ export default function LocalEconomyFilterPanel({
   onDongInterpolationTypeChange,
   onDongReprocess,
   isDongProcessing = false,
+  // Centroid gradient method toggle
+  useCentroidMethod = false,
+  onUseCentroidMethodChange,
   // WebGL rendering controls
   webglEnabled = true, // DEFAULT: GPU ON
   onWebglEnabledChange,
@@ -421,6 +427,33 @@ export default function LocalEconomyFilterPanel({
                             className="flex-1"
                           />
                           <span className="text-white/60 text-xs w-20 text-right">{(dongBoundaryHeight / 1000000).toFixed(1)}M</span>
+                        </div>
+                      </div>
+                      
+                      {/* Gradient Method Toggle */}
+                      <div className="space-y-1">
+                        <Label className="text-white/80 text-xs">그라데이션 방식</Label>
+                        <div className="flex items-center justify-between p-2 bg-white/5 rounded">
+                          <div className="flex items-center space-x-2">
+                            <input
+                              type="checkbox"
+                              id="centroid-method"
+                              checked={useCentroidMethod}
+                              onChange={(e) => onUseCentroidMethodChange?.(e.target.checked)}
+                              className="rounded border-white/20"
+                            />
+                            <Label htmlFor="centroid-method" className="text-white/80 text-xs cursor-pointer">
+                              Centroid Gaussian (중심점 가우시안)
+                            </Label>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            {useCentroidMethod ? '✨ New' : 'Classic'}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-white/60 pl-2">
+                          {useCentroidMethod 
+                            ? '부드러운 가우시안 분포 (grid_0811.py 방식)'
+                            : '기존 방사형 그라데이션'}
                         </div>
                       </div>
                       

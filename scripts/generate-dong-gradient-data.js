@@ -10,10 +10,12 @@ const path = require('path')
 
 // Configuration
 const CONFIG = {
-  RADIAL_DIRECTIONS: 72,      // 5-degree intervals for smoother coverage
-  POINTS_PER_DIRECTION: 20,   // More points for smoother gradient
-  MIN_HEIGHT_RATIO: 0.05,     // 5% height at boundary
-  GRADIENT_POWER: 2,          // Quadratic falloff
+  RADIAL_DIRECTIONS: 60,      // Very dense for seamless coverage (6-degree intervals)
+  POINTS_PER_DIRECTION: 30,   // Many points for ultra-smooth gradient
+  MIN_HEIGHT_RATIO: 0.05,     // 5% at boundary for natural fade
+  GRADIENT_POWER: 2.5,        // Strong falloff for smooth boundaries
+  BOUNDARY_BLEND_START: 0.6,  // Earlier blending for smoother transitions
+  HEXAGON_OFFSET: true,       // Enable hexagonal packing pattern
   OUTPUT_FILE: path.join(__dirname, '../public/data/dong-gradient-bars.json')
 }
 
@@ -100,13 +102,19 @@ function generateGradientBars(dongFeature) {
   
   // Generate bars in all directions
   for (let angleIndex = 0; angleIndex < CONFIG.RADIAL_DIRECTIONS; angleIndex++) {
-    const angle = angleIndex * angleStep
-    const cosAngle = Math.cos(angle)
-    const sinAngle = Math.sin(angle)
+    const baseAngle = angleIndex * angleStep
     
     // Generate points from center to boundary (starting from 0 for connection)
     for (let distanceIndex = 0; distanceIndex <= CONFIG.POINTS_PER_DIRECTION; distanceIndex++) {
-      const distanceRatio = distanceIndex / CONFIG.POINTS_PER_DIRECTION
+      // Hexagonal offset - alternate rows are offset by half angle step
+      const angleOffset = CONFIG.HEXAGON_OFFSET && (distanceIndex % 2 === 1) ? angleStep / 2 : 0
+      const angle = baseAngle + angleOffset
+      
+      const cosAngle = Math.cos(angle)
+      const sinAngle = Math.sin(angle)
+      
+      // Exponential distribution for higher center density (smoother gradient)
+      const distanceRatio = Math.pow(distanceIndex / CONFIG.POINTS_PER_DIRECTION, 0.4)
       const actualDistance = maxDistance * distanceRatio
       
       // Calculate position
@@ -115,11 +123,19 @@ function generateGradientBars(dongFeature) {
         center[1] + sinAngle * actualDistance
       ]
       
-      // Calculate height with quadratic falloff
-      const heightRatio = Math.max(
+      // Calculate height with smooth multi-stage falloff
+      let heightRatio = Math.max(
         CONFIG.MIN_HEIGHT_RATIO,
         1 - Math.pow(distanceRatio, CONFIG.GRADIENT_POWER)
       )
+      
+      // Apply cosine-based boundary smoothing for natural fade
+      if (distanceRatio > CONFIG.BOUNDARY_BLEND_START) {
+        // Use cosine curve for very smooth transition
+        const boundaryFactor = (distanceRatio - CONFIG.BOUNDARY_BLEND_START) / (1 - CONFIG.BOUNDARY_BLEND_START)
+        const boundarySmoothing = Math.cos(boundaryFactor * Math.PI / 2)
+        heightRatio *= boundarySmoothing
+      }
       
       gradientBars.push({
         position: position,
@@ -131,8 +147,8 @@ function generateGradientBars(dongFeature) {
   }
   
   return {
-    dongCode: properties.adm_cd || properties.DONG_CD || `unknown_${Date.now()}`,
-    dongName: properties.adm_nm || properties.DONG_NM || 'Unknown',
+    dongCode: properties.ADM_CD || properties.adm_cd || `unknown_${Date.now()}`,
+    dongName: properties.ADM_NM || properties.adm_nm || 'Unknown',
     center: center,
     maxDistance: maxDistance,
     totalBars: gradientBars.length,

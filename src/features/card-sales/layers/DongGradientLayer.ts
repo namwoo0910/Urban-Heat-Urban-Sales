@@ -74,6 +74,9 @@ export class DongGradientLayer extends CompositeLayer<DongGradientLayerProps> {
     
     data.forEach(dongData => {
       if (dongData.gradientBars && dongData.gradientBars.length > 0) {
+        // Get the sales value for this dong
+        const dongSales = dongData.value || 0
+        
         dongData.gradientBars.forEach(bar => {
           allGradientBars.push({
             position: bar.position,
@@ -81,7 +84,8 @@ export class DongGradientLayer extends CompositeLayer<DongGradientLayerProps> {
             normalizedDistance: bar.normalizedDistance,
             angle: bar.angle,
             dongCode: dongData.dongCode,
-            dongName: dongData.dongName
+            dongName: dongData.dongName,
+            totalSales: dongSales // Add sales data to each bar
           })
         })
       }
@@ -114,33 +118,35 @@ export class DongGradientLayer extends CompositeLayer<DongGradientLayerProps> {
       // Position
       getPosition: (d: any) => d.position,
       
-      // 3D bar settings - matched with sales bars
-      diskResolution: 12,  // Same as sales bars for consistency
-      radius: 90,  // Matched with sales bar radius in simple mode
+      // 3D bar settings - modern smooth appearance
+      diskResolution: 6,  // Hexagonal shape for better blending
+      radius: 35,  // Smaller bars for denser, smoother coverage
       extruded: true,
       wireframe: false,
       filled: true,
       
-      // Height based on heightRatio (creates gradient from center to boundary)
+      // Height based on actual sales data and distance gradient
       getElevation: (d: any) => {
-        // Use heightRatio directly for proper gradient effect
-        // heightRatio: 0.99 at center -> 0.05 at boundary
-        const height = baseHeight * d.heightRatio * elevationScale
+        // Calculate base height from actual sales data
+        const salesHeight = (d.totalSales || 0) / 1000000
         
-        // Debug: 높이 계산 확인 (처음 몇 개만)
-        if (Math.random() < 0.001) { // 0.1% 샘플링
-          console.log('[DongGradientLayer] Height calculation:', {
-            dongName: d.dongName,
-            heightRatio: d.heightRatio,
-            normalizedDistance: d.normalizedDistance,
-            baseHeight,
-            elevationScale,
-            calculatedHeight: height
-          })
-        }
+        // Multi-stage edge smoothing for natural falloff
+        // Using cosine curve for smoother transition
+        const edgeFactor = Math.pow(1 - d.normalizedDistance, 3)
+        const smoothingFactor = 0.3 + 0.7 * edgeFactor
+        
+        // Apply height ratio with smooth edge blending
+        let height = salesHeight * d.heightRatio * smoothingFactor
+        
+        // Add subtle organic variation (prevents too-perfect appearance)
+        const noise = (Math.sin(d.position[0] * 100) + Math.sin(d.position[1] * 100)) * 0.02
+        height *= (1 + noise)
+        
+        // Apply elevation scale
+        height *= elevationScale
         
         // Cap maximum height to prevent overflow
-        return Math.min(height, 2000)
+        return Math.min(height, 3000)
       },
       
       // Color based on normalizedDistance (smooth gradient)
@@ -164,50 +170,55 @@ export class DongGradientLayer extends CompositeLayer<DongGradientLayerProps> {
     })
   }
 
-  // Color gradient based on normalized distance
+  // Modern monochrome gradient with smooth transitions
   private getGradientColor(normalizedDistance: number): [number, number, number, number] {
     // normalizedDistance: 0 (center) to 1 (boundary)
-    // Invert so center is "hot" and boundary is "cool"
-    const value = 1 - normalizedDistance
+    const intensity = 1 - normalizedDistance
     
-    // Smooth gradient: blue (boundary) -> cyan -> green -> yellow -> orange -> red (center)
-    const v = Math.max(0, Math.min(1, value))
+    // Modern blue-to-white gradient for professional appearance
+    // Using smooth interpolation for seamless color transitions
     
+    // Base hue: soft blue (210-220)
+    const hue = 210 + intensity * 10
+    
+    // Saturation: high at center, low at edges for fade effect
+    const saturation = 70 * Math.pow(intensity, 1.5)
+    
+    // Lightness: darker at center, lighter at edges
+    const lightness = 85 - intensity * 30
+    
+    // Convert HSL to RGB
+    const rgb = this.hslToRgb(hue / 360, saturation / 100, lightness / 100)
+    
+    // Variable opacity: more opaque at center, transparent at edges
+    const alpha = Math.floor(180 + 75 * intensity) // 180-255 range
+    
+    return [rgb[0], rgb[1], rgb[2], alpha]
+  }
+  
+  // HSL to RGB conversion for smooth color interpolation
+  private hslToRgb(h: number, s: number, l: number): [number, number, number] {
     let r, g, b: number
     
-    if (v < 0.2) {
-      // Blue to cyan (boundary area)
-      const t = v / 0.2
-      r = 0
-      g = Math.floor(100 + 100 * t)  // 100 -> 200
-      b = 255
-    } else if (v < 0.4) {
-      // Cyan to green
-      const t = (v - 0.2) / 0.2
-      r = 0
-      g = Math.floor(200 + 55 * t)   // 200 -> 255
-      b = Math.floor(255 - 155 * t)  // 255 -> 100
-    } else if (v < 0.6) {
-      // Green to yellow-green
-      const t = (v - 0.4) / 0.2
-      r = Math.floor(150 * t)        // 0 -> 150
-      g = 255
-      b = Math.floor(100 - 100 * t)  // 100 -> 0
-    } else if (v < 0.8) {
-      // Yellow-green to yellow
-      const t = (v - 0.6) / 0.2
-      r = Math.floor(150 + 105 * t)  // 150 -> 255
-      g = 255
-      b = 0
+    if (s === 0) {
+      r = g = b = l // achromatic
     } else {
-      // Yellow to orange to red (center area)
-      const t = (v - 0.8) / 0.2
-      r = 255
-      g = Math.floor(255 - 105 * t)  // 255 -> 150
-      b = 0
+      const hue2rgb = (p: number, q: number, t: number) => {
+        if (t < 0) t += 1
+        if (t > 1) t -= 1
+        if (t < 1/6) return p + (q - p) * 6 * t
+        if (t < 1/2) return q
+        if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
+        return p
+      }
+      
+      const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+      const p = 2 * l - q
+      r = hue2rgb(p, q, h + 1/3)
+      g = hue2rgb(p, q, h)
+      b = hue2rgb(p, q, h - 1/3)
     }
     
-    // Add alpha channel with full opacity
-    return [r, g, b, 255]
+    return [Math.floor(r * 255), Math.floor(g * 255), Math.floor(b * 255)]
   }
 }

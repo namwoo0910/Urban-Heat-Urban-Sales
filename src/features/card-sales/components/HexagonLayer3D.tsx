@@ -110,6 +110,8 @@ export default function HexagonScene() {
     setDongInterpolationType,
     reprocessDongGradient,
     isDongGradientProcessing,
+    useCentroidMethod,
+    setUseCentroidMethod,
     // Dong gradient data
     webglGradientData
   } = useLayerState()
@@ -461,7 +463,7 @@ export default function HexagonScene() {
         data: webglGradientData,
         opacity: 0.7, // Slightly transparent for blending
         elevationScale: dongBoundaryHeight / 100, // Adjusted scale factor
-        baseHeight: 300 // Increased to better connect with sales bars
+        baseHeight: 100 // Not used anymore - sales data determines height
       }))
     }
     
@@ -1354,6 +1356,8 @@ export default function HexagonScene() {
         onDongInterpolationTypeChange={setDongInterpolationType}
         onDongReprocess={reprocessDongGradient}
         isDongProcessing={isDongGradientProcessing}
+        useCentroidMethod={useCentroidMethod}
+        onUseCentroidMethodChange={setUseCentroidMethod}
         // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
         onResetLayers={handleFullReset}
       />

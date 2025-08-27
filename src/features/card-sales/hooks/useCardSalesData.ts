@@ -162,7 +162,7 @@ export function useLayerState(): UseLayerStateReturn {
   
   // Dong Boundary Gradient states
   const [dongBoundaryGradientEnabled, setDongBoundaryGradientEnabled] = useState(false)
-  const [dongBoundaryHeight, setDongBoundaryHeight] = useState(1000000)  // Changed to 1M for better gradient
+  const [dongBoundaryHeight, setDongBoundaryHeight] = useState(100)  // Set to 100 for proper gradient scaling
   const [dongInterpolationType, setDongInterpolationType] = useState<'linear' | 'exponential' | 'logarithmic' | 'smooth'>('smooth')
   const [useCentroidMethod, setUseCentroidMethod] = useState(true)  // Use memory-efficient centroid method by default
   
@@ -716,6 +716,8 @@ export function useLayerState(): UseLayerStateReturn {
     reprocessDongGradient: useCentroidMethod ? reprocessCentroidGradient : reprocessDongGradient,
     isDongGradientProcessing: useCentroidMethod ? isCentroidProcessing : isDongGradientProcessing,
     dongGradientError: useCentroidMethod ? centroidGradientError : dongGradientError,
+    useCentroidMethod,
+    setUseCentroidMethod,
     
     // 표시 모드
     displayMode,
