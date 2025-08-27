@@ -282,14 +282,6 @@ export function useLayerState(): UseLayerStateReturn {
   
   // Apply hierarchical filters to data
   const applyHierarchicalFilters = useCallback((data: ClimateCardSalesData[]) => {
-    console.log('[useCardSalesData] Applying filters:', {
-      selectedGu,
-      selectedGuCode,
-      selectedDong,
-      selectedDongCode,
-      dataCountBefore: data.length
-    })
-    
     let filteredData = [...data]
     
     // Filter by district code (자치구코드) - 코드로 필터링
@@ -298,7 +290,6 @@ export function useLayerState(): UseLayerStateReturn {
         // guCode is string, selectedGuCode is number
         return item.guCode === String(selectedGuCode)
       })
-      console.log(`[useCardSalesData] After Gu filter (code: ${selectedGuCode}):`, filteredData.length)
     }
     
     // Filter by dong code (행정동코드) - 코드로 필터링
@@ -307,19 +298,8 @@ export function useLayerState(): UseLayerStateReturn {
         // dongCode is number
         return item.dongCode === selectedDongCode
       })
-      console.log(`[useCardSalesData] After Dong filter (code: ${selectedDongCode}):`, filteredData.length)
     }
     
-    // Log sample data for debugging
-    if (filteredData.length > 0) {
-      console.log('[useCardSalesData] Sample filtered data:', {
-        guName: filteredData[0].guName,
-        dongName: filteredData[0].dongName,
-        coordinates: filteredData[0].coordinates
-      })
-    } else {
-      console.warn('[useCardSalesData] No data after filtering!')
-    }
     
     // Note: Business category filtering would be applied at visualization level
     // since the raw data may not have category-specific location data
@@ -370,17 +350,13 @@ export function useLayerState(): UseLayerStateReturn {
             weight: categorySales,
             businessType: selectedBusinessType,
             category: selectedBusinessType,
-            // Minimize originalData to only essential fields
+            // Include full original data for tooltip
             originalData: {
-              guName: item.guName,
-              dongName: item.dongName,
-              dongCode: item.dongCode, // 행정동코드 추가
-              categorySales: categorySales,
-              businessType: selectedBusinessType,
-              coordinates: item.coordinates,
-              temperature: item.temperature,
-              discomfortIndex: item.discomfortIndex,
-              humidity: item.humidity
+              ...item, // 전체 원본 데이터 포함
+              총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+              businessType: selectedBusinessType, // 업종명 추가
+              middleCategory: selectedBusinessType,
+              displayMode: 'detailed'
             }
           })
         }
@@ -410,17 +386,13 @@ export function useLayerState(): UseLayerStateReturn {
           weight: sales,
           middleCategory: category,
           category: category,
-          // Minimize originalData
+          // Include full original data for tooltip
           originalData: {
-            guName: item.guName,
-            dongName: item.dongName,
-            dongCode: item.dongCode, // 행정동코드 추가
-            categorySales: sales,
+            ...item, // 전체 원본 데이터 포함
+            총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+            businessType: category, // 업종명 추가
             middleCategory: category,
-            coordinates: item.coordinates,
-            temperature: item.temperature,
-            discomfortIndex: item.discomfortIndex,
-            humidity: item.humidity
+            displayMode: 'detailed'
           }
         })
       })
@@ -432,8 +404,6 @@ export function useLayerState(): UseLayerStateReturn {
   // Create simple data points with total sales per dong (행정동별 총 매출액) - OPTIMIZED
   const createSimpleDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
     const simplePoints: HexagonLayerData[] = []
-    
-    console.log('[useCardSalesData] Creating simple data points from', data.length, 'items')
     
     // Group data by dong (행정동)
     const dongGroups = new Map<string, { totalSales: number, item: ClimateCardSalesData }>()
@@ -461,8 +431,6 @@ export function useLayerState(): UseLayerStateReturn {
       }
     })
     
-    console.log('[useCardSalesData] Grouped into', dongGroups.size, 'dong groups')
-    
     // Create one point per dong with total sales
     dongGroups.forEach(({ totalSales, item }) => {
       simplePoints.push({
@@ -471,21 +439,12 @@ export function useLayerState(): UseLayerStateReturn {
         category: '전체',
         // Minimize originalData to only essential fields
         originalData: {
-          guName: item.guName,
-          dongName: item.dongName,
-          dongCode: item.dongCode, // 행정동코드 추가
-          categorySales: totalSales,
-          displayMode: 'simple',
-          coordinates: item.coordinates,
-          temperature: item.temperature,
-          discomfortIndex: item.discomfortIndex,
-          humidity: item.humidity,
-          salesByCategory: item.salesByCategory // Keep for detailed mode switching
+          ...item, // 전체 원본 데이터 포함
+          총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+          displayMode: 'simple'
         }
       })
     })
-    
-    console.log('[useCardSalesData] Created', simplePoints.length, 'simple data points')
     
     return simplePoints
   }, [])
@@ -567,21 +526,12 @@ export function useLayerState(): UseLayerStateReturn {
       return
     }
     
-    console.log('[useCardSalesData] Re-filtering data with:', {
-      selectedGu,
-      selectedDong,
-      selectedBusinessType,
-      displayMode,
-      climateDataLength: climateData.length
-    })
-    
     // Re-filter existing data when filters or display mode change
     const filteredData = applyHierarchicalFilters(climateData)
     const hexData = displayMode === 'simple' 
       ? createSimpleDataPoints(filteredData)
       : createCategoryDataPoints(filteredData)
     
-    console.log('[useCardSalesData] Setting hexagon data:', hexData.length, 'points')
     setHexagonData(hexData)
   }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
   

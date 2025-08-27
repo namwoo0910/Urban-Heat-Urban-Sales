@@ -30,14 +30,14 @@ export const cumulativeSalesData = [
 
 // Bar Chart - 업종별 매출
 export const categorySalesData = [
-  { name: '음식점', value: 850000000, color: '#3b82f6' },
-  { name: '쇼핑', value: 720000000, color: '#10b981' },
-  { name: '교통', value: 450000000, color: '#8b5cf6' },
-  { name: '편의점', value: 680000000, color: '#f59e0b' },
-  { name: '문화/여가', value: 390000000, color: '#ef4444' },
-  { name: '의료', value: 320000000, color: '#ec4899' },
-  { name: '교육', value: 280000000, color: '#14b8a6' },
-  { name: '기타', value: 510000000, color: '#6366f1' },
+  { name: '음식점', value: 850000000, color: '#3b82f6', date: '2024-12-24', category: '음식점', subcategory: '한식/중식/일식' },
+  { name: '쇼핑', value: 720000000, color: '#10b981', date: '2024-12-24', category: '쇼핑', subcategory: '의류/전자제품' },
+  { name: '교통', value: 450000000, color: '#8b5cf6', date: '2024-12-24', category: '교통', subcategory: '택시/대중교통' },
+  { name: '편의점', value: 680000000, color: '#f59e0b', date: '2024-12-24', category: '편의점', subcategory: 'CU/GS25/세븐일레븐' },
+  { name: '문화/여가', value: 390000000, color: '#ef4444', date: '2024-12-24', category: '문화/여가', subcategory: '영화/공연/레저' },
+  { name: '의료', value: 320000000, color: '#ec4899', date: '2024-12-24', category: '의료', subcategory: '병원/약국' },
+  { name: '교육', value: 280000000, color: '#14b8a6', date: '2024-12-24', category: '교육', subcategory: '학원/교육서비스' },
+  { name: '기타', value: 510000000, color: '#6366f1', date: '2024-12-24', category: '기타', subcategory: '기타 서비스' },
 ]
 
 // Pie Chart - 연령대별 사용 비율

@@ -32,27 +32,31 @@ export function SalesChartPanel() {
         <p className="text-sm text-gray-400">서울시 카드 매출 데이터 시각화</p>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col">
-        <TabsList className="grid grid-cols-4 gap-1 bg-black/40 border border-white/10 mb-4 h-auto p-1">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-w-0">
+        <TabsList className="grid grid-cols-4 lg:grid-cols-8 gap-1 bg-black/40 border border-white/10 mb-2 h-auto p-1 flex-shrink-0">
           {charts.map((chart) => (
             <TabsTrigger 
               key={chart.id} 
               value={chart.id}
-              className="text-xs data-[state=active]:bg-blue-600/20 data-[state=active]:text-blue-400 h-8"
+              className="text-[10px] lg:text-xs data-[state=active]:bg-blue-600/20 data-[state=active]:text-blue-400 h-7 lg:h-8 px-2"
             >
               {chart.label}
             </TabsTrigger>
           ))}
         </TabsList>
 
-        <div className="flex-1 overflow-hidden">
+        <div className="flex-1 min-h-0 overflow-hidden">
           {charts.map((chart) => (
             <TabsContent 
               key={chart.id} 
               value={chart.id} 
-              className="h-full mt-0"
+              className="h-full mt-0 p-2"
             >
-              <chart.component />
+              <div className="w-full h-full overflow-x-auto overflow-y-hidden">
+                <div className="min-w-[600px] h-full">
+                  <chart.component />
+                </div>
+              </div>
             </TabsContent>
           ))}
         </div>

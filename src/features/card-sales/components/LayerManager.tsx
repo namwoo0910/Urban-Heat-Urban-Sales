@@ -16,6 +16,7 @@ export interface HexagonLayerData {
   weight: number
   category?: string
   businessType?: string // 업종 카테고리 추가
+  middleCategory?: string // 중분류 카테고리
   originalData?: any // 원본 ClimateCardSalesData 저장
 }
 
@@ -265,7 +266,6 @@ export function LayerManager({
     
     // LAYER 1: HexagonLayer for 3D bars (main visualization)
     if (data && config.visible && data.length > 0) {
-      console.log('[LayerManager] Creating HexagonLayer for bars with', data.length, 'points')
       
       // 애니메이션이 활성화된 경우 다중 레이어 생성
       if (config.animationEnabled && groupedData) {
@@ -508,30 +508,81 @@ export function formatScatterplotTooltip(info: any): string {
 
 // 툴팁 포매터 - ColumnLayer용
 function formatColumnTooltip(object: any): string {
-  if (!object || !object.originalData) return ''
+  if (!object) return ''
   
-  const { originalData } = object
-  const date = originalData.date || '날짜 정보 없음'
-  const guName = originalData.guName || '정보 없음'
-  const dongName = originalData.dongName || '정보 없음'
-  const middleCategory = originalData.middleCategory || object.middleCategory || '업종 정보 없음'
-  const sales = originalData.categorySales || object.weight || 0
-  const displayMode = originalData.displayMode
+  // originalData에서 정보 추출
+  const originalData = object.originalData || object
+  const date = originalData.date || originalData.기준일자 || '날짜 정보 없음'
+  const guName = originalData.guName || originalData.자치구 || '정보 없음'
+  const dongName = originalData.dongName || originalData.행정동 || '정보 없음'
   
-  // Simple 모드에서는 총 매출액만 표시
-  if (displayMode === 'simple') {
+  // 업종 정보 추출 - middleCategory가 있으면 사용
+  let middleCategory = originalData.middleCategory || object.middleCategory
+  
+  // salesByCategory 데이터 확인 (ClimateCardSalesData 형식)
+  const salesByCategory = originalData.salesByCategory || originalData.총매출액_업종
+  
+  // middleCategory가 없고 salesByCategory가 있으면 가장 큰 업종 찾기
+  if (!middleCategory && salesByCategory) {
+    const categories = Object.entries(salesByCategory)
+      .filter(([_, value]) => (value as number) > 0)
+      .sort((a, b) => (b[1] as number) - (a[1] as number))
+    
+    if (categories.length > 0) {
+      middleCategory = categories[0][0] // 가장 매출이 높은 업종
+    }
+  }
+  
+  // displayMode 확인
+  const displayMode = originalData.displayMode || object.displayMode
+  
+  // Simple 모드에서는 총 매출액과 주요 업종들 표시
+  if (displayMode === 'simple' && salesByCategory) {
+    const topCategories = Object.entries(salesByCategory)
+      .filter(([_, value]) => (value as number) > 0)
+      .sort((a, b) => (b[1] as number) - (a[1] as number))
+      .slice(0, 3)
+    
+    const totalSales = originalData.totalSales || 
+      Object.values(salesByCategory).reduce((sum, val) => sum + (val as number), 0)
+    
     return `
 📅 날짜: ${date}
 📍 지역: ${guName} ${dongName}
-💰 총 매출액: ${sales.toLocaleString()}원
+💰 총 매출액: ${totalSales.toLocaleString()}원
+━━━━━━━━━━━━━━━━━━━
+📊 주요 업종:
+${topCategories.map(([cat, val]) => `  • ${cat}: ${(val as number).toLocaleString()}원`).join('\n')}
     `.trim()
   }
   
-  // Detailed 모드에서는 카테고리별 정보 표시
-  return `
+  // Detailed 모드에서는 특정 카테고리 정보 표시
+  if (middleCategory && salesByCategory) {
+    const categorySales = salesByCategory[middleCategory] || object.weight || 0
+    return `
 📅 날짜: ${date}
 📍 지역: ${guName} ${dongName}
 💼 업종: ${middleCategory}
+💰 매출액: ${categorySales.toLocaleString()}원
+    `.trim()
+  }
+  
+  // 업종 정보가 있으면 표시
+  if (middleCategory) {
+    const sales = object.weight || 0
+    return `
+📅 날짜: ${date}
+📍 지역: ${guName} ${dongName}
+💼 업종: ${middleCategory}
+💰 매출액: ${sales.toLocaleString()}원
+    `.trim()
+  }
+  
+  // 기본 표시 (업종 정보 없을 때)
+  const sales = object.weight || originalData.totalSales || 0
+  return `
+📅 날짜: ${date}
+📍 지역: ${guName} ${dongName}
 💰 매출액: ${sales.toLocaleString()}원
   `.trim()
 }
@@ -543,18 +594,6 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
   hoveredDistrict?: string | null 
 }): Layer[] {
   if (!data || !config.visible) return []
-  
-  // Creating column layer
-  console.log('[LayerManager] Creating ColumnLayer with:', {
-    dataCount: data?.length,
-    elevationScale: config.elevationScale,
-    displayMode: config.displayMode,
-    firstItem: data?.[0] ? {
-      coordinates: data[0].coordinates,
-      weight: data[0].weight,
-      hasOriginalData: !!data[0].originalData
-    } : null
-  })
   
   const layer = new ColumnLayer<HexagonLayerData>({
     id: 'column-layer',
@@ -739,6 +778,30 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
         return [0, 255, 255, 180]  // 청록색 하이라이트
       }
       return [255, 255, 255, 100]  // 기본 하이라이트
+    },
+    
+    // 툴팁 설정
+    getTooltip: (object: any) => {
+      if (!object) return null
+      
+      // 디버깅: 데이터 구조 확인
+      console.log('[LayerManager] Tooltip data:', {
+        hasOriginalData: !!object.originalData,
+        middleCategory: object.originalData?.middleCategory,
+        salesByCategory: object.originalData?.salesByCategory,
+        총매출액_업종: object.originalData?.총매출액_업종,
+        displayMode: object.originalData?.displayMode,
+        weight: object.weight
+      })
+      
+      return {
+        html: formatColumnTooltip(object),
+        style: {
+          backgroundColor: 'rgba(0, 0, 0, 0.8)',
+          fontSize: '12px',
+          border: '1px solid rgba(255, 255, 255, 0.2)'
+        }
+      }
     },
     
     // 이벤트 핸들러

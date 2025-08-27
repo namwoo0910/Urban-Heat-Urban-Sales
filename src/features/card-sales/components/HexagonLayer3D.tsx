@@ -477,33 +477,7 @@ export default function HexagonScene() {
   // })
 
   // 자치구 선택 디버깅
-  useEffect(() => {
-    console.log('[District Selection Debug]', {
-      selectedDistrict: districtSelection.selectedDistrict,
-      selectedFeature: districtSelection.selectedFeature,
-      showDialog: districtSelection.showDialog,
-      selectionMode: districtSelection.selectionMode,
-      sggVisible: districtSelection.sggVisible
-    })
-  }, [districtSelection.selectedDistrict, districtSelection.selectedFeature])
 
-  // 레이어 상태 디버깅
-  useEffect(() => {
-    console.log('[Layer Debug] Layer state:', {
-      hasData: !!hexagonData,
-      dataLength: hexagonData?.length || 0,
-      layerVisible: layerConfig.visible,
-      layerCount: deckLayers.length,
-      isLoading: isDataLoading,
-      error: dataError,
-      selectionMode: districtSelection.selectionMode,
-      animationEnabled: layerConfig.animationEnabled
-    })
-    
-    if (hexagonData && hexagonData.length > 0) {
-      console.log('[Layer Debug] Sample data point:', hexagonData[0])
-    }
-  }, [hexagonData, layerConfig.visible, deckLayers.length, isDataLoading, dataError, districtSelection.selectionMode, layerConfig.animationEnabled])
 
   // 툴팁 핸들러 (Context7 권장 패턴)
   const getTooltip = (info: PickingInfo) => {
@@ -518,7 +492,7 @@ export default function HexagonScene() {
         const date = originalData.date || '날짜 정보 없음'
         const guName = originalData.guName || '정보 없음'
         const dongName = originalData.dongName || '정보 없음'
-        const businessType = originalData.businessType || info.object.businessType || '업종 정보 없음'
+        const businessType = originalData.businessType || originalData.middleCategory || info.object.businessType || info.object.middleCategory || '업종 정보 없음'
         const sales = originalData.categorySales || info.object.weight || 0
         
         const tooltipHtml = `
@@ -1400,7 +1374,7 @@ export default function HexagonScene() {
         selectedDong={selectedDong}
         hexagonData={hexagonData}
         climateData={climateData}
-        visible={!!(selectedGu || selectedDong)}
+        visible={true}
       />
 
 
