@@ -4,52 +4,43 @@ import React, { useState } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 import { 
-  Layers, 
-  Calendar, 
   MapPin, 
-  Map, 
-  Eye, 
-  EyeOff,
-  Settings,
-  Palette,
   RefreshCw,
-  Loader2,
-  Minimize2,
-  Maximize2,
-  RotateCw,
-  RotateCcw,
-  Compass,
-  Flame
+  Loader2
 } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Label } from "@/src/shared/components/ui/label"
-import { Switch } from "@/src/shared/components/ui/switch"
 import { Slider } from "@/src/shared/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/components/ui/select"
 import { Button } from "@/src/shared/components/ui/button"
 import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/shared/components/ui/tabs"
 import { COLOR_PALETTE_INFO, getColorPreviewStyle, type ColorScheme } from "@/src/features/card-sales/utils/premiumColors"
 
-// 지도 레이어 정의
+// 지도 레이어 정의 (Mapbox 스타일)
 const mapLayers = [
-  { id: "earth", name: "위성 지도", description: "서울의 위성 이미지" },
-  { id: "night", name: "야간 모드", description: "어두운 테마의 지도" },
-  { id: "temperature", name: "지형 지도", description: "서울의 지형과 공원" },
-  { id: "precipitation", name: "밝은 지도", description: "밝은 테마의 기본 지도" },
-  { id: "population", name: "도로 지도", description: "상세한 도로와 건물 정보" },
-  { id: "elevation", name: "야외 지도", description: "등고선과 자연 지형" },
+  // 기본 스타일
+  { id: "mapbox://styles/mapbox/streets-v12", name: "거리 지도", description: "기본 거리 지도" },
+  { id: "mapbox://styles/mapbox/outdoors-v12", name: "야외 지도", description: "등고선과 자연 지형" },
+  { id: "mapbox://styles/mapbox/light-v11", name: "밝은 지도", description: "밝은 테마" },
+  { id: "mapbox://styles/mapbox/dark-v11", name: "어두운 지도", description: "어두운 테마" },
+  { id: "mapbox://styles/mapbox/satellite-v9", name: "위성 지도", description: "위성 이미지" },
+  { id: "mapbox://styles/mapbox/satellite-streets-v12", name: "위성+거리", description: "위성 이미지와 라벨" },
+  { id: "mapbox://styles/mapbox/navigation-day-v1", name: "내비게이션(주간)", description: "운전용 내비게이션" },
+  { id: "mapbox://styles/mapbox/navigation-night-v1", name: "내비게이션(야간)", description: "야간 운전용" },
+  
+  // 특수 스타일
+  { id: "mapbox://styles/mapbox/standard", name: "표준 지도", description: "Mapbox 표준 스타일" },
+  { id: "mapbox://styles/mapbox/standard-satellite", name: "표준 위성", description: "표준 위성 스타일" },
+  
+  // 추가 커스텀 스타일 (실제 사용 가능한 스타일)
+  { id: "mapbox://styles/mapbox/twilight-v2", name: "황혼", description: "황혼 테마" },
+  { id: "mapbox://styles/mapbox/blueprint-v1", name: "블루프린트", description: "청사진 스타일" },
+  { id: "mapbox://styles/mapbox/decimal-v1", name: "데시멀", description: "미니멀 스타일" },
+  { id: "mapbox://styles/mapbox/minimo-v1", name: "미니모", description: "최소한의 디자인" },
+  { id: "mapbox://styles/mapbox/frank-v1", name: "프랭크", description: "대비가 높은 스타일" },
 ]
 
-// 시계열 범위 정의
-const timeRanges = [
-  { value: 0, label: "2020" },
-  { value: 25, label: "2021" },
-  { value: 50, label: "2022" },
-  { value: 75, label: "2023" },
-  { value: 100, label: "2024" },
-]
 
 interface UnifiedControlsProps {
   // MapControls props
@@ -113,74 +104,23 @@ interface UnifiedControlsProps {
 export default function UnifiedControls({
   // MapControls props
   onLayerChange,
-  onTimeChange,
   currentLayer,
-  currentTime,
-  showBoundary = true,
-  showSeoulBase = false,
-  showDistrictLabels = true,
-  onBoundaryToggle,
-  onSeoulBaseToggle,
-  onDistrictLabelsToggle,
   
   // LayerControls props
-  visible,
   radius,
   elevationScale,
-  coverage,
-  upperPercentile,
   colorScheme,
   isDataLoading,
   dataError,
-  onVisibleChange,
   onRadiusChange,
   onElevationScaleChange,
-  onCoverageChange,
-  onUpperPercentileChange,
   onColorSchemeChange,
   onReset,
-  
-  // Color mode props
-  colorMode = 'sales',
-  onColorModeChange,
-  selectedHour = 12,
-  onSelectedHourChange,
-  
-  // Animation props
-  animationEnabled = false,
-  animationSpeed = 1.0,
-  waveAmplitude = 2.0,
-  isAnimating = false,
-  onAnimationEnabledChange,
-  onAnimationSpeedChange,
-  onWaveAmplitudeChange,
-  onToggleAnimation,
-  
-  // Rotation props
-  rotationEnabled = false,
-  rotationSpeed = 1.0,
-  rotationDirection = 'clockwise',
-  isRotating = false,
-  rotationDirectionText = '시계방향',
-  bearingDisplay = '0°',
-  onRotationEnabledChange,
-  onRotationSpeedChange,
-  onRotationDirectionChange,
-  onToggleRotation,
 }: UnifiedControlsProps) {
-  const [isMinimized, setIsMinimized] = useState(false)
-  const [activeTab, setActiveTab] = useState("map")
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
 
-  const currentLayerInfo = mapLayers.find((layer) => layer.id === currentLayer)
-
-  // 최소화 토글
-  const toggleMinimize = () => {
-    setIsMinimized(!isMinimized)
-  }
-
   return (
-    <div className={`fixed bottom-[266px] z-50 transition-all duration-300 left-[400px]`}>
+    <div className={`fixed bottom-[350px] z-50 transition-all duration-300 left-4`}>
       <Card className={`bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden ${isExpanded ? 'w-[280px]' : 'w-auto'}`}>
         {/* Clickable Header to expand/collapse */}
         <button
@@ -239,7 +179,35 @@ export default function UnifiedControls({
               )}
 
               <div className="p-2 space-y-3 max-h-96 overflow-y-auto">
-            {/* 레이어는 항상 ON 상태로 유지 */}
+            {/* 맵박스 레이어 선택 */}
+            <div className="space-y-2">
+              <Label className="text-white text-xs font-semibold">지도 스타일</Label>
+              <Select
+                value={currentLayer}
+                onValueChange={onLayerChange}
+                disabled={isDataLoading}
+              >
+                <SelectTrigger className="bg-white/10 border-white/20 text-white h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black/90 border-white/20 max-h-64 overflow-y-auto">
+                  {mapLayers.map((layer) => (
+                    <SelectItem 
+                      key={layer.id} 
+                      value={layer.id} 
+                      className="text-white hover:bg-white/10"
+                    >
+                      <div className="flex flex-col">
+                        <span className="font-medium">{layer.name}</span>
+                        <span className="text-xs text-white/60">{layer.description}</span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator className="bg-white/20" />
 
             {/* 형태 설정 */}
             <div className="space-y-3">
