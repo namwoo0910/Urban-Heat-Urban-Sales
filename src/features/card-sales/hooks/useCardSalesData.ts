@@ -34,8 +34,10 @@ interface UseLayerStateReturn {
   
   // Hierarchical filter states
   selectedGu: string | null
+  selectedGuCode: number | null
   selectedDong: string | null
-  selectedMiddleCategory: string | null
+  selectedDongCode: number | null
+  selectedBusinessType: string | null
   selectedSubCategory: string | null
   
   // 설정 업데이트 함수들
@@ -66,8 +68,10 @@ interface UseLayerStateReturn {
   
   // Hierarchical filter functions
   setSelectedGu: (gu: string | null) => void
+  setSelectedGuCode: (guCode: number | null) => void
   setSelectedDong: (dong: string | null) => void
-  setSelectedMiddleCategory: (category: string | null) => void
+  setSelectedDongCode: (dongCode: number | null) => void
+  setSelectedBusinessType: (category: string | null) => void
   setSelectedSubCategory: (category: string | null) => void
   
   // 상호작용 상태
@@ -127,8 +131,10 @@ export function useLayerState(): UseLayerStateReturn {
   
   // Hierarchical filter states
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
+  const [selectedGuCode, setSelectedGuCode] = useState<number | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
-  const [selectedMiddleCategory, setSelectedMiddleCategory] = useState<string | null>(null)
+  const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
   
   
@@ -263,27 +269,63 @@ export function useLayerState(): UseLayerStateReturn {
   
   const resetConfig = useCallback(() => {
     setLayerConfig(DEFAULT_LAYER_CONFIG)
+    // Reset all district selections
+    setSelectedGu(null)
+    setSelectedGuCode(null)
+    setSelectedDong(null)
+    setSelectedDongCode(null)
+    setSelectedBusinessType(null)
+    setSelectedSubCategory(null)
+    // Reset display mode to simple view
+    setDisplayMode('simple')
   }, [])
   
   // Apply hierarchical filters to data
   const applyHierarchicalFilters = useCallback((data: ClimateCardSalesData[]) => {
+    console.log('[useCardSalesData] Applying filters:', {
+      selectedGu,
+      selectedGuCode,
+      selectedDong,
+      selectedDongCode,
+      dataCountBefore: data.length
+    })
+    
     let filteredData = [...data]
     
-    // Filter by district (자치구)
-    if (selectedGu) {
-      filteredData = filteredData.filter(item => item.guName === selectedGu)
+    // Filter by district code (자치구코드) - 코드로 필터링
+    if (selectedGuCode) {
+      filteredData = filteredData.filter(item => {
+        // guCode is string, selectedGuCode is number
+        return item.guCode === String(selectedGuCode)
+      })
+      console.log(`[useCardSalesData] After Gu filter (code: ${selectedGuCode}):`, filteredData.length)
     }
     
-    // Filter by dong (행정동)
-    if (selectedDong) {
-      filteredData = filteredData.filter(item => item.dongName === selectedDong)
+    // Filter by dong code (행정동코드) - 코드로 필터링
+    if (selectedDongCode) {
+      filteredData = filteredData.filter(item => {
+        // dongCode is number
+        return item.dongCode === selectedDongCode
+      })
+      console.log(`[useCardSalesData] After Dong filter (code: ${selectedDongCode}):`, filteredData.length)
+    }
+    
+    // Log sample data for debugging
+    if (filteredData.length > 0) {
+      console.log('[useCardSalesData] Sample filtered data:', {
+        guName: filteredData[0].guName,
+        dongName: filteredData[0].dongName,
+        coordinates: filteredData[0].coordinates
+      })
+    } else {
+      console.warn('[useCardSalesData] No data after filtering!')
     }
     
     // Note: Business category filtering would be applied at visualization level
     // since the raw data may not have category-specific location data
     
     return filteredData
-  }, [selectedGu, selectedDong])
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode])
 
   // Create data points with middle category information - OPTIMIZED for memory and viewport
   const createCategoryDataPoints = useCallback((data: ClimateCardSalesData[], viewportBounds?: { 
@@ -314,11 +356,11 @@ export function useLayerState(): UseLayerStateReturn {
       }
       
       // If a specific middle category is selected, create points only for that category
-      if (selectedMiddleCategory) {
-        const categorySales = item.salesByCategory[selectedMiddleCategory] || 0
+      if (selectedBusinessType) {
+        const categorySales = item.salesByCategory[selectedBusinessType] || 0
         
         if (categorySales > 0) {
-          const offset = getCategoryOffset(selectedMiddleCategory)
+          const offset = getCategoryOffset(selectedBusinessType)
           
           categoryPoints.push({
             coordinates: [
@@ -326,15 +368,15 @@ export function useLayerState(): UseLayerStateReturn {
               item.coordinates[1] + offset.dy
             ],
             weight: categorySales,
-            middleCategory: selectedMiddleCategory,
-            category: selectedMiddleCategory,
+            businessType: selectedBusinessType,
+            category: selectedBusinessType,
             // Minimize originalData to only essential fields
             originalData: {
               guName: item.guName,
               dongName: item.dongName,
               dongCode: item.dongCode, // 행정동코드 추가
               categorySales: categorySales,
-              middleCategory: selectedMiddleCategory,
+              businessType: selectedBusinessType,
               coordinates: item.coordinates,
               temperature: item.temperature,
               discomfortIndex: item.discomfortIndex,
@@ -385,11 +427,13 @@ export function useLayerState(): UseLayerStateReturn {
     })
     
     return categoryPoints
-  }, [selectedMiddleCategory, selectedGu, selectedDong])
+  }, [selectedBusinessType, selectedGu, selectedDong])
 
   // Create simple data points with total sales per dong (행정동별 총 매출액) - OPTIMIZED
   const createSimpleDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
     const simplePoints: HexagonLayerData[] = []
+    
+    console.log('[useCardSalesData] Creating simple data points from', data.length, 'items')
     
     // Group data by dong (행정동)
     const dongGroups = new Map<string, { totalSales: number, item: ClimateCardSalesData }>()
@@ -417,6 +461,8 @@ export function useLayerState(): UseLayerStateReturn {
       }
     })
     
+    console.log('[useCardSalesData] Grouped into', dongGroups.size, 'dong groups')
+    
     // Create one point per dong with total sales
     dongGroups.forEach(({ totalSales, item }) => {
       simplePoints.push({
@@ -427,7 +473,7 @@ export function useLayerState(): UseLayerStateReturn {
         originalData: {
           guName: item.guName,
           dongName: item.dongName,
-          dongCode: item.dongCode, // 행정동코듍 추가
+          dongCode: item.dongCode, // 행정동코드 추가
           categorySales: totalSales,
           displayMode: 'simple',
           coordinates: item.coordinates,
@@ -438,6 +484,8 @@ export function useLayerState(): UseLayerStateReturn {
         }
       })
     })
+    
+    console.log('[useCardSalesData] Created', simplePoints.length, 'simple data points')
     
     return simplePoints
   }, [])
@@ -519,13 +567,23 @@ export function useLayerState(): UseLayerStateReturn {
       return
     }
     
+    console.log('[useCardSalesData] Re-filtering data with:', {
+      selectedGu,
+      selectedDong,
+      selectedBusinessType,
+      displayMode,
+      climateDataLength: climateData.length
+    })
+    
     // Re-filter existing data when filters or display mode change
     const filteredData = applyHierarchicalFilters(climateData)
     const hexData = displayMode === 'simple' 
       ? createSimpleDataPoints(filteredData)
       : createCategoryDataPoints(filteredData)
+    
+    console.log('[useCardSalesData] Setting hexagon data:', hexData.length, 'points')
     setHexagonData(hexData)
-  }, [selectedGu, selectedDong, selectedMiddleCategory, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
   
   
   // Return hexagon data directly
@@ -555,8 +613,10 @@ export function useLayerState(): UseLayerStateReturn {
     
     // Hierarchical filter states
     selectedGu,
+    selectedGuCode,
     selectedDong,
-    selectedMiddleCategory,
+    selectedDongCode,
+    selectedBusinessType,
     selectedSubCategory,
     
     // 설정 업데이트 함수들
@@ -587,8 +647,10 @@ export function useLayerState(): UseLayerStateReturn {
     
     // Hierarchical filter functions
     setSelectedGu,
+    setSelectedGuCode,
     setSelectedDong,
-    setSelectedMiddleCategory,
+    setSelectedDongCode,
+    setSelectedBusinessType,
     setSelectedSubCategory,
     
     // 상호작용 상태

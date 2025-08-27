@@ -17,8 +17,14 @@ import {
   getDongsByDistrict 
 } from "../data/districtHierarchy"
 import { 
-  actualMiddleCategories,
-  getAllMiddleCategories
+  districtCodes, 
+  dongCodes, 
+  getDistrictCode, 
+  getDongCode 
+} from "../data/districtCodeMappings"
+import { 
+  actualBusinessTypes,
+  getAllBusinessTypes
 } from "../data/businessHierarchy"
 
 interface LocalEconomyFilterPanelProps {
@@ -31,7 +37,7 @@ interface LocalEconomyFilterPanelProps {
   // External filter state synchronization
   externalSelectedGu?: string | null
   externalSelectedDong?: string | null
-  externalSelectedMiddleCategory?: string | null
+  externalSelectedBusinessType?: string | null
   // 레이어 초기화 함수
   onResetLayers?: () => void
 }
@@ -85,9 +91,11 @@ const CATEGORY_COLORS: Record<string, string> = {
 }
 
 export interface FilterState {
-  selectedGu: string | null
-  selectedDong: string | null
-  selectedMiddleCategory: string | null
+  selectedGu: string | null        // 구 이름 (UI 표시용)
+  selectedGuCode: number | null    // 구 코드 (필터링용)
+  selectedDong: string | null      // 동 이름 (UI 표시용) 
+  selectedDongCode: number | null  // 동 코드 (필터링용)
+  selectedBusinessType: string | null
 }
 
 export default function LocalEconomyFilterPanel({
@@ -100,7 +108,7 @@ export default function LocalEconomyFilterPanel({
   // External filter state synchronization
   externalSelectedGu,
   externalSelectedDong,
-  externalSelectedMiddleCategory,
+  externalSelectedBusinessType,
   // 레이어 초기화 함수
   onResetLayers,
 }: LocalEconomyFilterPanelProps) {
@@ -112,8 +120,10 @@ export default function LocalEconomyFilterPanel({
   
   // Filter states
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
+  const [selectedGuCode, setSelectedGuCode] = useState<number | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
-  const [selectedMiddleCategory, setSelectedMiddleCategory] = useState<string | null>(null)
+  const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
   
   // Get available options
   const availableDistricts = useMemo(() => getAllDistricts(), [])
@@ -121,29 +131,48 @@ export default function LocalEconomyFilterPanel({
     return selectedGu ? getDongsByDistrict(selectedGu) : []
   }, [selectedGu])
   
-  const availableMiddleCategories = useMemo(() => getAllMiddleCategories(), [])
+  const availableBusinessTypes = useMemo(() => getAllBusinessTypes(), [])
   
   // Handle district selection
   const handleGuChange = (value: string) => {
-    setSelectedGu(value === '전체' ? null : value)
+    if (value === '전체') {
+      setSelectedGu(null)
+      setSelectedGuCode(null)
+    } else {
+      setSelectedGu(value)
+      const code = getDistrictCode(value)
+      setSelectedGuCode(code || null)
+      console.log('[LocalEconomyFilter] Selected Gu:', { name: value, code })
+    }
     setSelectedDong(null) // Reset dong when district changes
+    setSelectedDongCode(null)
   }
   
   // Handle dong selection
   const handleDongChange = (value: string) => {
-    setSelectedDong(value === '전체' ? null : value)
+    if (value === '전체') {
+      setSelectedDong(null)
+      setSelectedDongCode(null)
+    } else {
+      setSelectedDong(value)
+      if (selectedGu) {
+        setSelectedDongCode(getDongCode(selectedGu, value) || null)
+      }
+    }
   }
   
-  // Handle middle category selection
-  const handleMiddleCategoryChange = (value: string) => {
-    setSelectedMiddleCategory(value === '전체' ? null : value)
+  // Handle business type selection
+  const handleBusinessTypeChange = (value: string) => {
+    setSelectedBusinessType(value === '전체' ? null : value)
   }
   
   // Reset all filters and layers
   const handleReset = () => {
     setSelectedGu(null)
+    setSelectedGuCode(null)
     setSelectedDong(null)
-    setSelectedMiddleCategory(null)
+    setSelectedDongCode(null)
+    setSelectedBusinessType(null)
     
     // 레이어 설정도 초기화
     if (onResetLayers) {
@@ -151,39 +180,46 @@ export default function LocalEconomyFilterPanel({
     }
   }
   
-  // External sync disabled to prevent infinite loops
-  // Now using unidirectional data flow: Panel -> Parent only
-  /*
+  // External sync for bidirectional updates
   useEffect(() => {
-    isExternalUpdateRef.current = true
-    
-    if (externalSelectedGu !== undefined) {
+    // Only update if values are different to prevent infinite loops
+    if (externalSelectedGu !== undefined && externalSelectedGu !== selectedGu) {
       setSelectedGu(externalSelectedGu)
+      setSelectedGuCode(externalSelectedGu ? getDistrictCode(externalSelectedGu) || null : null)
     }
-    if (externalSelectedDong !== undefined) {
+  }, [externalSelectedGu])
+
+  useEffect(() => {
+    // Only update if values are different to prevent infinite loops
+    if (externalSelectedDong !== undefined && externalSelectedDong !== selectedDong) {
       setSelectedDong(externalSelectedDong)
+      if (selectedGu && externalSelectedDong) {
+        setSelectedDongCode(getDongCode(selectedGu, externalSelectedDong) || null)
+      } else {
+        setSelectedDongCode(null)
+      }
     }
-    if (externalSelectedMiddleCategory !== undefined) {
-      setSelectedMiddleCategory(externalSelectedMiddleCategory)
+  }, [externalSelectedDong, selectedGu])
+
+  useEffect(() => {
+    // Only update if values are different to prevent infinite loops
+    if (externalSelectedBusinessType !== undefined && externalSelectedBusinessType !== selectedBusinessType) {
+      setSelectedBusinessType(externalSelectedBusinessType)
     }
-    
-    // Reset flag after state updates
-    setTimeout(() => {
-      isExternalUpdateRef.current = false
-    }, 0)
-  }, [externalSelectedGu, externalSelectedDong, externalSelectedMiddleCategory])
-  */
+  }, [externalSelectedBusinessType])
 
   // Notify parent of filter changes
   useEffect(() => {
     if (onFilterChange) {
       onFilterChange({
         selectedGu,
+        selectedGuCode,
         selectedDong,
-        selectedMiddleCategory
+        selectedDongCode,
+        selectedBusinessType
       })
     }
-  }, [selectedGu, selectedDong, selectedMiddleCategory, onFilterChange])
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, onFilterChange])
   
   // Process data for bar chart based on filters
   const chartData = useMemo(() => {
@@ -212,10 +248,10 @@ export default function LocalEconomyFilterPanel({
       if (item.salesByCategory) {
         Object.entries(item.salesByCategory).forEach(([category, amount]) => {
           // Filter by selected categories if any
-          if (selectedMiddleCategory) {
-            // 중분류 선택 시 해당 중분류만 표시
-            if (category === selectedMiddleCategory) {
-              categoryTotals[selectedMiddleCategory] = (categoryTotals[selectedMiddleCategory] || 0) + (amount as number)
+          if (selectedBusinessType) {
+            // 업종 선택 시 해당 업종만 표시
+            if (category === selectedBusinessType) {
+              categoryTotals[selectedBusinessType] = (categoryTotals[selectedBusinessType] || 0) + (amount as number)
             }
           } else {
             // 전체 카테고리 표시
@@ -226,7 +262,7 @@ export default function LocalEconomyFilterPanel({
         })
       } else {
         // Fallback to total sales if no category breakdown
-        const category = selectedMiddleCategory || '전체'
+        const category = selectedBusinessType || '전체'
         categoryTotals[category] = (categoryTotals[category] || 0) + (item.totalSales || item.weight || 0)
       }
     })
@@ -240,10 +276,10 @@ export default function LocalEconomyFilterPanel({
       }))
       .sort((a, b) => b.value - a.value)
       .slice(0, 10) // Top 10 categories
-  }, [climateData, selectedGu, selectedDong, selectedMiddleCategory])
+  }, [climateData, selectedGu, selectedDong, selectedBusinessType])
   
   // Count active filters
-  const activeFilterCount = [selectedGu, selectedDong, selectedMiddleCategory]
+  const activeFilterCount = [selectedGu, selectedDong, selectedBusinessType]
     .filter(Boolean).length
   
   return (
@@ -381,15 +417,15 @@ export default function LocalEconomyFilterPanel({
                     <Label className="text-white font-semibold text-xs">업종선택</Label>
                   </div>
                   
-                  {/* 중분류 Selection */}
+                  {/* 업종 Selection */}
                   <div className="space-y-0.5 pl-3">
-                    <Label className="text-white/80 text-xs">중분류</Label>
+                    <Label className="text-white/80 text-xs">업종</Label>
                     <Select 
-                      value={selectedMiddleCategory || "전체"} 
-                      onValueChange={handleMiddleCategoryChange}
+                      value={selectedBusinessType || "전체"} 
+                      onValueChange={handleBusinessTypeChange}
                     >
                       <SelectTrigger className="bg-white/10 border-white/20 text-white">
-                        <SelectValue placeholder="중분류를 선택하세요" />
+                        <SelectValue placeholder="업종을 선택하세요" />
                       </SelectTrigger>
                       <SelectContent className="bg-gray-900 border-white/20 max-h-64 overflow-y-auto">
                         <SelectItem 
@@ -398,7 +434,7 @@ export default function LocalEconomyFilterPanel({
                         >
                           전체
                         </SelectItem>
-                        {availableMiddleCategories.map(category => (
+                        {availableBusinessTypes.map(category => (
                           <SelectItem 
                             key={category} 
                             value={category}

@@ -180,7 +180,7 @@ export default function UnifiedControls({
   }
 
   return (
-    <div className="fixed bottom-[266px] left-[380px] z-50">
+    <div className={`fixed bottom-[266px] z-50 transition-all duration-300 left-[400px]`}>
       <Card className={`bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden ${isExpanded ? 'w-[280px]' : 'w-auto'}`}>
         {/* Clickable Header to expand/collapse */}
         <button

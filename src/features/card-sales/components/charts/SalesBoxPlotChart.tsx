@@ -226,7 +226,7 @@ export function SalesBoxPlotChart() {
   const [selectedCategory, setSelectedCategory] = useState<string>('전체')
   const [categoryList, setCategoryList] = useState<string[]>([])
   
-  // 데이터 로드 (중분류 데이터 사용)
+  // 데이터 로드 (업종 데이터 사용)
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)

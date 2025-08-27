@@ -13,8 +13,9 @@ import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer,
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
-import { MiddleCategoryLegend } from "./MiddleCategoryLegend"
+import { BusinessTypeLegend } from "./BusinessTypeLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
+import { getDistrictCode, getDongCode } from "../data/districtCodeMappings"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { DistrictLabelsLayer, DistrictLabelsOverlay } from "./DistrictLabelsLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
@@ -81,12 +82,16 @@ export default function HexagonScene() {
     
     // Hierarchical filter states and functions
     selectedGu,
+    selectedGuCode,
     selectedDong,
-    selectedMiddleCategory,
+    selectedDongCode,
+    selectedBusinessType,
     selectedSubCategory,
     setSelectedGu,
+    setSelectedGuCode,
     setSelectedDong,
-    setSelectedMiddleCategory,
+    setSelectedDongCode,
+    setSelectedBusinessType,
     setSelectedSubCategory,
     
   } = useLayerState()
@@ -125,11 +130,19 @@ export default function HexagonScene() {
   const handleFilterChange = useCallback((filters: FilterState) => {
     // Directly update states without checking current values
     // This prevents unnecessary re-renders and loops
+    console.log('[HexagonLayer3D] Filter change received:', filters)
     setSelectedGu(filters.selectedGu)
+    setSelectedGuCode(filters.selectedGuCode)
     setSelectedDong(filters.selectedDong)
-    setSelectedMiddleCategory(filters.selectedMiddleCategory)
-    setSelectedSubCategory(filters.selectedSubCategory)
-  }, [setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory])
+    setSelectedDongCode(filters.selectedDongCode)
+    setSelectedBusinessType(filters.selectedBusinessType)
+    
+    // 행정동이 선택되면 자동으로 상세보기 모드로 전환
+    if (filters.selectedDong) {
+      setDisplayMode('detailed')
+    }
+    // Note: selectedSubCategory removed - not part of FilterState interface
+  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setDisplayMode])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
@@ -153,6 +166,8 @@ export default function HexagonScene() {
         setSelectedDong(null)  // Clear dong when gu is selected
       } else if (feature?.layer?.id === 'dong-fill') {
         setSelectedDong(districtName)
+        // 행정동 선택시 자동으로 상세보기 모드로 전환
+        setDisplayMode('detailed')
         // Don't change gu when dong is selected (dong belongs to current gu)
       }
     }
@@ -213,7 +228,7 @@ export default function HexagonScene() {
     // 2. 필터 상태 초기화
     setSelectedGu(null)
     setSelectedDong(null)
-    setSelectedMiddleCategory(null)
+    setSelectedBusinessType(null)
     setSelectedSubCategory(null)
     
     // 3. 표시 모드를 simple로 리셋
@@ -235,7 +250,7 @@ export default function HexagonScene() {
     setTimeout(() => {
       isProgrammaticUpdateRef.current = false
     }, 900)
-  }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedMiddleCategory, setSelectedSubCategory, setDisplayMode])
+  }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedSubCategory, setDisplayMode])
 
   // Official deck.gl rotation pattern implementation (fixed with ref)
   const rotateCamera = useCallback(() => {
@@ -380,7 +395,7 @@ export default function HexagonScene() {
   // Handle hexagon click for zoom - optimized to match data filter logic + auto switch to detailed mode
   const handleHexagonClick = useCallback((info: PickingInfo) => {
     if (info.object && info.object.originalData) {
-      const { guName, dongName } = info.object.originalData
+      const { guName, dongName, guCode, dongCode } = info.object.originalData
       
       // Add visual feedback for click
       const canvas = mapRef.current?.getCanvas()
@@ -391,29 +406,42 @@ export default function HexagonScene() {
         }, 200)
       }
       
-      // Set district selections to trigger zoom - same as data filter
-      // The existing useEffect (lines 703-802) will handle the zoom efficiently
+      // Set district selections with both names and codes to trigger zoom
       if (dongName && guName) {
         setSelectedGu(guName)
+        // Use provided code or lookup from name
+        const calculatedGuCode = guCode || getDistrictCode(guName)
+        const calculatedDongCode = dongCode || getDongCode(guName, dongName)
+        
+        setSelectedGuCode(calculatedGuCode)
         setSelectedDong(dongName)
+        setSelectedDongCode(calculatedDongCode)
         // 클릭으로 줌인 시 자동으로 상세보기 모드로 전환
         setDisplayMode('detailed')
+        
+        console.log('[HexagonClick] Selected dong:', { guName, guCode: calculatedGuCode, dongName, dongCode: calculatedDongCode })
       } else if (guName) {
         setSelectedGu(guName)
+        // Use provided code or lookup from name
+        const calculatedGuCode = guCode || getDistrictCode(guName)
+        setSelectedGuCode(calculatedGuCode)
         setSelectedDong(null)
+        setSelectedDongCode(null)
         // 구 레벨 클릭 시에도 상세보기 모드로 전환
         setDisplayMode('detailed')
+        
+        console.log('[HexagonClick] Selected gu:', { guName, guCode: calculatedGuCode })
       }
       
       // Hexagon clicked - zoom to selected area
     }
-  }, [setSelectedGu, setSelectedDong, setDisplayMode])
+  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setDisplayMode])
 
   // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
   const columnLayers = createColumnLayer(hexagonData, {
     ...layerConfig,
-    selectedMiddleCategory: selectedMiddleCategory,
-    colorMode: selectedMiddleCategory ? 'category' : layerConfig.colorMode,
+    selectedBusinessType: selectedBusinessType,
+    colorMode: selectedBusinessType ? 'category' : layerConfig.colorMode,
     displayMode: displayMode,
     // Enable interaction handlers
     onHover: handleHexagonHover,
@@ -484,13 +512,13 @@ export default function HexagonScene() {
     }
     
     try {
-      // ColumnLayer의 경우 (중분류 카테고리 데이터)
+      // ColumnLayer의 경우 (업종 카테고리 데이터)
       if (info.layer?.id === 'column-layer' && info.object.originalData) {
         const { originalData } = info.object
         const date = originalData.date || '날짜 정보 없음'
         const guName = originalData.guName || '정보 없음'
         const dongName = originalData.dongName || '정보 없음'
-        const middleCategory = originalData.middleCategory || info.object.middleCategory || '업종 정보 없음'
+        const businessType = originalData.businessType || info.object.businessType || '업종 정보 없음'
         const sales = originalData.categorySales || info.object.weight || 0
         
         const tooltipHtml = `
@@ -502,7 +530,7 @@ export default function HexagonScene() {
     <span style="opacity: 0.8;">📍</span> <strong>지역:</strong> ${guName} ${dongName}
   </div>
   <div style="margin-bottom: 8px;">
-    <span style="opacity: 0.8;">💼</span> <strong>업종:</strong> ${middleCategory}
+    <span style="opacity: 0.8;">💼</span> <strong>업종:</strong> ${businessType}
   </div>
   <div>
     <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${sales.toLocaleString()}원
@@ -614,8 +642,19 @@ export default function HexagonScene() {
         loadDistrictData('jib')
       ])
       
-      if (sgg) setSggData(sgg)
-      if (dong) setDongData(dong)
+      if (sgg) {
+        setSggData(sgg)
+        if (sgg.features?.[0]) {
+          console.log('[DataLoad] Sample sgg properties:', sgg.features[0].properties)
+        }
+      }
+      if (dong) {
+        setDongData(dong)
+        if (dong.features?.[0]) {
+          console.log('[DataLoad] Sample dong properties:', dong.features[0].properties)
+          console.log('[DataLoad] Dong property keys:', Object.keys(dong.features[0].properties))
+        }
+      }
       if (jib) setJibData(jib)
     }
     
@@ -713,35 +752,68 @@ export default function HexagonScene() {
 
   // Create fast lookup indices for districts
   const sggIndex = useMemo(() => {
-    if (!sggData?.features) return new Map()
+    if (!sggData?.features) {
+      console.log('[SggIndex] No sgg data available')
+      return new Map()
+    }
+    
     const index = new Map()
     
     sggData.features.forEach((f: any) => {
       const props = f.properties || {}
-      // Add all possible name variations to index
-      if (props.SIGUNGU_NM) index.set(props.SIGUNGU_NM, f)
-      if (props.SIG_KOR_NM) index.set(props.SIG_KOR_NM, f)
-      if (props.GU_NM) index.set(props.GU_NM, f)
-      if (props.nm) index.set(props.nm, f)
+      // 구 코드로 인덱싱 - 다양한 속성명 지원 (한글 속성명 포함)
+      const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD || props.SIGUNGU_CD || props['시군구코드'] || props['구코드']
+      const guName = props.SIGUNGU_NM || props.SIG_KOR_NM || props.GU_NM || props['구명']
+      
+      if (guCode) {
+        // 코드를 숫자로 변환하여 저장
+        const codeNumber = Number(guCode)
+        index.set(codeNumber, f)
+        // 디버깅용 - 첫 5개 항목 로깅
+        if (index.size <= 5) {
+          console.log('[SggIndex] Added by code:', { code: codeNumber, name: guName })
+        }
+      }
+      
+      // 이름으로도 인덱싱 (폴백용)
+      if (guName) {
+        index.set(guName, f)
+        if (index.size <= 10) {
+          console.log('[SggIndex] Added by name:', guName)
+        }
+      }
     })
     
+    console.log('[SggIndex] Created index with', index.size, 'entries (codes and names)')
+    console.log('[SggIndex] Sample keys:', Array.from(index.keys()).slice(0, 10))
     return index
   }, [sggData])
 
   const dongIndex = useMemo(() => {
-    if (!dongData?.features) return new Map()
+    if (!dongData?.features) {
+      console.log('[DongIndex] No dong data available')
+      return new Map()
+    }
+    
     const index = new Map()
     
     dongData.features.forEach((f: any) => {
       const props = f.properties || {}
-      // Add all possible name variations to index
-      if (props.ADM_NM) index.set(props.ADM_NM, f)
-      if (props.H_DONG_NM) index.set(props.H_DONG_NM, f)
-      if (props.DONG_NM) index.set(props.DONG_NM, f)
-      if (props.ADM_DR_NM) index.set(props.ADM_DR_NM, f)
-      if (props.nm) index.set(props.nm, f)
+      // 행정동 코드로 인덱싱 - 다양한 속성명 지원 (한글 속성명 포함)
+      const dongCode = props.ADM_CD || props.H_CD || props.DONG_CD || props.ADM_DR_CD || props.EMD_CD || props['행정동코드']
+      
+      if (dongCode) {
+        // 코드를 숫자로 변환하여 저장
+        const codeNumber = Number(dongCode)
+        index.set(codeNumber, f)
+        // 디버깅용 - 첫 5개 항목 로깅
+        if (index.size <= 5) {
+          console.log('[DongIndex] Added:', { code: codeNumber, name: props.ADM_NM || props.H_DONG_NM || props.DONG_NM })
+        }
+      }
     })
     
+    console.log('[DongIndex] Created code-based index with', index.size, 'entries')
     return index
   }, [dongData])
 
@@ -778,24 +850,48 @@ export default function HexagonScene() {
       return
     }
 
-    if (selectedGu || selectedDong) {
-      const targetName = selectedDong || selectedGu
+    if (selectedGuCode || selectedDongCode || selectedGu || selectedDong) {
+      console.log('[District Selection] Selected:', { 
+        guCode: selectedGuCode, 
+        guName: selectedGu,
+        dongCode: selectedDongCode,
+        dongName: selectedDong 
+      })
       
       let foundFeature = null
       
-      // Fast lookup using Map index - O(1) instead of O(n)
-      if (selectedDong) {
-        const dongFeature = dongIndex.get(selectedDong)
+      // Fast lookup using Map index with codes - O(1) instead of O(n)
+      // 동이 선택된 경우 동 경계를 하이라이트
+      if (selectedDongCode) {
+        console.log('[DongSelection] Looking for dong code:', selectedDongCode)
+        const dongFeature = dongIndex.get(selectedDongCode)
         if (dongFeature) {
+          console.log('[DongSelection] Found dong feature:', dongFeature.properties)
           foundFeature = dongFeature
+        } else {
+          console.log('[DongSelection] Dong code not found in index! Available codes:', Array.from(dongIndex.keys()).slice(0, 10))
         }
       }
-      
-      // Fast lookup for sgg if dong not found
-      if (!foundFeature && selectedGu) {
-        const sggFeature = sggIndex.get(selectedGu)
+      // 구만 선택된 경우 구 경계를 하이라이트  
+      else if (selectedGuCode || selectedGu) {
+        console.log('[GuSelection] Looking for gu:', { code: selectedGuCode, name: selectedGu })
+        console.log('[GuSelection] sggIndex size:', sggIndex.size)
+        
+        // Try code first
+        let sggFeature = selectedGuCode ? sggIndex.get(selectedGuCode) : null
+        
+        // If code doesn't work, try name as fallback
+        if (!sggFeature && selectedGu) {
+          console.log('[GuSelection] Code not found, trying name:', selectedGu)
+          sggFeature = sggIndex.get(selectedGu)
+        }
+        
         if (sggFeature) {
+          console.log('[GuSelection] Found gu feature:', sggFeature.properties)
           foundFeature = sggFeature
+        } else {
+          console.log('[GuSelection] Gu not found in index!')
+          console.log('[GuSelection] Available keys (first 20):', Array.from(sggIndex.keys()).slice(0, 20))
         }
       }
       
@@ -810,7 +906,9 @@ export default function HexagonScene() {
         // Get pre-calculated center point for camera movement
         const center = selectedDong 
           ? getDistrictCenter('동', selectedDong)
-          : getDistrictCenter('구', selectedGu!)
+          : selectedGu 
+            ? getDistrictCenter('구', selectedGu)
+            : null
         
         if (center) {
           // Determine zoom level and pitch based on selection type
@@ -841,10 +939,12 @@ export default function HexagonScene() {
         }
       } else {
         setSelectedDistrictData(null)
+        console.log('[District Selection] No feature found for codes:', { guCode: selectedGuCode, dongCode: selectedDongCode })
       }
     } else {
       // Reset to Seoul overview when no filter is selected
       setSelectedDistrictData(null)
+      console.log('[District Selection] No district selected, resetting to Seoul overview')
       
       // 전체 서울로 돌아갈 때 단순보기 모드로 자동 복귀
       setDisplayMode('simple')
@@ -868,7 +968,7 @@ export default function HexagonScene() {
         isProgrammaticUpdateRef.current = false
       }, 900)
     }
-  }, [selectedGu, selectedDong, districtSelection.selectedDistrict, setDisplayMode]) // Added setDisplayMode for auto mode switching
+  }, [selectedGuCode, selectedDongCode, selectedGu, selectedDong, districtSelection.selectedDistrict, sggIndex, dongIndex, setDisplayMode]) // Use both codes and names
 
   // Memory cleanup effect
   useEffect(() => {
@@ -1211,8 +1311,8 @@ export default function HexagonScene() {
                 id="selected-glow-outer"
                 type="line"
                 paint={{
-                  'line-color': 'rgba(102, 126, 234, 0.3)',
-                  'line-width': 12,
+                  'line-color': selectedDong ? 'rgba(255, 100, 150, 0.3)' : 'rgba(102, 126, 234, 0.3)',
+                  'line-width': selectedDong ? 15 : 12,
                   'line-blur': 6
                 }}
               />
@@ -1222,8 +1322,8 @@ export default function HexagonScene() {
                 id="selected-glow-mid"
                 type="line"
                 paint={{
-                  'line-color': 'rgba(102, 126, 234, 0.5)',
-                  'line-width': 6,
+                  'line-color': selectedDong ? 'rgba(255, 100, 150, 0.5)' : 'rgba(102, 126, 234, 0.5)',
+                  'line-width': selectedDong ? 8 : 6,
                   'line-blur': 3
                 }}
               />
@@ -1233,7 +1333,7 @@ export default function HexagonScene() {
                 id="selected-district-line"
                 type="line"
                 paint={{
-                  'line-color': '#00ff88',
+                  'line-color': selectedDong ? '#ff00aa' : '#00ff88',
                   'line-width': [
                     'interpolate',
                     ['linear'],
@@ -1286,6 +1386,10 @@ export default function HexagonScene() {
         onFilterChange={handleFilterChange}
         displayMode={displayMode}
         onToggleDisplayMode={toggleDisplayMode}
+        // External sync props for bidirectional updates
+        externalSelectedGu={selectedGu}
+        externalSelectedDong={selectedDong}
+        externalSelectedBusinessType={selectedBusinessType}
         // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
         onResetLayers={handleFullReset}
       />
@@ -1388,7 +1492,7 @@ export default function HexagonScene() {
       )}
 
       {/* Middle Category Legend */}
-      <MiddleCategoryLegend selectedCategory={selectedMiddleCategory} />
+      <BusinessTypeLegend selectedCategory={selectedBusinessType} />
 
       {/* 오류 표시 */}
       {dataError && (

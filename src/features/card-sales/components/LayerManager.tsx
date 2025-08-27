@@ -5,7 +5,7 @@ import { HexagonLayer } from '@deck.gl/aggregation-layers'
 import { ScatterplotLayer, ColumnLayer } from '@deck.gl/layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
-import { MIDDLE_CATEGORY_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/middleCategoryColors'
+import { BUSINESS_TYPE_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/businessTypeColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
@@ -15,7 +15,7 @@ export interface HexagonLayerData {
   coordinates: [number, number]
   weight: number
   category?: string
-  middleCategory?: string // 중분류 카테고리 추가
+  businessType?: string // 업종 카테고리 추가
   originalData?: any // 원본 ClimateCardSalesData 저장
 }
 
@@ -32,13 +32,15 @@ export interface LayerConfig {
   waveAmplitude: number
   // 색상 모드 설정
   colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity' | 'category'
-  // 선택된 중분류 카테고리
-  selectedMiddleCategory?: string | null
+  // 선택된 업종 카테고리
+  selectedBusinessType?: string | null
   // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
   displayMode?: 'simple' | 'detailed'
   // 선택된 지역 필터
   selectedGu?: string | null
+  selectedGuCode?: number | null
   selectedDong?: string | null
+  selectedDongCode?: number | null
   // WebGL 렌더링 설정
   webglEnabled?: boolean
   webglRadiusPixels?: number
@@ -309,22 +311,23 @@ export function LayerManager({
       } else {
         // 애니메이션이 비활성화된 경우 단일 HexagonLayer
         const filteredData = useMemo(() => {
-          if (!data || (!config.selectedGu && !config.selectedDong)) {
-            return data
+          if (!data) return data
+          
+          // 구나 동이 선택된 경우 실제 필터링
+          if (config.selectedGuCode || config.selectedDongCode) {
+            return data.filter(point => {
+              const matchesGu = !config.selectedGuCode || 
+                point.originalData?.guCode === String(config.selectedGuCode)
+              const matchesDong = !config.selectedDongCode || 
+                point.originalData?.dongCode === config.selectedDongCode
+              
+              return matchesGu && matchesDong
+            })
           }
           
-          return data.map(point => {
-            const matchesGu = !config.selectedGu || 
-              point.originalData?.guName === config.selectedGu
-            const matchesDong = !config.selectedDong || 
-              point.originalData?.dongName === config.selectedDong
-            
-            if (matchesGu && matchesDong) {
-              return { ...point, weight: point.weight * 2 }
-            }
-            return { ...point, weight: point.weight * 0.3 }
-          })
-        }, [data, config.selectedGu, config.selectedDong])
+          // 선택된 것이 없으면 전체 데이터 반환
+          return data
+        }, [data, config.selectedGuCode, config.selectedDongCode])
         
         layerArray.push(new HexagonLayer<HexagonLayerData>({
           id: 'hexagon-layer',
@@ -349,9 +352,9 @@ export function LayerManager({
           },
           gpuAggregation: true, // FORCE GPU aggregation
           updateTriggers: {
-            getColorWeight: [config.colorScheme, config.colorMode, config.selectedGu, config.selectedDong],
-            getElevationWeight: [config.elevationScale, config.selectedGu, config.selectedDong],
-            data: [config.selectedGu, config.selectedDong]
+            getColorWeight: [config.colorScheme, config.colorMode, config.selectedGuCode, config.selectedDongCode],
+            getElevationWeight: [config.elevationScale, config.selectedGuCode, config.selectedDongCode],
+            data: [config.selectedGuCode, config.selectedDongCode]
           }
         }))
       }
@@ -629,23 +632,23 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
         return baseColor
       }
       
-      // Detailed 모드에서는 카테고리별 색상 (실제 중분류 데이터 사용)
+      // Detailed 모드에서는 카테고리별 색상 (실제 업종 데이터 사용)
       if (config.displayMode === 'detailed') {
-        // 카테고리 확인 (category, middleCategory, originalData 순서로)
-        const category = d.category || d.middleCategory || d.originalData?.middleCategory || '전체'
+        // 카테고리 확인 (category, businessType, originalData 순서로)
+        const category = d.category || d.businessType || d.originalData?.businessType || '전체'
         let baseColor: [number, number, number, number]
         
         // 선택된 카테고리가 있을 때만 필터링
-        if (config.selectedMiddleCategory) {
+        if (config.selectedBusinessType) {
           // 선택된 카테고리와 일치하면 색상 표시, 아니면 회색
-          if (category === config.selectedMiddleCategory) {
-            baseColor = MIDDLE_CATEGORY_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
+          if (category === config.selectedBusinessType) {
+            baseColor = BUSINESS_TYPE_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
           } else {
             baseColor = [128, 128, 128, 100]  // 선택되지 않은 카테고리는 회색
           }
         } else {
           // 선택된 카테고리가 없으면 모든 카테고리 색상 표시
-          baseColor = MIDDLE_CATEGORY_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
+          baseColor = BUSINESS_TYPE_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
         }
         
         // 호버된 구역이면 색상 강화
@@ -661,23 +664,23 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
         return baseColor
       }
       
-      // 중분류 카테고리 색상 모드인 경우 (기존 코드 유지)
-      if (config.colorMode === 'category' && config.selectedMiddleCategory) {
-        // 데이터에 중분류가 있으면 해당 색상 사용
-        if (d.middleCategory) {
+      // 업종 카테고리 색상 모드인 경우 (기존 코드 유지)
+      if (config.colorMode === 'category' && config.selectedBusinessType) {
+        // 데이터에 업종이 있으면 해당 색상 사용
+        if (d.businessType) {
           // 선택된 카테고리와 일치하면 해당 색상, 아니면 회색
-          if (d.middleCategory === config.selectedMiddleCategory) {
-            return MIDDLE_CATEGORY_COLOR_MAP[d.middleCategory] || DEFAULT_CATEGORY_COLOR
+          if (d.businessType === config.selectedBusinessType) {
+            return BUSINESS_TYPE_COLOR_MAP[d.businessType] || DEFAULT_CATEGORY_COLOR
           } else {
             // 선택되지 않은 카테고리는 반투명 회색
             return [128, 128, 128, 100]
           }
         }
-        // originalData에서 중분류 정보 확인
-        if (d.originalData?.middleCategory) {
-          const middleCategory = d.originalData.middleCategory
-          if (middleCategory === config.selectedMiddleCategory) {
-            return MIDDLE_CATEGORY_COLOR_MAP[middleCategory] || DEFAULT_CATEGORY_COLOR
+        // originalData에서 업종 정보 확인
+        if (d.originalData?.businessType) {
+          const businessType = d.originalData.businessType
+          if (businessType === config.selectedBusinessType) {
+            return BUSINESS_TYPE_COLOR_MAP[businessType] || DEFAULT_CATEGORY_COLOR
           } else {
             return [128, 128, 128, 100]
           }
@@ -760,7 +763,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     updateTriggers: {
       getElevation: [config.elevationScale, config.colorMode],  // colorMode 추가
       elevationScale: [config.elevationScale],  // elevationScale 자체도 추가
-      getFillColor: [config.colorScheme, config.colorMode, config.selectedMiddleCategory, config.displayMode, config.hoveredDistrict],
+      getFillColor: [config.colorScheme, config.colorMode, config.selectedBusinessType, config.displayMode, config.hoveredDistrict],
       highlightColor: [config.hoveredDistrict],  // 호버 상태 업데이트
       radius: [config.radius, config.coverage]  // radius와 coverage 추가
     }
@@ -835,7 +838,7 @@ export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   animationSpeed: 1.0,
   waveAmplitude: 2.0,
   colorMode: 'category', // 색상을 카테고리별로 설정
-  selectedMiddleCategory: null, // 기본적으로 모든 카테고리 표시
+  selectedBusinessType: null, // 기본적으로 모든 카테고리 표시
   // GPU WebGL 설정 - DEFAULT ON
   webglEnabled: true, // GPU rendering ON by default
   webglRadiusPixels: 80,

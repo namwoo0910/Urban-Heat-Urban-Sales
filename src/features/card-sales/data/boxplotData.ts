@@ -19,7 +19,7 @@ export interface BoxPlotStats {
   upperWhisker: number
 }
 
-// 업종 중분류 데이터 (28개 카테고리)
+// 업종 데이터 (15개 카테고리)
 export async function loadMediumCategoryData(): Promise<BoxPlotDataPoint[]> {
   const response = await fetch('/data/charts/업종x매출_박스플롯_업종중분류.csv')
   const text = await response.text()

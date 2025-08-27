@@ -122,27 +122,17 @@ export class ClimateDataLoader {
     // 업종별 매출 추출 (새로운 구조 지원)
     const salesByCategory: Record<string, number> = {}
     
-    // 새로운 구조: 총매출액_중분류와 총매출액_소분류에서 추출
-    if (raw.총매출액_중분류) {
-      Object.entries(raw.총매출액_중분류).forEach(([category, amount]) => {
+    // 새로운 구조: 총매출액_업종에서 추출
+    if (raw.총매출액_업종) {
+      Object.entries(raw.총매출액_업종).forEach(([category, amount]) => {
         if (amount && amount > 0) {
           salesByCategory[category] = amount
         }
       })
     }
     
-    // 소분류도 포함 (선택적)
-    if (raw.총매출액_소분류) {
-      Object.entries(raw.총매출액_소분류).forEach(([category, amount]) => {
-        if (amount && amount > 0) {
-          // 소분류는 'sub_' 접두사를 붙여 구분
-          salesByCategory[`sub_${category}`] = amount
-        }
-      })
-    }
-    
     // 이전 구조 호환성 유지 (fallback)
-    if (!raw.총매출액_중분류 && !raw.총매출액_소분류) {
+    if (!raw.총매출액_업종) {
       Object.keys(raw).forEach(key => {
         if (key.includes('_총매출액') && key !== '총매출액') {
           const category = key.replace('_총매출액', '')
@@ -151,10 +141,16 @@ export class ClimateDataLoader {
       })
     }
 
+    // 총 매출액 계산 (salesByCategory 합계 또는 raw 값)
+    let totalSales = raw.총매출액 || 0;
+    if (!totalSales && salesByCategory) {
+      totalSales = Object.values(salesByCategory).reduce((sum, val) => sum + val, 0);
+    }
+
     return {
       // HexagonLayer 필수
       coordinates: [coordinate.x, coordinate.y],
-      weight: raw.총매출액,
+      weight: totalSales,
       
       // 기후 데이터
       temperature: raw.일평균기온,
@@ -169,27 +165,27 @@ export class ClimateDataLoader {
       precipitation: raw.일총강수량,
       temperatureGroup: raw.기온그룹,
       
-      // 기후 경보
-      heatWarning: raw.폭염주의보 as 0 | 1,
-      heatAlert: raw.폭염경보 as 0 | 1,
-      rainWarning: raw.호우주의보 as 0 | 1,
-      rainAlert: raw.호우경보 as 0 | 1,
+      // 기후 경보 (옵셔널 필드 처리)
+      heatWarning: (raw.폭염주의보 || 0) as 0 | 1,
+      heatAlert: (raw.폭염경보 || 0) as 0 | 1,
+      rainWarning: (raw.호우주의보 || 0) as 0 | 1,
+      rainAlert: (raw.호우경보 || 0) as 0 | 1,
       
       // 생활인구
-      population: raw.일일_총생활인구수,
+      population: raw.일일_총생활인구수 || 0,
       populationByHour,
       
       // 매출
-      totalSales: raw.총매출액,
-      totalTransactions: raw.총매출건수,
+      totalSales: totalSales,
+      totalTransactions: raw.총매출건수 || 0,
       salesByCategory,
       
-      // 메타 정보
+      // 메타 정보 - 이제 JSON에 포함된 코드 사용
       date: raw.기준일자,
       dongName: raw.행정동,
-      dongCode: raw.행정동코드,
-      guName: raw.자치구,
-      guCode: raw.자치구코드,
+      dongCode: raw.행정동코드 || 0,
+      guName: raw.자치구 || districtName || '',
+      guCode: String(raw.자치구코드 || ''),
     }
   }
 
