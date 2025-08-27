@@ -23,6 +23,7 @@ import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { DISTRICT_LAYER_PAINT, DISTRICT_COLORS, loadDistrictData } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
 import { calculateBoundaryElevation } from "@/src/shared/constants/elevationConstants"
+import { RotateCcw } from "lucide-react"
 import "../styles/HexagonLayer.css"
 
 export default function HexagonScene() {
@@ -1452,6 +1453,15 @@ export default function HexagonScene() {
         onRotationDirectionChange={setRotationDirection}
         onToggleRotation={toggleRotation}
         />
+
+      {/* 지도 초기화 버튼 */}
+      <button
+        onClick={handleFullReset}
+        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 bg-gray-800/80 hover:bg-gray-700/90 backdrop-blur-sm text-white text-sm font-medium px-4 py-2 rounded-lg border border-gray-600/50 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
+      >
+        <RotateCcw className="w-4 h-4" />
+        지도 초기화
+      </button>
 
       {showHint && (
         <div className="absolute bottom-4 right-4 info-panel glow-effect transition-all duration-1000 opacity-90 hover:opacity-100 z-10">
