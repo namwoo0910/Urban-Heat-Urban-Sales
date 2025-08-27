@@ -10,7 +10,7 @@ import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip } from "./LayerManager"
-import { SimpleWebGLGradientLayer } from "@/src/features/card-sales/layers/WebGLGradientLayer"
+import { DongGradientLayer } from "@/src/features/card-sales/layers/DongGradientLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
@@ -110,14 +110,8 @@ export default function HexagonScene() {
     setDongInterpolationType,
     reprocessDongGradient,
     isDongGradientProcessing,
-    // WebGL gradient states
-    webglEnabled,
-    webglRadiusPixels,
-    webglIntensity,
-    webglThreshold,
-    webglGradientData,
-    gpuGradientData,
-    useCustomWebGL
+    // Dong gradient data
+    webglGradientData
   } = useLayerState()
   
   // 기본 지도 상태
@@ -455,26 +449,24 @@ export default function HexagonScene() {
   const gradientLayers = useMemo(() => {
     const layers = []
     
-    // Add WebGL gradient layer when dong boundary gradient is enabled
+    // Add dong gradient layer when enabled
     if (dongBoundaryGradientEnabled && webglGradientData && webglGradientData.length > 0) {
       console.log('[HexagonLayer3D] Adding dong boundary gradient layer', {
         dataCount: webglGradientData.length,
-        radiusPixels: webglRadiusPixels,
-        intensity: webglIntensity
+        firstItem: webglGradientData[0]
       })
       
-      // Use simple WebGL gradient layer (CustomWebGLGradientLayer has compatibility issues)
-      layers.push(new SimpleWebGLGradientLayer({
+      layers.push(new DongGradientLayer({
         id: 'dong-gradient-overlay',
         data: webglGradientData,
-        radiusPixels: webglRadiusPixels || 80,
-        intensity: webglIntensity || 0.5,
-        threshold: webglThreshold || 0.03
+        opacity: 0.7, // Slightly transparent for blending
+        elevationScale: dongBoundaryHeight / 100, // Adjusted scale factor
+        baseHeight: 300 // Increased to better connect with sales bars
       }))
     }
     
     return layers
-  }, [dongBoundaryGradientEnabled, webglGradientData, webglRadiusPixels, webglIntensity, webglThreshold])
+  }, [dongBoundaryGradientEnabled, webglGradientData, dongBoundaryHeight])
   
   // Combine all layers
   const deckLayers = useMemo(() => {

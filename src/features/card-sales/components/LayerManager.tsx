@@ -73,49 +73,50 @@ function getHeatmapColor(value: number): [number, number, number, number] {
   // Clamp value between 0 and 1
   const v = Math.max(0, Math.min(1, value))
   
-  // Smooth heatmap gradient: blue -> cyan -> green -> yellow -> orange -> red
+  // Soft gradient spectrum matching screenshot: blue -> cyan -> green -> yellow -> orange -> red
+  // More subtle and smooth transitions
   let r, g, b: number
   
   if (v < 0.167) {
     // Blue to cyan
     const t = v / 0.167
     r = 0
-    g = Math.floor(100 + 155 * t)
-    b = 255
+    g = Math.floor(100 + 100 * t)  // 100 -> 200
+    b = Math.floor(200 + 55 * t)   // 200 -> 255
   } else if (v < 0.333) {
     // Cyan to green
-    const t = (v - 0.167) / 0.167
+    const t = (v - 0.167) / 0.166
     r = 0
-    g = 255
-    b = Math.floor(255 - 155 * t)
+    g = Math.floor(200 + 55 * t)   // 200 -> 255
+    b = Math.floor(255 - 155 * t)  // 255 -> 100
   } else if (v < 0.5) {
     // Green to yellow-green
     const t = (v - 0.333) / 0.167
-    r = Math.floor(128 * t)
+    r = Math.floor(150 * t)        // 0 -> 150
     g = 255
-    b = Math.floor(100 - 100 * t)
+    b = Math.floor(100 - 100 * t)  // 100 -> 0
   } else if (v < 0.667) {
     // Yellow-green to yellow
     const t = (v - 0.5) / 0.167
-    r = Math.floor(128 + 127 * t)
+    r = Math.floor(150 + 105 * t)  // 150 -> 255
     g = 255
     b = 0
   } else if (v < 0.833) {
     // Yellow to orange
-    const t = (v - 0.667) / 0.167
+    const t = (v - 0.667) / 0.166
     r = 255
-    g = Math.floor(255 - 115 * t)
+    g = Math.floor(255 - 105 * t)  // 255 -> 150
     b = 0
   } else {
     // Orange to red
     const t = (v - 0.833) / 0.167
     r = 255
-    g = Math.floor(140 - 140 * t)
+    g = Math.floor(150 - 150 * t)  // 150 -> 0
     b = 0
   }
   
-  // Calculate alpha based on value (higher values = more opaque)
-  const alpha = 160 + Math.floor(95 * v)  // Range: 160-255
+  // Higher opacity for grid interpolation to match screenshot (150-200)
+  const alpha = 150 + Math.floor(50 * v)  // Range: 150-200 for better visibility
   
   return [r, g, b, alpha]
 }
@@ -623,7 +624,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     
     // 3D 바 설정 - 더 부드러운 원형을 위해 해상도 증가
     diskResolution: 12,  // 더 부드러운 원형 (기존 6에서 12로 증가)
-    radius: config.displayMode === 'simple' ? 180 : 120,  // 셀 간 오버랩 증가로 부드러운 연결
+    radius: config.displayMode === 'simple' ? 90 : 120,  // 단순보기에서는 반지름 절반으로
     extruded: true,  // 3D 활성화
     wireframe: false,
     filled: true,
@@ -652,7 +653,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
           return calculateDataElevation(salesValue, 'sales', config.elevationScale)
       }
     },
-    elevationScale: config.elevationScale,
+    elevationScale: config.displayMode === 'simple' ? 2 : config.elevationScale,  // 단순보기에서는 높이 절반으로
     
     // 색상 (colorMode와 displayMode에 따라 변경)
     getFillColor: (d: HexagonLayerData) => {
@@ -668,13 +669,16 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
         // 히트맵 색상 그라데이션 함수 사용
         let baseColor = getHeatmapColor(normalizedValue)
         
+        // 단순보기 모드에서는 불투명하게 설정
+        baseColor[3] = 255  // 완전 불투명
+        
         // 호버된 구역이면 밝기와 채도 증가
         if (isHoveredDistrict) {
           return [
             Math.min(255, baseColor[0] * 1.3),
             Math.min(255, baseColor[1] * 1.3), 
             Math.min(255, baseColor[2] * 1.3),
-            240  // 불투명도 증가
+            255  // 완전 불투명 유지
           ]
         }
         
@@ -879,7 +883,7 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   visible: true,
   radius: 300,  // 반지름 300m로 조정 (바가 겹치지 않도록)
-  elevationScale: 2,  // 높이 스케일 2x로 조정 (서울 경계선과 균형 맞추기)
+  elevationScale: 4,  // 높이 스케일 4x로 조정 (적절한 3D 효과)
   coverage: 1,
   upperPercentile: 100,
   colorScheme: 'oceanic', // oceanic으로 변경 (sales는 COLOR_RANGES에 없음)
