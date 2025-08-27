@@ -189,21 +189,21 @@ export function SelectedAreaSalesInfo({
     : (selectedGu || '서울시 전체')
 
   return (
-    <Card className="absolute top-24 left-4 z-10 bg-gray-900/95 backdrop-blur-sm border-gray-700 shadow-2xl" style={{ width: '380px' }}>
+    <Card className="absolute top-24 left-4 z-10 bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl" style={{ width: '380px' }}>
       <div className="p-4 space-y-3">
         {/* 지역, 날짜, 매출액을 한 줄에 - 헤더 */}
-        <div className="flex items-center justify-between pb-2 border-b border-gray-700">
+        <div className="flex items-center justify-between pb-2 border-b border-gray-800/50">
           <div className="flex items-center gap-3">
             <MapPin className="w-4 h-4 text-blue-400" />
-            <h3 className="text-base font-bold text-white">
+            <h3 className="text-base font-bold text-gray-200">
               {areaName}
             </h3>
-            <span className="text-sm text-gray-400">
+            <span className="text-sm text-gray-500">
               {areaStats.latestDate || ''}
             </span>
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-xl font-bold text-white">
+            <span className="text-xl font-bold text-gray-200">
               {formatCurrency(areaStats.totalSales)}
             </span>
             {/* 극한 날씨일 때만 표시 */}
@@ -220,7 +220,7 @@ export function SelectedAreaSalesInfo({
         </div>
 
         {/* 메타 정보 - 한 줄로 압축 */}
-        <div className="flex items-center justify-between text-xs text-gray-500 py-0">
+        <div className="flex items-center justify-between text-xs text-gray-600 py-0">
           <span>기온 {areaStats.avgTemperatureMax.toFixed(0)}°/{areaStats.avgTemperatureMin.toFixed(0)}°</span>
           <span>강수 {areaStats.totalPrecipitation.toFixed(0)}mm</span>
           <span>습도 {areaStats.avgHumidity.toFixed(0)}%</span>

@@ -98,7 +98,7 @@ export default function HexagonScene() {
   } = useLayerState()
   
   // 기본 지도 상태
-  const [currentLayer, setCurrentLayer] = useState("night")
+  const [currentLayer, setCurrentLayer] = useState("black")
   const [currentTime, setCurrentTime] = useState(100)
   const [showHint, setShowHint] = useState(true)
   const [showBoundary, setShowBoundary] = useState(false)
@@ -179,14 +179,6 @@ export default function HexagonScene() {
   const [dongData, setDongData] = useState<any>(null)
   const [jibData, setJibData] = useState<any>(null)
 
-  const mapStyles = {
-    earth: "mapbox://styles/mapbox/dark-v11",
-    night: "mapbox://styles/mapbox/dark-v11",
-    temperature: "mapbox://styles/mapbox/dark-v11",
-    precipitation: "mapbox://styles/mapbox/dark-v11",
-    population: "mapbox://styles/mapbox/dark-v11",
-    elevation: "mapbox://styles/mapbox/dark-v11",
-  }
 
   const handleLayerChange = (layer: string) => {
     setCurrentLayer(layer)
@@ -636,6 +628,40 @@ export default function HexagonScene() {
     loadData()
   }, [])
 
+  // currentLayer 변경시 오버레이 업데이트
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+
+    // very-dark 스타일일 때 검정 오버레이 추가
+    if (currentLayer === 'very-dark') {
+      // 맵 스타일 로드 완료 후 오버레이 추가
+      const addOverlay = () => {
+        if (!map.getLayer("dark-overlay")) {
+          addLayerSafely("dark-overlay", {
+            id: "dark-overlay",
+            type: "background",
+            paint: {
+              'background-color': 'rgba(0, 0, 0, 0.3)'  // 40% 검정 오버레이
+            }
+          })
+        }
+      }
+      
+      // 스타일 로드 완료 확인
+      if (map.isStyleLoaded()) {
+        addOverlay()
+      } else {
+        map.once('styledata', addOverlay)
+      }
+    } else {
+      // 다른 스타일로 변경시 오버레이 제거
+      if (map.getLayer("dark-overlay")) {
+        map.removeLayer("dark-overlay")
+      }
+    }
+  }, [currentLayer])
+
   // 지도 로드 완료 후 Mapbox 레이어 추가
   const handleMapLoad = () => {
     const map = mapRef.current?.getMap()
@@ -1027,7 +1053,17 @@ export default function HexagonScene() {
         <MapGL
           ref={mapRef}
           mapboxAccessToken={MAPBOX_TOKEN}
-          mapStyle={mapStyles[currentLayer as keyof typeof mapStyles]}
+          mapStyle={currentLayer === 'black' ? {
+            version: 8,
+            sources: {},
+            layers: [{
+              id: 'background',
+              type: 'background',
+              paint: {
+                'background-color': '#000000'
+              }
+            }]
+          } : currentLayer === 'very-dark' ? 'mapbox://styles/mapbox/dark-v11' : currentLayer}
           {...viewState}
           onLoad={handleMapLoad}
           onClick={(e: MapLayerMouseEvent) => {
@@ -1356,8 +1392,6 @@ export default function HexagonScene() {
 
       {/* LocalEconomy Filter Panel - Positioned properly above map */}
       <LocalEconomyFilterPanel
-        hexagonData={hexagonData}
-        climateData={climateData}
         onFilterChange={handleFilterChange}
         displayMode={displayMode}
         onToggleDisplayMode={toggleDisplayMode}
@@ -1365,8 +1399,6 @@ export default function HexagonScene() {
         externalSelectedGu={selectedGu}
         externalSelectedDong={selectedDong}
         externalSelectedBusinessType={selectedBusinessType}
-        // 전체 초기화 함수 전달 (필터, 레이어, 뷰 모두 리셋)
-        onResetLayers={handleFullReset}
       />
 
       {/* 선택된 지역 매출액 정보 */}
@@ -1457,7 +1489,7 @@ export default function HexagonScene() {
       {/* 지도 초기화 버튼 */}
       <button
         onClick={handleFullReset}
-        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 bg-gray-800/80 hover:bg-gray-700/90 backdrop-blur-sm text-white text-sm font-medium px-4 py-2 rounded-lg border border-gray-600/50 transition-all duration-200 flex items-center gap-2 shadow-lg hover:shadow-xl"
+        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 bg-black/90 hover:bg-gray-900/50 backdrop-blur-md text-gray-200 text-sm font-medium px-4 py-2 rounded-lg border border-gray-800/50 transition-all duration-200 flex items-center gap-2 shadow-2xl"
       >
         <RotateCcw className="w-4 h-4" />
         지도 초기화

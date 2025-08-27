@@ -19,6 +19,10 @@ import { COLOR_PALETTE_INFO, getColorPreviewStyle, type ColorScheme } from "@/sr
 
 // 지도 레이어 정의 (Mapbox 스타일)
 const mapLayers = [
+  // 검정색 배경 (맵박스 없음)
+  { id: "black", name: "🌑 검정 배경", description: "순수 검정색 배경" },
+  { id: "very-dark", name: "⚫ 매우 어두운", description: "거의 검정에 가까운 어두운 배경" },
+  
   // 기본 스타일
   { id: "mapbox://styles/mapbox/streets-v12", name: "거리 지도", description: "기본 거리 지도" },
   { id: "mapbox://styles/mapbox/outdoors-v12", name: "야외 지도", description: "등고선과 자연 지형" },
@@ -121,15 +125,15 @@ export default function UnifiedControls({
 
   return (
     <div className={`fixed bottom-[350px] z-50 transition-all duration-300 left-4`}>
-      <Card className={`bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden ${isExpanded ? 'w-[280px]' : 'w-auto'}`}>
+      <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[280px]' : 'w-auto'}`}>
         {/* Clickable Header to expand/collapse */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-2 hover:bg-white/5 transition-colors group"
+          className="w-full flex items-center justify-between p-2 hover:bg-gray-900/50 transition-colors group"
         >
           <div className="flex items-center space-x-2">
             <MapPin size={14} className="text-blue-400" />
-            <span className="font-bold text-sm">레이어 컨트롤</span>
+            <span className="font-bold text-sm text-gray-200">레이어 컨트롤</span>
           </div>
           <div className="flex items-center space-x-2">
             {isDataLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -137,7 +141,7 @@ export default function UnifiedControls({
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
             >
-              <ChevronDown className="w-4 h-4 text-white/70 group-hover:text-white/90 transition-colors" />
+              <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-gray-300 transition-colors" />
             </motion.div>
           </div>
         </button>
@@ -156,12 +160,12 @@ export default function UnifiedControls({
               style={{ overflow: "hidden" }}
             >
               {/* Reset Button */}
-              <div className="px-2 pt-1 pb-2 border-b border-white/20">
+              <div className="px-2 pt-1 pb-2 border-b border-gray-800/50">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={onReset}
-                  className="text-white hover:bg-white/10 w-full justify-center h-7 text-xs"
+                  className="text-gray-200 hover:bg-gray-900/50 w-full justify-center h-7 text-xs"
                   title="설정 초기화"
                 >
                   <RefreshCw className="w-3 h-3 mr-1" />
@@ -181,21 +185,21 @@ export default function UnifiedControls({
               <div className="p-2 space-y-3 max-h-96 overflow-y-auto">
             {/* 맵박스 레이어 선택 */}
             <div className="space-y-2">
-              <Label className="text-white text-xs font-semibold">지도 스타일</Label>
+              <Label className="text-gray-200 text-xs font-semibold">지도 스타일</Label>
               <Select
                 value={currentLayer}
                 onValueChange={onLayerChange}
                 disabled={isDataLoading}
               >
-                <SelectTrigger className="bg-white/10 border-white/20 text-white h-8">
+                <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-8">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-black/90 border-white/20 max-h-64 overflow-y-auto">
+                <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
                   {mapLayers.map((layer) => (
                     <SelectItem 
                       key={layer.id} 
                       value={layer.id} 
-                      className="text-white hover:bg-white/10"
+                      className="text-gray-200 hover:bg-gray-900/50"
                     >
                       <div className="flex flex-col">
                         <span className="font-medium">{layer.name}</span>
@@ -207,7 +211,7 @@ export default function UnifiedControls({
               </Select>
             </div>
 
-            <Separator className="bg-white/20" />
+            <Separator className="bg-gray-800/50" />
 
             {/* 형태 설정 */}
             <div className="space-y-3">
@@ -215,7 +219,7 @@ export default function UnifiedControls({
               {/* 반지름 */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <Label className="text-white text-xs">반지름: {radius}m</Label>
+                  <Label className="text-gray-200 text-xs">반지름: {radius}m</Label>
                 </div>
                 <Slider
                   value={[radius]}
@@ -226,7 +230,7 @@ export default function UnifiedControls({
                   disabled={isDataLoading}
                   className="w-full"
                 />
-                <div className="flex justify-between text-xs text-white/60">
+                <div className="flex justify-between text-xs text-gray-500">
                   <span>100m</span>
                   <span>3000m</span>
                 </div>
@@ -235,7 +239,7 @@ export default function UnifiedControls({
               {/* 높이 스케일 */}
               <div className="space-y-1">
                 <div className="flex justify-between items-center">
-                  <Label className="text-white text-xs">높이 스케일: {elevationScale}x</Label>
+                  <Label className="text-gray-200 text-xs">높이 스케일: {elevationScale}x</Label>
                 </div>
                 <Slider
                   value={[elevationScale]}
@@ -246,7 +250,7 @@ export default function UnifiedControls({
                   disabled={isDataLoading}
                   className="w-full"
                 />
-                <div className="flex justify-between text-xs text-white/60">
+                <div className="flex justify-between text-xs text-gray-500">
                   <span>0.1x</span>
                   <span>5x</span>
                 </div>
@@ -254,25 +258,25 @@ export default function UnifiedControls({
 
             </div>
 
-            <Separator className="bg-white/20" />
+            <Separator className="bg-gray-800/50" />
 
             {/* 시각 설정 */}
             <div className="space-y-3">
 
               {/* 색상 스킴 */}
               <div className="space-y-1">
-                <Label className="text-white text-xs">색상 스킴</Label>
+                <Label className="text-gray-200 text-xs">색상 스킴</Label>
                 <Select
                   value={colorScheme}
                   onValueChange={(value: ColorScheme) => onColorSchemeChange(value)}
                   disabled={isDataLoading}
                 >
-                  <SelectTrigger className="bg-white/10 border-white/20 text-white">
+                  <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent className="bg-black/90 border-white/20 max-h-96">
                     {Object.entries(COLOR_PALETTE_INFO).map(([key, info]) => (
-                      <SelectItem key={key} value={key} className="text-white hover:bg-white/10">
+                      <SelectItem key={key} value={key} className="text-gray-200 hover:bg-gray-900/50">
                         <div className="flex items-center space-x-2">
                           <div 
                             className="w-4 h-4 rounded"
@@ -292,16 +296,16 @@ export default function UnifiedControls({
 
               {/* 색상 미리보기 */}
               <div className="space-y-1">
-                <Label className="text-white text-xs">색상 미리보기</Label>
+                <Label className="text-gray-200 text-xs">색상 미리보기</Label>
                 <div 
                   className="h-6 rounded-lg"
                   style={getColorPreviewStyle(colorScheme)}
                 ></div>
-                <div className="flex justify-between text-xs text-white/60">
+                <div className="flex justify-between text-xs text-gray-500">
                   <span>낮음</span>
                   <span>높음</span>
                 </div>
-                <div className="text-xs text-white/50">
+                <div className="text-xs text-gray-600">
                   {COLOR_PALETTE_INFO[colorScheme]?.description}
                 </div>
               </div>

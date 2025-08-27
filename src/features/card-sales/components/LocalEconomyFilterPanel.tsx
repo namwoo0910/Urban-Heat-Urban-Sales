@@ -139,18 +139,18 @@ export default function LocalEconomyFilterPanel({
   
   return (
     <div className={`fixed bottom-[266px] left-4 z-50 ${className}`}>
-      <Card className="bg-black/80 backdrop-blur-md border-white/20 text-white p-2 w-[300px]">
+      <Card className="bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 p-2 w-[300px]">
         {/* First Row: 자치구 and 행정동 */}
         <div className="flex gap-1 mb-1">
           <div className="flex-1">
             <Select value={selectedGu || "전체"} onValueChange={handleGuChange}>
-              <SelectTrigger className="bg-white/10 border-white/20 text-white h-7 text-xs px-2">
+              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
                 <SelectValue placeholder="자치구" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-white/20 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
                 <SelectItem 
                   value="전체"
-                  className="text-white hover:bg-white/10 font-semibold border-b border-white/10"
+                  className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
                 >
                   전체 자치구
                 </SelectItem>
@@ -158,7 +158,7 @@ export default function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={district} 
                     value={district}
-                    className="text-white hover:bg-white/10"
+                    className="text-gray-200 hover:bg-gray-900/50"
                   >
                     {district}
                   </SelectItem>
@@ -173,16 +173,16 @@ export default function LocalEconomyFilterPanel({
               onValueChange={handleDongChange}
               disabled={!selectedGu}
             >
-              <SelectTrigger className="bg-white/10 border-white/20 text-white disabled:opacity-50 h-7 text-xs px-2">
+              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 disabled:opacity-50 h-7 text-xs px-2">
                 <SelectValue>
                   {selectedDong || "전체 행정동"}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-white/20 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
                 {selectedGu && (
                   <SelectItem 
                     value="전체"
-                    className="text-white hover:bg-white/10 font-semibold border-b border-white/10"
+                    className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
                   >
                     전체 행정동
                   </SelectItem>
@@ -191,7 +191,7 @@ export default function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={dong} 
                     value={dong}
-                    className="text-white hover:bg-white/10"
+                    className="text-gray-200 hover:bg-gray-900/50"
                   >
                     {dong}
                   </SelectItem>
@@ -208,13 +208,13 @@ export default function LocalEconomyFilterPanel({
               value={selectedBusinessType || "전체"} 
               onValueChange={handleBusinessTypeChange}
             >
-              <SelectTrigger className="bg-white/10 border-white/20 text-white h-7 text-xs px-2">
+              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
                 <SelectValue placeholder="업종" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-white/20 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
                 <SelectItem 
                   value="전체"
-                  className="text-white hover:bg-white/10 font-semibold border-b border-white/10"
+                  className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
                 >
                   전체 업종
                 </SelectItem>
@@ -222,7 +222,7 @@ export default function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={category} 
                     value={category}
-                    className="text-white hover:bg-white/10"
+                    className="text-gray-200 hover:bg-gray-900/50"
                   >
                     {category}
                   </SelectItem>
@@ -235,7 +235,7 @@ export default function LocalEconomyFilterPanel({
             onClick={onToggleDisplayMode}
             variant="outline"
             size="sm"
-            className="h-7 px-2 bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs whitespace-nowrap"
+            className="h-7 px-2 bg-gray-900/80 hover:bg-gray-800/90 text-gray-200 border-gray-700/50 text-xs whitespace-nowrap"
           >
             {displayMode === 'simple' ? '업종별' : '총매출'}
           </Button>

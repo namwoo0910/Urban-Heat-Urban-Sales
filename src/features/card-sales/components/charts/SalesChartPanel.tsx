@@ -26,14 +26,14 @@ export function SalesChartPanel() {
   ]
 
   return (
-    <div className="bg-black/60 backdrop-blur-md rounded-lg border border-white/10 p-4 h-full flex flex-col">
+    <div className="bg-black/90 backdrop-blur-md rounded-lg border border-gray-800/50 shadow-2xl p-4 h-full flex flex-col">
       <div className="mb-4">
-        <h2 className="text-xl font-bold text-white mb-2">매출 분석 대시보드</h2>
-        <p className="text-sm text-gray-400">서울시 카드 매출 데이터 시각화</p>
+        <h2 className="text-xl font-bold text-gray-200 mb-2">매출 분석 대시보드</h2>
+        <p className="text-sm text-gray-600">서울시 카드 매출 데이터 시각화</p>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-w-0">
-        <TabsList className="grid grid-cols-4 lg:grid-cols-8 gap-1 bg-black/40 border border-white/10 mb-2 h-auto p-1 flex-shrink-0">
+        <TabsList className="grid grid-cols-4 lg:grid-cols-8 gap-1 bg-gray-900/50 border border-gray-800/50 mb-2 h-auto p-1 flex-shrink-0">
           {charts.map((chart) => (
             <TabsTrigger 
               key={chart.id} 

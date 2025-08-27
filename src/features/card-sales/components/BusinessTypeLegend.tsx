@@ -22,7 +22,7 @@ export function BusinessTypeLegend({ selectedCategory }: BusinessTypeLegendProps
     <>
       {/* Toggle Button - positioned at top */}
       <motion.button
-        className="absolute top-28 right-4 z-10 bg-gray-900/90 backdrop-blur-sm text-white px-3 py-2 rounded-lg border border-white/10 hover:bg-gray-800/90 transition-colors flex items-center gap-2"
+        className="absolute top-28 right-4 z-10 bg-black/90 backdrop-blur-md text-gray-200 px-3 py-2 rounded-lg border border-gray-800/50 shadow-2xl hover:bg-gray-900/50 transition-colors flex items-center gap-2"
         onClick={() => setIsVisible(!isVisible)}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
@@ -39,11 +39,11 @@ export function BusinessTypeLegend({ selectedCategory }: BusinessTypeLegendProps
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 100 }}
             transition={{ duration: 0.3 }}
-            className="absolute top-40 right-4 z-10 bg-gray-900/90 backdrop-blur-sm rounded-lg border border-white/10 p-4"
+            className="absolute top-40 right-4 z-10 bg-black/90 backdrop-blur-md rounded-lg border border-gray-800/50 shadow-2xl p-4"
             style={{ minWidth: "220px", maxHeight: "400px", overflowY: "auto" }}
           >
             <div className="flex items-center justify-between mb-3">
-              <h3 className="text-white text-sm font-semibold flex items-center gap-2">
+              <h3 className="text-gray-200 text-sm font-semibold flex items-center gap-2">
                 <Palette className="w-4 h-4" />
                 업종 카테고리
               </h3>
