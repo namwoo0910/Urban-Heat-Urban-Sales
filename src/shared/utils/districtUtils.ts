@@ -63,10 +63,10 @@ export function getDistrictColors() {
   },
   dong: {
     fill: currentTheme?.dong?.fillBase || 'rgba(26, 17, 0, 0.2)',  // 테마 기반 채움색
-    line: currentTheme?.dong?.lineColor || 'rgba(251, 139, 30, 0.25)',  // 테마 기반 경계선
+    line: 'rgba(255, 255, 255, 0.6)',  // 흰색 경계선으로 3D에서 경계 강조
     fillOpacity: 0.3,  // 모노크롬에 맞게 조정
-    lineWidth: currentTheme?.dong?.lineWidth || 0.5,  // 매우 얇은 선
-    glowLine: currentTheme?.dong?.glowColor || 'rgba(251, 139, 30, 0.1)',  // 테마 기반 글로우
+    lineWidth: 1.2,  // 더 두꺼운 선으로 가시성 향상
+    glowLine: 'rgba(255, 255, 255, 0.3)',  // 흰색 글로우
   },
   jib: {
     line: 'rgba(255, 200, 100, 0.2)',  // 금색 테두리
@@ -299,17 +299,10 @@ export function getDistrictLayerPaint() {
     'fill-opacity-transition': { duration: 300 }
   },
   dongLine: {
-    'line-color': currentTheme?.dong?.lineColor || 'rgba(251, 139, 30, 0.25)',
-    'line-width': [
-      'interpolate',
-      ['linear'],
-      ['zoom'],
-      10, 0.3,   // 매우 얇은 선
-      12, 0.4,
-      14, 0.5
-    ],
-    'line-blur': 0.2,  // 은은한 블러
-    'line-opacity': 0.4  // 약하게
+    'line-color': 'rgba(255, 255, 255, 0.0)',  // 투명한 경계선
+    'line-width': 0,
+    'line-blur': 0,
+    'line-opacity': 0  // 완전히 투명
   },
   jibLine: {
     'line-color': 'rgba(255, 200, 100, 0.2)',

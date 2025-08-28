@@ -23,17 +23,27 @@ import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { loadDistrictData, getDistrictLayerPaint, getDistrictColors, getCurrentTheme } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
 import { calculateBoundaryElevation } from "@/src/shared/constants/elevationConstants"
+import { 
+  createSplitPolygon, 
+  getDistrictHeight,
+  getDongHeight, 
+  get3DColorExpression,
+  getDong3DColorExpression, 
+  CAMERA_3D_CONFIG, 
+  CAMERA_2D_CONFIG,
+  LIGHT_3D_CONFIG 
+} from "@/src/shared/utils/district3DUtils"
 import { RotateCcw } from "lucide-react"
 import "../styles/HexagonLayer.css"
 import "@/src/shared/styles/districtEffects.css"
 
-// 기본 서울 뷰 설정 상수
+// 기본 서울 뷰 설정 상수 (3D 모드 기본)
 const DEFAULT_SEOUL_VIEW = {
   longitude: 126.978,
   latitude: 37.5565,
   zoom: 11,
-  pitch: 30,
-  bearing: 10,
+  pitch: 60,  // 3D 각도로 설정
+  bearing: -15,  // 3D 방향으로 설정
   minZoom: 5,
   maxZoom: 15
 } as const
@@ -43,6 +53,7 @@ export default function HexagonScene() {
   const cleanupRef = useRef<(() => void)[]>([])
   const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
+  const [is3DMode, setIs3DMode] = useState(true) // 3D 모드를 기본으로 설정
   
   // 레이어 상태 관리
   const {
@@ -199,6 +210,10 @@ export default function HexagonScene() {
   const [sggData, setSggData] = useState<any>(null)
   const [dongData, setDongData] = useState<any>(null)
   const [jibData, setJibData] = useState<any>(null)
+  
+  // 3D용 분리된 폴리곤 데이터
+  const [sggData3D, setSggData3D] = useState<any>(null)
+  const [dongData3D, setDongData3D] = useState<any>(null)
 
 
   const handleLayerChange = (layer: string) => {
@@ -243,6 +258,42 @@ export default function HexagonScene() {
     // 4. 뷰포트를 서울 전체로 리셋 (재사용 함수 사용)
     resetToDefaultView()
   }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedSubCategory, setDisplayMode, resetToDefaultView])
+
+  // 3D 모드 전환 핸들러
+  const handle3DModeToggle = useCallback((enabled: boolean) => {
+    setIs3DMode(enabled)
+    
+    // 카메라 각도 조정
+    if (enabled) {
+      // 3D 모드: pitch와 bearing 설정
+      isProgrammaticUpdateRef.current = true
+      setViewState(prev => ({
+        ...prev,
+        pitch: 60,
+        bearing: -15,
+        transitionDuration: 1200,
+        transitionInterpolator: new FlyToInterpolator(),
+        transitionEasing: (t: number) => t * (2 - t)
+      }))
+      setTimeout(() => {
+        isProgrammaticUpdateRef.current = false
+      }, 1300)
+    } else {
+      // 2D 모드로 복귀
+      isProgrammaticUpdateRef.current = true
+      setViewState(prev => ({
+        ...prev,
+        pitch: 0,
+        bearing: 0,
+        transitionDuration: 1000,
+        transitionInterpolator: new FlyToInterpolator(),
+        transitionEasing: (t: number) => t * (2 - t)
+      }))
+      setTimeout(() => {
+        isProgrammaticUpdateRef.current = false
+      }, 1100)
+    }
+  }, [])
 
   // Official deck.gl rotation pattern implementation (fixed with ref)
   const rotateCamera = useCallback(() => {
@@ -622,6 +673,81 @@ export default function HexagonScene() {
     
     loadData()
   }, [])
+  
+  // 3D 모드용 데이터 전처리
+  useEffect(() => {
+    if (!sggData || !dongData) return
+    
+    // 3D 효과를 위한 데이터 처리 (갈라짐 없이)
+    const process3DData = () => {
+      // 구 데이터 3D 처리
+      const sgg3D = {
+        ...sggData,
+        features: sggData.features.map((feature: any) => {
+          return {
+            ...feature,
+            properties: {
+              ...feature.properties,
+              height: getDistrictHeight(feature.properties.SIGUNGU_NM || feature.properties.SGG_NM)
+            }
+          }
+        })
+      }
+      setSggData3D(sgg3D)
+      
+      // 동 데이터 3D 처리  
+      const dong3D = {
+        ...dongData,
+        features: dongData.features.map((feature: any, index: number) => {
+          // Use Korean property names from the actual GeoJSON data
+          const guName = feature.properties['자치구'] || feature.properties.SGG_NM || feature.properties.SIGUNGU_NM || feature.properties.SIG_KOR_NM
+          const dongName = feature.properties['행정동'] || feature.properties.H_DONG_NM || feature.properties.ADM_DR_NM || feature.properties.EMD_NM || feature.properties.EMD_KOR_NM
+          
+          // 첫 번째 및 마지막 동의 속성 로깅 (디버깅용)
+          if (index === 0 || index === dongData.features.length - 1) {
+            const height = getDongHeight(dongName, guName)
+            console.log(`[Dong 3D] Index ${index}:`, { 
+              guName, 
+              dongName, 
+              height,
+              dongIndex: index 
+            })
+          }
+          
+          return {
+            ...feature,
+            properties: {
+              ...feature.properties,
+              height: getDongHeight(dongName, guName), // getDongHeight 사용
+              dongIndex: index // 인덱스 추가 (색상 구분용)
+            }
+          }
+        })
+      }
+      setDongData3D(dong3D)
+    }
+    
+    process3DData()
+  }, [sggData, dongData])
+  
+  // 3D 모드 변경 시 조명 설정
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    
+    // 맵이 로드되었는지 확인
+    if (!map.loaded()) {
+      map.once('load', () => {
+        if (is3DMode) {
+          map.setLight(LIGHT_3D_CONFIG as any)
+        }
+      })
+    } else {
+      if (is3DMode) {
+        map.setLight(LIGHT_3D_CONFIG as any)
+      }
+    }
+  }, [is3DMode])
 
   // currentLayer 변경시 오버레이 업데이트
   useEffect(() => {
@@ -1203,7 +1329,8 @@ export default function HexagonScene() {
               paint: {
                 'background-color': '#000000'
               }
-            }]
+            }],
+            ...(is3DMode ? { light: LIGHT_3D_CONFIG } : {})
           } : currentLayer === 'very-dark' ? 'mapbox://styles/mapbox/dark-v11' : currentLayer}
           {...viewState}
           onLoad={handleMapLoad}
@@ -1229,55 +1356,79 @@ export default function HexagonScene() {
             setHoveredDistrict(null)
             mapRef.current!.getCanvas().style.cursor = ''
           }}
-          interactiveLayerIds={['sgg-extrusion', 'sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-extrusion', 'dong-fill', 'dong-line']}
+          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-extrusion', 'dong-fill', 'dong-line']}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
           {/* District layers with enhanced 3D visualization */}
           {sggData && (
-            <Source id="sgg-source" type="geojson" data={sggData}>
+            <Source id="sgg-source" type="geojson" data={is3DMode && sggData3D ? sggData3D : sggData}>
+              
+              {/* 3D Extrusion layer - DISABLED to show dong layers */}
+              {/* 자치구 3D는 비활성화하고 동 레이어만 표시 */}
+              {false && is3DMode && (
+                <Layer
+                  id="sgg-extrusion"
+                  type="fill-extrusion"
+                  paint={{
+                    'fill-extrusion-color': get3DColorExpression() as any,
+                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-base': 0,
+                    'fill-extrusion-opacity': 0.85
+                  }}
+                  layout={{
+                    visibility: 'none'  // Always hidden
+                  }}
+                />
+              )}
               
               {/* District fill - 2D 배경 with district-specific colors */}
-              <Layer
-                id="sgg-fill"
-                type="fill"
-                paint={getDistrictLayerPaint().sggFill as any}
-                layout={{ 
-                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                }}
-              />
+              {!is3DMode && (
+                <Layer
+                  id="sgg-fill"
+                  type="fill"
+                  paint={getDistrictLayerPaint().sggFill as any}
+                  layout={{ 
+                    visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                  }}
+                />
+              )}
               
-              {/* 네온 글로우 효과 - 외곽 글로우 */}
-              <Layer
-                id="sgg-glow-outer"
-                type="line"
-                paint={{
-                  'line-color': 'rgba(0, 255, 255, 0.2)',
-                  'line-width': 8,
-                  'line-blur': 6,
-                  'line-opacity': 0.5
-                }}
-                layout={{ 
-                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                }}
-              />
+              {/* 네온 글로우 효과 - 외곽 글로우 (2D 모드에서만 표시) */}
+              {!is3DMode && (
+                <Layer
+                  id="sgg-glow-outer"
+                  type="line"
+                  paint={{
+                    'line-color': 'rgba(0, 255, 255, 0.2)',
+                    'line-width': 8,
+                    'line-blur': 6,
+                    'line-opacity': 0.5
+                  }}
+                  layout={{ 
+                    visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                  }}
+                />
+              )}
               
-              {/* 네온 글로우 효과 - 중간 글로우 */}
-              <Layer
-                id="sgg-glow-mid"
-                type="line"
-                paint={{
-                  'line-color': 'rgba(100, 200, 255, 0.4)',
-                  'line-width': 4,
-                  'line-blur': 3,
-                  'line-opacity': 0.7
-                }}
-                layout={{ 
-                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                }}
-              />
+              {/* 네온 글로우 효과 - 중간 글로우 (2D 모드에서만) */}
+              {!is3DMode && (
+                <Layer
+                  id="sgg-glow-mid"
+                  type="line"
+                  paint={{
+                    'line-color': 'rgba(100, 200, 255, 0.4)',
+                    'line-width': 4,
+                    'line-blur': 3,
+                    'line-opacity': 0.7
+                  }}
+                  layout={{ 
+                    visibility: districtSelection.sggVisible ? 'visible' : 'none' 
+                  }}
+                />
+              )}
               
-              {/* 메인 경계선 - 네온 코어 */}
+              {/* 메인 경계선 - 네온 코어 (3D 모드에서도 표시) */}
               <Layer
                 id="sgg-line"
                 type="line"
@@ -1324,31 +1475,53 @@ export default function HexagonScene() {
           
           {/* Dong layers with 3D effects */}
           {dongData && (
-            <Source id="dong-source" type="geojson" data={dongData}>
+            <Source id="dong-source" type="geojson" data={is3DMode && dongData3D ? dongData3D : dongData}>
+              
+              {/* 3D Dong Extrusion layer */}
+              {is3DMode && (
+                <Layer
+                  id="dong-extrusion"
+                  type="fill-extrusion"
+                  paint={{
+                    'fill-extrusion-color': getDong3DColorExpression() as any,
+                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-base': 0,
+                    'fill-extrusion-opacity': 0.9  // 약간의 투명도로 경계 강조
+                  }}
+                  layout={{
+                    visibility: districtSelection.dongVisible ? 'visible' : 'none'
+                  }}
+                />
+              )}
               
               {/* Dong fill with district-aware colors */}
-              <Layer
-                id="dong-fill"
-                type="fill"
-                paint={getDistrictLayerPaint().dongFill as any}
-                layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
-              />
+              {!is3DMode && (
+                <Layer
+                  id="dong-fill"
+                  type="fill"
+                  paint={getDistrictLayerPaint().dongFill as any}
+                  layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
+                />
+              )}
               
-              {/* Dong neon glow lines */}
-              <Layer
-                id="dong-glow"
-                type="line"
-                paint={{
-                  'line-color': 'rgba(200, 100, 255, 0.15)',
-                  'line-width': 4,
-                  'line-blur': 3
-                }}
-                layout={{ 
-                  visibility: districtSelection.dongVisible ? 'visible' : 'none' 
-                }}
-              />
+              {/* Dong neon glow lines (2D 모드에서만) */}
+              {!is3DMode && (
+                <Layer
+                  id="dong-glow"
+                  type="line"
+                  paint={{
+                    'line-color': 'rgba(200, 100, 255, 0.15)',
+                    'line-width': 4,
+                    'line-blur': 3,
+                    'line-opacity': 0.6
+                  }}
+                  layout={{ 
+                    visibility: districtSelection.dongVisible ? 'visible' : 'none' 
+                  }}
+                />
+              )}
               
-              {/* Dong main lines with modern style */}
+              {/* Dong main lines with modern style (3D 모드에서도 표시) */}
               <Layer
                 id="dong-line"
                 type="line"
@@ -1596,6 +1769,9 @@ export default function HexagonScene() {
           // Seoul base is now removed, this toggle can be deprecated or repurposed
           console.log('Seoul base toggle is deprecated - boundary only mode active')
         }}
+        // 3D 모드 props
+        is3DMode={is3DMode}
+        onIs3DModeChange={handle3DModeToggle}
         // 레이어 컨트롤 props
         visible={layerConfig.visible}
         radius={layerConfig.radius}

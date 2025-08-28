@@ -68,6 +68,10 @@ interface UnifiedControlsProps {
   onSggVisibleChange?: (visible: boolean) => void
   onDongVisibleChange?: (visible: boolean) => void
   
+  // 3D mode props
+  is3DMode?: boolean
+  onIs3DModeChange?: (enabled: boolean) => void
+  
   // LayerControls props
   visible: boolean
   radius: number
@@ -135,6 +139,10 @@ export default function UnifiedControls({
   dongVisible = true,
   onSggVisibleChange,
   onDongVisibleChange,
+  
+  // 3D mode props
+  is3DMode = false,
+  onIs3DModeChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('bloomberg')
@@ -325,6 +333,24 @@ export default function UnifiedControls({
                   />
                 </div>
               </div>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 3D 모드 토글 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-200 text-xs font-semibold">3D 지도 모드</Label>
+                <Switch
+                  checked={is3DMode}
+                  onCheckedChange={onIs3DModeChange}
+                  className="scale-75"
+                  disabled={isDataLoading}
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
+              </p>
             </div>
 
             <Separator className="bg-gray-800/50" />
