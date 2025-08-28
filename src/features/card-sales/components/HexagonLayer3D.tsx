@@ -12,6 +12,7 @@ import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip } from "./LayerManager"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
+import { climateDataLoader } from '../utils/climateDataLoader'
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
 import { BusinessTypeLegend } from "./BusinessTypeLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
@@ -26,7 +27,8 @@ import { calculateBoundaryElevation } from "@/src/shared/constants/elevationCons
 import { 
   createSplitPolygon, 
   getDistrictHeight,
-  getDongHeight, 
+  getDongHeight,
+  getDongHeightBySales,
   get3DColorExpression,
   getDong3DColorExpression, 
   CAMERA_3D_CONFIG, 
@@ -215,6 +217,12 @@ export default function HexagonScene() {
   // 3D용 분리된 폴리곤 데이터
   const [sggData3D, setSggData3D] = useState<any>(null)
   const [dongData3D, setDongData3D] = useState<any>(null)
+  
+  // 동별 매출 데이터 Map (dongCode -> totalSales)
+  const [dongSalesMap, setDongSalesMap] = useState<Map<number, number>>(new Map())
+  
+  // 3D 높이 스케일 조정값 (기본값: 1천만원 = 1 단위)
+  const [heightScale, setHeightScale] = useState<number>(10000000)
 
 
   const handleLayerChange = (layer: string) => {
@@ -675,12 +683,53 @@ export default function HexagonScene() {
     loadData()
   }, [])
   
+  // Load sales data and aggregate by dong
+  useEffect(() => {
+    const loadSalesData = async () => {
+      try {
+        console.log('[SalesData] Loading dong sales data...')
+        const allData = await climateDataLoader.loadAllData()
+        
+        // Aggregate sales by dongCode
+        const salesByDong = new Map<number, number>()
+        
+        allData.forEach(item => {
+          if (item.dongCode && item.totalSales) {
+            const currentTotal = salesByDong.get(item.dongCode) || 0
+            salesByDong.set(item.dongCode, currentTotal + item.totalSales)
+          }
+        })
+        
+        console.log(`[SalesData] Loaded sales for ${salesByDong.size} dongs`)
+        
+        // Log min/max sales for normalization reference
+        const salesValues = Array.from(salesByDong.values())
+        const minSales = Math.min(...salesValues)
+        const maxSales = Math.max(...salesValues)
+        console.log(`[SalesData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
+        
+        setDongSalesMap(salesByDong)
+      } catch (error) {
+        console.error('[SalesData] Failed to load sales data:', error)
+      }
+    }
+    
+    loadSalesData()
+  }, [])
+  
   // 3D 모드용 데이터 전처리
   useEffect(() => {
-    if (!sggData || !dongData) return
+    if (!sggData || !dongData || dongSalesMap.size === 0) return
     
     // 3D 효과를 위한 데이터 처리 (갈라짐 없이)
     const process3DData = () => {
+      // Log sales statistics for debugging
+      const salesValues = Array.from(dongSalesMap.values())
+      const minSales = Math.min(...salesValues)
+      const maxSales = Math.max(...salesValues)
+      const avgSales = salesValues.reduce((a, b) => a + b, 0) / salesValues.length
+      console.log(`[3D Processing] Sales stats - Min: ${minSales.toLocaleString()}, Max: ${maxSales.toLocaleString()}, Avg: ${avgSales.toLocaleString()}`)
+      
       // 구 데이터 3D 처리
       const sgg3D = {
         ...sggData,
@@ -703,14 +752,22 @@ export default function HexagonScene() {
           // Use Korean property names from the actual GeoJSON data
           const guName = feature.properties['자치구'] || feature.properties.SGG_NM || feature.properties.SIGUNGU_NM || feature.properties.SIG_KOR_NM
           const dongName = feature.properties['행정동'] || feature.properties.H_DONG_NM || feature.properties.ADM_DR_NM || feature.properties.EMD_NM || feature.properties.EMD_KOR_NM
+          const dongCode = feature.properties['행정동코드'] || feature.properties.H_CODE || feature.properties.ADM_DR_CD || 0
           
-          // 첫 번째 및 마지막 동의 속성 로깅 (디버깅용)
+          // Get sales data for this dong
+          const dongSales = dongSalesMap.get(Number(dongCode)) || 0
+          
+          // Calculate height based on absolute sales value with adjustable scale
+          const height = getDongHeightBySales(dongSales, heightScale)
+          
+          // Log first and last dong for debugging
           if (index === 0 || index === dongData.features.length - 1) {
-            const height = getDongHeight(dongName, guName)
             console.log(`[Dong 3D] Index ${index}:`, { 
               guName, 
               dongName, 
-              height,
+              dongCode,
+              dongSales: dongSales.toLocaleString(),
+              height: Math.round(height),
               dongIndex: index 
             })
           }
@@ -719,7 +776,7 @@ export default function HexagonScene() {
             ...feature,
             properties: {
               ...feature.properties,
-              height: getDongHeight(dongName, guName), // getDongHeight 사용
+              height: height, // Use sales-based height
               dongIndex: index // 인덱스 추가 (색상 구분용)
             }
           }
@@ -729,7 +786,7 @@ export default function HexagonScene() {
     }
     
     process3DData()
-  }, [sggData, dongData])
+  }, [sggData, dongData, dongSalesMap, heightScale])
   
   // 3D 모드 변경 시 조명 설정
   useEffect(() => {
@@ -1277,7 +1334,7 @@ export default function HexagonScene() {
         <DeckGL
         viewState={viewState}
         controller={true}
-        layers={false ? [] : deckLayers} // 임시로 selectionMode 무시하고 항상 레이어 표시
+        layers={is3DMode ? [] : deckLayers} // 3D 모드에서는 ColumnLayer 비활성화
         getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
         getCursor={({isDragging, isHovering}) => {
           if (isDragging) return 'grabbing'
@@ -1782,6 +1839,9 @@ export default function HexagonScene() {
         // 3D 모드 props
         is3DMode={is3DMode}
         onIs3DModeChange={handle3DModeToggle}
+        // 높이 스케일 props
+        heightScale={heightScale}
+        onHeightScaleChange={setHeightScale}
         // 레이어 컨트롤 props
         visible={layerConfig.visible}
         radius={layerConfig.radius}

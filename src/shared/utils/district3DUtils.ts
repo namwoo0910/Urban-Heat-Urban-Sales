@@ -304,3 +304,26 @@ export function getDongHeight(dongName: string | undefined, guName?: string): nu
   
   return heights[step]
 }
+
+/**
+ * 매출 기반 동 높이 계산 (절대 스케일)
+ * @param sales 매출액
+ * @param scale 스케일 조정값 (기본값: 1천만원 = 1 단위)
+ * @returns 절대적 매출 차이를 반영한 높이
+ */
+export function getDongHeightBySales(sales: number, scale: number = 10000000): number {
+  // 매출이 없는 경우 최소 높이
+  if (sales <= 0) {
+    return 10 // 최소 높이로 바닥에 붙어있게
+  }
+  
+  // 매출액을 높이로 변환
+  // scale 파라미터로 조정 가능
+  // 기본값: 1천만원 = 1 단위 높이
+  // scale = 5000000 이면 5백만원 = 1 단위 (높이 2배)
+  // scale = 20000000 이면 2천만원 = 1 단위 (높이 0.5배)
+  const height = sales / scale
+  
+  // 최소 높이 보장 (너무 낮은 매출도 약간은 보이도록)
+  return Math.max(height, 10)
+}

@@ -72,6 +72,10 @@ interface UnifiedControlsProps {
   is3DMode?: boolean
   onIs3DModeChange?: (enabled: boolean) => void
   
+  // Height scale props (for 3D mode sales visualization)
+  heightScale?: number
+  onHeightScaleChange?: (scale: number) => void
+  
   // LayerControls props
   visible: boolean
   radius: number
@@ -143,6 +147,10 @@ export default function UnifiedControls({
   // 3D mode props
   is3DMode = false,
   onIs3DModeChange,
+  
+  // Height scale props
+  heightScale = 10000000,
+  onHeightScaleChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('orange')
@@ -352,6 +360,46 @@ export default function UnifiedControls({
                 {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
               </p>
             </div>
+
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 3D 높이 스케일 조정 (3D 모드일 때만 표시) */}
+            {is3DMode && (
+              <div className="space-y-2">
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center">
+                    <Label className="text-gray-200 text-xs font-semibold">3D 높이 스케일</Label>
+                  </div>
+                  <div className="space-y-2">
+                    <Slider
+                      value={[Math.log10(heightScale)]}
+                      onValueChange={(value) => {
+                        const newScale = Math.pow(10, value[0])
+                        onHeightScaleChange?.(newScale)
+                      }}
+                      min={6}  // 10^6 = 백만원
+                      max={8}  // 10^8 = 1억원
+                      step={0.1}
+                      disabled={isDataLoading}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>낮음</span>
+                      <span className="text-gray-300">
+                        {heightScale < 10000000 ? '5백만원' : 
+                         heightScale === 10000000 ? '1천만원' : 
+                         heightScale < 50000000 ? '2천만원' :
+                         heightScale < 100000000 ? '5천만원' : '1억원'} = 1단위
+                      </span>
+                      <span>높음</span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    매출액을 높이로 변환하는 비율을 조정합니다
+                  </p>
+                </div>
+              </div>
+            )}
 
             <Separator className="bg-gray-800/50" />
 
