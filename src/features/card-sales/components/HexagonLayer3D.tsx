@@ -26,6 +26,17 @@ import { calculateBoundaryElevation } from "@/src/shared/constants/elevationCons
 import { RotateCcw } from "lucide-react"
 import "../styles/HexagonLayer.css"
 
+// 기본 서울 뷰 설정 상수
+const DEFAULT_SEOUL_VIEW = {
+  longitude: 126.978,
+  latitude: 37.5565,
+  zoom: 11,
+  pitch: 30,
+  bearing: 10,
+  minZoom: 5,
+  maxZoom: 15
+} as const
+
 export default function HexagonScene() {
   const mapRef = useRef<MapRef>(null)
   const cleanupRef = useRef<(() => void)[]>([])
@@ -98,7 +109,7 @@ export default function HexagonScene() {
   } = useLayerState()
   
   // 기본 지도 상태
-  const [currentLayer, setCurrentLayer] = useState("black")
+  const [currentLayer, setCurrentLayer] = useState("very-dark")
   const [currentTime, setCurrentTime] = useState(100)
   const [showHint, setShowHint] = useState(true)
   const [showBoundary, setShowBoundary] = useState(false)
@@ -107,13 +118,8 @@ export default function HexagonScene() {
   
   // DeckGL 뷰 상태 - controlled component pattern for synchronization
   const [viewState, setViewState] = useState<MapViewState>({
-    longitude: 126.978,
-    latitude: 37.5665,
-    zoom: 11,
-    pitch: 60,  // Increased for better 3D effect
-    bearing: 0,
-    minZoom: 5,
-    maxZoom: 15
+    ...DEFAULT_SEOUL_VIEW,
+    bearing: 0  // 초기 bearing은 0으로 설정
   })
   
   // 회전 제어를 위한 ref
@@ -127,6 +133,21 @@ export default function HexagonScene() {
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
   
+  // 기본 뷰로 리셋하는 재사용 함수
+  const resetToDefaultView = useCallback((transitionDuration = 800) => {
+    isProgrammaticUpdateRef.current = true
+    setViewState({
+      ...DEFAULT_SEOUL_VIEW,
+      transitionDuration,
+      transitionInterpolator: new FlyToInterpolator(),
+      transitionEasing: (t: number) => t * (2 - t)
+    })
+    
+    setTimeout(() => {
+      isProgrammaticUpdateRef.current = false
+    }, transitionDuration + 100)
+  }, [])
+  
   // Handle filter panel changes - simplified to prevent loops
   const handleFilterChange = useCallback((filters: FilterState) => {
     // Directly update states without checking current values
@@ -138,12 +159,10 @@ export default function HexagonScene() {
     setSelectedDongCode(filters.selectedDongCode)
     setSelectedBusinessType(filters.selectedBusinessType)
     
-    // 행정동이 선택되면 자동으로 상세보기 모드로 전환
-    if (filters.selectedDong) {
-      setDisplayMode('detailed')
-    }
+    // 행정동 선택시에도 현재 표시 모드를 유지
+    // Display mode는 사용자가 버튼을 통해서만 변경
     // Note: selectedSubCategory removed - not part of FilterState interface
-  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setDisplayMode])
+  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
@@ -167,8 +186,8 @@ export default function HexagonScene() {
         setSelectedDong(null)  // Clear dong when gu is selected
       } else if (feature?.layer?.id === 'dong-fill') {
         setSelectedDong(districtName)
-        // 행정동 선택시 자동으로 상세보기 모드로 전환
-        setDisplayMode('detailed')
+        // 행정동 선택시에도 현재 표시 모드를 유지
+        // Display mode는 사용자가 버튼을 통해서만 변경
         // Don't change gu when dong is selected (dong belongs to current gu)
       }
     }
@@ -227,23 +246,9 @@ export default function HexagonScene() {
     // 3. 표시 모드를 simple로 리셋
     setDisplayMode('simple')
     
-    // 4. 뷰포트를 서울 전체로 리셋
-    isProgrammaticUpdateRef.current = true
-    setViewState({
-      longitude: SEOUL_COORDINATES[0],
-      latitude: SEOUL_COORDINATES[1],
-      zoom: 11,
-      pitch: 60,
-      bearing: 0,
-      transitionDuration: 800,
-      transitionInterpolator: new FlyToInterpolator(),
-      transitionEasing: (t: number) => t * (2 - t)
-    })
-    
-    setTimeout(() => {
-      isProgrammaticUpdateRef.current = false
-    }, 900)
-  }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedSubCategory, setDisplayMode])
+    // 4. 뷰포트를 서울 전체로 리셋 (재사용 함수 사용)
+    resetToDefaultView()
+  }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedSubCategory, setDisplayMode, resetToDefaultView])
 
   // Official deck.gl rotation pattern implementation (fixed with ref)
   const rotateCamera = useCallback(() => {
@@ -409,8 +414,8 @@ export default function HexagonScene() {
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(dongName)
         setSelectedDongCode(calculatedDongCode)
-        // 클릭으로 줌인 시 자동으로 상세보기 모드로 전환
-        setDisplayMode('detailed')
+        // 클릭시에도 현재 표시 모드를 유지
+        // Display mode는 사용자가 버튼을 통해서만 변경
         
         console.log('[HexagonClick] Selected dong:', { guName, guCode: calculatedGuCode, dongName, dongCode: calculatedDongCode })
       } else if (guName) {
@@ -420,15 +425,15 @@ export default function HexagonScene() {
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(null)
         setSelectedDongCode(null)
-        // 구 레벨 클릭 시에도 상세보기 모드로 전환
-        setDisplayMode('detailed')
+        // 구 레벨 클릭시에도 현재 표시 모드를 유지
+        // Display mode는 사용자가 버튼을 통해서만 변경
         
         console.log('[HexagonClick] Selected gu:', { guName, guCode: calculatedGuCode })
       }
       
       // Hexagon clicked - zoom to selected area
     }
-  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setDisplayMode])
+  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
 
   // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
   const columnLayers = createColumnLayer(hexagonData, {
@@ -947,29 +952,13 @@ export default function HexagonScene() {
       setSelectedDistrictData(null)
       console.log('[District Selection] No district selected, resetting to Seoul overview')
       
-      // 전체 서울로 돌아갈 때 단순보기 모드로 자동 복귀
-      setDisplayMode('simple')
+      // 전체 서울로 돌아가도 현재 표시 모드를 유지
+      // Display mode는 사용자가 버튼을 통해서만 변경
       
-      // Return to default Seoul view
-      isProgrammaticUpdateRef.current = true
-      setViewState(prevState => ({
-        ...prevState,
-        longitude: SEOUL_COORDINATES[0],
-        latitude: SEOUL_COORDINATES[1],
-        zoom: 11,
-        pitch: 60,  // Increased for better 3D effect
-        bearing: prevState.bearing || 0,
-        transitionDuration: 800, // Faster return animation
-        transitionInterpolator: new FlyToInterpolator(),
-        transitionEasing: (t: number) => t * (2 - t)
-      }))
-      
-      // Clear programmatic flag after transition
-      setTimeout(() => {
-        isProgrammaticUpdateRef.current = false
-      }, 900)
+      // Return to default Seoul view (재사용 함수 사용)
+      resetToDefaultView()
     }
-  }, [selectedGuCode, selectedDongCode, selectedGu, selectedDong, districtSelection.selectedDistrict, sggIndex, dongIndex, setDisplayMode]) // Use both codes and names
+  }, [selectedGuCode, selectedDongCode, selectedGu, selectedDong, districtSelection.selectedDistrict, sggIndex, dongIndex, resetToDefaultView]) // Use both codes and names
 
   // Memory cleanup effect
   useEffect(() => {

@@ -237,7 +237,10 @@ export default function LocalEconomyFilterPanel({
             size="sm"
             className="h-7 px-2 bg-gray-900/80 hover:bg-gray-800/90 text-gray-200 border-gray-700/50 text-xs whitespace-nowrap"
           >
-            {displayMode === 'simple' ? '업종별' : '총매출'}
+            {displayMode === 'simple' 
+              ? (selectedBusinessType ? selectedBusinessType : '업종별')
+              : '총매출'
+            }
           </Button>
         </div>
       </Card>

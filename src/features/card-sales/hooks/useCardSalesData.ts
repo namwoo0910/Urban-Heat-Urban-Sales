@@ -413,13 +413,21 @@ export function useLayerState(): UseLayerStateReturn {
       
       const dongKey = `${item.guName}_${item.dongName}`
       
-      // Calculate total sales for this dong
+      // Calculate sales based on selected business type
       let totalSales = 0
-      Object.entries(item.salesByCategory).forEach(([category, sales]) => {
-        if (sales && sales > 0 && !category.startsWith('sub_')) {
-          totalSales += sales
-        }
-      })
+      
+      if (selectedBusinessType) {
+        // If business type is selected, use only that category's sales
+        const categorySales = item.salesByCategory[selectedBusinessType] || 0
+        totalSales = categorySales
+      } else {
+        // If no business type selected, calculate total sales across all categories
+        Object.entries(item.salesByCategory).forEach(([category, sales]) => {
+          if (sales && sales > 0 && !category.startsWith('sub_')) {
+            totalSales += sales
+          }
+        })
+      }
       
       if (totalSales > 0) {
         const existing = dongGroups.get(dongKey)
@@ -431,23 +439,24 @@ export function useLayerState(): UseLayerStateReturn {
       }
     })
     
-    // Create one point per dong with total sales
+    // Create one point per dong with sales data
     dongGroups.forEach(({ totalSales, item }) => {
       simplePoints.push({
         coordinates: item.coordinates,
         weight: totalSales,
-        category: '전체',
+        category: selectedBusinessType || '전체',
         // Minimize originalData to only essential fields
         originalData: {
           ...item, // 전체 원본 데이터 포함
           총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
-          displayMode: 'simple'
+          displayMode: 'simple',
+          selectedBusinessType: selectedBusinessType // Add selected business type for reference
         }
       })
     })
     
     return simplePoints
-  }, [])
+  }, [selectedBusinessType])
   
   // Toggle display mode function
   const toggleDisplayMode = useCallback(() => {
