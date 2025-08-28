@@ -16,6 +16,9 @@ import { Button } from "@/src/shared/components/ui/button"
 import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
 import { COLOR_PALETTE_INFO, getColorPreviewStyle, type ColorScheme } from "@/src/features/card-sales/utils/premiumColors"
+import { Switch } from "@/src/shared/components/ui/switch"
+import { setDistrictTheme, getAvailableThemes, getCurrentTheme, setUseIndividualDistrictColors, getUseIndividualDistrictColors } from "@/src/shared/utils/districtUtils"
+import { COLOR_THEMES } from "@/src/shared/utils/districtColorThemes"
 
 // 지도 레이어 정의 (Mapbox 스타일)
 const mapLayers = [
@@ -58,6 +61,12 @@ interface UnifiedControlsProps {
   onBoundaryToggle?: (show: boolean) => void
   onSeoulBaseToggle?: (show: boolean) => void
   onDistrictLabelsToggle?: (show: boolean) => void
+  
+  // District visibility props
+  sggVisible?: boolean
+  dongVisible?: boolean
+  onSggVisibleChange?: (visible: boolean) => void
+  onDongVisibleChange?: (visible: boolean) => void
   
   // LayerControls props
   visible: boolean
@@ -120,8 +129,16 @@ export default function UnifiedControls({
   onElevationScaleChange,
   onColorSchemeChange,
   onReset,
+  
+  // District visibility props
+  sggVisible = true,
+  dongVisible = true,
+  onSggVisibleChange,
+  onDongVisibleChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
+  const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('bloomberg')
+  const [useIndividualColors, setUseIndividualColors] = useState(getUseIndividualDistrictColors())
 
   return (
     <div className={`fixed bottom-[350px] z-50 transition-all duration-300 left-4`}>
@@ -209,6 +226,105 @@ export default function UnifiedControls({
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+
+            {/* 자치구 테마 선택 */}
+            <div className="space-y-2">
+              <Label className="text-gray-200 text-xs font-semibold">자치구 테마</Label>
+              <Select
+                value={currentTheme}
+                onValueChange={(value: keyof typeof COLOR_THEMES) => {
+                  setCurrentTheme(value)
+                  setDistrictTheme(value)
+                }}
+              >
+                <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black/95 border-gray-800/50">
+                  <SelectItem value="bloomberg" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Bloomberg Terminal</span>
+                      <span className="text-xs text-white/60">금융 터미널 스타일</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="minimal" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Minimal</span>
+                      <span className="text-xs text-white/60">극도로 절제된 그레이</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="darkMatter" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Dark Matter</span>
+                      <span className="text-xs text-white/60">깊은 우주 테마</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="kepler" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Kepler.gl</span>
+                      <span className="text-xs text-white/60">Uber 데이터 비주얼</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="monochromeBlue" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Monochrome Blue</span>
+                      <span className="text-xs text-white/60">단색 블루 테마</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+
+            {/* 자치구 색상 모드 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-200 text-xs font-semibold">자치구별 색상</Label>
+                <Switch
+                  checked={useIndividualColors}
+                  onCheckedChange={(checked) => {
+                    setUseIndividualColors(checked)
+                    setUseIndividualDistrictColors(checked)
+                  }}
+                  className="scale-75"
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                {useIndividualColors ? '각 자치구마다 다른 색상 적용' : '모든 자치구에 동일한 테마 색상 적용'}
+              </p>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+
+            {/* 행정구역 표시 토글 */}
+            <div className="space-y-2">
+              <Label className="text-gray-200 text-xs font-semibold">행정구역 표시</Label>
+              <div className="space-y-2">
+                {/* 자치구 표시 */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-gray-300 text-xs">자치구 경계</Label>
+                  <Switch
+                    checked={sggVisible}
+                    onCheckedChange={onSggVisibleChange}
+                    className="scale-75"
+                    disabled={isDataLoading}
+                  />
+                </div>
+                {/* 행정동 표시 */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-gray-300 text-xs">행정동 경계</Label>
+                  <Switch
+                    checked={dongVisible}
+                    onCheckedChange={onDongVisibleChange}
+                    className="scale-75"
+                    disabled={isDataLoading}
+                  />
+                </div>
+              </div>
             </div>
 
             <Separator className="bg-gray-800/50" />

@@ -20,11 +20,12 @@ import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { DistrictLabelsLayer, DistrictLabelsOverlay } from "./DistrictLabelsLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
-import { DISTRICT_LAYER_PAINT, DISTRICT_COLORS, loadDistrictData } from "@/src/shared/utils/districtUtils"
+import { loadDistrictData, getDistrictLayerPaint, getDistrictColors, getCurrentTheme } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
 import { calculateBoundaryElevation } from "@/src/shared/constants/elevationConstants"
 import { RotateCcw } from "lucide-react"
 import "../styles/HexagonLayer.css"
+import "@/src/shared/styles/districtEffects.css"
 
 // 기본 서울 뷰 설정 상수
 const DEFAULT_SEOUL_VIEW = {
@@ -41,6 +42,7 @@ export default function HexagonScene() {
   const mapRef = useRef<MapRef>(null)
   const cleanupRef = useRef<(() => void)[]>([])
   const [showChartPanel, setShowChartPanel] = useState(false)
+  const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   
   // 레이어 상태 관리
   const {
@@ -655,10 +657,153 @@ export default function HexagonScene() {
     }
   }, [currentLayer])
 
+  // Update district colors when data changes
+  useEffect(() => {
+    const map = mapRef.current?.getMap()
+    if (!map) return
+    
+    // Get fresh paint properties with current theme
+    const paint = getDistrictLayerPaint()
+    
+    // Update colors when sgg or dong data loads
+    if (sggData && map.getLayer('sgg-fill')) {
+      map.setPaintProperty('sgg-fill', 'fill-color', paint.sggFill['fill-color'])
+      map.setPaintProperty('sgg-fill', 'fill-opacity', paint.sggFill['fill-opacity'])
+    }
+    
+    if (sggData && map.getLayer('sgg-line')) {
+      map.setPaintProperty('sgg-line', 'line-color', paint.sggLine['line-color'])
+      map.setPaintProperty('sgg-line', 'line-width', paint.sggLine['line-width'])
+    }
+    
+    if (dongData && map.getLayer('dong-fill')) {
+      map.setPaintProperty('dong-fill', 'fill-color', paint.dongFill['fill-color'])
+      map.setPaintProperty('dong-fill', 'fill-opacity', paint.dongFill['fill-opacity'])
+    }
+    
+    if (dongData && map.getLayer('dong-line')) {
+      map.setPaintProperty('dong-line', 'line-color', paint.dongLine['line-color'])
+      map.setPaintProperty('dong-line', 'line-width', paint.dongLine['line-width'])
+    }
+  }, [sggData, dongData])
+
+  // Listen for theme changes
+  useEffect(() => {
+    const handleThemeChange = (event: Event) => {
+      console.log('[HexagonLayer3D] Theme change event received', event)
+      
+      // Force React re-render by updating state
+      const newTheme = getCurrentTheme()
+      console.log('[HexagonLayer3D] Updating theme state to:', newTheme?.name)
+      setCurrentThemeState(newTheme)
+      
+      const map = mapRef.current?.getMap()
+      if (!map) {
+        console.log('[HexagonLayer3D] Map not ready')
+        return
+      }
+      
+      // Get fresh paint properties with new theme
+      const paint = getDistrictLayerPaint()
+      console.log('[HexagonLayer3D] New paint colors:', {
+        sggFill: paint.sggFill['fill-color'],
+        sggLine: paint.sggLine['line-color']
+      })
+      
+      // Update all layer colors
+      if (map.getLayer('sgg-fill')) {
+        map.setPaintProperty('sgg-fill', 'fill-color', paint.sggFill['fill-color'])
+        map.setPaintProperty('sgg-fill', 'fill-opacity', paint.sggFill['fill-opacity'])
+        console.log('[HexagonLayer3D] Updated sgg-fill')
+      }
+      
+      if (map.getLayer('sgg-line')) {
+        map.setPaintProperty('sgg-line', 'line-color', paint.sggLine['line-color'])
+        map.setPaintProperty('sgg-line', 'line-width', paint.sggLine['line-width'])
+        if (paint.sggLine['line-blur']) {
+          map.setPaintProperty('sgg-line', 'line-blur', paint.sggLine['line-blur'])
+        }
+        if (paint.sggLine['line-opacity']) {
+          map.setPaintProperty('sgg-line', 'line-opacity', paint.sggLine['line-opacity'])
+        }
+        console.log('[HexagonLayer3D] Updated sgg-line')
+      }
+      
+      if (map.getLayer('dong-fill')) {
+        map.setPaintProperty('dong-fill', 'fill-color', paint.dongFill['fill-color'])
+        map.setPaintProperty('dong-fill', 'fill-opacity', paint.dongFill['fill-opacity'])
+        console.log('[HexagonLayer3D] Updated dong-fill')
+      }
+      
+      if (map.getLayer('dong-line')) {
+        map.setPaintProperty('dong-line', 'line-color', paint.dongLine['line-color'])
+        map.setPaintProperty('dong-line', 'line-width', paint.dongLine['line-width'])
+        if (paint.dongLine['line-blur']) {
+          map.setPaintProperty('dong-line', 'line-blur', paint.dongLine['line-blur'])
+        }
+        if (paint.dongLine['line-opacity']) {
+          map.setPaintProperty('dong-line', 'line-opacity', paint.dongLine['line-opacity'])
+        }
+        console.log('[HexagonLayer3D] Updated dong-line')
+      }
+      
+      // Also update seoul boundary if it exists
+      if (map.getLayer('seoul-boundary')) {
+        const seoulPaint = getDistrictLayerPaint().seoulBoundaryLine
+        if (seoulPaint) {
+          map.setPaintProperty('seoul-boundary', 'line-color', seoulPaint['line-color'])
+          map.setPaintProperty('seoul-boundary', 'line-width', seoulPaint['line-width'])
+          console.log('[HexagonLayer3D] Updated seoul-boundary')
+        }
+      }
+    }
+    
+    // Listen for theme change events
+    window.addEventListener('themeChanged', handleThemeChange)
+    
+    return () => {
+      window.removeEventListener('themeChanged', handleThemeChange)
+    }
+  }, [])
+
   // 지도 로드 완료 후 Mapbox 레이어 추가
   const handleMapLoad = () => {
     const map = mapRef.current?.getMap()
     if (!map) return
+
+    // Apply dynamic district colors after map loads
+    setTimeout(() => {
+      const paint = getDistrictLayerPaint()
+      
+      // Ensure district fill layer has proper paint properties
+      if (map.getLayer('sgg-fill')) {
+        // Apply the district-specific colors dynamically
+        map.setPaintProperty('sgg-fill', 'fill-color', paint.sggFill['fill-color'])
+        map.setPaintProperty('sgg-fill', 'fill-opacity', paint.sggFill['fill-opacity'])
+      }
+      
+      // Ensure district line layer has proper paint properties
+      if (map.getLayer('sgg-line')) {
+        map.setPaintProperty('sgg-line', 'line-color', paint.sggLine['line-color'])
+        map.setPaintProperty('sgg-line', 'line-width', paint.sggLine['line-width'])
+        map.setPaintProperty('sgg-line', 'line-blur', paint.sggLine['line-blur'])
+        map.setPaintProperty('sgg-line', 'line-opacity', paint.sggLine['line-opacity'])
+      }
+      
+      // Ensure dong fill layer has proper paint properties
+      if (map.getLayer('dong-fill')) {
+        map.setPaintProperty('dong-fill', 'fill-color', paint.dongFill['fill-color'])
+        map.setPaintProperty('dong-fill', 'fill-opacity', paint.dongFill['fill-opacity'])
+      }
+      
+      // Ensure dong line layer has proper paint properties
+      if (map.getLayer('dong-line')) {
+        map.setPaintProperty('dong-line', 'line-color', paint.dongLine['line-color'])
+        map.setPaintProperty('dong-line', 'line-width', paint.dongLine['line-width'])
+        map.setPaintProperty('dong-line', 'line-blur', paint.dongLine['line-blur'])
+        map.setPaintProperty('dong-line', 'line-opacity', paint.dongLine['line-opacity'])
+      }
+    }, 100) // Small delay to ensure layers are ready
 
     // 서울 정확한 행정구역 GeoJSON 데이터 로드 (안전한 소스 추가)
     if (!map.getSource("seoul-boundary")) {
@@ -710,7 +855,7 @@ export default function HexagonScene() {
           "line-cap": "round",
           visibility: showBoundary ? "visible" : "none"
         },
-        paint: DISTRICT_LAYER_PAINT.seoulBoundaryLine,
+        paint: getDistrictLayerPaint().seoulBoundaryLine,
       })
 
       // 서울 경계 하이라이트 효과 (선택적)
@@ -1092,28 +1237,11 @@ export default function HexagonScene() {
           {sggData && (
             <Source id="sgg-source" type="geojson" data={sggData}>
               
-              {/* District fill - 2D 배경 (fallback) */}
+              {/* District fill - 2D 배경 with district-specific colors */}
               <Layer
                 id="sgg-fill"
                 type="fill"
-                paint={{
-                  'fill-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, 'rgba(100, 120, 255, 0.05)',
-                    12, 'rgba(100, 120, 255, 0.08)',
-                    16, 'rgba(100, 120, 255, 0.1)'
-                  ],
-                  'fill-opacity': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, 0.3,
-                    12, 0.4,
-                    16, 0.5
-                  ]
-                }}
+                paint={getDistrictLayerPaint().sggFill as any}
                 layout={{ 
                   visibility: districtSelection.sggVisible ? 'visible' : 'none' 
                 }}
@@ -1153,25 +1281,7 @@ export default function HexagonScene() {
               <Layer
                 id="sgg-line"
                 type="line"
-                paint={{
-                  'line-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, 'rgba(100, 200, 255, 0.6)',
-                    12, 'rgba(0, 255, 255, 0.7)',
-                    16, 'rgba(0, 255, 255, 0.8)'
-                  ],
-                  'line-width': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, 1.5,
-                    12, 2,
-                    16, 2.5
-                  ],
-                  'line-opacity': 0.9
-                }}
+                paint={getDistrictLayerPaint().sggLine as any}
                 layout={{ 
                   visibility: districtSelection.sggVisible ? 'visible' : 'none' 
                 }}
@@ -1216,28 +1326,11 @@ export default function HexagonScene() {
           {dongData && (
             <Source id="dong-source" type="geojson" data={dongData}>
               
-              {/* Dong fill with modern gradient (fallback) */}
+              {/* Dong fill with district-aware colors */}
               <Layer
                 id="dong-fill"
                 type="fill"
-                paint={{
-                  'fill-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    10, 'rgba(160, 100, 255, 0.03)',
-                    14, 'rgba(160, 100, 255, 0.05)',
-                    18, 'rgba(160, 100, 255, 0.07)'
-                  ],
-                  'fill-opacity': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    10, 0.3,
-                    14, 0.4,
-                    18, 0.5
-                  ]
-                }}
+                paint={getDistrictLayerPaint().dongFill as any}
                 layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
               />
               
@@ -1259,25 +1352,7 @@ export default function HexagonScene() {
               <Layer
                 id="dong-line"
                 type="line"
-                paint={{
-                  'line-color': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    10, 'rgba(180, 150, 255, 0.3)',
-                    14, 'rgba(180, 150, 255, 0.4)',
-                    18, 'rgba(180, 150, 255, 0.5)'
-                  ],
-                  'line-width': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    10, 0.8,
-                    14, 1.0,
-                    18, 1.2
-                  ],
-                  'line-opacity': 0.8
-                }}
+                paint={getDistrictLayerPaint().dongLine as any}
                 layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
               />
             </Source>
@@ -1289,7 +1364,7 @@ export default function HexagonScene() {
               <Layer
                 id="jib-line"
                 type="line"
-                paint={DISTRICT_LAYER_PAINT.jibLine}
+                paint={getDistrictLayerPaint().jibLine as any}
                 layout={{ visibility: districtSelection.jibVisible ? 'visible' : 'none' }}
                 minzoom={10}
               />
@@ -1493,6 +1568,11 @@ export default function HexagonScene() {
         currentTime={currentTime}
         showBoundary={showBoundary}
         showSeoulBase={showSeoulBase}
+        // District visibility props
+        sggVisible={districtSelection.sggVisible}
+        dongVisible={districtSelection.dongVisible}
+        onSggVisibleChange={(visible) => districtSelection.setSggVisible(visible)}
+        onDongVisibleChange={(visible) => districtSelection.setDongVisible(visible)}
         onBoundaryToggle={(show) => {
           setShowBoundary(show)
           const map = mapRef.current?.getMap()
