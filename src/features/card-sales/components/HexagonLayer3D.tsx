@@ -212,25 +212,17 @@ export default function HexagonScene() {
     console.log('District label clicked:', districtName)
     setSelectedGu(districtName)
     setSelectedDong(null)
-    
-    // 해당 구로 줌인
-    const center = getDistrictCenter(districtName)
-    if (center) {
-      isProgrammaticUpdateRef.current = true
-      setViewState(prev => ({
-        ...prev,
-        longitude: center[0],
-        latitude: center[1],
-        zoom: 12,
-        transitionDuration: 1000,
-        transitionInterpolator: new FlyToInterpolator(),
-        transitionEasing: (t: number) => t * (2 - t)
-      }))
-      setTimeout(() => {
-        isProgrammaticUpdateRef.current = false
-      }, 1100)
+    // 구 코드 설정
+    const guCode = getDistrictCode(districtName)
+    if (guCode) {
+      setSelectedGuCode(guCode)
     }
-  }, [setSelectedGu, setSelectedDong])
+    setSelectedDongCode(null)
+    
+    // 구 라벨 클릭시: 서울 전체 뷰 유지, 하이라이트만 표시
+    // 줌인하지 않음
+    console.log('[District Label Click] Selected gu:', districtName, ' - maintaining Seoul view')
+  }, [setSelectedGu, setSelectedDong, setSelectedGuCode, setSelectedDongCode])
   
   // 전체 초기화 함수 - 필터, 레이어, 뷰 모두 리셋
   const handleFullReset = useCallback(() => {
@@ -390,7 +382,7 @@ export default function HexagonScene() {
     }
   }, [setHoveredObject])
 
-  // Handle hexagon click for zoom - optimized to match data filter logic + auto switch to detailed mode
+  // Handle hexagon click - matches new viewport logic
   const handleHexagonClick = useCallback((info: PickingInfo) => {
     if (info.object && info.object.originalData) {
       const { guName, dongName, guCode, dongCode } = info.object.originalData
@@ -404,34 +396,30 @@ export default function HexagonScene() {
         }, 200)
       }
       
-      // Set district selections with both names and codes to trigger zoom
+      // Set district selections with both names and codes
       if (dongName && guName) {
+        // 동 클릭시: 구와 동 모두 설정
         setSelectedGu(guName)
-        // Use provided code or lookup from name
         const calculatedGuCode = guCode || getDistrictCode(guName)
         const calculatedDongCode = dongCode || getDongCode(guName, dongName)
         
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(dongName)
         setSelectedDongCode(calculatedDongCode)
-        // 클릭시에도 현재 표시 모드를 유지
-        // Display mode는 사용자가 버튼을 통해서만 변경
         
         console.log('[HexagonClick] Selected dong:', { guName, guCode: calculatedGuCode, dongName, dongCode: calculatedDongCode })
       } else if (guName) {
+        // 구 클릭시: 구만 설정 (서울 전체 뷰 유지)
         setSelectedGu(guName)
-        // Use provided code or lookup from name
         const calculatedGuCode = guCode || getDistrictCode(guName)
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(null)
         setSelectedDongCode(null)
-        // 구 레벨 클릭시에도 현재 표시 모드를 유지
-        // Display mode는 사용자가 버튼을 통해서만 변경
         
         console.log('[HexagonClick] Selected gu:', { guName, guCode: calculatedGuCode })
       }
       
-      // Hexagon clicked - zoom to selected area
+      // 뷰포트 변경은 useEffect에서 자동 처리됨
     }
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
 
@@ -865,17 +853,33 @@ export default function HexagonScene() {
       })
       
       let foundFeature = null
+      let foundGuFeature = null // 동 선택시 구 경계도 필요
       
       // Fast lookup using Map index with codes - O(1) instead of O(n)
       // 동이 선택된 경우 동 경계를 하이라이트
       if (selectedDongCode) {
-        console.log('[DongSelection] Looking for dong code:', selectedDongCode)
+        console.log('[DongSelection] Looking for dong code:', selectedDongCode, 'Type:', typeof selectedDongCode)
         const dongFeature = dongIndex.get(selectedDongCode)
         if (dongFeature) {
           console.log('[DongSelection] Found dong feature:', dongFeature.properties)
+          console.log('[DongSelection] Dong properties keys:', Object.keys(dongFeature.properties))
           foundFeature = dongFeature
+          
+          // 동 선택시 해당 구 경계도 찾기
+          if (selectedGuCode || selectedGu) {
+            let sggFeature = selectedGuCode ? sggIndex.get(selectedGuCode) : null
+            if (!sggFeature && selectedGu) {
+              sggFeature = sggIndex.get(selectedGu)
+            }
+            if (sggFeature) {
+              console.log('[DongSelection] Also found gu feature for context:', sggFeature.properties)
+              foundGuFeature = sggFeature
+            }
+          }
         } else {
-          console.log('[DongSelection] Dong code not found in index! Available codes:', Array.from(dongIndex.keys()).slice(0, 10))
+          console.log('[DongSelection] Dong code not found in index!')
+          console.log('[DongSelection] Available keys types:', Array.from(dongIndex.keys()).slice(0, 5).map(k => typeof k))
+          console.log('[DongSelection] Available codes:', Array.from(dongIndex.keys()).slice(0, 10))
         }
       }
       // 구만 선택된 경우 구 경계를 하이라이트  
@@ -902,46 +906,49 @@ export default function HexagonScene() {
       }
       
       if (foundFeature) {
+        // 동 선택시 구 경계도 함께 표시하기 위해 features 배열 구성
+        const features = foundGuFeature 
+          ? [foundGuFeature, foundFeature] // 구를 먼저, 동을 나중에 (레이어 순서)
+          : [foundFeature] // 구만
+        
         const selectedFeatureData = {
           type: 'FeatureCollection',
-          features: [foundFeature]
+          features: features
         }
+        
+        console.log('[SelectedFeatures] Created FeatureCollection with', features.length, 'features')
+        features.forEach((f, idx) => {
+          console.log(`[Feature ${idx}]:`, Object.keys(f.properties).slice(0, 5), '...')
+        })
         
         setSelectedDistrictData(selectedFeatureData)
         
-        // Get pre-calculated center point for camera movement
-        const center = selectedDong 
-          ? getDistrictCenter('동', selectedDong)
-          : selectedGu 
-            ? getDistrictCenter('구', selectedGu)
-            : null
-        
-        if (center) {
-          // Determine zoom level and pitch based on selection type
-          const isDistrictLevel = !selectedDong && selectedGu // 구 레벨
-          const zoom = isDistrictLevel ? 13 : 15 // 구: 13 (더 가까이), 동: 15 (더 상세하게)
-          const pitch = isDistrictLevel ? 60 : 65 // 구: 60도, 동: 65도 - Increased for better 3D effect
-          
-          // Smooth camera movement using FlyToInterpolator
-          // Set programmatic flag to prevent infinite loop
-          isProgrammaticUpdateRef.current = true
-          
-          setViewState(prevState => ({
-            ...prevState,
-            longitude: center[0],
-            latitude: center[1],
-            zoom,
-            pitch,
-            bearing: prevState.bearing || 0, // Preserve current bearing
-            transitionDuration: 1500, // 1.5 seconds for smoother animation
-            transitionInterpolator: new FlyToInterpolator({ speed: 1.2 }),
-            transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t) // smoother ease-in-out
-          }))
-          
-          // Clear programmatic flag after a delay to allow transition to complete
-          setTimeout(() => {
-            isProgrammaticUpdateRef.current = false
-          }, 1600) // Slightly longer than transition duration
+        // 카메라 이동 로직 수정
+        if (selectedDong && selectedGu) {
+          // 동 선택시: 해당 구로 줌인
+          const guCenter = getDistrictCenter('구', selectedGu)
+          if (guCenter) {
+            isProgrammaticUpdateRef.current = true
+            setViewState(prevState => ({
+              ...prevState,
+              longitude: guCenter[0],
+              latitude: guCenter[1],
+              zoom: 13, // 구 레벨 줌 (행정동들이 잘 보이는 레벨)
+              pitch: 45, // 적당한 3D 각도
+              bearing: prevState.bearing || 0,
+              transitionDuration: 1500,
+              transitionInterpolator: new FlyToInterpolator({ speed: 1.2 }),
+              transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
+            }))
+            setTimeout(() => {
+              isProgrammaticUpdateRef.current = false
+            }, 1600)
+          }
+        } else if (selectedGu && !selectedDong) {
+          // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
+          // 줌 변경 없이 현재 뷰 유지 (서울 전체가 보이는 상태)
+          console.log('[GuSelection] Maintaining Seoul-wide view with district highlight')
+          // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
         }
       } else {
         setSelectedDistrictData(null)
@@ -1289,31 +1296,71 @@ export default function HexagonScene() {
             </Source>
           )}
 
-          {/* Selected District Layer with modern 3D effect */}
+          {/* Selected District Layer with enhanced visibility */}
           {selectedDistrictData && (
             <Source id="selected-district-source" type="geojson" data={selectedDistrictData}>
+              
+              {/* Fill layer for selected area - subtle background */}
+              <Layer
+                id="selected-fill"
+                type="fill"
+                paint={{
+                  'fill-color': [
+                    'case',
+                    // 동 선택시 - 다양한 속성명 지원 및 타입 변환
+                    ['any',
+                      ['==', ['to-string', ['get', 'ADM_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'H_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'DONG_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'ADM_DR_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'EMD_CD']], String(selectedDongCode)]
+                    ], 'rgba(255, 100, 150, 0.2)', // 동 - 핑크색
+                    // 구 선택시 - 다양한 속성명 지원
+                    ['any',
+                      ['==', ['to-string', ['get', 'SIG_CD']], String(selectedGuCode)],
+                      ['==', ['to-string', ['get', 'SGG_CD']], String(selectedGuCode)],
+                      ['==', ['to-string', ['get', 'GU_CD']], String(selectedGuCode)],
+                      ['==', ['to-string', ['get', 'SIGUNGU_CD']], String(selectedGuCode)],
+                      ['==', ['get', 'SIGUNGU_NM'], selectedGu]
+                    ], 'rgba(102, 126, 234, 0.15)', // 구 - 파란색
+                    'rgba(102, 126, 234, 0.1)' // 기본값
+                  ],
+                  'fill-opacity': 0.6
+                }}
+              />
               
               {/* Selected shadow for depth */}
               <Layer
                 id="selected-shadow"
                 type="line"
                 paint={{
-                  'line-color': 'rgba(0, 0, 0, 0.4)',
-                  'line-width': 8,
-                  'line-blur': 5,
+                  'line-color': 'rgba(0, 0, 0, 0.5)',
+                  'line-width': 10,
+                  'line-blur': 6,
                   'line-translate': [4, 4],
                   'line-translate-anchor': 'viewport'
                 }}
               />
               
-              {/* Selected glow effect - outer */}
+              {/* Selected glow effect - outer (더 밝고 넓게) */}
               <Layer
                 id="selected-glow-outer"
                 type="line"
                 paint={{
-                  'line-color': selectedDong ? 'rgba(255, 100, 150, 0.3)' : 'rgba(102, 126, 234, 0.3)',
-                  'line-width': selectedDong ? 15 : 12,
-                  'line-blur': 6
+                  'line-color': [
+                    'case',
+                    // 동 선택시 - 다양한 속성명 지원
+                    ['any',
+                      ['==', ['to-string', ['get', 'ADM_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'H_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'DONG_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'ADM_DR_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'EMD_CD']], String(selectedDongCode)]
+                    ], 'rgba(255, 100, 150, 0.4)', // 동
+                    'rgba(102, 126, 234, 0.4)' // 구
+                  ],
+                  'line-width': selectedDong ? 20 : 18,
+                  'line-blur': 8
                 }}
               />
               
@@ -1322,27 +1369,49 @@ export default function HexagonScene() {
                 id="selected-glow-mid"
                 type="line"
                 paint={{
-                  'line-color': selectedDong ? 'rgba(255, 100, 150, 0.5)' : 'rgba(102, 126, 234, 0.5)',
-                  'line-width': selectedDong ? 8 : 6,
-                  'line-blur': 3
+                  'line-color': [
+                    'case',
+                    // 동 선택시 - 다양한 속성명 지원
+                    ['any',
+                      ['==', ['to-string', ['get', 'ADM_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'H_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'DONG_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'ADM_DR_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'EMD_CD']], String(selectedDongCode)]
+                    ], 'rgba(255, 100, 150, 0.6)', // 동
+                    'rgba(102, 126, 234, 0.6)' // 구
+                  ],
+                  'line-width': selectedDong ? 12 : 10,
+                  'line-blur': 4
                 }}
               />
               
-              {/* Selected district outline with bright neon */}
+              {/* Selected district outline with bright neon (더 두껍게) */}
               <Layer
                 id="selected-district-line"
                 type="line"
                 paint={{
-                  'line-color': selectedDong ? '#ff00aa' : '#00ff88',
+                  'line-color': [
+                    'case',
+                    // 동 선택시 - 다양한 속성명 지원
+                    ['any',
+                      ['==', ['to-string', ['get', 'ADM_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'H_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'DONG_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'ADM_DR_CD']], String(selectedDongCode)],
+                      ['==', ['to-string', ['get', 'EMD_CD']], String(selectedDongCode)]
+                    ], '#ff00aa', // 동 - 핑크
+                    '#00ff88' // 구 - 민트그린
+                  ],
                   'line-width': [
                     'interpolate',
                     ['linear'],
                     ['zoom'],
-                    8, 3,
-                    12, 5,
-                    16, 7
+                    8, selectedDong ? 4 : 5,
+                    12, selectedDong ? 6 : 8,
+                    16, selectedDong ? 8 : 10
                   ],
-                  'line-opacity': 0.95
+                  'line-opacity': 1
                 }}
               />
               
@@ -1356,13 +1425,28 @@ export default function HexagonScene() {
                     'interpolate',
                     ['linear'],
                     ['zoom'],
-                    8, 1,
-                    12, 2,
-                    16, 3
+                    8, 1.5,
+                    12, 2.5,
+                    16, 3.5
                   ],
-                  'line-opacity': 0.8
+                  'line-opacity': 0.9
                 }}
               />
+              
+              {/* 구 경계 보조선 (동 선택시) - 연한 표시 */}
+              {selectedDong && (
+                <Layer
+                  id="selected-gu-boundary"
+                  type="line"
+                  paint={{
+                    'line-color': 'rgba(102, 126, 234, 0.5)',
+                    'line-width': 3,
+                    'line-opacity': 0.6,
+                    'line-dasharray': [2, 2]
+                  }}
+                  filter={['==', ['get', 'SIGUNGU_NM'], selectedGu]}
+                />
+              )}
             </Source>
           )}
           

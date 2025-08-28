@@ -292,8 +292,14 @@ export function useLayerState(): UseLayerStateReturn {
       })
     }
     
-    // Filter by dong code (행정동코드) - 코드로 필터링
-    if (selectedDongCode) {
+    // 동 선택시에도 구 단위로 필터링 (해당 구의 모든 동 표시)
+    // 행정동은 하이라이트용으로만 사용, 데이터는 구 전체 표시
+    if (selectedDongCode && selectedGuCode) {
+      // 동이 선택되어도 구 코드로만 필터링 (구 전체 데이터 표시)
+      // 이미 위에서 구 필터링이 적용되었으므로 추가 필터링 불필요
+      console.log('[Filter] Dong selected but showing all dongs in gu:', selectedGu, selectedDong)
+    } else if (selectedDongCode && !selectedGuCode) {
+      // 구 코드 없이 동만 선택된 경우 (fallback - 일반적으로 발생하지 않음)
       filteredData = filteredData.filter(item => {
         // dongCode is number
         return item.dongCode === selectedDongCode

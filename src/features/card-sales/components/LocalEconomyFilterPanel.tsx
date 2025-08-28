@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useMemo } from "react"
+import React, { useState, useEffect, useMemo, useRef } from "react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/components/ui/select"
 import { Button } from "@/src/shared/components/ui/button"
@@ -66,14 +66,17 @@ export default function LocalEconomyFilterPanel({
     if (value === '전체') {
       setSelectedGu(null)
       setSelectedGuCode(null)
+      setSelectedDong(null)
+      setSelectedDongCode(null)
+      setSelectedBusinessType(null) // Reset business type as well
     } else {
       setSelectedGu(value)
       const code = getDistrictCode(value)
       setSelectedGuCode(code || null)
+      setSelectedDong(null) // Reset dong when district changes
+      setSelectedDongCode(null)
       console.log('[LocalEconomyFilter] Selected Gu:', { name: value, code })
     }
-    setSelectedDong(null) // Reset dong when district changes
-    setSelectedDongCode(null)
   }
   
   // Handle dong selection
@@ -95,46 +98,94 @@ export default function LocalEconomyFilterPanel({
   }
   
   
-  // External sync for bidirectional updates
+  // External sync for bidirectional updates - Fixed to prevent infinite loops
   useEffect(() => {
     // Only update if values are different to prevent infinite loops
     if (externalSelectedGu !== undefined && externalSelectedGu !== selectedGu) {
       setSelectedGu(externalSelectedGu)
       setSelectedGuCode(externalSelectedGu ? getDistrictCode(externalSelectedGu) || null : null)
-    }
-  }, [externalSelectedGu])
-
-  useEffect(() => {
-    // Only update if values are different to prevent infinite loops
-    if (externalSelectedDong !== undefined && externalSelectedDong !== selectedDong) {
-      setSelectedDong(externalSelectedDong)
-      if (selectedGu && externalSelectedDong) {
-        setSelectedDongCode(getDongCode(selectedGu, externalSelectedDong) || null)
-      } else {
+      // If gu is cleared, also clear dong
+      if (!externalSelectedGu) {
+        setSelectedDong(null)
         setSelectedDongCode(null)
       }
     }
-  }, [externalSelectedDong, selectedGu])
+  }, [externalSelectedGu]) // Remove selectedGu dependency to prevent loops
+
+  useEffect(() => {
+    // Only update if values are different to prevent infinite loops
+    // Also check if parent gu exists before setting dong
+    if (externalSelectedDong !== undefined && externalSelectedDong !== selectedDong) {
+      // Only set dong if there's a selected gu or if dong is being cleared
+      if (!externalSelectedDong || selectedGu) {
+        setSelectedDong(externalSelectedDong)
+        if (selectedGu && externalSelectedDong) {
+          setSelectedDongCode(getDongCode(selectedGu, externalSelectedDong) || null)
+        } else {
+          setSelectedDongCode(null)
+        }
+      }
+    }
+  }, [externalSelectedDong, selectedGu]) // Keep selectedGu for dong code calculation
 
   useEffect(() => {
     // Only update if values are different to prevent infinite loops
     if (externalSelectedBusinessType !== undefined && externalSelectedBusinessType !== selectedBusinessType) {
       setSelectedBusinessType(externalSelectedBusinessType)
     }
-  }, [externalSelectedBusinessType])
+  }, [externalSelectedBusinessType]) // Remove selectedBusinessType dependency
 
-  // Notify parent of filter changes
+  // Track if it's the initial mount
+  const isInitialMount = useRef(true)
+  const previousValues = useRef({
+    selectedGu,
+    selectedGuCode,
+    selectedDong,
+    selectedDongCode,
+    selectedBusinessType
+  })
+
+  // Notify parent of filter changes - Fixed to prevent initial trigger and loops
   useEffect(() => {
-    if (onFilterChange) {
-      onFilterChange({
+    // Skip initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false
+      // Initialize previous values on mount
+      previousValues.current = {
         selectedGu,
         selectedGuCode,
         selectedDong,
         selectedDongCode,
         selectedBusinessType
-      })
+      }
+      return
     }
-  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, onFilterChange])
+    
+    // Check if values actually changed
+    const hasChanged = 
+      previousValues.current.selectedGu !== selectedGu ||
+      previousValues.current.selectedGuCode !== selectedGuCode ||
+      previousValues.current.selectedDong !== selectedDong ||
+      previousValues.current.selectedDongCode !== selectedDongCode ||
+      previousValues.current.selectedBusinessType !== selectedBusinessType
+    
+    if (hasChanged && onFilterChange) {
+      // Update previous values before calling onChange to prevent race conditions
+      const newValues = {
+        selectedGu,
+        selectedGuCode,
+        selectedDong,
+        selectedDongCode,
+        selectedBusinessType
+      }
+      previousValues.current = newValues
+      
+      // Use setTimeout to break the synchronous update chain
+      setTimeout(() => {
+        onFilterChange(newValues)
+      }, 0)
+    }
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType]) // Remove onFilterChange dependency
   
   
   return (
