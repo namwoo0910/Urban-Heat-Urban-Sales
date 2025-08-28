@@ -470,6 +470,147 @@ export const COLOR_THEMES = {
       line: 'rgba(33, 150, 243, 0.6)',
       glow: 'rgba(33, 150, 243, 0.25)'
     }
+  },
+  
+  // 새로운 3D 테마들
+  blue: {
+    name: 'Ocean Blue',
+    description: '파란색 계열 3D 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(0, 50, 100, 0.1)',
+      lineColor: 'rgba(100, 150, 200, 0.5)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(100, 150, 200, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(0, 50, 100, 0.05)',
+      lineColor: 'rgba(100, 150, 200, 0.3)',
+      lineWidth: 0.5,
+      glowColor: 'rgba(100, 150, 200, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(0, 100, 200, 0.3)',
+      line: 'rgba(0, 150, 255, 0.8)',
+      glow: 'rgba(0, 150, 255, 0.4)'
+    },
+    hover: {
+      fill: 'rgba(50, 150, 250, 0.2)',
+      line: 'rgba(50, 150, 250, 0.8)',
+      glow: 'rgba(50, 150, 250, 0.3)'
+    }
+  },
+  
+  green: {
+    name: 'Forest Green',
+    description: '초록색 계열 3D 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(0, 60, 30, 0.1)',
+      lineColor: 'rgba(100, 200, 100, 0.5)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(100, 200, 100, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(0, 60, 30, 0.05)',
+      lineColor: 'rgba(100, 200, 100, 0.3)',
+      lineWidth: 0.5,
+      glowColor: 'rgba(100, 200, 100, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(0, 150, 50, 0.3)',
+      line: 'rgba(0, 255, 100, 0.8)',
+      glow: 'rgba(0, 255, 100, 0.4)'
+    },
+    hover: {
+      fill: 'rgba(50, 200, 100, 0.2)',
+      line: 'rgba(50, 200, 100, 0.8)',
+      glow: 'rgba(50, 200, 100, 0.3)'
+    }
+  },
+  
+  purple: {
+    name: 'Royal Purple',
+    description: '보라색 계열 3D 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(60, 30, 80, 0.1)',
+      lineColor: 'rgba(150, 100, 200, 0.5)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(150, 100, 200, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(60, 30, 80, 0.05)',
+      lineColor: 'rgba(150, 100, 200, 0.3)',
+      lineWidth: 0.5,
+      glowColor: 'rgba(150, 100, 200, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(120, 60, 180, 0.3)',
+      line: 'rgba(180, 100, 255, 0.8)',
+      glow: 'rgba(180, 100, 255, 0.4)'
+    },
+    hover: {
+      fill: 'rgba(150, 80, 200, 0.2)',
+      line: 'rgba(150, 80, 200, 0.8)',
+      glow: 'rgba(150, 80, 200, 0.3)'
+    }
+  },
+  
+  orange: {
+    name: 'Sunset Orange',
+    description: '주황색 계열 3D 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(100, 50, 0, 0.1)',
+      lineColor: 'rgba(255, 150, 50, 0.5)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(255, 150, 50, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(100, 50, 0, 0.05)',
+      lineColor: 'rgba(255, 150, 50, 0.3)',
+      lineWidth: 0.5,
+      glowColor: 'rgba(255, 150, 50, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(200, 100, 0, 0.3)',
+      line: 'rgba(255, 150, 0, 0.8)',
+      glow: 'rgba(255, 150, 0, 0.4)'
+    },
+    hover: {
+      fill: 'rgba(255, 180, 50, 0.2)',
+      line: 'rgba(255, 180, 50, 0.8)',
+      glow: 'rgba(255, 180, 50, 0.3)'
+    }
+  },
+  
+  mono: {
+    name: 'Monochrome',
+    description: '회색 계열 3D 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(50, 50, 50, 0.1)',
+      lineColor: 'rgba(150, 150, 150, 0.5)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(150, 150, 150, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(50, 50, 50, 0.05)',
+      lineColor: 'rgba(150, 150, 150, 0.3)',
+      lineWidth: 0.5,
+      glowColor: 'rgba(150, 150, 150, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(100, 100, 100, 0.3)',
+      line: 'rgba(200, 200, 200, 0.8)',
+      glow: 'rgba(200, 200, 200, 0.4)'
+    },
+    hover: {
+      fill: 'rgba(150, 150, 150, 0.2)',
+      line: 'rgba(150, 150, 150, 0.8)',
+      glow: 'rgba(150, 150, 150, 0.3)'
+    }
   }
 }
 

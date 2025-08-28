@@ -145,7 +145,7 @@ export default function UnifiedControls({
   onIs3DModeChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
-  const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('bloomberg')
+  const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('orange')
   const [useIndividualColors, setUseIndividualColors] = useState(getUseIndividualDistrictColors())
 
   return (
@@ -252,34 +252,34 @@ export default function UnifiedControls({
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent className="bg-black/95 border-gray-800/50">
-                  <SelectItem value="bloomberg" className="text-gray-200 hover:bg-gray-900/50">
+                  <SelectItem value="blue" className="text-gray-200 hover:bg-gray-900/50">
                     <div className="flex flex-col">
-                      <span className="font-medium">Bloomberg Terminal</span>
-                      <span className="text-xs text-white/60">금융 터미널 스타일</span>
+                      <span className="font-medium">Ocean Blue</span>
+                      <span className="text-xs text-white/60">파란색 계열</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="minimal" className="text-gray-200 hover:bg-gray-900/50">
+                  <SelectItem value="green" className="text-gray-200 hover:bg-gray-900/50">
                     <div className="flex flex-col">
-                      <span className="font-medium">Minimal</span>
-                      <span className="text-xs text-white/60">극도로 절제된 그레이</span>
+                      <span className="font-medium">Forest Green</span>
+                      <span className="text-xs text-white/60">초록색 계열</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="darkMatter" className="text-gray-200 hover:bg-gray-900/50">
+                  <SelectItem value="purple" className="text-gray-200 hover:bg-gray-900/50">
                     <div className="flex flex-col">
-                      <span className="font-medium">Dark Matter</span>
-                      <span className="text-xs text-white/60">깊은 우주 테마</span>
+                      <span className="font-medium">Royal Purple</span>
+                      <span className="text-xs text-white/60">보라색 계열</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="kepler" className="text-gray-200 hover:bg-gray-900/50">
+                  <SelectItem value="orange" className="text-gray-200 hover:bg-gray-900/50">
                     <div className="flex flex-col">
-                      <span className="font-medium">Kepler.gl</span>
-                      <span className="text-xs text-white/60">Uber 데이터 비주얼</span>
+                      <span className="font-medium">Sunset Orange</span>
+                      <span className="text-xs text-white/60">주황색 계열</span>
                     </div>
                   </SelectItem>
-                  <SelectItem value="monochromeBlue" className="text-gray-200 hover:bg-gray-900/50">
+                  <SelectItem value="mono" className="text-gray-200 hover:bg-gray-900/50">
                     <div className="flex flex-col">
-                      <span className="font-medium">Monochrome Blue</span>
-                      <span className="text-xs text-white/60">단색 블루 테마</span>
+                      <span className="font-medium">Monochrome</span>
+                      <span className="text-xs text-white/60">회색 계열</span>
                     </div>
                   </SelectItem>
                 </SelectContent>

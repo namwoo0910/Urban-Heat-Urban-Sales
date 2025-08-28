@@ -1,7 +1,8 @@
 import { COLOR_THEMES, DISTRICT_FILL_COLORS, getDistrictColor } from './districtColorThemes'
 
-// 현재 활성 테마 (기본값: bloomberg - 세련된 모노크롬)
-let currentTheme = COLOR_THEMES.bloomberg
+// 현재 활성 테마 (기본값: orange - 주황색 테마)
+let currentTheme = COLOR_THEMES.orange
+let currentThemeKey: keyof typeof COLOR_THEMES = 'orange'
 
 // 자치구별 개별 색상 사용 여부 (true: 각 자치구 다른 색상, false: 모노크롬)
 let useIndividualDistrictColors = true
@@ -9,8 +10,9 @@ let useIndividualDistrictColors = true
 // 테마 설정 함수
 export function setDistrictTheme(themeName: keyof typeof COLOR_THEMES) {
   console.log('[setDistrictTheme] Changing theme from', currentTheme?.name, 'to', themeName)
-  currentTheme = COLOR_THEMES[themeName] || COLOR_THEMES.bloomberg
-  console.log('[setDistrictTheme] New theme:', currentTheme)
+  currentTheme = COLOR_THEMES[themeName] || COLOR_THEMES.orange
+  currentThemeKey = themeName
+  console.log('[setDistrictTheme] New theme:', currentTheme, 'Key:', currentThemeKey)
   console.log('[setDistrictTheme] Theme fillBase:', currentTheme?.sgg?.fillBase)
   console.log('[setDistrictTheme] Theme lineColor:', currentTheme?.sgg?.lineColor)
   
@@ -24,6 +26,11 @@ export function setDistrictTheme(themeName: keyof typeof COLOR_THEMES) {
 // 현재 테마 가져오기
 export function getCurrentTheme() {
   return currentTheme
+}
+
+// 현재 테마 키 가져오기 
+export function getCurrentThemeKey() {
+  return currentThemeKey
 }
 
 // 사용 가능한 테마 목록
@@ -122,35 +129,36 @@ function createDistrictColorExpression() {
   }
   
   // Mapbox match 표현식으로 자치구별 다른 색상 적용 (테마 기반)
+  const defaultColor = currentTheme?.sgg?.fillBase || 'rgba(26, 17, 0, 0.4)'
   return [
     'match',
     ['get', 'SIGUNGU_NM'],  // 자치구 이름 속성
-    '강남구', palette['강남구'],
-    '서초구', palette['서초구'],
-    '송파구', palette['송파구'],
-    '강동구', palette['강동구'],
-    '광진구', palette['광진구'],
-    '성동구', palette['성동구'],
-    '중랑구', palette['중랑구'],
-    '종로구', palette['종로구'],
-    '중구', palette['중구'],
-    '용산구', palette['용산구'],
-    '성북구', palette['성북구'],
-    '강북구', palette['강북구'],
-    '도봉구', palette['도봉구'],
-    '노원구', palette['노원구'],
-    '강서구', palette['강서구'],
-    '양천구', palette['양천구'],
-    '구로구', palette['구로구'],
-    '금천구', palette['금천구'],
-    '영등포구', palette['영등포구'],
-    '동작구', palette['동작구'],
-    '관악구', palette['관악구'],
-    '마포구', palette['마포구'],
-    '서대문구', palette['서대문구'],
-    '은평구', palette['은평구'],
+    '강남구', palette['강남구'] || defaultColor,
+    '서초구', palette['서초구'] || defaultColor,
+    '송파구', palette['송파구'] || defaultColor,
+    '강동구', palette['강동구'] || defaultColor,
+    '광진구', palette['광진구'] || defaultColor,
+    '성동구', palette['성동구'] || defaultColor,
+    '중랑구', palette['중랑구'] || defaultColor,
+    '종로구', palette['종로구'] || defaultColor,
+    '중구', palette['중구'] || defaultColor,
+    '용산구', palette['용산구'] || defaultColor,
+    '성북구', palette['성북구'] || defaultColor,
+    '강북구', palette['강북구'] || defaultColor,
+    '도봉구', palette['도봉구'] || defaultColor,
+    '노원구', palette['노원구'] || defaultColor,
+    '강서구', palette['강서구'] || defaultColor,
+    '양천구', palette['양천구'] || defaultColor,
+    '구로구', palette['구로구'] || defaultColor,
+    '금천구', palette['금천구'] || defaultColor,
+    '영등포구', palette['영등포구'] || defaultColor,
+    '동작구', palette['동작구'] || defaultColor,
+    '관악구', palette['관악구'] || defaultColor,
+    '마포구', palette['마포구'] || defaultColor,
+    '서대문구', palette['서대문구'] || defaultColor,
+    '은평구', palette['은평구'] || defaultColor,
     // 기본값 (테마 기반)
-    currentTheme?.sgg?.fillBase || 'rgba(26, 17, 0, 0.4)'
+    defaultColor
   ]
 }
 
@@ -170,7 +178,8 @@ function createDistrictGlowExpression() {
   }
   
   // 색상 팔레트에서 글로우 색상 생성 (opacity 조정)
-  const createGlowFromColor = (color: string) => {
+  const createGlowFromColor = (color: string | undefined) => {
+    if (!color) return currentTheme?.sgg?.glowColor || 'rgba(251, 139, 30, 0.2)'
     // rgba에서 opacity를 0.3으로 조정
     return color.replace(/[\d.]+\)$/, '0.3)')
   }
@@ -239,7 +248,8 @@ export function getDistrictLayerPaint() {
       }
       
       // 색상 팔레트에서 라인 색상 생성 (opacity를 0.8로 조정)
-      const createLineFromColor = (color: string) => {
+      const createLineFromColor = (color: string | undefined) => {
+        if (!color) return currentTheme?.sgg?.lineColor || 'rgba(251, 139, 30, 0.5)'
         return color.replace(/[\d.]+\)$/, '0.8)')
       }
       

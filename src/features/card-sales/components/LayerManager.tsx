@@ -610,11 +610,19 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
     },
     
     // 3D 바 설정 - 더 부드러운 원형을 위해 해상도 증가
-    diskResolution: 12,  // 더 부드러운 원형 (기존 6에서 12로 증가)
+    diskResolution: 16,  // 더 부드러운 원형 (12에서 16으로 증가)
     radius: config.displayMode === 'simple' ? config.radius / 4 : config.radius / 3,  // config.radius 사용
     extruded: true,  // 3D 활성화
     wireframe: false,
     filled: true,
+    
+    // 그림자와 재질 효과
+    material: {
+      ambient: 0.3,     // 주변광
+      diffuse: 0.6,     // 확산광
+      shininess: 32,    // 반짝임
+      specularColor: [60, 64, 70]  // 반사광 색상 (은은한 회색)
+    },
     
     // 높이 (colorMode에 따라 변경) - 공통 상수 사용
     getElevation: (d: HexagonLayerData) => {
@@ -647,23 +655,33 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
       // 호버된 구역(동)과 같은 구역이면 전체 색상 변경
       const isHoveredDistrict = config.hoveredDistrict && d.originalData?.dongName === config.hoveredDistrict
       
-      // COLOR_RANGES를 사용한 색상 적용
+      // 틸블루 단색 그라데이션 적용 (오렌지 지도와 보색 대비)
       if (config.displayMode === 'simple') {
         const value = d.weight
         const maxValue = 500000000  // 5억원 기준
         const normalizedValue = Math.min(1, value / maxValue)
         
-        // 선택된 colorScheme의 색상 팔레트 사용
-        const colorRange = COLOR_RANGES[config.colorScheme]
-        const colorIndex = Math.min(Math.floor(normalizedValue * (colorRange.length - 1)), colorRange.length - 1)
-        const baseColor = [...colorRange[colorIndex], 255] as [number, number, number, number]
+        // 틸블루 단색 그라데이션 (어두운 -> 밝은)
+        let baseColor: [number, number, number, number]
         
-        // 호버된 구역이면 밝기와 채도 증가
+        if (normalizedValue < 0.2) {
+          baseColor = [0, 50, 65, 230]     // 아주 진한 틸
+        } else if (normalizedValue < 0.4) {
+          baseColor = [0, 80, 100, 230]    // 진한 틸블루
+        } else if (normalizedValue < 0.6) {
+          baseColor = [0, 120, 140, 230]   // 중간 틸블루
+        } else if (normalizedValue < 0.8) {
+          baseColor = [0, 160, 180, 230]   // 밝은 틸블루
+        } else {
+          baseColor = [0, 200, 220, 230]   // 아주 밝은 틸블루
+        }
+        
+        // 호버된 구역이면 밝기 증가 및 광택 효과
         if (isHoveredDistrict) {
           return [
-            Math.min(255, baseColor[0] * 1.3),
-            Math.min(255, baseColor[1] * 1.3), 
-            Math.min(255, baseColor[2] * 1.3),
+            Math.min(100, baseColor[0] + 50),
+            Math.min(255, baseColor[1] + 40), 
+            Math.min(255, baseColor[2] + 40),
             255
           ]
         }
@@ -896,7 +914,7 @@ export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   elevationScale: 1,  // 높이 스케일 1x로 변경 (기본값)
   coverage: 1,
   upperPercentile: 100,
-  colorScheme: 'heat', // heat로 변경 (기본값)
+  colorScheme: 'tealblue', // tealblue로 변경 (오렌지 보색 테마)
   animationEnabled: false, // 임시로 애니메이션 OFF (툴팁 테스트용)
   animationSpeed: 1.0,
   waveAmplitude: 2.0,

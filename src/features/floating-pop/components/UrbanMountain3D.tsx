@@ -6,7 +6,7 @@ import type { MapRef, MapLayerMouseEvent } from "react-map-gl"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { DistrictModeControl } from "@/src/shared/components/DistrictModeControl"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
-import { DISTRICT_LAYER_PAINT, loadDistrictData } from "@/src/shared/utils/districtUtils"
+import { getDistrictLayerPaint, loadDistrictData } from "@/src/shared/utils/districtUtils"
 import { PopulationChartPanel } from "./charts/PopulationChartPanel"
 
 const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
@@ -563,7 +563,7 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
             <Layer
               id="sgg-fill"
               type="fill"
-              paint={DISTRICT_LAYER_PAINT.sggFill}
+              paint={getDistrictLayerPaint().sggFill}
               layout={{ 
                 visibility: (!districtSelection.selectionMode && districtSelection.sggVisible) || 
                            districtSelection.selectionMode ? 'visible' : 'none' 
@@ -572,7 +572,7 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
             <Layer
               id="sgg-line"
               type="line"
-              paint={DISTRICT_LAYER_PAINT.sggLine}
+              paint={getDistrictLayerPaint().sggLine}
               layout={{ 
                 visibility: (!districtSelection.selectionMode && districtSelection.sggVisible) || 
                            districtSelection.selectionMode ? 'visible' : 'none' 
@@ -585,13 +585,13 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
                 <Layer
                   id="sgg-select-fill"
                   type="fill"
-                  paint={DISTRICT_LAYER_PAINT.selectedFill}
+                  paint={getDistrictLayerPaint().selectedFill}
                   filter={['==', ['get', 'SIGUNGU_NM'], districtSelection.selectedDistrict]}
                 />
                 <Layer
                   id="sgg-select-line"
                   type="line"
-                  paint={DISTRICT_LAYER_PAINT.selectedLine(districtSelection.dashPhase)}
+                  paint={getDistrictLayerPaint().selectedLine(districtSelection.dashPhase)}
                   filter={['==', ['get', 'SIGUNGU_NM'], districtSelection.selectedDistrict]}
                 />
               </>
@@ -605,13 +605,13 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
             <Layer
               id="dong-fill"
               type="fill"
-              paint={DISTRICT_LAYER_PAINT.dongFill}
+              paint={getDistrictLayerPaint().dongFill}
               layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
             />
             <Layer
               id="dong-line"
               type="line"
-              paint={DISTRICT_LAYER_PAINT.dongLine}
+              paint={getDistrictLayerPaint().dongLine}
               layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
             />
           </Source>
@@ -623,7 +623,7 @@ export function UrbanMountainComplete({ className = "" }: UrbanMountainCompleteP
             <Layer
               id="jib-line"
               type="line"
-              paint={DISTRICT_LAYER_PAINT.jibLine}
+              paint={getDistrictLayerPaint().jibLine}
               layout={{ visibility: districtSelection.jibVisible ? 'visible' : 'none' }}
               minzoom={10}
             />

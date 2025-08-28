@@ -20,7 +20,7 @@ import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { DistrictLabelsLayer, DistrictLabelsOverlay } from "./DistrictLabelsLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
-import { loadDistrictData, getDistrictLayerPaint, getDistrictColors, getCurrentTheme } from "@/src/shared/utils/districtUtils"
+import { loadDistrictData, getDistrictLayerPaint, getDistrictColors, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
 import { calculateBoundaryElevation } from "@/src/shared/constants/elevationConstants"
 import { 
@@ -53,6 +53,7 @@ export default function HexagonScene() {
   const cleanupRef = useRef<(() => void)[]>([])
   const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
+  const [currentThemeKey, setCurrentThemeKey] = useState(getCurrentThemeKey())
   const [is3DMode, setIs3DMode] = useState(true) // 3D 모드를 기본으로 설정
   
   // 레이어 상태 관리
@@ -820,8 +821,10 @@ export default function HexagonScene() {
       
       // Force React re-render by updating state
       const newTheme = getCurrentTheme()
-      console.log('[HexagonLayer3D] Updating theme state to:', newTheme?.name)
+      const newThemeKey = getCurrentThemeKey()
+      console.log('[HexagonLayer3D] Updating theme state to:', newTheme?.name, 'Key:', newThemeKey)
       setCurrentThemeState(newTheme)
+      setCurrentThemeKey(newThemeKey)
       
       const map = mapRef.current?.getMap()
       if (!map) {
@@ -835,6 +838,13 @@ export default function HexagonScene() {
         sggFill: paint.sggFill['fill-color'],
         sggLine: paint.sggLine['line-color']
       })
+      
+      // Update dong 3D colors with new theme
+      if (map.getLayer('dong-extrusion')) {
+        const newColorExpression = getDong3DColorExpression(newThemeKey)
+        map.setPaintProperty('dong-extrusion', 'fill-extrusion-color', newColorExpression as any)
+        console.log('[HexagonLayer3D] Updated dong-extrusion with theme key:', newThemeKey)
+      }
       
       // Update all layer colors
       if (map.getLayer('sgg-fill')) {
@@ -1483,10 +1493,10 @@ export default function HexagonScene() {
                   id="dong-extrusion"
                   type="fill-extrusion"
                   paint={{
-                    'fill-extrusion-color': getDong3DColorExpression() as any,
+                    'fill-extrusion-color': getDong3DColorExpression(currentThemeKey) as any,
                     'fill-extrusion-height': ['get', 'height'],
                     'fill-extrusion-base': 0,
-                    'fill-extrusion-opacity': 0.9  // 약간의 투명도로 경계 강조
+                    'fill-extrusion-opacity': 0.75  // 더 많은 투명도로 레이어 깊이감 표현
                   }}
                   layout={{
                     visibility: districtSelection.dongVisible ? 'visible' : 'none'

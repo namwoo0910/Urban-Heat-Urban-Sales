@@ -114,25 +114,125 @@ export function get3DColorExpression() {
 }
 
 /**
- * 동별 3D 색상 표현 (상단 밝게, dongIndex 기반 색상 변화)
+ * 동별 3D 색상 - 파란색 테마
  */
-export function getDong3DColorExpression() {
-  // dongIndex 기반으로 상단 색상 변화, 측면은 어둡게
-  // 상단과 측면의 대비를 통해 자연스러운 경계 생성
+function getDong3DColorExpressionBlue() {
   return [
     'case',
-    // dongIndex를 8로 나눈 나머지에 따라 색상 할당 (상단은 밝게)
-    ['==', ['%', ['get', 'dongIndex'], 8], 0], 'rgba(80, 100, 140, 0.95)',   // 진한 파랑
-    ['==', ['%', ['get', 'dongIndex'], 8], 1], 'rgba(90, 120, 160, 0.95)',   // 파랑
-    ['==', ['%', ['get', 'dongIndex'], 8], 2], 'rgba(100, 140, 180, 0.95)',  // 밝은 파랑
-    ['==', ['%', ['get', 'dongIndex'], 8], 3], 'rgba(110, 160, 200, 0.95)',  // 하늘색
-    ['==', ['%', ['get', 'dongIndex'], 8], 4], 'rgba(120, 180, 210, 0.95)',  // 밝은 하늘색
-    ['==', ['%', ['get', 'dongIndex'], 8], 5], 'rgba(100, 160, 190, 0.95)',  // 청록색
-    ['==', ['%', ['get', 'dongIndex'], 8], 6], 'rgba(90, 140, 170, 0.95)',   // 진한 청록
-    ['==', ['%', ['get', 'dongIndex'], 8], 7], 'rgba(110, 150, 195, 0.95)',  // 중간 톤
-    // 기본값
-    'rgba(100, 140, 180, 0.95)'
+    ['==', ['%', ['get', 'dongIndex'], 8], 0], 'rgba(80, 100, 140, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 1], 'rgba(90, 120, 160, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 2], 'rgba(100, 140, 180, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 3], 'rgba(110, 160, 200, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 4], 'rgba(120, 180, 210, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 5], 'rgba(100, 160, 190, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 6], 'rgba(90, 140, 170, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 7], 'rgba(110, 150, 195, 0.75)',
+    'rgba(100, 140, 180, 0.75)'
   ]
+}
+
+/**
+ * 동별 3D 색상 - 초록색 테마
+ */
+function getDong3DColorExpressionGreen() {
+  return [
+    'case',
+    ['==', ['%', ['get', 'dongIndex'], 8], 0], 'rgba(60, 100, 60, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 1], 'rgba(70, 120, 70, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 2], 'rgba(80, 140, 80, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 3], 'rgba(90, 160, 90, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 4], 'rgba(100, 180, 100, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 5], 'rgba(110, 200, 110, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 6], 'rgba(85, 150, 85, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 7], 'rgba(95, 170, 95, 0.75)',
+    'rgba(90, 150, 90, 0.75)'
+  ]
+}
+
+/**
+ * 동별 3D 색상 - Kepler 테마 (보라색-핑크 그라데이션)
+ */
+function getDong3DColorExpressionPurple() {
+  return [
+    'case',
+    ['==', ['%', ['get', 'dongIndex'], 8], 0], 'rgba(88, 51, 153, 0.75)',   // 진한 보라
+    ['==', ['%', ['get', 'dongIndex'], 8], 1], 'rgba(110, 64, 170, 0.75)',  // 보라
+    ['==', ['%', ['get', 'dongIndex'], 8], 2], 'rgba(132, 77, 187, 0.75)',  // 밝은 보라
+    ['==', ['%', ['get', 'dongIndex'], 8], 3], 'rgba(154, 90, 204, 0.75)',  // 라벤더
+    ['==', ['%', ['get', 'dongIndex'], 8], 4], 'rgba(176, 103, 221, 0.75)', // 밝은 라벤더
+    ['==', ['%', ['get', 'dongIndex'], 8], 5], 'rgba(198, 116, 238, 0.75)', // 핑크 보라
+    ['==', ['%', ['get', 'dongIndex'], 8], 6], 'rgba(121, 71, 179, 0.75)',  // 중간 보라
+    ['==', ['%', ['get', 'dongIndex'], 8], 7], 'rgba(165, 97, 213, 0.75)',  // 파스텔 보라
+    'rgba(132, 77, 187, 0.75)'
+  ]
+}
+
+/**
+ * 동별 3D 색상 - 주황색 테마
+ */
+function getDong3DColorExpressionOrange() {
+  return [
+    'case',
+    ['==', ['%', ['get', 'dongIndex'], 8], 0], 'rgba(180, 100, 40, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 1], 'rgba(200, 120, 50, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 2], 'rgba(220, 140, 60, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 3], 'rgba(240, 160, 70, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 4], 'rgba(250, 180, 80, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 5], 'rgba(230, 150, 65, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 6], 'rgba(210, 130, 55, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 7], 'rgba(245, 170, 75, 0.75)',
+    'rgba(220, 140, 60, 0.75)'
+  ]
+}
+
+/**
+ * 동별 3D 색상 - 모노크롬 테마
+ */
+function getDong3DColorExpressionMono() {
+  return [
+    'case',
+    ['==', ['%', ['get', 'dongIndex'], 8], 0], 'rgba(60, 60, 60, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 1], 'rgba(80, 80, 80, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 2], 'rgba(100, 100, 100, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 3], 'rgba(120, 120, 120, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 4], 'rgba(140, 140, 140, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 5], 'rgba(160, 160, 160, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 6], 'rgba(110, 110, 110, 0.75)',
+    ['==', ['%', ['get', 'dongIndex'], 8], 7], 'rgba(130, 130, 130, 0.75)',
+    'rgba(100, 100, 100, 0.75)'
+  ]
+}
+
+/**
+ * 동별 3D 색상 표현 - 테마별로 다른 색상 반환
+ */
+export function getDong3DColorExpression(theme?: string) {
+  switch(theme) {
+    // 파란색 계열 (기본)
+    case 'blue':
+      return getDong3DColorExpressionBlue()
+    
+    // 초록색 계열
+    case 'green':
+      return getDong3DColorExpressionGreen()
+    
+    // 보라색 계열
+    case 'purple':
+      return getDong3DColorExpressionPurple()
+    
+    // 주황색 계열
+    case 'orange':
+      return getDong3DColorExpressionOrange()
+    
+    // 모노크롬 계열 (회색)
+    case 'mono':
+    case 'monochrome':
+      return getDong3DColorExpressionMono()
+    
+    // 기본값은 파란색
+    default:
+      return getDong3DColorExpressionBlue()
+  }
 }
 
 /**
