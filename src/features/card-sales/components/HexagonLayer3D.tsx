@@ -225,8 +225,8 @@ export default function HexagonScene() {
   // 동별 매출 데이터 Map (dongCode -> totalSales)
   const [dongSalesMap, setDongSalesMap] = useState<Map<number, number>>(new Map())
   
-  // 3D 높이 스케일 조정값 (기본값: 1천만원 = 1 단위)
-  const [heightScale, setHeightScale] = useState<number>(10000000)
+  // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
+  const [heightScale, setHeightScale] = useState<number>(100000000)
 
 
   const handleLayerChange = (layer: string) => {
@@ -1454,9 +1454,15 @@ export default function HexagonScene() {
                       // 나머지는 기본 색상
                       get3DColorExpression() as any
                     ] as any : get3DColorExpression() as any,
-                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-height': selectedDong ? [
+                      'case',
+                      // 행정동이 선택되었을 때: 선택된 구는 원래 높이, 다른 구들은 높이 10으로 낮춤
+                      ['==', ['get', 'guName'], selectedGu],
+                      ['get', 'height'],  // 선택된 구는 원래 높이 유지
+                      10                  // 다른 구들은 높이 10으로 낮춤
+                    ] as any : ['get', 'height'],  // 동 선택 안했을 때는 모든 구가 원래 높이
                     'fill-extrusion-base': 0,
-                    'fill-extrusion-opacity': 0.85
+                    'fill-extrusion-opacity': 0.95
                   }}
                   layout={{
                     visibility: districtSelection.sggVisible ? 'visible' : 'none'
@@ -1464,8 +1470,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* District fill - 2D 배경 with district-specific colors */}
-              {!is3DMode && (
+              {/* District fill - 2D 배경 with district-specific colors - DISABLED */}
+              {false && !is3DMode && (
                 <Layer
                   id="sgg-fill"
                   type="fill"
@@ -1476,8 +1482,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* 네온 글로우 효과 - 외곽 글로우 (2D 모드에서만 표시) */}
-              {!is3DMode && (
+              {/* 네온 글로우 효과 - 외곽 글로우 (2D 모드에서만 표시) - DISABLED */}
+              {false && !is3DMode && (
                 <Layer
                   id="sgg-glow-outer"
                   type="line"
@@ -1493,8 +1499,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* 네온 글로우 효과 - 중간 글로우 (2D 모드에서만) */}
-              {!is3DMode && (
+              {/* 네온 글로우 효과 - 중간 글로우 (2D 모드에서만) - DISABLED */}
+              {false && !is3DMode && (
                 <Layer
                   id="sgg-glow-mid"
                   type="line"
@@ -1573,9 +1579,15 @@ export default function HexagonScene() {
                       // 나머지는 기본 색상
                       getDong3DColorExpression(currentThemeKey) as any
                     ] as any : getDong3DColorExpression(currentThemeKey) as any,
-                    'fill-extrusion-height': ['get', 'height'],
+                    'fill-extrusion-height': selectedDong ? [
+                      'case',
+                      // 행정동이 선택되었을 때: 선택된 구의 동들만 원래 높이(매출액 기반), 다른 구의 동들은 높이 10
+                      ['==', ['get', 'guName'], selectedGu],
+                      ['get', 'height'],  // 선택된 구의 동들은 매출액 기반 원래 높이
+                      10                  // 다른 구의 동들은 높이 10으로 낮춤
+                    ] as any : ['get', 'height'],  // 동 미선택시 모든 동이 매출액 기반 원래 높이
                     'fill-extrusion-base': 0,
-                    'fill-extrusion-opacity': 0.75  // 더 많은 투명도로 레이어 깊이감 표현
+                    'fill-extrusion-opacity': 0.90  // 선명한 가시성을 위한 높은 투명도
                   }}
                   layout={{
                     visibility: districtSelection.dongVisible ? 'visible' : 'none'
@@ -1583,8 +1595,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* Dong fill with district-aware colors */}
-              {!is3DMode && (
+              {/* Dong fill with district-aware colors - DISABLED */}
+              {false && !is3DMode && (
                 <Layer
                   id="dong-fill"
                   type="fill"
@@ -1593,8 +1605,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* Dong neon glow lines (2D 모드에서만) */}
-              {!is3DMode && (
+              {/* Dong neon glow lines (2D 모드에서만) - DISABLED */}
+              {false && !is3DMode && (
                 <Layer
                   id="dong-glow"
                   type="line"
