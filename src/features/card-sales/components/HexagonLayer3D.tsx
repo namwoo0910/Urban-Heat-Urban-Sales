@@ -30,7 +30,11 @@ import {
   getDongHeight,
   getDongHeightBySales,
   get3DColorExpression,
-  getDong3DColorExpression, 
+  get3DColorExpressionDark,
+  get3DColorExpressionBright,
+  getDong3DColorExpression,
+  getDong3DColorExpressionDark,
+  getDong3DColorExpressionBright,
   CAMERA_3D_CONFIG, 
   CAMERA_2D_CONFIG,
   LIGHT_3D_CONFIG 
@@ -734,11 +738,15 @@ export default function HexagonScene() {
       const sgg3D = {
         ...sggData,
         features: sggData.features.map((feature: any) => {
+          const guName = feature.properties.SIGUNGU_NM || feature.properties.SGG_NM || 
+                        feature.properties.SIG_KOR_NM || feature.properties.GU_NM || 
+                        feature.properties.nm || '자치구'
           return {
             ...feature,
             properties: {
               ...feature.properties,
-              height: getDistrictHeight(feature.properties.SIGUNGU_NM || feature.properties.SGG_NM)
+              height: getDistrictHeight(guName),
+              guName: guName  // 구 이름 명시적으로 추가
             }
           }
         })
@@ -777,7 +785,8 @@ export default function HexagonScene() {
             properties: {
               ...feature.properties,
               height: height, // Use sales-based height
-              dongIndex: index // 인덱스 추가 (색상 구분용)
+              dongIndex: index, // 인덱스 추가 (색상 구분용)
+              guName: guName // 자치구 이름 명시적으로 추가
             }
           }
         })
@@ -1431,20 +1440,26 @@ export default function HexagonScene() {
           {sggData && (
             <Source id="sgg-source" type="geojson" data={is3DMode && sggData3D ? sggData3D : sggData}>
               
-              {/* 3D Extrusion layer - DISABLED to show dong layers */}
-              {/* 자치구 3D는 비활성화하고 동 레이어만 표시 */}
-              {false && is3DMode && (
+              {/* 3D Extrusion layer - 자치구 3D 레이어 */}
+              {is3DMode && (
                 <Layer
                   id="sgg-extrusion"
                   type="fill-extrusion"
                   paint={{
-                    'fill-extrusion-color': get3DColorExpression() as any,
+                    'fill-extrusion-color': selectedGu ? [
+                      'case',
+                      // 선택된 구는 강렬한 네온 색상 적용
+                      ['==', ['get', 'guName'], selectedGu],
+                      get3DColorExpressionBright() as any,
+                      // 나머지는 기본 색상
+                      get3DColorExpression() as any
+                    ] as any : get3DColorExpression() as any,
                     'fill-extrusion-height': ['get', 'height'],
                     'fill-extrusion-base': 0,
                     'fill-extrusion-opacity': 0.85
                   }}
                   layout={{
-                    visibility: 'none'  // Always hidden
+                    visibility: districtSelection.sggVisible ? 'visible' : 'none'
                   }}
                 />
               )}
@@ -1550,7 +1565,14 @@ export default function HexagonScene() {
                   id="dong-extrusion"
                   type="fill-extrusion"
                   paint={{
-                    'fill-extrusion-color': getDong3DColorExpression(currentThemeKey) as any,
+                    'fill-extrusion-color': selectedGu ? [
+                      'case',
+                      // 선택된 구에 속한 동들은 강렬한 네온 색상 적용
+                      ['==', ['get', 'guName'], selectedGu],
+                      getDong3DColorExpressionBright(currentThemeKey) as any,
+                      // 나머지는 기본 색상
+                      getDong3DColorExpression(currentThemeKey) as any
+                    ] as any : getDong3DColorExpression(currentThemeKey) as any,
                     'fill-extrusion-height': ['get', 'height'],
                     'fill-extrusion-base': 0,
                     'fill-extrusion-opacity': 0.75  // 더 많은 투명도로 레이어 깊이감 표현
@@ -1611,8 +1633,8 @@ export default function HexagonScene() {
             </Source>
           )}
 
-          {/* Selected District Layer with enhanced visibility */}
-          {selectedDistrictData && (
+          {/* Selected District Layer with enhanced visibility - DISABLED for 3D highlight only */}
+          {false && selectedDistrictData && (
             <Source id="selected-district-source" type="geojson" data={selectedDistrictData}>
               
               {/* Fill layer for selected area - subtle background */}
