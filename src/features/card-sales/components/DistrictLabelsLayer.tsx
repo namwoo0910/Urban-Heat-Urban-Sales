@@ -2,19 +2,23 @@
 
 import React, { useEffect, useState } from 'react'
 import { useMap } from 'react-map-gl'
-import { DISTRICT_LABELS, getDistrictLabelsGeoJSON, getDistrictLabelSize, getDistrictLabelOpacity } from '../data/districtCentersWithLabels'
+import { DISTRICT_LABELS, getDistrictLabelsGeoJSON } from '../data/districtCentersWithLabels'
 
 interface DistrictLabelsLayerProps {
   visible?: boolean
   onClick?: (districtName: string) => void
+  minZoom?: number
 }
 
-export function DistrictLabelsLayer({ visible = true, onClick }: DistrictLabelsLayerProps) {
-  const { current: map } = useMap()
+export function DistrictLabelsLayer({ visible = true, onClick, minZoom = 10 }: DistrictLabelsLayerProps) {
+  const { current: mapRef } = useMap()
   const [isLoaded, setIsLoaded] = useState(false)
-  const [currentZoom, setCurrentZoom] = useState(11)
 
   useEffect(() => {
+    if (!mapRef) return
+
+    // Get the actual Mapbox GL instance
+    const map = mapRef.getMap()
     if (!map) return
 
     const handleLoad = () => {
@@ -26,106 +30,161 @@ export function DistrictLabelsLayer({ visible = true, onClick }: DistrictLabelsL
         })
       }
 
-      // Add symbol layer for district names
-      if (!map.getLayer('district-labels-layer')) {
+      // Add background glow layer for better visibility
+      if (!map.getLayer('district-labels-glow')) {
         map.addLayer({
-          id: 'district-labels-layer',
+          id: 'district-labels-glow',
           type: 'symbol',
           source: 'district-labels',
+          minzoom: minZoom,
           layout: {
             'text-field': ['get', 'nameKr'],
-            'text-font': ['Noto Sans KR Bold', 'Open Sans Bold'],
+            'text-font': ['Pretendard Bold', 'Noto Sans KR Bold', 'Arial Unicode MS Bold'],
             'text-size': [
               'interpolate',
               ['linear'],
               ['zoom'],
-              10, 0,
-              10.5, 12,
-              11, 14,
-              12, 16,
-              13, 18,
-              14, 20
-            ],
-            'text-anchor': ['get', 'anchor'],
-            'text-offset': ['get', 'offset'],
-            'text-allow-overlap': false,
-            'text-ignore-placement': false,
-            'text-optional': true
-          },
-          paint: {
-            'text-color': '#ffffff',
-            'text-halo-color': 'rgba(0, 0, 0, 0.8)',
-            'text-halo-width': 2,
-            'text-halo-blur': 1,
-            'text-opacity': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              10, 0,
-              10.5, 0.4,
-              11, 0.7,
-              11.5, 0.9,
-              12, 1
-            ]
-          }
-        })
-
-        // Add background layer for labels (rectangle behind text)
-        map.addLayer({
-          id: 'district-labels-bg',
-          type: 'symbol',
-          source: 'district-labels',
-          layout: {
-            'text-field': ['get', 'nameKr'],
-            'text-font': ['Noto Sans KR Bold', 'Open Sans Bold'],
-            'text-size': [
-              'interpolate',
-              ['linear'],
-              ['zoom'],
-              10, 0,
-              10.5, 14,
+              10, 14,
               11, 16,
               12, 18,
               13, 20,
               14, 22
             ],
-            'text-anchor': ['get', 'anchor'],
-            'text-offset': ['get', 'offset'],
+            'text-anchor': 'center',
             'text-allow-overlap': false,
             'text-ignore-placement': false,
-            'text-optional': true
+            'symbol-placement': 'point',
+            'text-justify': 'center',
+            'text-pitch-alignment': 'viewport',
+            'text-rotation-alignment': 'viewport'
           },
           paint: {
             'text-color': 'transparent',
-            'text-halo-color': 'rgba(0, 0, 0, 0.4)',
-            'text-halo-width': 20,
-            'text-halo-blur': 10,
+            'text-halo-color': 'rgba(0, 0, 0, 0.5)',
+            'text-halo-width': 15,
+            'text-halo-blur': 15,
             'text-opacity': [
               'interpolate',
               ['linear'],
               ['zoom'],
               10, 0,
-              10.5, 0.3,
-              11, 0.5,
-              11.5, 0.6,
+              10.3, 0.3,
+              10.6, 0.5,
+              11, 0.6,
               12, 0.7
             ]
           }
-        }, 'district-labels-layer') // Place behind the text layer
+        })
+      }
+
+      // Add main text layer for district names
+      if (!map.getLayer('district-labels-text')) {
+        map.addLayer({
+          id: 'district-labels-text',
+          type: 'symbol',
+          source: 'district-labels',
+          minzoom: minZoom,
+          layout: {
+            'text-field': ['get', 'nameKr'],
+            'text-font': ['Pretendard Bold', 'Noto Sans KR Bold', 'Arial Unicode MS Bold'],
+            'text-size': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              10, 12,
+              10.5, 13,
+              11, 14,
+              11.5, 15,
+              12, 16,
+              12.5, 17,
+              13, 18,
+              14, 20
+            ],
+            'text-anchor': 'center',
+            'text-allow-overlap': false,
+            'text-ignore-placement': false,
+            'symbol-placement': 'point',
+            'text-justify': 'center',
+            'text-pitch-alignment': 'viewport',
+            'text-rotation-alignment': 'viewport',
+            'text-variable-anchor': ['center', 'top', 'bottom', 'left', 'right'],
+            'text-radial-offset': 0.5,
+            'text-letter-spacing': 0.05,
+            'text-max-width': 10
+          },
+          paint: {
+            'text-color': '#ffffff',
+            'text-halo-color': 'rgba(0, 0, 0, 0.85)',
+            'text-halo-width': 2,
+            'text-halo-blur': 0.5,
+            'text-opacity': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              10, 0,
+              10.3, 0.4,
+              10.6, 0.7,
+              11, 0.85,
+              11.5, 0.95,
+              12, 1
+            ]
+          }
+        })
+      }
+
+      // Add English sub-labels (optional, smaller text)
+      if (!map.getLayer('district-labels-sub')) {
+        map.addLayer({
+          id: 'district-labels-sub',
+          type: 'symbol',
+          source: 'district-labels',
+          minzoom: 11,
+          layout: {
+            'text-field': ['get', 'name'],
+            'text-font': ['Pretendard Regular', 'Open Sans Regular', 'Arial Unicode MS Regular'],
+            'text-size': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              11, 8,
+              12, 9,
+              13, 10,
+              14, 11
+            ],
+            'text-anchor': 'top',
+            'text-offset': [0, 1.2],
+            'text-allow-overlap': false,
+            'text-ignore-placement': false,
+            'symbol-placement': 'point',
+            'text-justify': 'center',
+            'text-transform': 'uppercase',
+            'text-letter-spacing': 0.1
+          },
+          paint: {
+            'text-color': 'rgba(255, 255, 255, 0.7)',
+            'text-halo-color': 'rgba(0, 0, 0, 0.7)',
+            'text-halo-width': 1.5,
+            'text-halo-blur': 0.5,
+            'text-opacity': [
+              'interpolate',
+              ['linear'],
+              ['zoom'],
+              11, 0,
+              11.5, 0.5,
+              12, 0.7,
+              13, 0.8
+            ]
+          }
+        })
       }
 
       setIsLoaded(true)
     }
 
-    // Handle zoom change
-    const handleZoom = () => {
-      setCurrentZoom(map.getZoom())
-    }
-
     // Handle click on labels
     const handleClick = (e: any) => {
       const features = map.queryRenderedFeatures(e.point, {
-        layers: ['district-labels-layer']
+        layers: ['district-labels-text', 'district-labels-sub']
       })
 
       if (features && features.length > 0) {
@@ -139,7 +198,7 @@ export function DistrictLabelsLayer({ visible = true, onClick }: DistrictLabelsL
     // Handle hover effects
     const handleMouseMove = (e: any) => {
       const features = map.queryRenderedFeatures(e.point, {
-        layers: ['district-labels-layer']
+        layers: ['district-labels-text', 'district-labels-sub']
       })
 
       map.getCanvas().style.cursor = features.length > 0 ? 'pointer' : ''
@@ -151,32 +210,31 @@ export function DistrictLabelsLayer({ visible = true, onClick }: DistrictLabelsL
       map.on('load', handleLoad)
     }
 
-    map.on('zoom', handleZoom)
     map.on('click', handleClick)
     map.on('mousemove', handleMouseMove)
 
     return () => {
       map.off('load', handleLoad)
-      map.off('zoom', handleZoom)
       map.off('click', handleClick)
       map.off('mousemove', handleMouseMove)
     }
-  }, [map, onClick])
+  }, [mapRef, onClick, minZoom])
 
   // Update visibility
   useEffect(() => {
-    if (!map || !isLoaded) return
+    if (!mapRef || !isLoaded) return
+    
+    const map = mapRef.getMap()
+    if (!map) return
 
-    const opacity = visible ? 1 : 0
+    const layerIds = ['district-labels-glow', 'district-labels-text', 'district-labels-sub']
     
-    if (map.getLayer('district-labels-layer')) {
-      map.setLayoutProperty('district-labels-layer', 'visibility', visible ? 'visible' : 'none')
-    }
-    
-    if (map.getLayer('district-labels-bg')) {
-      map.setLayoutProperty('district-labels-bg', 'visibility', visible ? 'visible' : 'none')
-    }
-  }, [map, visible, isLoaded])
+    layerIds.forEach(layerId => {
+      if (map.getLayer(layerId)) {
+        map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none')
+      }
+    })
+  }, [mapRef, visible, isLoaded])
 
   return null
 }

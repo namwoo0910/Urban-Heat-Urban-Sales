@@ -18,7 +18,7 @@ import { BusinessTypeLegend } from "./BusinessTypeLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode, getDongCode } from "../data/districtCodeMappings"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
-import { DistrictLabelsLayer, DistrictLabelsOverlay } from "./DistrictLabelsLayer"
+import { DistrictLabelsLayer } from "./DistrictLabelsLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { loadDistrictData, getDistrictLayerPaint, getDistrictColors, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
@@ -46,12 +46,12 @@ import "@/src/shared/styles/districtEffects.css"
 // 기본 서울 뷰 설정 상수 (3D 모드 기본)
 const DEFAULT_SEOUL_VIEW = {
   longitude: 126.978,
-  latitude: 37.5565,
-  zoom: 11,
-  pitch: 60,  // 3D 각도로 설정
-  bearing: -15,  // 3D 방향으로 설정
+  latitude: 37.5765,
+  zoom: 10.5,
+  pitch: 20,  // 3D 각도로 설정
+  bearing: 4,  // 3D 방향으로 설정
   minZoom: 5,
-  maxZoom: 15
+  maxZoom: 13
 } as const
 
 export default function HexagonScene() {
@@ -224,6 +224,8 @@ export default function HexagonScene() {
   
   // 동별 매출 데이터 Map (dongCode -> totalSales)
   const [dongSalesMap, setDongSalesMap] = useState<Map<number, number>>(new Map())
+  // 동별 업종별 매출 데이터 Map (dongCode -> (businessType -> sales))
+  const [dongSalesByTypeMap, setDongSalesByTypeMap] = useState<Map<number, Map<string, number>>>(new Map())
   
   // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
   const [heightScale, setHeightScale] = useState<number>(100000000)
@@ -696,15 +698,34 @@ export default function HexagonScene() {
         
         // Aggregate sales by dongCode
         const salesByDong = new Map<number, number>()
+        const salesByDongAndType = new Map<number, Map<string, number>>()
         
         allData.forEach(item => {
-          if (item.dongCode && item.totalSales) {
-            const currentTotal = salesByDong.get(item.dongCode) || 0
-            salesByDong.set(item.dongCode, currentTotal + item.totalSales)
+          if (item.dongCode) {
+            // 총 매출 저장 (기존)
+            if (item.totalSales) {
+              const currentTotal = salesByDong.get(item.dongCode) || 0
+              salesByDong.set(item.dongCode, currentTotal + item.totalSales)
+            }
+            
+            // 업종별 매출 저장 (추가)
+            if (item.salesByCategory && Object.keys(item.salesByCategory).length > 0) {
+              let dongTypeMap = salesByDongAndType.get(item.dongCode)
+              if (!dongTypeMap) {
+                dongTypeMap = new Map<string, number>()
+                salesByDongAndType.set(item.dongCode, dongTypeMap)
+              }
+              
+              Object.entries(item.salesByCategory).forEach(([category, amount]) => {
+                const current = dongTypeMap.get(category) || 0
+                dongTypeMap.set(category, current + amount)
+              })
+            }
           }
         })
         
         console.log(`[SalesData] Loaded sales for ${salesByDong.size} dongs`)
+        console.log(`[SalesData] Loaded business type sales for ${salesByDongAndType.size} dongs`)
         
         // Log min/max sales for normalization reference
         const salesValues = Array.from(salesByDong.values())
@@ -713,6 +734,7 @@ export default function HexagonScene() {
         console.log(`[SalesData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
         
         setDongSalesMap(salesByDong)
+        setDongSalesByTypeMap(salesByDongAndType)
       } catch (error) {
         console.error('[SalesData] Failed to load sales data:', error)
       }
@@ -723,7 +745,7 @@ export default function HexagonScene() {
   
   // 3D 모드용 데이터 전처리
   useEffect(() => {
-    if (!sggData || !dongData || dongSalesMap.size === 0) return
+    if (!sggData || !dongData || dongSalesMap.size === 0 || !dongSalesByTypeMap) return
     
     // 3D 효과를 위한 데이터 처리 (갈라짐 없이)
     const process3DData = () => {
@@ -763,7 +785,14 @@ export default function HexagonScene() {
           const dongCode = feature.properties['행정동코드'] || feature.properties.H_CODE || feature.properties.ADM_DR_CD || 0
           
           // Get sales data for this dong
-          const dongSales = dongSalesMap.get(Number(dongCode)) || 0
+          // 업종 선택시 해당 업종 매출, 아니면 총 매출
+          let dongSales = 0
+          if (selectedBusinessType && dongSalesByTypeMap.has(Number(dongCode))) {
+            const typeMap = dongSalesByTypeMap.get(Number(dongCode))
+            dongSales = typeMap?.get(selectedBusinessType) || 0
+          } else {
+            dongSales = dongSalesMap.get(Number(dongCode)) || 0
+          }
           
           // Calculate height based on absolute sales value with adjustable scale
           const height = getDongHeightBySales(dongSales, heightScale)
@@ -795,7 +824,7 @@ export default function HexagonScene() {
     }
     
     process3DData()
-  }, [sggData, dongData, dongSalesMap, heightScale])
+  }, [sggData, dongData, dongSalesMap, dongSalesByTypeMap, selectedBusinessType, heightScale])
   
   // 3D 모드 변경 시 조명 설정
   useEffect(() => {
@@ -1280,8 +1309,8 @@ export default function HexagonScene() {
               ...prevState,
               longitude: guCenter[0],
               latitude: guCenter[1],
-              zoom: 13, // 구 레벨 줌 (행정동들이 잘 보이는 레벨)
-              pitch: 45, // 적당한 3D 각도
+              zoom: 11, // 구 레벨 줌 (행정동들이 잘 보이는 레벨)
+              pitch: 30, // 적당한 3D 각도
               bearing: prevState.bearing || 0,
               transitionDuration: 1500,
               transitionInterpolator: new FlyToInterpolator({ speed: 1.2 }),
@@ -1799,17 +1828,17 @@ export default function HexagonScene() {
             </Source>
           )}
           
+          {/* District Labels Layer - 구 이름 표시 (Mapbox Symbol Layer) */}
+          {showDistrictLabels && (
+            <DistrictLabelsLayer 
+              visible={viewState.zoom >= 10}
+              onClick={handleDistrictLabelClick}
+              minZoom={10}
+            />
+          )}
+          
         </MapGL>
       </DeckGL>
-      
-      {/* District Labels Layer - 구 이름 표시 (MapGL 밖에 위치하여 최상위 레이어로) */}
-      {showDistrictLabels && viewState.zoom >= 10 && (
-        <DistrictLabelsOverlay 
-          visible={true}
-          onClick={handleDistrictLabelClick}
-          viewState={viewState}
-        />
-      )}
       
 
       {/* LocalEconomy Filter Panel - Positioned properly above map */}
