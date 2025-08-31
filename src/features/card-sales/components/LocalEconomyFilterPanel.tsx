@@ -25,6 +25,7 @@ interface LocalEconomyFilterPanelProps {
   externalSelectedGu?: string | null
   externalSelectedDong?: string | null
   externalSelectedBusinessType?: string | null
+  externalSelectedDate?: string | null
 }
 
 export interface FilterState {
@@ -33,6 +34,7 @@ export interface FilterState {
   selectedDong: string | null      // 동 이름 (UI 표시용) 
   selectedDongCode: number | null  // 동 코드 (필터링용)
   selectedBusinessType: string | null
+  selectedDate: string | null      // 선택된 날짜 (YYYY-MM-DD 형식)
 }
 
 export default function LocalEconomyFilterPanel({
@@ -44,6 +46,7 @@ export default function LocalEconomyFilterPanel({
   externalSelectedGu,
   externalSelectedDong,
   externalSelectedBusinessType,
+  externalSelectedDate,
 }: LocalEconomyFilterPanelProps) {
   
   // Filter states
@@ -52,6 +55,7 @@ export default function LocalEconomyFilterPanel({
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
   const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>(null)
   
   // Get available options
   const availableDistricts = useMemo(() => getAllDistricts(), [])
@@ -97,6 +101,29 @@ export default function LocalEconomyFilterPanel({
     setSelectedBusinessType(value === '전체' ? null : value)
   }
   
+  // Handle date selection
+  const handleDateChange = (value: string) => {
+    setSelectedDate(value === '전체' ? null : value)
+  }
+  
+  // Generate available dates (2024년 전체)
+  const availableDates = useMemo(() => {
+    const dates = []
+    const startDate = new Date('2024-01-01')
+    const endDate = new Date('2024-12-31')
+    const currentDate = new Date(startDate)
+    
+    while (currentDate <= endDate) {
+      const year = currentDate.getFullYear()
+      const month = String(currentDate.getMonth() + 1).padStart(2, '0')
+      const day = String(currentDate.getDate()).padStart(2, '0')
+      dates.push(`${year}-${month}-${day}`)
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+    
+    return dates
+  }, [])
+  
   
   // External sync for bidirectional updates - Fixed to prevent infinite loops
   useEffect(() => {
@@ -135,6 +162,13 @@ export default function LocalEconomyFilterPanel({
     }
   }, [externalSelectedBusinessType]) // Remove selectedBusinessType dependency
 
+  useEffect(() => {
+    // Only update if values are different to prevent infinite loops
+    if (externalSelectedDate !== undefined && externalSelectedDate !== selectedDate) {
+      setSelectedDate(externalSelectedDate)
+    }
+  }, [externalSelectedDate]) // Remove selectedDate dependency
+
   // Track if it's the initial mount
   const isInitialMount = useRef(true)
   const previousValues = useRef({
@@ -142,7 +176,8 @@ export default function LocalEconomyFilterPanel({
     selectedGuCode,
     selectedDong,
     selectedDongCode,
-    selectedBusinessType
+    selectedBusinessType,
+    selectedDate
   })
 
   // Notify parent of filter changes - Fixed to prevent initial trigger and loops
@@ -156,7 +191,8 @@ export default function LocalEconomyFilterPanel({
         selectedGuCode,
         selectedDong,
         selectedDongCode,
-        selectedBusinessType
+        selectedBusinessType,
+        selectedDate
       }
       return
     }
@@ -167,7 +203,8 @@ export default function LocalEconomyFilterPanel({
       previousValues.current.selectedGuCode !== selectedGuCode ||
       previousValues.current.selectedDong !== selectedDong ||
       previousValues.current.selectedDongCode !== selectedDongCode ||
-      previousValues.current.selectedBusinessType !== selectedBusinessType
+      previousValues.current.selectedBusinessType !== selectedBusinessType ||
+      previousValues.current.selectedDate !== selectedDate
     
     if (hasChanged && onFilterChange) {
       // Update previous values before calling onChange to prevent race conditions
@@ -176,7 +213,8 @@ export default function LocalEconomyFilterPanel({
         selectedGuCode,
         selectedDong,
         selectedDongCode,
-        selectedBusinessType
+        selectedBusinessType,
+        selectedDate
       }
       previousValues.current = newValues
       
@@ -185,7 +223,7 @@ export default function LocalEconomyFilterPanel({
         onFilterChange(newValues)
       }, 0)
     }
-  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType]) // Remove onFilterChange dependency
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, selectedDate]) // Remove onFilterChange dependency
   
   
   return (
@@ -293,6 +331,112 @@ export default function LocalEconomyFilterPanel({
               : '총매출'
             }
           </Button>
+        </div>
+        
+        {/* Third Row: 날짜 선택 */}
+        <div className="flex gap-1 mt-1">
+          <div className="flex-1">
+            <Select 
+              value={selectedDate || "전체"} 
+              onValueChange={handleDateChange}
+            >
+              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
+                <SelectValue>
+                  {selectedDate ? 
+                    `${selectedDate.substring(0, 4)}년 ${selectedDate.substring(5, 7)}월 ${selectedDate.substring(8, 10)}일` : 
+                    "전체 기간"
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
+                <SelectItem 
+                  value="전체"
+                  className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
+                >
+                  전체 기간
+                </SelectItem>
+                {/* 최근 날짜 몇 개만 표시 (성능 고려) */}
+                <SelectItem 
+                  value="2024-12-31"
+                  className="text-gray-200 hover:bg-gray-900/50 font-semibold"
+                >
+                  2024년 12월 31일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-12-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 12월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-11-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 11월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-10-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 10월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-09-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 9월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-08-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 8월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-07-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 7월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-06-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 6월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-05-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 5월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-04-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 4월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-03-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 3월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-02-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 2월 1일
+                </SelectItem>
+                <SelectItem 
+                  value="2024-01-01"
+                  className="text-gray-200 hover:bg-gray-900/50"
+                >
+                  2024년 1월 1일
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </Card>
     </div>

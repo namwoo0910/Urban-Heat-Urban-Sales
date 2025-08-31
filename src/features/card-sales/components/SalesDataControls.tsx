@@ -386,16 +386,16 @@ export default function UnifiedControls({
                     <div className="flex justify-between text-xs text-gray-500">
                       <span>낮음</span>
                       <span className="text-gray-300">
-                        {heightScale < 10000000 ? '5백만원' : 
-                         heightScale === 10000000 ? '1천만원' : 
-                         heightScale < 50000000 ? '2천만원' :
-                         heightScale < 100000000 ? '5천만원' : '1억원'} = 1단위
+                        {heightScale < 10000000 ? '5백만원 = 600 높이' : 
+                         heightScale === 10000000 ? '1천만원 = 300 높이' : 
+                         heightScale < 50000000 ? '2천만원 = 150 높이' :
+                         heightScale < 100000000 ? '5천만원 = 60 높이' : '1억원 = 30 높이'}
                       </span>
                       <span>높음</span>
                     </div>
                   </div>
                   <p className="text-xs text-gray-400">
-                    매출액을 높이로 변환하는 비율을 조정합니다
+                    매출액을 높이로 변환하는 비율을 조정합니다 (3배 강화된 스케일)
                   </p>
                 </div>
               </div>

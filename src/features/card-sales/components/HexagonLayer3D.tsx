@@ -126,6 +126,10 @@ export default function HexagonScene() {
     setSelectedBusinessType,
     setSelectedSubCategory,
     
+    // Date filter
+    selectedDate,
+    setSelectedDate,
+    
   } = useLayerState()
   
   // 기본 지도 상태
@@ -178,11 +182,12 @@ export default function HexagonScene() {
     setSelectedDong(filters.selectedDong)
     setSelectedDongCode(filters.selectedDongCode)
     setSelectedBusinessType(filters.selectedBusinessType)
+    setSelectedDate(filters.selectedDate || null)
     
     // 행정동 선택시에도 현재 표시 모드를 유지
     // Display mode는 사용자가 버튼을 통해서만 변경
     // Note: selectedSubCategory removed - not part of FilterState interface
-  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType])
+  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setSelectedDate])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
@@ -229,6 +234,30 @@ export default function HexagonScene() {
   
   // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
   const [heightScale, setHeightScale] = useState<number>(100000000)
+  
+  // Helper function to calculate polygon centroid
+  const calculatePolygonCentroid = useCallback((coordinates: number[][][]) => {
+    if (!coordinates || coordinates.length === 0) return null
+    
+    // Get the outer ring of the polygon
+    const ring = coordinates[0]
+    if (!ring || ring.length === 0) return null
+    
+    let sumX = 0
+    let sumY = 0
+    let count = 0
+    
+    ring.forEach(coord => {
+      if (coord && coord.length >= 2) {
+        sumX += coord[0]
+        sumY += coord[1]
+        count++
+      }
+    })
+    
+    if (count === 0) return null
+    return [sumX / count, sumY / count]
+  }, [])
 
 
   const handleLayerChange = (layer: string) => {
@@ -693,8 +722,11 @@ export default function HexagonScene() {
   useEffect(() => {
     const loadSalesData = async () => {
       try {
-        console.log('[SalesData] Loading dong sales data...')
-        const allData = await climateDataLoader.loadAllData()
+        console.log('[SalesData] Loading dong sales data...', selectedDate ? `for date: ${selectedDate}` : 'for all dates')
+        
+        // Apply date filter if selected
+        const options = selectedDate ? { date: selectedDate } : undefined
+        const allData = await climateDataLoader.loadAllData(options)
         
         // Aggregate sales by dongCode
         const salesByDong = new Map<number, number>()
@@ -741,7 +773,7 @@ export default function HexagonScene() {
     }
     
     loadSalesData()
-  }, [])
+  }, [selectedDate])  // Reload when date changes
   
   // 3D 모드용 데이터 전처리
   useEffect(() => {
@@ -1469,8 +1501,8 @@ export default function HexagonScene() {
           {sggData && (
             <Source id="sgg-source" type="geojson" data={is3DMode && sggData3D ? sggData3D : sggData}>
               
-              {/* 3D Extrusion layer - 자치구 3D 레이어 */}
-              {is3DMode && (
+              {/* 3D Extrusion layer - 자치구 3D 레이어 - DISABLED FOR CARD SALES */}
+              {false && is3DMode && (
                 <Layer
                   id="sgg-extrusion"
                   type="fill-extrusion"
@@ -1499,8 +1531,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* District fill - 2D 배경 with district-specific colors - DISABLED */}
-              {false && !is3DMode && (
+              {/* District fill - 2D 배경 with district-specific colors - DISABLED IN 3D MODE */}
+              {!is3DMode && (
                 <Layer
                   id="sgg-fill"
                   type="fill"
@@ -1511,8 +1543,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* 네온 글로우 효과 - 외곽 글로우 (2D 모드에서만 표시) - DISABLED */}
-              {false && !is3DMode && (
+              {/* 네온 글로우 효과 - 외곽 글로우 (2D 모드에서만 표시) */}
+              {!is3DMode && (
                 <Layer
                   id="sgg-glow-outer"
                   type="line"
@@ -1528,8 +1560,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* 네온 글로우 효과 - 중간 글로우 (2D 모드에서만) - DISABLED */}
-              {false && !is3DMode && (
+              {/* 네온 글로우 효과 - 중간 글로우 (2D 모드에서만) */}
+              {!is3DMode && (
                 <Layer
                   id="sgg-glow-mid"
                   type="line"
@@ -1600,14 +1632,33 @@ export default function HexagonScene() {
                   id="dong-extrusion"
                   type="fill-extrusion"
                   paint={{
-                    'fill-extrusion-color': selectedGu ? [
+                    'fill-extrusion-color': selectedDong ? [
                       'case',
-                      // 선택된 구에 속한 동들은 강렬한 네온 색상 적용
-                      ['==', ['get', 'guName'], selectedGu],
+                      // 선택된 동과 일치하는 경우 강렬한 네온 색상 (여러 속성명 체크)
+                      ['any',
+                        ['==', ['get', '행정동'], selectedDong],
+                        ['==', ['get', 'H_DONG_NM'], selectedDong],
+                        ['==', ['get', 'ADM_DR_NM'], selectedDong],
+                        ['==', ['get', 'EMD_NM'], selectedDong],
+                        ['==', ['get', 'EMD_KOR_NM'], selectedDong],
+                        ['==', ['get', 'ADM_NM'], selectedDong]
+                      ],
                       getDong3DColorExpressionBright(currentThemeKey) as any,
-                      // 나머지는 기본 색상
-                      getDong3DColorExpression(currentThemeKey) as any
-                    ] as any : getDong3DColorExpression(currentThemeKey) as any,
+                      // 같은 구의 다른 동들은 일반 색상
+                      ['==', ['get', 'guName'], selectedGu],
+                      getDong3DColorExpression(currentThemeKey) as any,
+                      // 다른 구의 동들은 어두운 색상
+                      '#333333'
+                    ] as any : (
+                      selectedGu ? [
+                        'case',
+                        // 구만 선택된 경우: 선택된 구의 동들은 일반 색상
+                        ['==', ['get', 'guName'], selectedGu],
+                        getDong3DColorExpression(currentThemeKey) as any,
+                        // 나머지는 어두운 색상
+                        '#333333'
+                      ] as any : getDong3DColorExpression(currentThemeKey) as any
+                    ),
                     'fill-extrusion-height': selectedDong ? [
                       'case',
                       // 행정동이 선택되었을 때: 선택된 구의 동들만 원래 높이(매출액 기반), 다른 구의 동들은 높이 10
@@ -1624,8 +1675,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* Dong fill with district-aware colors - DISABLED */}
-              {false && !is3DMode && (
+              {/* Dong fill with district-aware colors - ONLY IN 2D MODE */}
+              {!is3DMode && (
                 <Layer
                   id="dong-fill"
                   type="fill"
@@ -1634,8 +1685,8 @@ export default function HexagonScene() {
                 />
               )}
               
-              {/* Dong neon glow lines (2D 모드에서만) - DISABLED */}
-              {false && !is3DMode && (
+              {/* Dong neon glow lines (2D 모드에서만) */}
+              {!is3DMode && (
                 <Layer
                   id="dong-glow"
                   type="line"
@@ -1674,8 +1725,8 @@ export default function HexagonScene() {
             </Source>
           )}
 
-          {/* Selected District Layer with enhanced visibility - DISABLED for 3D highlight only */}
-          {false && selectedDistrictData && (
+          {/* Selected District Layer with enhanced visibility - ONLY IN 2D MODE */}
+          {!is3DMode && selectedDistrictData && (
             <Source id="selected-district-source" type="geojson" data={selectedDistrictData}>
               
               {/* Fill layer for selected area - subtle background */}
@@ -1837,6 +1888,114 @@ export default function HexagonScene() {
             />
           )}
           
+          {/* 선택된 구의 모든 행정동 이름 표시 */}
+          {selectedDong && selectedGu && dongData && (() => {
+            // Find all dong features in the selected gu
+            const dongFeaturesInGu = dongData.features?.filter((feature: any) => {
+              const guName = feature.properties?.['자치구'] || feature.properties?.SGG_NM || feature.properties?.SIGUNGU_NM || feature.properties?.SIG_KOR_NM
+              return guName === selectedGu
+            })
+            
+            if (!dongFeaturesInGu || dongFeaturesInGu.length === 0) return null
+            
+            // Create label features for all dongs in the gu
+            const labelFeatures = dongFeaturesInGu.map((feature: any) => {
+              const dongName = feature.properties?.ADM_NM || feature.properties?.['행정동'] || feature.properties?.H_DONG_NM || feature.properties?.ADM_DR_NM || feature.properties?.EMD_NM || feature.properties?.EMD_KOR_NM
+              const centroid = calculatePolygonCentroid(feature.geometry?.coordinates)
+              
+              if (!centroid || !dongName) return null
+              
+              return {
+                type: 'Feature',
+                geometry: {
+                  type: 'Point',
+                  coordinates: centroid
+                },
+                properties: {
+                  name: dongName,
+                  isSelected: dongName === selectedDong
+                }
+              }
+            }).filter((f: any) => f !== null)
+            
+            // Create GeoJSON for labels
+            const labelGeoJSON = {
+              type: 'FeatureCollection',
+              features: labelFeatures
+            }
+            
+            return (
+              <Source id="selected-dong-label" type="geojson" data={labelGeoJSON}>
+                {/* Background glow for selected dong */}
+                <Layer
+                  id="selected-dong-label-glow"
+                  type="symbol"
+                  filter={['==', ['get', 'isSelected'], true]}
+                  layout={{
+                    'text-field': ['get', 'name'],
+                    'text-font': ['Pretendard Bold', 'Noto Sans KR Bold', 'Arial Unicode MS Bold'],
+                    'text-size': 28,
+                    'text-anchor': 'center',
+                    'text-allow-overlap': true,
+                    'text-ignore-placement': true
+                  }}
+                  paint={{
+                    'text-color': 'transparent',
+                    'text-halo-color': 'rgba(255, 100, 150, 0.6)',
+                    'text-halo-width': 20,
+                    'text-halo-blur': 15
+                  }}
+                />
+                
+                {/* Main text for selected dong */}
+                <Layer
+                  id="selected-dong-label-text"
+                  type="symbol"
+                  filter={['==', ['get', 'isSelected'], true]}
+                  layout={{
+                    'text-field': ['get', 'name'],
+                    'text-font': ['Pretendard Bold', 'Noto Sans KR Bold', 'Arial Unicode MS Bold'],
+                    'text-size': 24,
+                    'text-anchor': 'center',
+                    'text-allow-overlap': true,
+                    'text-ignore-placement': true,
+                    'text-offset': [0, 0],
+                    'text-letter-spacing': 0.05
+                  }}
+                  paint={{
+                    'text-color': '#ffffff',
+                    'text-halo-color': 'rgba(0, 0, 0, 0.95)',
+                    'text-halo-width': 3,
+                    'text-halo-blur': 1
+                  }}
+                />
+                
+                {/* Text for other dongs in the same gu */}
+                <Layer
+                  id="other-dong-label-text"
+                  type="symbol"
+                  filter={['==', ['get', 'isSelected'], false]}
+                  layout={{
+                    'text-field': ['get', 'name'],
+                    'text-font': ['Pretendard Regular', 'Noto Sans KR Regular', 'Arial Unicode MS Regular'],
+                    'text-size': 16,
+                    'text-anchor': 'center',
+                    'text-allow-overlap': true,
+                    'text-ignore-placement': true,
+                    'text-offset': [0, 0],
+                    'text-letter-spacing': 0.02
+                  }}
+                  paint={{
+                    'text-color': 'rgba(255, 255, 255, 0.85)',
+                    'text-halo-color': 'rgba(0, 0, 0, 0.8)',
+                    'text-halo-width': 2,
+                    'text-halo-blur': 0.5
+                  }}
+                />
+              </Source>
+            )
+          })()}
+          
         </MapGL>
       </DeckGL>
       
@@ -1850,6 +2009,7 @@ export default function HexagonScene() {
         externalSelectedGu={selectedGu}
         externalSelectedDong={selectedDong}
         externalSelectedBusinessType={selectedBusinessType}
+        externalSelectedDate={selectedDate}
       />
 
       {/* 선택된 지역 매출액 정보 */}

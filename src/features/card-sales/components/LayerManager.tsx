@@ -643,8 +643,8 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
           
         case 'sales':
         default:
-          // 매출액은 데이터 포인트가 아닌 카테고리별 합계 사용
-          const salesValue = d.originalData?.categorySales || d.weight || 0
+          // 매출액은 weight 속성에 저장되어 있음
+          const salesValue = d.weight || 0
           return calculateDataElevation(salesValue, 'sales', config.elevationScale)
       }
     },

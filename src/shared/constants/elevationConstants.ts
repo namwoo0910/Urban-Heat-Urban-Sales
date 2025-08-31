@@ -32,9 +32,9 @@ export const SEOUL_BOUNDARY_ELEVATION = {
 export const DATA_LAYER_ELEVATION = {
   // 매출액 기반 고도 계산
   SALES: {
-    SCALE_FACTOR: 0.00001,  // 매출액을 미터로 변환하는 계수 (1억원 = 1000m)
-    MIN_HEIGHT: 100,         // 최소 높이 (미터)
-    MAX_HEIGHT: 3000,        // 최대 높이 (미터)
+    SCALE_FACTOR: 0.000001,  // 1억원 = 100m (value * 0.000001 * 100000000 = 100)
+    MIN_HEIGHT: 10,          // 최소 높이 (미터)
+    MAX_HEIGHT: 1000,        // 최대 높이 (미터) - 10억원 상한
   },
   // 기온 기반 고도 계산
   TEMPERATURE: {
@@ -70,10 +70,11 @@ export function calculateDataElevation(
     case 'sales':
     default:
       // 매출액을 선형 스케일로 변경하여 차이를 명확하게 표현
-      // 1백만원 = 1m, 1억원 = 100m
-      const scaledValue = (value / 1000000) // 100만원 단위로 나눔
-      return Math.max(DATA_LAYER_ELEVATION.SALES.MIN_HEIGHT, 
-                     Math.min(10000, scaledValue * elevationScale))
+      // 1억원 = 100m 매핑
+      const scaledValue = (value / 100000000) * 100 * elevationScale
+      const height = Math.max(DATA_LAYER_ELEVATION.SALES.MIN_HEIGHT, 
+                             Math.min(DATA_LAYER_ELEVATION.SALES.MAX_HEIGHT, scaledValue))
+      return height
   }
 }
 
