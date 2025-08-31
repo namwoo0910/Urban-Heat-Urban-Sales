@@ -273,7 +273,7 @@ export function LayerManager({
         groupedData.forEach((groupData, index) => {
           const phaseOffset = (index / WAVE_LAYERS) * Math.PI * 2
           const waveValue = Math.sin(animationTime * config.animationSpeed + phaseOffset)
-          const waveScale = config.elevationScale * (1 + waveValue * (config.waveAmplitude - 1) * 0.5)
+          const waveScale = (1 / config.elevationScale) * (1 + waveValue * (config.waveAmplitude - 1) * 0.5)
           
           layerArray.push(new HexagonLayer<HexagonLayerData>({
             id: `hexagon-wave-layer-${index}`,
@@ -336,7 +336,7 @@ export function LayerManager({
           getColorWeight: (d: HexagonLayerData) => d.weight,
           getElevationWeight: (d: HexagonLayerData) => d.weight,
           radius: config.radius,
-          elevationScale: config.elevationScale,
+          elevationScale: 1 / config.elevationScale,  // 나누기 스케일링: 낮은 값 = 더 극명한 차이
           coverage: config.coverage,
           extruded: true, // IMPORTANT: Enable 3D bars
           pickable: true,
@@ -648,7 +648,7 @@ export function createColumnLayer(data: HexagonLayerData[] | null, config: Layer
           return calculateDataElevation(salesValue, 'sales', config.elevationScale)
       }
     },
-    elevationScale: config.displayMode === 'simple' ? 2 : config.elevationScale,  // 단순보기에서는 높이 절반으로
+    elevationScale: config.elevationScale,  // 일관된 높이 스케일 사용 (1억 = 100)
     
     // 색상 (colorScheme 사용)
     getFillColor: (d: HexagonLayerData) => {

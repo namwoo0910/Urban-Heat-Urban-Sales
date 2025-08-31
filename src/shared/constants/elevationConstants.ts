@@ -34,7 +34,7 @@ export const DATA_LAYER_ELEVATION = {
   SALES: {
     SCALE_FACTOR: 0.000001,  // 1억원 = 100m (value * 0.000001 * 100000000 = 100)
     MIN_HEIGHT: 10,          // 최소 높이 (미터)
-    MAX_HEIGHT: 1000,        // 최대 높이 (미터) - 10억원 상한
+    MAX_HEIGHT: Infinity,    // 최대 높이 제한 없음 - 매출액에 비례하여 무제한
   },
   // 기온 기반 고도 계산
   TEMPERATURE: {
@@ -70,10 +70,15 @@ export function calculateDataElevation(
     case 'sales':
     default:
       // 매출액을 선형 스케일로 변경하여 차이를 명확하게 표현
-      // 1억원 = 100m 매핑
-      const scaledValue = (value / 100000000) * 100 * elevationScale
-      const height = Math.max(DATA_LAYER_ELEVATION.SALES.MIN_HEIGHT, 
-                             Math.min(DATA_LAYER_ELEVATION.SALES.MAX_HEIGHT, scaledValue))
+      // 1억원 = 100m 매핑 (elevationScale로 절대값 스케일링)
+      const baseHeight = (value / 100000000) * 100
+      const scaledValue = baseHeight * elevationScale
+      
+      // MIN_HEIGHT만 elevationScale에 따라 조정 (MAX_HEIGHT는 제한 없음)
+      const scaledMinHeight = DATA_LAYER_ELEVATION.SALES.MIN_HEIGHT * elevationScale
+      
+      // 최소값만 제한, 최대값 제한 없음
+      const height = Math.max(scaledMinHeight, scaledValue)
       return height
   }
 }
