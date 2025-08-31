@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 import { 
@@ -122,6 +122,14 @@ interface UnifiedControlsProps {
   onToggleRotation?: () => void
 }
 
+// Theme adjustment state interface
+interface ThemeAdjustments {
+  opacity: number      // 0-100
+  brightness: number   // -50 to 50
+  saturation: number   // -50 to 50
+  contrast: number     // -50 to 50
+}
+
 export default function UnifiedControls({
   // MapControls props
   onLayerChange,
@@ -153,11 +161,29 @@ export default function UnifiedControls({
   onHeightScaleChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
-  const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('orange')
+  const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('modern')
   const [useIndividualColors, setUseIndividualColors] = useState(getUseIndividualDistrictColors())
+  
+  // Theme adjustment states
+  const [themeAdjustments, setThemeAdjustments] = useState<ThemeAdjustments>({
+    opacity: 100,
+    brightness: 0,
+    saturation: 0,
+    contrast: 0
+  })
+  
+  // Apply theme adjustments to global state
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Store adjustments in window for access by color functions
+      (window as any).__themeAdjustments = themeAdjustments
+      // Trigger re-render of map layers
+      window.dispatchEvent(new CustomEvent('themeAdjustmentsChanged', { detail: themeAdjustments }))
+    }
+  }, [themeAdjustments])
 
   return (
-    <div className={`fixed bottom-[350px] z-50 transition-all duration-300 left-4`}>
+    <div className={`fixed bottom-[380px] z-50 transition-all duration-300 left-4`}>
       <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[280px]' : 'w-auto'}`}>
         {/* Clickable Header to expand/collapse */}
         <button
@@ -259,7 +285,63 @@ export default function UnifiedControls({
                 <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-8">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-black/95 border-gray-800/50">
+                <SelectContent className="bg-black/95 border-gray-800/50 max-h-96 overflow-y-auto">
+                  {/* Modern Themes */}
+                  <div className="px-2 py-1">
+                    <div className="text-xs font-semibold text-gray-400 mb-1">현대적 테마</div>
+                  </div>
+                  <SelectItem value="modern" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🎨 Modern</span>
+                      <span className="text-xs text-white/60">구별 그라디언트 테마</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-dark" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🌙 Modern Dark</span>
+                      <span className="text-xs text-white/60">어두운 현대적 테마</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-light" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">☀️ Modern Light</span>
+                      <span className="text-xs text-white/60">밝은 파스텔 테마</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-neon" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">💡 Modern Neon</span>
+                      <span className="text-xs text-white/60">사이버펌크 네온</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-earth" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🌍 Modern Earth</span>
+                      <span className="text-xs text-white/60">자연스러운 흙 색상</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-ocean" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🌊 Modern Ocean</span>
+                      <span className="text-xs text-white/60">바다 영감 테마</span>
+                    </div>
+                  </SelectItem>
+                  
+                  {/* Special Theme */}
+                  <div className="px-2 py-1 mt-2">
+                    <div className="text-xs font-semibold text-gray-400 mb-1">특별 테마</div>
+                  </div>
+                  <SelectItem value="adjacent" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🎨 Adjacent Districts</span>
+                      <span className="text-xs text-white/60">인접구 차별화 (4색)</span>
+                    </div>
+                  </SelectItem>
+                  
+                  {/* Classic Themes */}
+                  <div className="px-2 py-1 mt-2">
+                    <div className="text-xs font-semibold text-gray-400 mb-1">클래식 테마</div>
+                  </div>
                   <SelectItem value="blue" className="text-gray-200 hover:bg-gray-900/50">
                     <div className="flex flex-col">
                       <span className="font-medium">Ocean Blue</span>
@@ -292,6 +374,104 @@ export default function UnifiedControls({
                   </SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 테마 시각 조정 컨트롤 */}
+            <div className="space-y-3">
+              <Label className="text-gray-200 text-xs font-semibold">테마 시각 조정</Label>
+              
+              {/* 투명도 조절 */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-300 text-xs">투명도</Label>
+                  <span className="text-xs text-gray-400">{themeAdjustments.opacity}%</span>
+                </div>
+                <Slider
+                  value={[themeAdjustments.opacity]}
+                  onValueChange={(value) => setThemeAdjustments(prev => ({ ...prev, opacity: value[0] }))}
+                  min={20}
+                  max={100}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>투명</span>
+                  <span>불투명</span>
+                </div>
+              </div>
+              
+              {/* 밝기 조절 */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-300 text-xs">밝기</Label>
+                  <span className="text-xs text-gray-400">{themeAdjustments.brightness > 0 ? '+' : ''}{themeAdjustments.brightness}</span>
+                </div>
+                <Slider
+                  value={[themeAdjustments.brightness]}
+                  onValueChange={(value) => setThemeAdjustments(prev => ({ ...prev, brightness: value[0] }))}
+                  min={-50}
+                  max={50}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>어둡게</span>
+                  <span>밝게</span>
+                </div>
+              </div>
+              
+              {/* 채도 조절 */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-300 text-xs">채도</Label>
+                  <span className="text-xs text-gray-400">{themeAdjustments.saturation > 0 ? '+' : ''}{themeAdjustments.saturation}</span>
+                </div>
+                <Slider
+                  value={[themeAdjustments.saturation]}
+                  onValueChange={(value) => setThemeAdjustments(prev => ({ ...prev, saturation: value[0] }))}
+                  min={-50}
+                  max={50}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>흑백</span>
+                  <span>선명</span>
+                </div>
+              </div>
+              
+              {/* 대비 조절 */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-300 text-xs">대비</Label>
+                  <span className="text-xs text-gray-400">{themeAdjustments.contrast > 0 ? '+' : ''}{themeAdjustments.contrast}</span>
+                </div>
+                <Slider
+                  value={[themeAdjustments.contrast]}
+                  onValueChange={(value) => setThemeAdjustments(prev => ({ ...prev, contrast: value[0] }))}
+                  min={-50}
+                  max={50}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>낮음</span>
+                  <span>높음</span>
+                </div>
+              </div>
+              
+              {/* 조정값 초기화 버튼 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setThemeAdjustments({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })}
+                className="text-gray-400 hover:bg-gray-900/50 w-full justify-center h-6 text-xs"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                시각 조정 초기화
+              </Button>
             </div>
 
             <Separator className="bg-gray-800/50" />

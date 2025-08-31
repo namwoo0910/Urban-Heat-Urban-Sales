@@ -611,6 +611,236 @@ export const COLOR_THEMES = {
       line: 'rgba(150, 150, 150, 0.8)',
       glow: 'rgba(150, 150, 150, 0.3)'
     }
+  },
+  
+  // Modern themes for 3D visualization
+  modern: {
+    name: 'Modern',
+    description: '구별 그라디언트가 있는 현대적 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(60, 60, 70, 0.1)',
+      lineColor: 'rgba(200, 200, 220, 0.4)',
+      lineWidth: 1.5,
+      glowColor: 'rgba(100, 150, 255, 0.2)'
+    },
+    dong: {
+      fillBase: 'rgba(60, 60, 70, 0.05)',
+      lineColor: 'rgba(200, 200, 220, 0.2)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(100, 150, 255, 0.1)'
+    },
+    selected: {
+      fill: 'rgba(100, 180, 255, 0.3)',
+      line: 'rgba(255, 255, 255, 0.9)',
+      glow: 'rgba(100, 180, 255, 0.5)'
+    },
+    hover: {
+      fill: 'rgba(255, 255, 255, 0.1)',
+      line: 'rgba(255, 255, 255, 0.6)',
+      glow: 'rgba(255, 255, 255, 0.3)'
+    }
+  },
+  
+  'modern-dark': {
+    name: 'Modern Dark',
+    description: '어두운 배경에 선명한 현대적 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(20, 20, 30, 0.2)',
+      lineColor: 'rgba(100, 120, 150, 0.5)',
+      lineWidth: 1.5,
+      glowColor: 'rgba(60, 80, 120, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(20, 20, 30, 0.1)',
+      lineColor: 'rgba(100, 120, 150, 0.3)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(60, 80, 120, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(100, 200, 255, 0.4)',
+      line: 'rgba(100, 200, 255, 1.0)',
+      glow: 'rgba(100, 200, 255, 0.6)'
+    },
+    hover: {
+      fill: 'rgba(150, 220, 255, 0.2)',
+      line: 'rgba(150, 220, 255, 0.8)',
+      glow: 'rgba(150, 220, 255, 0.4)'
+    }
+  },
+  
+  'modern-light': {
+    name: 'Modern Light',
+    description: '밝고 부드러운 파스텔 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(240, 240, 245, 0.3)',
+      lineColor: 'rgba(180, 180, 200, 0.4)',
+      lineWidth: 1.2,
+      glowColor: 'rgba(200, 210, 230, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(240, 240, 245, 0.2)',
+      lineColor: 'rgba(180, 180, 200, 0.2)',
+      lineWidth: 0.8,
+      glowColor: 'rgba(200, 210, 230, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(255, 100, 150, 0.3)',
+      line: 'rgba(255, 100, 150, 0.9)',
+      glow: 'rgba(255, 100, 150, 0.4)'
+    },
+    hover: {
+      fill: 'rgba(255, 150, 200, 0.2)',
+      line: 'rgba(255, 150, 200, 0.7)',
+      glow: 'rgba(255, 150, 200, 0.3)'
+    }
+  },
+  
+  'modern-neon': {
+    name: 'Modern Neon',
+    description: '사이버펌크 네온 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(15, 15, 25, 0.3)',
+      lineColor: 'rgba(255, 100, 255, 0.6)',
+      lineWidth: 2.0,
+      glowColor: 'rgba(255, 100, 255, 0.4)'
+    },
+    dong: {
+      fillBase: 'rgba(15, 15, 25, 0.2)',
+      lineColor: 'rgba(100, 255, 255, 0.4)',
+      lineWidth: 1.5,
+      glowColor: 'rgba(100, 255, 255, 0.3)'
+    },
+    selected: {
+      fill: 'rgba(255, 255, 100, 0.4)',
+      line: 'rgba(255, 255, 100, 1.0)',
+      glow: 'rgba(255, 255, 100, 0.6)'
+    },
+    hover: {
+      fill: 'rgba(255, 200, 100, 0.3)',
+      line: 'rgba(255, 200, 100, 0.9)',
+      glow: 'rgba(255, 200, 100, 0.5)'
+    }
+  },
+  
+  'modern-earth': {
+    name: 'Modern Earth',
+    description: '자연스러운 흙 색상 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(60, 50, 40, 0.2)',
+      lineColor: 'rgba(180, 150, 120, 0.4)',
+      lineWidth: 1.3,
+      glowColor: 'rgba(200, 170, 130, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(60, 50, 40, 0.1)',
+      lineColor: 'rgba(180, 150, 120, 0.2)',
+      lineWidth: 0.8,
+      glowColor: 'rgba(200, 170, 130, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(255, 200, 100, 0.3)',
+      line: 'rgba(255, 200, 100, 0.9)',
+      glow: 'rgba(255, 200, 100, 0.4)'
+    },
+    hover: {
+      fill: 'rgba(220, 180, 120, 0.2)',
+      line: 'rgba(220, 180, 120, 0.7)',
+      glow: 'rgba(220, 180, 120, 0.3)'
+    }
+  },
+  
+  'modern-ocean': {
+    name: 'Modern Ocean',
+    description: '바다에서 영감을 받은 푸른 테마',
+    districtPalette: {},
+    sgg: {
+      fillBase: 'rgba(20, 50, 70, 0.2)',
+      lineColor: 'rgba(100, 200, 230, 0.5)',
+      lineWidth: 1.5,
+      glowColor: 'rgba(100, 200, 230, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(20, 50, 70, 0.1)',
+      lineColor: 'rgba(100, 200, 230, 0.3)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(100, 200, 230, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(100, 255, 200, 0.4)',
+      line: 'rgba(100, 255, 200, 1.0)',
+      glow: 'rgba(100, 255, 200, 0.6)'
+    },
+    hover: {
+      fill: 'rgba(150, 255, 220, 0.3)',
+      line: 'rgba(150, 255, 220, 0.8)',
+      glow: 'rgba(150, 255, 220, 0.4)'
+    }
+  },
+  
+  // Adjacent districts theme - minimal colors with graph coloring
+  adjacent: {
+    name: 'Adjacent Districts',
+    description: '인접 구별 최소 색상 테마 (4색만 사용)',
+    districtPalette: {
+      // Color 1: Deep Blue (6 districts)
+      '강남구': 'rgba(41, 98, 185, 0.6)',
+      '동작구': 'rgba(41, 98, 185, 0.6)',
+      '종로구': 'rgba(41, 98, 185, 0.6)',
+      '노원구': 'rgba(41, 98, 185, 0.6)',
+      '강서구': 'rgba(41, 98, 185, 0.6)',
+      '금천구': 'rgba(41, 98, 185, 0.6)',
+      
+      // Color 2: Forest Green (6 districts)
+      '서초구': 'rgba(39, 174, 96, 0.6)',
+      '관악구': 'rgba(39, 174, 96, 0.6)',
+      '성북구': 'rgba(39, 174, 96, 0.6)',
+      '도봉구': 'rgba(39, 174, 96, 0.6)',
+      '양천구': 'rgba(39, 174, 96, 0.6)',
+      '광진구': 'rgba(39, 174, 96, 0.6)',
+      
+      // Color 3: Deep Purple (7 districts)
+      '송파구': 'rgba(142, 68, 173, 0.6)',
+      '용산구': 'rgba(142, 68, 173, 0.6)',
+      '강북구': 'rgba(142, 68, 173, 0.6)',
+      '구로구': 'rgba(142, 68, 173, 0.6)',
+      '성동구': 'rgba(142, 68, 173, 0.6)',
+      '은평구': 'rgba(142, 68, 173, 0.6)',
+      '중랑구': 'rgba(142, 68, 173, 0.6)',
+      
+      // Color 4: Warm Orange (6 districts)
+      '강동구': 'rgba(230, 126, 34, 0.6)',
+      '중구': 'rgba(230, 126, 34, 0.6)',
+      '영등포구': 'rgba(230, 126, 34, 0.6)',
+      '마포구': 'rgba(230, 126, 34, 0.6)',
+      '서대문구': 'rgba(230, 126, 34, 0.6)'
+    },
+    sgg: {
+      fillBase: 'rgba(50, 50, 60, 0.1)',
+      lineColor: 'rgba(255, 255, 255, 0.5)',
+      lineWidth: 2.0,
+      glowColor: 'rgba(255, 255, 255, 0.3)'
+    },
+    dong: {
+      fillBase: 'rgba(50, 50, 60, 0.05)',
+      lineColor: 'rgba(255, 255, 255, 0.3)',
+      lineWidth: 1.0,
+      glowColor: 'rgba(255, 255, 255, 0.2)'
+    },
+    selected: {
+      fill: 'rgba(255, 255, 255, 0.3)',
+      line: 'rgba(255, 255, 255, 0.9)',
+      glow: 'rgba(255, 255, 255, 0.5)'
+    },
+    hover: {
+      fill: 'rgba(255, 255, 255, 0.2)',
+      line: 'rgba(255, 255, 255, 0.7)',
+      glow: 'rgba(255, 255, 255, 0.4)'
+    }
   }
 }
 

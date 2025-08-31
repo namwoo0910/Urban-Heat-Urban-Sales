@@ -41,88 +41,45 @@ import {
   LIGHT_3D_CONFIG 
 } from "@/src/shared/utils/district3DUtils"
 import { RotateCcw } from "lucide-react"
+import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getAccentColor, applyColorAdjustments, getSimpleSalesColor } from "../utils/modernColorPalette"
 import "../styles/HexagonLayer.css"
 import "@/src/shared/styles/districtEffects.css"
 
-// Mapbox 색상 표현식을 RGB 배열로 변환하는 유틸리티
-const convertColorExpressionToRGB = (height: number, themeKey: string): [number, number, number, number] => {
-  // 높이 값 안전하게 처리
-  const h = height || 0
-  
-  if (themeKey === 'bright') {
-    // 밝은 네온 색상 (선택된 동)
-    if (h < 160) return [0, 180, 255, 255]
-    if (h < 200) return [50, 200, 255, 255]
-    if (h < 240) return [100, 220, 255, 255]
-    if (h < 280) return [150, 240, 255, 255]
-    if (h < 320) return [200, 255, 255, 255]
-    if (h < 360) return [180, 255, 230, 255]
-    if (h < 400) return [160, 255, 200, 255]
-    if (h < 440) return [140, 255, 170, 255]
-    if (h < 480) return [120, 255, 140, 255]
-    if (h < 520) return [100, 255, 120, 255]
-    if (h < 560) return [80, 240, 150, 255]
-    if (h < 600) return [60, 220, 180, 255]
-    if (h < 640) return [40, 200, 200, 255]
-    return [20, 180, 220, 255]
+// Simple color function for sales-based visualization
+const convertColorExpressionToRGB = (
+  height: number, 
+  themeKey: string, 
+  guName?: string, 
+  dongName?: string, 
+  isSelected?: boolean, 
+  isHovered?: boolean,
+  totalSales?: number
+): [number, number, number, number] => {
+  // Use modern color palette if gu and dong names are provided
+  if (guName && dongName && (themeKey.startsWith('modern') || themeKey === 'modern' || themeKey === 'adjacent')) {
+    return getModernDistrictColor(guName, dongName, height, themeKey, isSelected, isHovered);
   }
   
-  if (themeKey === 'blue' || !themeKey) {
-    // 기본 파란색 그라데이션
-    if (h < 160) return [10, 25, 50, 242]
-    if (h < 200) return [20, 40, 70, 242]
-    if (h < 240) return [30, 55, 90, 242]
-    if (h < 280) return [40, 70, 110, 242]
-    if (h < 320) return [50, 85, 130, 242]
-    if (h < 360) return [60, 100, 150, 242]
-    if (h < 400) return [70, 115, 170, 242]
-    if (h < 440) return [80, 130, 190, 242]
-    if (h < 480) return [90, 145, 210, 242]
-    if (h < 520) return [100, 160, 225, 242]
-    if (h < 560) return [110, 170, 235, 242]
-    if (h < 600) return [120, 180, 245, 242]
-    if (h < 640) return [130, 190, 250, 242]
-    return [140, 200, 255, 242]
+  // Use simple sales-based color if sales data is available
+  if (totalSales !== undefined && totalSales >= 0) {
+    const color = getSimpleSalesColor(totalSales, themeKey);
+    // Temporarily bypass applyColorAdjustments to test raw colors
+    return color; // Direct return without adjustments
+    // return applyColorAdjustments(...color);
   }
   
-  if (themeKey === 'green') {
-    // 초록색 테마
-    if (h < 200) return [60, 100, 60, 191]
-    if (h < 300) return [80, 140, 80, 191]
-    if (h < 400) return [100, 180, 100, 191]
-    if (h < 500) return [120, 220, 120, 191]
-    return [140, 255, 140, 191]
-  }
+  // Fallback to simple height-based color
+  const h = height || 0;
+  const baseAlpha = 242;
   
-  if (themeKey === 'purple') {
-    // 보라색 테마
-    if (h < 200) return [100, 60, 100, 191]
-    if (h < 300) return [140, 80, 140, 191]
-    if (h < 400) return [180, 100, 180, 191]
-    if (h < 500) return [220, 120, 220, 191]
-    return [255, 140, 255, 191]
-  }
-  
-  if (themeKey === 'orange') {
-    // 오렌지 테마
-    if (h < 200) return [140, 70, 30, 191]
-    if (h < 300) return [180, 90, 40, 191]
-    if (h < 400) return [220, 110, 50, 191]
-    if (h < 500) return [255, 130, 60, 191]
-    return [255, 150, 80, 191]
-  }
-  
-  if (themeKey === 'mint') {
-    // 민트 테마
-    if (h < 200) return [60, 120, 100, 191]
-    if (h < 300) return [80, 160, 140, 191]
-    if (h < 400) return [100, 200, 180, 191]
-    if (h < 500) return [120, 240, 220, 191]
-    return [140, 255, 240, 191]
-  }
-  
-  // 기본값
-  return [100, 140, 180, 191]
+  // Simple height-based colors for fallback
+  if (h >= 600) return applyColorAdjustments(0, 0, 139, baseAlpha);      // Very high
+  if (h >= 500) return applyColorAdjustments(0, 71, 171, baseAlpha);     // High
+  if (h >= 400) return applyColorAdjustments(30, 144, 255, baseAlpha);   // Medium-high
+  if (h >= 300) return applyColorAdjustments(100, 180, 255, baseAlpha);  // Medium
+  if (h >= 200) return applyColorAdjustments(135, 206, 250, baseAlpha);  // Low-medium
+  if (h >= 100) return applyColorAdjustments(173, 216, 230, baseAlpha);  // Low
+  return applyColorAdjustments(200, 230, 255, baseAlpha);                // Very low
 }
 
 // 기본 서울 뷰 설정 상수 (3D 모드 기본)
@@ -141,8 +98,22 @@ export default function HexagonScene() {
   const cleanupRef = useRef<(() => void)[]>([])
   const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
-  const [currentThemeKey, setCurrentThemeKey] = useState(getCurrentThemeKey())
+  const [currentThemeKey, setCurrentThemeKey] = useState('modern') // Default to modern theme
   const [is3DMode, setIs3DMode] = useState(true) // 3D 모드를 기본으로 설정
+  const [themeAdjustments, setThemeAdjustments] = useState({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })
+  
+  // Listen for theme adjustment changes
+  useEffect(() => {
+    const handleThemeAdjustments = (event: CustomEvent) => {
+      setThemeAdjustments(event.detail)
+    }
+    
+    window.addEventListener('themeAdjustmentsChanged', handleThemeAdjustments as EventListener)
+    
+    return () => {
+      window.removeEventListener('themeAdjustmentsChanged', handleThemeAdjustments as EventListener)
+    }
+  }, [])
   
   // 레이어 상태 관리
   const {
@@ -671,42 +642,99 @@ export default function HexagonScene() {
         
         elevationScale: 1,
         
-        // Color - 선택 상태에 따른 색상
+        // Modern color system with district-based variations
         getFillColor: (d: any) => {
           const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
           const guName = d.properties.guName || d.properties['자치구']
           const height = d.properties.height || 0
           
-          // 선택된 동 - 밝은 색상
+          // Try multiple ways to get dongCode
+          const dongCode = d.properties.ADM_DR_CD || 
+                          d.properties.dongCode || 
+                          d.properties.dong_code ||
+                          d.properties['행정동코드'] ||
+                          d.properties.DONG_CD;
+          
+          const totalSales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : 0
+          
+          // Debug logging for 40-step gradient
+          if (!(window as any)._firstLogDone || Math.random() < 0.005) {
+            const step = 125000000; // 1.25억
+            const colorIndex = Math.min(Math.floor(totalSales / step), 39);
+            console.log('🎨 40-Step Gradient:', {
+              dongName,
+              totalSales: totalSales ? `${(totalSales / 100000000).toFixed(1)}억` : '0',
+              colorIndex: `${colorIndex}/39`,
+              theme: currentThemeKey
+            })
+            if (!(window as any)._firstLogDone) {
+              (window as any)._firstLogDone = true;
+            }
+          }
+          
+          // Use modern color system for 'modern' and 'adjacent' themes
+          if (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') {
+            // Check if this dong is selected
+            const isThisDongSelected = selectedDong && dongName === selectedDong
+            // Check if this dong is in selected gu
+            const isInSelectedGu = selectedGu && guName === selectedGu
+            // Check if this dong is being hovered
+            const isHovered = hoveredDistrict === dongName
+            
+            // Dimmed color for non-selected areas when something is selected
+            if ((selectedGu || selectedDong) && !isInSelectedGu) {
+              return getDimmedColor()
+            }
+            
+            return getModernDistrictColor(
+              guName,
+              dongName,
+              height,
+              currentThemeKey,
+              isThisDongSelected,
+              isHovered
+            )
+          }
+          
+          // Fallback to legacy color system with sales-based intensity
           if (selectedDong && dongName === selectedDong) {
-            return convertColorExpressionToRGB(height, 'bright')
+            return convertColorExpressionToRGB(height, 'bright', guName, dongName, true, false, totalSales)
           }
-          
-          // 선택된 구의 동들 - 일반 색상
           if (selectedGu && guName === selectedGu) {
-            return convertColorExpressionToRGB(height, currentThemeKey)
+            return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
           }
-          
-          // 선택 시 비선택 지역 - 어두운 색상
           if (selectedGu || selectedDong) {
             return [51, 51, 51, 200]
           }
+          return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
+        },
+        
+        // Modern edge rendering with district-based colors
+        getLineColor: (d: any) => {
+          const guName = d.properties.guName || d.properties['자치구']
+          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
           
-          // 기본 색상
-          return convertColorExpressionToRGB(height, currentThemeKey)
+          if (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') {
+            const isHighlighted = (selectedDong && dongName === selectedDong) || 
+                                 hoveredDistrict === dongName
+            return getModernEdgeColor(guName, isHighlighted, currentThemeKey)
+          }
+          
+          // Fallback to simple white edges
+          return [255, 255, 255, 30]
         },
+        lineWidthMinPixels: 1.5,
+        lineWidthMaxPixels: 2,
         
-        // Line color for edges
-        getLineColor: [255, 255, 255, 30],
-        lineWidthMinPixels: 1,
-        
-        // Material properties for 3D effect
-        material: {
-          ambient: 0.35,
-          diffuse: 0.6,
-          shininess: 32,
-          specularColor: [60, 64, 70]
-        },
+        // Modern material properties for sophisticated 3D effect
+        material: (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') 
+          ? getModernMaterial(currentThemeKey)
+          : {
+              ambient: 0.35,
+              diffuse: 0.6,
+              shininess: 32,
+              specularColor: [60, 64, 70]
+            },
         
         // Events
         onHover: (info: any) => {
@@ -768,10 +796,11 @@ export default function HexagonScene() {
           getFillColor: 600
         },
         
-        // Update triggers
+        // Update triggers for reactive updates
         updateTriggers: {
           getElevation: [selectedGu, selectedDong, selectedBusinessType, dongSalesMap, heightScale],
-          getFillColor: [selectedGu, selectedDong, currentThemeKey]
+          getFillColor: [selectedGu, selectedDong, currentThemeKey, hoveredDistrict, themeAdjustments],
+          getLineColor: [selectedGu, selectedDong, currentThemeKey, hoveredDistrict, themeAdjustments]
         }
       })
     ]
@@ -789,7 +818,9 @@ export default function HexagonScene() {
     setSelectedGuCode,
     setHoveredFeature,
     setHoveredDistrict,
-    setViewState
+    setViewState,
+    hoveredDistrict,
+    themeAdjustments
   ])
   
   // Combine all deck.gl layers
@@ -1034,9 +1065,17 @@ export default function HexagonScene() {
         
         // Log min/max sales for normalization reference
         const salesValues = Array.from(salesByDong.values())
-        const minSales = Math.min(...salesValues)
-        const maxSales = Math.max(...salesValues)
-        console.log(`[SalesData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
+        if (salesValues.length > 0) {
+          const minSales = Math.min(...salesValues)
+          const maxSales = Math.max(...salesValues)
+          console.log(`[SalesData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
+          
+          // Log sample dongCode keys for debugging
+          const sampleKeys = Array.from(salesByDong.keys()).slice(0, 5)
+          console.log(`[SalesData] Sample dongCode keys:`, sampleKeys)
+        } else {
+          console.warn(`[SalesData] No sales data found!`)
+        }
         
         setDongSalesMap(salesByDong)
         setDongSalesByTypeMap(salesByDongAndType)
