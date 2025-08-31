@@ -873,6 +873,113 @@ export default function HexagonScene() {
     }
     
     try {
+      // dong-3d-polygon 레이어 처리 (3D 행정동 폴리곤)
+      if (info.layer?.id === 'dong-3d-polygon' && info.object) {
+        const properties = info.object.properties
+        
+        // 한글과 영문 속성명 모두 체크
+        const dongCode = properties['행정동코드'] || 
+                        properties.ADM_DR_CD || 
+                        properties.H_CODE || 
+                        properties.DONG_CD ||
+                        properties.dong_code ||
+                        properties.dongCode
+        
+        const dongName = properties['행정동'] || 
+                        properties.ADM_DR_NM || 
+                        properties.H_DONG_NM || 
+                        properties.DONG_NM || 
+                        properties.EMD_NM ||
+                        properties.EMD_KOR_NM ||
+                        '행정동 정보 없음'
+        
+        const guName = properties.guName || 
+                      properties['자치구'] || 
+                      properties.SGG_NM || 
+                      properties.SIGUNGU_NM ||
+                      properties.SIG_KOR_NM ||
+                      '구 정보 없음'
+        
+        // 업종별 매출 데이터로 총 매출 계산
+        let totalSales = 0
+        const businessTypeSales = dongCode ? dongSalesByTypeMap.get(Number(dongCode)) : null
+        
+        if (businessTypeSales && businessTypeSales.size > 0) {
+          // 모든 업종의 매출을 합산하여 총 매출 계산
+          totalSales = Array.from(businessTypeSales.values()).reduce((sum, sales) => sum + sales, 0)
+        } else {
+          // fallback으로 dongSalesMap 사용
+          totalSales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : 0
+        }
+        
+        const salesInTenMillion = Math.round(totalSales / 10000000)
+        
+        // 날짜 정보 (selectedDate 사용)
+        const date = selectedDate || '202401'
+        
+        // 선택된 업종이 있으면 해당 업종 매출, 없으면 전체 업종 표시
+        let businessTypeHtml = ''
+        if (selectedBusinessType && businessTypeSales) {
+          const amount = businessTypeSales.get(selectedBusinessType) || 0
+          businessTypeHtml = `
+      <div style="margin-bottom: 8px;">
+        <span style="opacity: 0.8;">💼</span> <strong>업종:</strong> ${selectedBusinessType}
+      </div>
+      <div style="margin-bottom: 8px;">
+        <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${Math.round(amount / 10000000).toLocaleString()} 천만원
+      </div>
+    `
+        } else if (businessTypeSales && businessTypeSales.size > 0) {
+          // 상위 3개 업종 표시
+          const topBusinessTypes = Array.from(businessTypeSales.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, 3)
+          
+          businessTypeHtml = `
+      <div style="margin-bottom: 8px;">
+        <span style="opacity: 0.8;">💼</span> <strong>주요 업종:</strong>
+      </div>
+      ${topBusinessTypes.map(([type, amount]) => `
+        <div style="padding-left: 16px; font-size: 11px;">
+          • ${type}: ${Math.round(amount / 10000000).toLocaleString()} 천만원
+        </div>
+      `).join('')}
+    `
+        }
+        
+        const tooltipHtml = `
+<div style="font-family: 'Noto Sans KR', sans-serif;">
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">📍</span> <strong>지역:</strong> ${guName} ${dongName}
+  </div>
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">💰</span> <strong>총 매출:</strong> ${salesInTenMillion.toLocaleString()} 천만원
+  </div>
+  <div style="margin-bottom: 8px;">
+    <span style="opacity: 0.8;">📅</span> <strong>날짜:</strong> ${date}
+  </div>
+  ${businessTypeHtml}
+</div>
+        `.trim()
+        
+        return {
+          html: tooltipHtml,
+          style: {
+            backgroundColor: 'rgba(0, 0, 0, 0.95)',
+            color: 'white',
+            fontSize: '13px',
+            padding: '14px',
+            borderRadius: '8px',
+            whiteSpace: 'normal',
+            maxWidth: '320px',
+            lineHeight: '1.6',
+            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4)',
+            border: '1px solid rgba(255, 255, 255, 0.15)',
+            backdropFilter: 'blur(8px)'
+          }
+        }
+      }
+      
       // ColumnLayer의 경우 (업종 카테고리 데이터)
       if (info.layer?.id === 'column-layer' && info.object.originalData) {
         const { originalData } = info.object
