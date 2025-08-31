@@ -2,10 +2,11 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { DeckGL } from '@deck.gl/react'
-import { Map as MapGL, Source, Layer } from 'react-map-gl'
+import { Map as MapGL, Source, Layer, Popup } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator, FlyToInterpolator } from '@deck.gl/core'
+import { PolygonLayer } from '@deck.gl/layers'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
@@ -42,6 +43,87 @@ import {
 import { RotateCcw } from "lucide-react"
 import "../styles/HexagonLayer.css"
 import "@/src/shared/styles/districtEffects.css"
+
+// Mapbox 색상 표현식을 RGB 배열로 변환하는 유틸리티
+const convertColorExpressionToRGB = (height: number, themeKey: string): [number, number, number, number] => {
+  // 높이 값 안전하게 처리
+  const h = height || 0
+  
+  if (themeKey === 'bright') {
+    // 밝은 네온 색상 (선택된 동)
+    if (h < 160) return [0, 180, 255, 255]
+    if (h < 200) return [50, 200, 255, 255]
+    if (h < 240) return [100, 220, 255, 255]
+    if (h < 280) return [150, 240, 255, 255]
+    if (h < 320) return [200, 255, 255, 255]
+    if (h < 360) return [180, 255, 230, 255]
+    if (h < 400) return [160, 255, 200, 255]
+    if (h < 440) return [140, 255, 170, 255]
+    if (h < 480) return [120, 255, 140, 255]
+    if (h < 520) return [100, 255, 120, 255]
+    if (h < 560) return [80, 240, 150, 255]
+    if (h < 600) return [60, 220, 180, 255]
+    if (h < 640) return [40, 200, 200, 255]
+    return [20, 180, 220, 255]
+  }
+  
+  if (themeKey === 'blue' || !themeKey) {
+    // 기본 파란색 그라데이션
+    if (h < 160) return [10, 25, 50, 242]
+    if (h < 200) return [20, 40, 70, 242]
+    if (h < 240) return [30, 55, 90, 242]
+    if (h < 280) return [40, 70, 110, 242]
+    if (h < 320) return [50, 85, 130, 242]
+    if (h < 360) return [60, 100, 150, 242]
+    if (h < 400) return [70, 115, 170, 242]
+    if (h < 440) return [80, 130, 190, 242]
+    if (h < 480) return [90, 145, 210, 242]
+    if (h < 520) return [100, 160, 225, 242]
+    if (h < 560) return [110, 170, 235, 242]
+    if (h < 600) return [120, 180, 245, 242]
+    if (h < 640) return [130, 190, 250, 242]
+    return [140, 200, 255, 242]
+  }
+  
+  if (themeKey === 'green') {
+    // 초록색 테마
+    if (h < 200) return [60, 100, 60, 191]
+    if (h < 300) return [80, 140, 80, 191]
+    if (h < 400) return [100, 180, 100, 191]
+    if (h < 500) return [120, 220, 120, 191]
+    return [140, 255, 140, 191]
+  }
+  
+  if (themeKey === 'purple') {
+    // 보라색 테마
+    if (h < 200) return [100, 60, 100, 191]
+    if (h < 300) return [140, 80, 140, 191]
+    if (h < 400) return [180, 100, 180, 191]
+    if (h < 500) return [220, 120, 220, 191]
+    return [255, 140, 255, 191]
+  }
+  
+  if (themeKey === 'orange') {
+    // 오렌지 테마
+    if (h < 200) return [140, 70, 30, 191]
+    if (h < 300) return [180, 90, 40, 191]
+    if (h < 400) return [220, 110, 50, 191]
+    if (h < 500) return [255, 130, 60, 191]
+    return [255, 150, 80, 191]
+  }
+  
+  if (themeKey === 'mint') {
+    // 민트 테마
+    if (h < 200) return [60, 120, 100, 191]
+    if (h < 300) return [80, 160, 140, 191]
+    if (h < 400) return [100, 200, 180, 191]
+    if (h < 500) return [120, 240, 220, 191]
+    return [140, 255, 240, 191]
+  }
+  
+  // 기본값
+  return [100, 140, 180, 191]
+}
 
 // 기본 서울 뷰 설정 상수 (3D 모드 기본)
 const DEFAULT_SEOUL_VIEW = {
@@ -191,6 +273,13 @@ export default function HexagonScene() {
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
+  
+  // Hover state for fill-extrusion layer tooltips
+  const [hoveredFeature, setHoveredFeature] = useState<{
+    lngLat: [number, number]
+    properties: any
+    layerId: string
+  } | null>(null)
   
   // Animation state for selected districts
   const [animatingDistrict, setAnimatingDistrict] = useState<string | null>(null)
@@ -533,8 +622,192 @@ export default function HexagonScene() {
     hoveredDistrict: hoveredDistrict
   })
   
-  // Use column layers directly
-  const deckLayers = columnLayers
+  // Create Deck.gl PolygonLayer for 3D dong visualization
+  const createDong3DPolygonLayers = useCallback(() => {
+    if (!dongData3D || !dongData3D.features) return []
+    
+    return [
+      new PolygonLayer({
+        id: 'dong-3d-polygon',
+        data: dongData3D.features,
+        pickable: true,
+        extruded: true,
+        wireframe: false,
+        filled: true,
+        autoHighlight: true,
+        highlightColor: [255, 255, 255, 60],
+        
+        // Geometry
+        getPolygon: (d: any) => {
+          // Handle both Polygon and MultiPolygon
+          if (d.geometry.type === 'MultiPolygon') {
+            // Return the first polygon for MultiPolygon
+            return d.geometry.coordinates[0][0]
+          }
+          return d.geometry.coordinates[0]
+        },
+        
+        // Height - 선택 상태에 따른 차별화
+        getElevation: (d: any) => {
+          const guName = d.properties.guName || d.properties['자치구']
+          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
+          const height = d.properties.height || 0
+          
+          // 동 선택 시: 선택된 구의 동만 원래 높이
+          if (selectedDong) {
+            if (guName === selectedGu) {
+              return height
+            }
+            return 10 // 다른 구의 동들은 낮은 높이
+          }
+          
+          // 구 선택 시: 선택된 구의 동만 표시
+          if (selectedGu && guName !== selectedGu) {
+            return 0 // 숨김
+          }
+          
+          return height
+        },
+        
+        elevationScale: 1,
+        
+        // Color - 선택 상태에 따른 색상
+        getFillColor: (d: any) => {
+          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
+          const guName = d.properties.guName || d.properties['자치구']
+          const height = d.properties.height || 0
+          
+          // 선택된 동 - 밝은 색상
+          if (selectedDong && dongName === selectedDong) {
+            return convertColorExpressionToRGB(height, 'bright')
+          }
+          
+          // 선택된 구의 동들 - 일반 색상
+          if (selectedGu && guName === selectedGu) {
+            return convertColorExpressionToRGB(height, currentThemeKey)
+          }
+          
+          // 선택 시 비선택 지역 - 어두운 색상
+          if (selectedGu || selectedDong) {
+            return [51, 51, 51, 200]
+          }
+          
+          // 기본 색상
+          return convertColorExpressionToRGB(height, currentThemeKey)
+        },
+        
+        // Line color for edges
+        getLineColor: [255, 255, 255, 30],
+        lineWidthMinPixels: 1,
+        
+        // Material properties for 3D effect
+        material: {
+          ambient: 0.35,
+          diffuse: 0.6,
+          shininess: 32,
+          specularColor: [60, 64, 70]
+        },
+        
+        // Events
+        onHover: (info: any) => {
+          if (info.object) {
+            const properties = info.object.properties
+            setHoveredFeature({
+              lngLat: info.coordinate as [number, number],
+              properties,
+              layerId: 'dong-3d-polygon'
+            })
+            setHoveredDistrict(properties.ADM_DR_NM || properties.DONG_NM || properties['행정동'])
+          } else {
+            setHoveredFeature(null)
+            setHoveredDistrict(null)
+          }
+        },
+        
+        onClick: (info: any) => {
+          if (info.object) {
+            const props = info.object.properties
+            const dongName = props.ADM_DR_NM || props.DONG_NM || props['행정동']
+            const guName = props.guName || props['자치구']
+            const dongCode = props.ADM_DR_CD || props.DONG_CD || props['행정동코드']
+            const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
+            
+            // 선택 상태 업데이트
+            if (dongName && guName) {
+              setSelectedDong(dongName)
+              setSelectedGu(guName)
+              setSelectedDongCode(dongCode || getDongCode(guName, dongName))
+              setSelectedGuCode(guCode || getDistrictCode(guName))
+              
+              // 줌인 (기존 로직 재사용)
+              const guCenter = getDistrictCenter('구', guName)
+              if (guCenter) {
+                isProgrammaticUpdateRef.current = true
+                setViewState(prev => ({
+                  ...prev,
+                  longitude: guCenter[0],
+                  latitude: guCenter[1],
+                  zoom: 11,
+                  pitch: 30,
+                  bearing: prev.bearing || 0,
+                  transitionDuration: 1500,
+                  transitionInterpolator: new FlyToInterpolator({ speed: 1.2 }),
+                  transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
+                }))
+                setTimeout(() => {
+                  isProgrammaticUpdateRef.current = false
+                }, 1600)
+              }
+            }
+          }
+        },
+        
+        // Transitions for smooth animations
+        transitions: {
+          getElevation: 600,
+          getFillColor: 600
+        },
+        
+        // Update triggers
+        updateTriggers: {
+          getElevation: [selectedGu, selectedDong, selectedBusinessType, dongSalesMap, heightScale],
+          getFillColor: [selectedGu, selectedDong, currentThemeKey]
+        }
+      })
+    ]
+  }, [
+    dongData3D, 
+    selectedGu, 
+    selectedDong, 
+    selectedBusinessType, 
+    currentThemeKey, 
+    dongSalesMap,
+    heightScale,
+    setSelectedDong,
+    setSelectedGu,
+    setSelectedDongCode,
+    setSelectedGuCode,
+    setHoveredFeature,
+    setHoveredDistrict,
+    setViewState
+  ])
+  
+  // Combine all deck.gl layers
+  const deckLayers = useMemo(() => {
+    const layers = []
+    
+    // Add PolygonLayer for 3D dong visualization
+    if (is3DMode && dongData3D) {
+      layers.push(...createDong3DPolygonLayers())
+    }
+    
+    // Add ColumnLayer for detailed display mode (업종별 표시)
+    if (displayMode === 'detailed' && !is3DMode) {
+      layers.push(...columnLayers)
+    }
+    
+    return layers
+  }, [is3DMode, dongData3D, displayMode, columnLayers, createDong3DPolygonLayers])
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -966,12 +1239,7 @@ export default function HexagonScene() {
         sggLine: paint.sggLine['line-color']
       })
       
-      // Update dong 3D colors with new theme
-      if (map.getLayer('dong-extrusion')) {
-        const newColorExpression = getDong3DColorExpression(newThemeKey)
-        map.setPaintProperty('dong-extrusion', 'fill-extrusion-color', newColorExpression as any)
-        console.log('[HexagonLayer3D] Updated dong-extrusion with theme key:', newThemeKey)
-      }
+      // Removed dong-extrusion layer update - now using Deck.gl PolygonLayer
       
       // Update all layer colors
       if (map.getLayer('sgg-fill')) {
@@ -1396,6 +1664,62 @@ export default function HexagonScene() {
     layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
   })
 
+  // Format tooltip content for fill-extrusion layers
+  const formatExtrusionTooltip = useCallback((properties: any, layerId: string) => {
+    // Check if it's a Gu (district) layer
+    // Removed sgg-extrusion layer - tooltips now handled by Deck.gl PolygonLayer
+    if (layerId === 'sgg-extrusion') {
+      return null
+    }
+    
+    // Removed dong-extrusion layer - tooltips now handled by Deck.gl PolygonLayer
+    if (layerId === 'dong-extrusion') {
+      return null
+    }
+    
+    // Legacy dong-extrusion tooltip code (kept for reference)
+    if (false) {
+      const dongCode = properties.ADM_DR_CD || properties.DONG_CD || properties.H_DONG_CD || properties.EMD_CD
+      const dongName = properties.ADM_DR_NM || properties.DONG_NM || properties.H_DONG_NM || properties.EMD_NM || '동 정보 없음'
+      const guName = properties.SIGUNGU_NM || properties.SGG_NM || ''
+      
+      // Get sales data from dongSalesMap
+      const sales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : properties.sales || 0
+      const height = properties.height || 0
+      
+      // Get business type breakdown if available
+      const businessTypeSales = dongCode && dongSalesByTypeMap.has(Number(dongCode)) 
+        ? dongSalesByTypeMap.get(Number(dongCode)) 
+        : null
+      
+      return (
+        <div className="text-white">
+          <div className="font-bold text-sm mb-2">📍 {guName} {dongName}</div>
+          <div className="text-xs space-y-1">
+            <div>💰 총 매출: {sales.toLocaleString()}원</div>
+            <div>📊 높이: {height.toFixed(0)}m</div>
+            {businessTypeSales && businessTypeSales.size > 0 && (
+              <div className="mt-2 pt-2 border-t border-gray-600">
+                <div className="font-semibold mb-1">업종별 매출:</div>
+                {Array.from(businessTypeSales.entries())
+                  .sort((a, b) => b[1] - a[1])
+                  .slice(0, 3)
+                  .map(([type, amount]) => (
+                    <div key={type} className="pl-2">
+                      • {type}: {amount.toLocaleString()}원
+                    </div>
+                  ))
+                }
+              </div>
+            )}
+          </div>
+        </div>
+      )
+    }
+    
+    return <div className="text-white">데이터 로딩 중...</div>
+  }, [dongSalesMap, dongSalesByTypeMap])
+
   return (
     <div className="relative w-full h-screen flex">
       {/* Map Section - Left Side */}
@@ -1404,7 +1728,7 @@ export default function HexagonScene() {
         <DeckGL
         viewState={viewState}
         controller={true}
-        layers={is3DMode ? [] : deckLayers} // 3D 모드에서는 ColumnLayer 비활성화
+        layers={deckLayers} // PolygonLayer (3D mode) or ColumnLayer (detailed mode)
         getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
         getCursor={({isDragging, isHovering}) => {
           if (isDragging) return 'grabbing'
@@ -1480,20 +1804,34 @@ export default function HexagonScene() {
           onMouseMove={(e: MapLayerMouseEvent) => {
             if (e.features && e.features.length > 0) {
               const feature = e.features[0]
-              if (feature.properties?.SIGUNGU_NM) {
+              
+              // Check if hovering over fill-extrusion layers
+              if (feature.layer && (feature.layer.id === 'dong-extrusion' || 
+                  feature.layer.id === 'sgg-extrusion')) {
+                // Set hoveredFeature for tooltip display
+                setHoveredFeature({
+                  lngLat: [e.lngLat.lng, e.lngLat.lat],
+                  properties: feature.properties || {},
+                  layerId: feature.layer.id
+                })
+                mapRef.current!.getCanvas().style.cursor = 'pointer'
+              } else if (feature.properties?.SIGUNGU_NM) {
+                // Original hover logic for district names
                 setHoveredDistrict(feature.properties.SIGUNGU_NM)
                 mapRef.current!.getCanvas().style.cursor = 'pointer'
               }
             } else {
               setHoveredDistrict(null)
+              setHoveredFeature(null)
               mapRef.current!.getCanvas().style.cursor = ''
             }
           }}
           onMouseLeave={() => {
             setHoveredDistrict(null)
+            setHoveredFeature(null)
             mapRef.current!.getCanvas().style.cursor = ''
           }}
-          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-extrusion', 'dong-fill', 'dong-line']}
+          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'sgg-extrusion', 'dong-extrusion', 'dong-fill', 'dong-line']}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
@@ -1501,35 +1839,7 @@ export default function HexagonScene() {
           {sggData && (
             <Source id="sgg-source" type="geojson" data={is3DMode && sggData3D ? sggData3D : sggData}>
               
-              {/* 3D Extrusion layer - 자치구 3D 레이어 - DISABLED FOR CARD SALES */}
-              {false && is3DMode && (
-                <Layer
-                  id="sgg-extrusion"
-                  type="fill-extrusion"
-                  paint={{
-                    'fill-extrusion-color': selectedGu ? [
-                      'case',
-                      // 선택된 구는 강렬한 네온 색상 적용
-                      ['==', ['get', 'guName'], selectedGu],
-                      get3DColorExpressionBright() as any,
-                      // 나머지는 기본 색상
-                      get3DColorExpression() as any
-                    ] as any : get3DColorExpression() as any,
-                    'fill-extrusion-height': selectedDong ? [
-                      'case',
-                      // 행정동이 선택되었을 때: 선택된 구는 원래 높이, 다른 구들은 높이 10으로 낮춤
-                      ['==', ['get', 'guName'], selectedGu],
-                      ['get', 'height'],  // 선택된 구는 원래 높이 유지
-                      10                  // 다른 구들은 높이 10으로 낮춤
-                    ] as any : ['get', 'height'],  // 동 선택 안했을 때는 모든 구가 원래 높이
-                    'fill-extrusion-base': 0,
-                    'fill-extrusion-opacity': 0.95
-                  }}
-                  layout={{
-                    visibility: districtSelection.sggVisible ? 'visible' : 'none'
-                  }}
-                />
-              )}
+              {/* 3D Extrusion layer removed - now using Deck.gl PolygonLayer */}
               
               {/* District fill - 2D 배경 with district-specific colors - DISABLED IN 3D MODE */}
               {!is3DMode && (
@@ -1626,54 +1936,7 @@ export default function HexagonScene() {
           {dongData && (
             <Source id="dong-source" type="geojson" data={is3DMode && dongData3D ? dongData3D : dongData}>
               
-              {/* 3D Dong Extrusion layer */}
-              {is3DMode && (
-                <Layer
-                  id="dong-extrusion"
-                  type="fill-extrusion"
-                  paint={{
-                    'fill-extrusion-color': selectedDong ? [
-                      'case',
-                      // 선택된 동과 일치하는 경우 강렬한 네온 색상 (여러 속성명 체크)
-                      ['any',
-                        ['==', ['get', '행정동'], selectedDong],
-                        ['==', ['get', 'H_DONG_NM'], selectedDong],
-                        ['==', ['get', 'ADM_DR_NM'], selectedDong],
-                        ['==', ['get', 'EMD_NM'], selectedDong],
-                        ['==', ['get', 'EMD_KOR_NM'], selectedDong],
-                        ['==', ['get', 'ADM_NM'], selectedDong]
-                      ],
-                      getDong3DColorExpressionBright(currentThemeKey) as any,
-                      // 같은 구의 다른 동들은 일반 색상
-                      ['==', ['get', 'guName'], selectedGu],
-                      getDong3DColorExpression(currentThemeKey) as any,
-                      // 다른 구의 동들은 어두운 색상
-                      '#333333'
-                    ] as any : (
-                      selectedGu ? [
-                        'case',
-                        // 구만 선택된 경우: 선택된 구의 동들은 일반 색상
-                        ['==', ['get', 'guName'], selectedGu],
-                        getDong3DColorExpression(currentThemeKey) as any,
-                        // 나머지는 어두운 색상
-                        '#333333'
-                      ] as any : getDong3DColorExpression(currentThemeKey) as any
-                    ),
-                    'fill-extrusion-height': selectedDong ? [
-                      'case',
-                      // 행정동이 선택되었을 때: 선택된 구의 동들만 원래 높이(매출액 기반), 다른 구의 동들은 높이 10
-                      ['==', ['get', 'guName'], selectedGu],
-                      ['get', 'height'],  // 선택된 구의 동들은 매출액 기반 원래 높이
-                      10                  // 다른 구의 동들은 높이 10으로 낮춤
-                    ] as any : ['get', 'height'],  // 동 미선택시 모든 동이 매출액 기반 원래 높이
-                    'fill-extrusion-base': 0,
-                    'fill-extrusion-opacity': 0.90  // 선명한 가시성을 위한 높은 투명도
-                  }}
-                  layout={{
-                    visibility: districtSelection.dongVisible ? 'visible' : 'none'
-                  }}
-                />
-              )}
+              {/* 3D Dong Extrusion layer removed - now using Deck.gl PolygonLayer */}
               
               {/* Dong fill with district-aware colors - ONLY IN 2D MODE */}
               {!is3DMode && (
@@ -1996,6 +2259,25 @@ export default function HexagonScene() {
             )
           })()}
           
+          {/* Popup for fill-extrusion layer tooltips */}
+          {hoveredFeature && (
+            <Popup
+              longitude={hoveredFeature.lngLat[0]}
+              latitude={hoveredFeature.lngLat[1]}
+              closeButton={false}
+              closeOnClick={false}
+              anchor="bottom"
+              offset={[0, -10]}
+              className="mapbox-tooltip"
+              style={{
+                padding: 0,
+                borderRadius: '8px'
+              }}
+            >
+              {formatExtrusionTooltip(hoveredFeature.properties, hoveredFeature.layerId)}
+            </Popup>
+          )}
+          
         </MapGL>
       </DeckGL>
       
@@ -2142,14 +2424,26 @@ export default function HexagonScene() {
 
       <style jsx global>{`
         .mapboxgl-popup-content {
-          background: rgba(0, 0, 0, 0.8);
+          background: rgba(0, 0, 0, 0.85);
           color: white;
           border-radius: 8px;
           border: 1px solid rgba(255, 255, 255, 0.2);
+          padding: 0 !important;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
         }
         
         .mapboxgl-popup-tip {
-          border-top-color: rgba(0, 0, 0, 0.8) !important;
+          border-top-color: rgba(0, 0, 0, 0.85) !important;
+        }
+        
+        .mapbox-tooltip .mapboxgl-popup-content {
+          background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(20, 20, 20, 0.9));
+          backdrop-filter: blur(10px);
+          -webkit-backdrop-filter: blur(10px);
+        }
+        
+        .mapbox-tooltip .mapboxgl-popup-content > div {
+          padding: 12px 14px;
         }
         
         .mapboxgl-ctrl-group {
