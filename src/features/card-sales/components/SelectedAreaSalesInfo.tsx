@@ -8,6 +8,7 @@ import { Card } from '@/src/shared/components/ui/card'
 import { BarChart } from '@/src/shared/components/charts'
 import { TrendingUp, MapPin, Activity, BarChart3 } from 'lucide-react'
 import { categorySalesData } from '../data/salesChartData'
+import { calculateTotalSales, getTopBusinessTypes, formatCurrency } from '../utils/salesCalculator'
 import type { HexagonLayerData } from './LayerManager'
 import type { ClimateCardSalesData } from '../types'
 
@@ -32,7 +33,6 @@ export function SelectedAreaSalesInfo({
       return null
     }
 
-    let totalSales = 0
     let dataPoints = 0
     let avgTemperature = 0
     let avgTemperatureMax = 0
@@ -45,7 +45,14 @@ export function SelectedAreaSalesInfo({
     let latestDate = ''
 
     console.log('[SelectedAreaSalesInfo] hexagonData 개수:', hexagonData.length)
-    console.log('[SelectedAreaSalesInfo] 첫 번째 데이터 샘플:', hexagonData[0])
+    if (hexagonData.length > 0) {
+      console.log('[SelectedAreaSalesInfo] 첫 번째 데이터 샘플:', hexagonData[0])
+      console.log('[SelectedAreaSalesInfo] 선택된 지역 - 구:', selectedGu, '동:', selectedDong)
+      
+      // 입력 데이터의 weight 합계 확인
+      const inputWeightSum = hexagonData.reduce((sum, point) => sum + (point.weight || 0), 0)
+      console.log('[SelectedAreaSalesInfo] 입력 weight 합계:', (inputWeightSum/100000000).toFixed(1), '억원')
+    }
 
     // 원본 hexagon 데이터에서 집계
     hexagonData.forEach(point => {
@@ -70,15 +77,12 @@ export function SelectedAreaSalesInfo({
 
           // 총매출액_업종 데이터가 있으면 사용
           if (originalData.총매출액_업종) {
+            // 카테고리별 집계만 수행 (totalSales는 나중에 계산)
             Object.entries(originalData.총매출액_업종).forEach(([category, sales]) => {
-              if (typeof sales === 'number' && sales > 0) {
+              if (typeof sales === 'number' && sales > 0 && !category.startsWith('sub_')) {
                 categorySalesMap[category] = (categorySalesMap[category] || 0) + sales
-                totalSales += sales
               }
             })
-          } else {
-            // 없으면 기존 weight 사용
-            totalSales += point.weight
           }
           
           dataPoints++
@@ -112,6 +116,15 @@ export function SelectedAreaSalesInfo({
       avgHumidity = avgHumidity / dataPoints
     }
     
+    // categorySalesMap의 합계로 totalSales 계산 (중복 방지)
+    let totalSales = 0
+    Object.values(categorySalesMap).forEach(sales => {
+      totalSales += sales
+    })
+    console.log('[SelectedAreaSalesInfo] 총 매출액 계산:', totalSales.toLocaleString(), '원', `(${(totalSales/100000000).toFixed(1)}억원)`)
+    console.log('[SelectedAreaSalesInfo] 카테고리 수:', Object.keys(categorySalesMap).length)
+    console.log('[SelectedAreaSalesInfo] 처리된 데이터 포인트:', dataPoints)
+    
     // 가장 많은 기온그룹 찾기
     let dominantTempGroup = '일반'
     let maxCount = 0
@@ -136,9 +149,6 @@ export function SelectedAreaSalesInfo({
       'rgb(245, 158, 11)'   // amber-500
     ]
     
-    console.log('[SelectedAreaSalesInfo] categorySalesMap:', categorySalesMap)
-    console.log('[SelectedAreaSalesInfo] categorySalesMap 키 개수:', Object.keys(categorySalesMap).length)
-    
     const topCategories = Object.entries(categorySalesMap)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
@@ -150,7 +160,13 @@ export function SelectedAreaSalesInfo({
         color: colors[index] || 'rgb(107, 114, 128)' // gray-500 as fallback
       }))
     
-    console.log('[SelectedAreaSalesInfo] topCategories:', topCategories)
+    // 검증: 그래프 합계와 totalSales 비교
+    const graphTotal = topCategories.reduce((sum, cat) => sum + cat.originalValue, 0)
+    const allCategoriesTotal = Object.values(categorySalesMap).reduce((sum, val) => sum + val, 0)
+    console.log('[SelectedAreaSalesInfo] 전체 카테고리 합계:', allCategoriesTotal.toLocaleString(), '원', `(${(allCategoriesTotal/100000000).toFixed(1)}억원)`)
+    console.log('[SelectedAreaSalesInfo] 상위 10개 그래프 합계:', graphTotal.toLocaleString(), '원', `(${(graphTotal/100000000).toFixed(1)}억원)`)
+    console.log('[SelectedAreaSalesInfo] 최종 totalSales:', totalSales.toLocaleString(), '원', `(${(totalSales/100000000).toFixed(1)}억원)`)
+    console.log('[SelectedAreaSalesInfo] 데이터 포인트 수:', dataPoints)
 
     return {
       totalSales,
@@ -167,18 +183,7 @@ export function SelectedAreaSalesInfo({
     }
   }, [hexagonData, selectedGu, selectedDong])
 
-  // 숫자 포맷팅
-  const formatCurrency = (value: number): string => {
-    if (value >= 1000000000) {
-      return `${(value / 1000000000).toFixed(1)}억원`
-    } else if (value >= 10000000) {
-      return `${(value / 10000000).toFixed(1)}천만원`
-    } else if (value >= 10000) {
-      return `${(value / 10000).toFixed(0)}만원`
-    } else {
-      return `${value.toLocaleString()}원`
-    }
-  }
+  // formatCurrency는 이제 import한 함수 사용
 
   if (!visible || !areaStats) {
     return null

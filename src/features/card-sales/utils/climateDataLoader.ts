@@ -4,6 +4,7 @@
  */
 
 import { CoordinateMapper } from './coordinateMapper'
+import { calculateTotalSales } from './salesCalculator'
 import type { 
   ClimateCardSalesData, 
   RawClimateCardSalesData, 
@@ -56,6 +57,14 @@ export class ClimateDataLoader {
     
     console.log(`[ClimateDataLoader] 총 ${allData.length}개 데이터 포인트 로드 완료`)
     
+    // 디버깅: 로드된 구별 데이터 개수 확인
+    const districtCounts: Record<string, number> = {}
+    allData.forEach(item => {
+      const gu = item.guName || '알수없음'
+      districtCounts[gu] = (districtCounts[gu] || 0) + 1
+    })
+    console.log(`[ClimateDataLoader] 구별 데이터 개수:`, districtCounts)
+    
     return allData
   }
 
@@ -75,6 +84,11 @@ export class ClimateDataLoader {
       const transformedData = rawData
         .map(item => this.transformData(item, districtName))
         .filter((item): item is ClimateCardSalesData => item !== null)
+      
+      const skippedCount = rawData.length - transformedData.length
+      if (skippedCount > 0) {
+        console.log(`[ClimateDataLoader] ${districtName}: ${skippedCount}개 데이터 스킵 (좌표 없음)`)
+      }
       
       // 필터링 적용
       if (options) {
@@ -108,7 +122,7 @@ export class ClimateDataLoader {
     
     if (!coordinate) {
       // 정말 못 찾은 경우만 에러 로그
-      console.error(`[ClimateDataLoader] ⚠️ ${raw.행정동}의 좌표를 찾을 수 없습니다. CSV 파일 확인 필요.`)
+      console.error(`[ClimateDataLoader] ⚠️ ${districtName} ${raw.행정동}의 좌표를 찾을 수 없습니다. CSV 파일 확인 필요.`)
       return null
     }
 
@@ -141,11 +155,8 @@ export class ClimateDataLoader {
       })
     }
 
-    // 총 매출액 계산 (salesByCategory 합계 또는 raw 값)
-    let totalSales = raw.총매출액 || 0;
-    if (!totalSales && salesByCategory) {
-      totalSales = Object.values(salesByCategory).reduce((sum, val) => sum + val, 0);
-    }
+    // 총 매출액 계산 - 통합 함수 사용
+    const totalSales = raw.총매출액 || calculateTotalSales(salesByCategory)
 
     return {
       // HexagonLayer 필수
@@ -198,9 +209,12 @@ export class ClimateDataLoader {
   ): ClimateCardSalesData[] {
     let filtered = [...data]
     
-    // 날짜 필터
-    if (options.date) {
+    // 날짜 필터 - "전체" 또는 빈 값인 경우 필터링하지 않음
+    if (options.date && options.date !== '전체' && options.date !== '') {
       filtered = filtered.filter(item => item.date === options.date)
+      console.log(`[ClimateDataLoader] 날짜 필터 적용: ${options.date}, 결과: ${filtered.length}개`)
+    } else {
+      console.log(`[ClimateDataLoader] 전체 기간 데이터 사용: ${filtered.length}개`)
     }
     
     // 날짜 범위 필터

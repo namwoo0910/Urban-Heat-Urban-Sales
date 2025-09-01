@@ -468,58 +468,104 @@ export function useLayerState(): UseLayerStateReturn {
   const createSimpleDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
     const simplePoints: HexagonLayerData[] = []
     
-    // Group data by dong (행정동)
-    const dongGroups = new Map<string, { totalSales: number, item: ClimateCardSalesData }>()
+    console.log(`[createSimpleDataPoints] 입력 데이터: ${data.length}개`)
     
-    data.forEach(item => {
-      if (!item.salesByCategory) return
-      
-      const dongKey = `${item.guName}_${item.dongName}`
-      
-      // Calculate sales based on selected business type
-      let totalSales = 0
-      
-      if (selectedBusinessType) {
-        // If business type is selected, use only that category's sales
-        const categorySales = item.salesByCategory[selectedBusinessType] || 0
-        totalSales = categorySales
-      } else {
-        // If no business type selected, calculate total sales across all categories
-        Object.entries(item.salesByCategory).forEach(([category, sales]) => {
-          if (sales && sales > 0 && !category.startsWith('sub_')) {
-            totalSales += sales
-          }
-        })
-      }
-      
-      if (totalSales > 0) {
-        const existing = dongGroups.get(dongKey)
-        if (existing) {
-          existing.totalSales += totalSales
+    // Check if we're showing all Seoul data (no specific area selected)
+    const showAllSeoul = !selectedGu && !selectedDong
+    
+    if (showAllSeoul) {
+      // For all Seoul, create individual points for each dong without grouping
+      // This preserves all data points for accurate total calculation
+      data.forEach(item => {
+        if (!item.salesByCategory) return
+        
+        // Calculate sales based on selected business type
+        let totalSales = 0
+        
+        if (selectedBusinessType) {
+          // If business type is selected, use only that category's sales
+          const categorySales = item.salesByCategory[selectedBusinessType] || 0
+          totalSales = categorySales
         } else {
-          dongGroups.set(dongKey, { totalSales, item })
+          // If no business type selected, calculate total sales across all categories
+          Object.entries(item.salesByCategory).forEach(([category, sales]) => {
+            if (sales && sales > 0 && !category.startsWith('sub_')) {
+              totalSales += sales
+            }
+          })
         }
-      }
-    })
-    
-    // Create one point per dong with sales data
-    dongGroups.forEach(({ totalSales, item }) => {
-      simplePoints.push({
-        coordinates: item.coordinates,
-        weight: totalSales,
-        category: selectedBusinessType || '전체',
-        // Minimize originalData to only essential fields
-        originalData: {
-          ...item, // 전체 원본 데이터 포함
-          총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
-          displayMode: 'simple',
-          selectedBusinessType: selectedBusinessType // Add selected business type for reference
+        
+        if (totalSales > 0) {
+          simplePoints.push({
+            coordinates: item.coordinates,
+            weight: totalSales,
+            category: selectedBusinessType || '전체',
+            originalData: {
+              ...item, // 전체 원본 데이터 포함
+              총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+              displayMode: 'simple',
+              selectedBusinessType: selectedBusinessType // Add selected business type for reference
+            }
+          })
         }
       })
-    })
+    } else {
+      // For specific area selection, group by dong (existing logic)
+      const dongGroups = new Map<string, { totalSales: number, item: ClimateCardSalesData }>()
+      
+      data.forEach(item => {
+        if (!item.salesByCategory) return
+        
+        const dongKey = `${item.guName}_${item.dongName}`
+        
+        // Calculate sales based on selected business type
+        let totalSales = 0
+        
+        if (selectedBusinessType) {
+          // If business type is selected, use only that category's sales
+          const categorySales = item.salesByCategory[selectedBusinessType] || 0
+          totalSales = categorySales
+        } else {
+          // If no business type selected, calculate total sales across all categories
+          Object.entries(item.salesByCategory).forEach(([category, sales]) => {
+            if (sales && sales > 0 && !category.startsWith('sub_')) {
+              totalSales += sales
+            }
+          })
+        }
+        
+        if (totalSales > 0) {
+          const existing = dongGroups.get(dongKey)
+          if (existing) {
+            existing.totalSales += totalSales
+          } else {
+            dongGroups.set(dongKey, { totalSales, item })
+          }
+        }
+      })
+      
+      // Create one point per dong with sales data
+      dongGroups.forEach(({ totalSales, item }) => {
+        simplePoints.push({
+          coordinates: item.coordinates,
+          weight: totalSales,
+          category: selectedBusinessType || '전체',
+          originalData: {
+            ...item, // 전체 원본 데이터 포함
+            총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+            displayMode: 'simple',
+            selectedBusinessType: selectedBusinessType // Add selected business type for reference
+          }
+        })
+      })
+    }
+    
+    console.log(`[createSimpleDataPoints] 생성된 포인트: ${simplePoints.length}개`)
+    const totalWeight = simplePoints.reduce((sum, p) => sum + p.weight, 0)
+    console.log(`[createSimpleDataPoints] 총 weight 합계: ${(totalWeight/100000000).toFixed(1)}억원`)
     
     return simplePoints
-  }, [selectedBusinessType])
+  }, [selectedBusinessType, selectedGu, selectedDong])
   
   // Toggle display mode function
   const toggleDisplayMode = useCallback(() => {
@@ -537,9 +583,36 @@ export function useLayerState(): UseLayerStateReturn {
       const data = await climateDataLoader.loadAllData(filterOptions)
       
       console.log(`[ClimateDataLoader] 데이터 로딩 완료: ${data.length}개 포인트`)
+      console.log(`[ClimateDataLoader] 현재 필터 - 날짜: ${filterOptions.date || '전체'}`)
+      
+      // 로드된 원본 데이터의 총 매출 확인
+      let rawTotalSales = 0
+      data.forEach(item => {
+        if (item.salesByCategory) {
+          Object.values(item.salesByCategory).forEach(sales => {
+            if (typeof sales === 'number' && sales > 0) {
+              rawTotalSales += sales
+            }
+          })
+        }
+      })
+      console.log(`[ClimateDataLoader] 원본 데이터 총 매출: ${(rawTotalSales/100000000).toFixed(1)}억원`)
       
       // Apply hierarchical filters
       const filteredData = applyHierarchicalFilters(data)
+      
+      // 필터링 후 데이터 검증
+      let filteredTotalSales = 0
+      filteredData.forEach(item => {
+        if (item.salesByCategory) {
+          Object.values(item.salesByCategory).forEach(sales => {
+            if (typeof sales === 'number' && sales > 0) {
+              filteredTotalSales += sales
+            }
+          })
+        }
+      })
+      console.log(`[ClimateDataLoader] 필터링 후 총 매출: ${(filteredTotalSales/100000000).toFixed(1)}억원`)
       
       // Create data points based on display mode
       const hexData = displayMode === 'simple' 
@@ -549,8 +622,12 @@ export function useLayerState(): UseLayerStateReturn {
       setClimateData(data) // Keep original data
       setHexagonData(hexData) // Set filtered hexagon data
       
-      if (filteredData.length > 0) {
-        console.log(`[ClimateDataLoader] 필터링 후 데이터: ${filteredData.length}개 포인트`)
+      console.log(`[ClimateDataLoader] 필터링 후: climate=${filteredData.length}개, hexagon=${hexData.length}개`)
+      
+      // 샘플 데이터 확인
+      if (hexData.length > 0 && hexData[0].originalData) {
+        const sample = hexData[0].originalData
+        console.log(`[ClimateDataLoader] 샘플 데이터 - 날짜: ${sample.date || sample.기준일자}, 지역: ${sample.guName} ${sample.dongName}`)
       }
       
     } catch (error) {
@@ -565,8 +642,11 @@ export function useLayerState(): UseLayerStateReturn {
   
   // 필터 업데이트 함수들
   const setSelectedDate = useCallback((date: string) => {
+    console.log(`[useCardSalesData] Date changed to: ${date}`)
     setSelectedDateState(date)
-    setFilterOptions(prev => ({ ...prev, date }))
+    // "전체"를 선택한 경우 빈 문자열로 처리하여 필터링 안함
+    const filterDate = date === '전체' ? '' : date
+    setFilterOptions(prev => ({ ...prev, date: filterDate }))
   }, [])
   
   const setSelectedHour = useCallback((hour: number) => {
@@ -590,22 +670,23 @@ export function useLayerState(): UseLayerStateReturn {
     setLayerConfig(prev => ({ ...prev, colorMode: mode as any }))
   }, [setColorScheme])
   
-  // Single useEffect for data loading and filtering - OPTIMIZED to prevent duplicate processing
+  // Load data when filter options change
   useEffect(() => {
-    // Initial load only when filterOptions change
-    if (!climateData) {
-      loadData()
-      return
-    }
+    loadData()
+  }, [filterOptions])
+  
+  // Re-filter and recreate hex data when selection or display mode changes
+  useEffect(() => {
+    if (!climateData) return
     
-    // Re-filter existing data when filters or display mode change
     const filteredData = applyHierarchicalFilters(climateData)
     const hexData = displayMode === 'simple' 
       ? createSimpleDataPoints(filteredData)
       : createCategoryDataPoints(filteredData)
     
     setHexagonData(hexData)
-  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
+    console.log(`[useCardSalesData] Hex data updated: ${hexData.length} points, mode: ${displayMode}`)
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, displayMode, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints])
   
   
   // Return hexagon data directly
