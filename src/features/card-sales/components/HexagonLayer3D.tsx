@@ -20,6 +20,7 @@ import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode, getDongCode } from "../data/districtCodeMappings"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { DistrictLabelsLayer } from "./DistrictLabelsLayer"
+import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { loadDistrictData, getDistrictLayerPaint, getDistrictColors, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
@@ -288,6 +289,17 @@ export default function HexagonScene() {
   // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
   const [heightScale, setHeightScale] = useState<number>(100000000)
   
+  // Helper function to handle dong click from text labels
+  const handleDongClick = useCallback((dongName: string) => {
+    if (!dongName || !selectedGu) return
+    
+    setSelectedDong(dongName)
+    const dongCode = getDongCode(selectedGu, dongName)
+    if (dongCode) {
+      setSelectedDongCode(dongCode)
+    }
+  }, [selectedGu, setSelectedDong, setSelectedDongCode])
+
   // Helper function to calculate polygon centroid
   const calculatePolygonCentroid = useCallback((coordinates: number[][][]) => {
     if (!coordinates || coordinates.length === 0) return null
@@ -813,7 +825,7 @@ export default function HexagonScene() {
   const deckLayers = useMemo(() => {
     const layers = []
     
-    // Add PolygonLayer for 3D dong visualization
+    // Add PolygonLayer for 3D dong visualization (FIRST - renders at bottom)
     if (is3DMode && dongData3D) {
       layers.push(...createDong3DPolygonLayers())
     }
@@ -823,8 +835,60 @@ export default function HexagonScene() {
       layers.push(...columnLayers)
     }
     
+    // Add District Labels TextLayer (LAST - renders on top of 3D polygons)
+    if (showDistrictLabels) {
+      const districtTextLayers = createDistrictLabelsTextLayer({
+        visible: showDistrictLabels && viewState.zoom >= 10,
+        viewState,
+        selectedGu,
+        selectedDong,
+        hoveredDistrict,
+        onClick: handleDistrictLabelClick,
+        onHover: (info) => {
+          if (info.object) {
+            setHoveredDistrict(info.object.nameKr)
+          } else {
+            setHoveredDistrict(null)
+          }
+        }
+      })
+      layers.push(...districtTextLayers)
+      
+      // Add dong labels when a gu is selected
+      if (selectedGu && dongData3D) {
+        const dongLabelData = dongData3D.features?.filter((feature: any) => {
+          const guName = feature.properties?.guName || feature.properties?.['자치구']
+          return guName === selectedGu
+        }).map((feature: any) => ({
+          properties: {
+            dongName: feature.properties?.ADM_DR_NM || feature.properties?.DONG_NM || feature.properties?.['행정동'],
+            centroid: calculatePolygonCentroid(feature.geometry?.coordinates),
+            coordinates: calculatePolygonCentroid(feature.geometry?.coordinates)
+          }
+        }))
+        
+        const dongTextLayers = createDongLabelsTextLayer({
+          dongData: dongLabelData,
+          selectedGu,
+          selectedDong,
+          viewState,
+          onClick: (dongName) => {
+            handleDongClick(dongName)
+          },
+          onHover: (info) => {
+            if (info.object) {
+              setHoveredDistrict(info.object.name)
+            }
+          }
+        })
+        layers.push(...dongTextLayers)
+      }
+    }
+    
     return layers
-  }, [is3DMode, dongData3D, displayMode, columnLayers, createDong3DPolygonLayers])
+  }, [is3DMode, dongData3D, displayMode, columnLayers, createDong3DPolygonLayers, 
+      showDistrictLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
+      handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick])
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -2207,7 +2271,8 @@ export default function HexagonScene() {
             </Source>
           )}
           
-          {/* District Labels Layer - 구 이름 표시 (Mapbox Symbol Layer) */}
+          {/* District Labels Layer - Now handled by Deck.gl TextLayer in deckLayers */}
+          {/* Old Mapbox implementation commented out - replaced with Deck.gl TextLayer for proper 3D rendering
           {showDistrictLabels && (
             <DistrictLabelsLayer 
               visible={viewState.zoom >= 10}
@@ -2215,114 +2280,9 @@ export default function HexagonScene() {
               minZoom={10}
             />
           )}
+          */}
           
-          {/* 선택된 구의 모든 행정동 이름 표시 */}
-          {selectedDong && selectedGu && dongData && (() => {
-            // Find all dong features in the selected gu
-            const dongFeaturesInGu = dongData.features?.filter((feature: any) => {
-              const guName = feature.properties?.['자치구'] || feature.properties?.SGG_NM || feature.properties?.SIGUNGU_NM || feature.properties?.SIG_KOR_NM
-              return guName === selectedGu
-            })
-            
-            if (!dongFeaturesInGu || dongFeaturesInGu.length === 0) return null
-            
-            // Create label features for all dongs in the gu
-            const labelFeatures = dongFeaturesInGu.map((feature: any) => {
-              const dongName = feature.properties?.ADM_NM || feature.properties?.['행정동'] || feature.properties?.H_DONG_NM || feature.properties?.ADM_DR_NM || feature.properties?.EMD_NM || feature.properties?.EMD_KOR_NM
-              const centroid = calculatePolygonCentroid(feature.geometry?.coordinates)
-              
-              if (!centroid || !dongName) return null
-              
-              return {
-                type: 'Feature',
-                geometry: {
-                  type: 'Point',
-                  coordinates: centroid
-                },
-                properties: {
-                  name: dongName,
-                  isSelected: dongName === selectedDong
-                }
-              }
-            }).filter((f: any) => f !== null)
-            
-            // Create GeoJSON for labels
-            const labelGeoJSON = {
-              type: 'FeatureCollection',
-              features: labelFeatures
-            }
-            
-            return (
-              <Source id="selected-dong-label" type="geojson" data={labelGeoJSON}>
-                {/* Background glow for selected dong */}
-                <Layer
-                  id="selected-dong-label-glow"
-                  type="symbol"
-                  filter={['==', ['get', 'isSelected'], true]}
-                  layout={{
-                    'text-field': ['get', 'name'],
-                    'text-font': ['Pretendard Bold', 'Noto Sans KR Bold', 'Arial Unicode MS Bold'],
-                    'text-size': 28,
-                    'text-anchor': 'center',
-                    'text-allow-overlap': true,
-                    'text-ignore-placement': true
-                  }}
-                  paint={{
-                    'text-color': 'transparent',
-                    'text-halo-color': 'rgba(255, 100, 150, 0.6)',
-                    'text-halo-width': 20,
-                    'text-halo-blur': 15
-                  }}
-                />
-                
-                {/* Main text for selected dong */}
-                <Layer
-                  id="selected-dong-label-text"
-                  type="symbol"
-                  filter={['==', ['get', 'isSelected'], true]}
-                  layout={{
-                    'text-field': ['get', 'name'],
-                    'text-font': ['Pretendard Bold', 'Noto Sans KR Bold', 'Arial Unicode MS Bold'],
-                    'text-size': 24,
-                    'text-anchor': 'center',
-                    'text-allow-overlap': true,
-                    'text-ignore-placement': true,
-                    'text-offset': [0, 0],
-                    'text-letter-spacing': 0.05
-                  }}
-                  paint={{
-                    'text-color': '#ffffff',
-                    'text-halo-color': 'rgba(0, 0, 0, 0.95)',
-                    'text-halo-width': 3,
-                    'text-halo-blur': 1
-                  }}
-                />
-                
-                {/* Text for other dongs in the same gu */}
-                <Layer
-                  id="other-dong-label-text"
-                  type="symbol"
-                  filter={['==', ['get', 'isSelected'], false]}
-                  layout={{
-                    'text-field': ['get', 'name'],
-                    'text-font': ['Pretendard Regular', 'Noto Sans KR Regular', 'Arial Unicode MS Regular'],
-                    'text-size': 16,
-                    'text-anchor': 'center',
-                    'text-allow-overlap': true,
-                    'text-ignore-placement': true,
-                    'text-offset': [0, 0],
-                    'text-letter-spacing': 0.02
-                  }}
-                  paint={{
-                    'text-color': 'rgba(255, 255, 255, 0.85)',
-                    'text-halo-color': 'rgba(0, 0, 0, 0.8)',
-                    'text-halo-width': 2,
-                    'text-halo-blur': 0.5
-                  }}
-                />
-              </Source>
-            )
-          })()}
+          {/* 동 레이블은 이제 Deck.gl TextLayer로 처리됨 - 중복 제거 */}
           
           
         </MapGL>
