@@ -214,6 +214,7 @@ export default function HexagonScene() {
   const [showBoundary, setShowBoundary] = useState(false)
   const [showSeoulBase, setShowSeoulBase] = useState(false)
   const [showDistrictLabels, setShowDistrictLabels] = useState(true) // 구 이름 표시
+  const [showDongLabels, setShowDongLabels] = useState(false) // 동 이름 표시
   
   // DeckGL 뷰 상태 - controlled component pattern for synchronization
   const [viewState, setViewState] = useState<MapViewState>({
@@ -924,27 +925,30 @@ export default function HexagonScene() {
           }
         }))
         
-        const dongTextLayers = createDongLabelsTextLayer({
-          dongData: dongLabelData,
-          selectedGu,
-          selectedDong,
-          viewState,
-          onClick: (dongName) => {
-            handleDongClick(dongName)
-          },
-          onHover: (info) => {
-            if (info.object) {
-              setHoveredDistrict(info.object.name)
+        // 동 라벨 레이어 (showDongLabels가 true일 때만 추가)
+        if (showDongLabels) {
+          const dongTextLayers = createDongLabelsTextLayer({
+            dongData: dongLabelData,
+            selectedGu,
+            selectedDong,
+            viewState,
+            onClick: (dongName) => {
+              handleDongClick(dongName)
+            },
+            onHover: (info) => {
+              if (info.object) {
+                setHoveredDistrict(info.object.name)
+              }
             }
-          }
-        })
-        layers.push(...dongTextLayers)
+          })
+          layers.push(...dongTextLayers)
+        }
       }
     }
     
     return layers
   }, [is3DMode, dongData3D, displayMode, columnLayers, createDong3DPolygonLayers, 
-      showDistrictLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
+      showDistrictLabels, showDongLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
       handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick,
       setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
   
@@ -2350,7 +2354,9 @@ export default function HexagonScene() {
         onDongVisibleChange={(visible) => districtSelection.setDongVisible(visible)}
         // Additional display options
         showDistrictLabels={showDistrictLabels}
+        showDongLabels={showDongLabels}
         onDistrictLabelsToggle={(visible: boolean) => setShowDistrictLabels(visible)}
+        onDongLabelsToggle={(visible: boolean) => setShowDongLabels(visible)}
         onBoundaryToggle={(show) => {
           setShowBoundary(show)
           const map = mapRef.current?.getMap()

@@ -61,9 +61,11 @@ interface UnifiedControlsProps {
   showBoundary?: boolean
   showSeoulBase?: boolean
   showDistrictLabels?: boolean
+  showDongLabels?: boolean
   onBoundaryToggle?: (show: boolean) => void
   onSeoulBaseToggle?: (show: boolean) => void
   onDistrictLabelsToggle?: (show: boolean) => void
+  onDongLabelsToggle?: (show: boolean) => void
   
   // District visibility props
   sggVisible?: boolean
@@ -165,6 +167,12 @@ export default function UnifiedControls({
   dongVisible = true,
   onSggVisibleChange,
   onDongVisibleChange,
+  
+  // Text labels props
+  showDistrictLabels = true,
+  showDongLabels = false,
+  onDistrictLabelsToggle,
+  onDongLabelsToggle,
   
   // 3D mode props
   is3DMode = false,
@@ -541,6 +549,35 @@ export default function UnifiedControls({
                   <Switch
                     checked={dongVisible}
                     onCheckedChange={onDongVisibleChange}
+                    className="scale-75"
+                    disabled={isDataLoading}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 텍스트 라벨 표시 토글 */}
+            <div className="space-y-2">
+              <Label className="text-gray-200 text-xs font-semibold">텍스트 라벨</Label>
+              <div className="space-y-2">
+                {/* 자치구 라벨 표시 */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-gray-300 text-xs">자치구 이름</Label>
+                  <Switch
+                    checked={showDistrictLabels}
+                    onCheckedChange={onDistrictLabelsToggle}
+                    className="scale-75"
+                    disabled={isDataLoading}
+                  />
+                </div>
+                {/* 행정동 라벨 표시 */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-gray-300 text-xs">행정동 이름</Label>
+                  <Switch
+                    checked={showDongLabels}
+                    onCheckedChange={onDongLabelsToggle}
                     className="scale-75"
                     disabled={isDataLoading}
                   />
