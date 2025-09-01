@@ -26,6 +26,8 @@ interface LocalEconomyFilterPanelProps {
   externalSelectedDong?: string | null
   externalSelectedBusinessType?: string | null
   externalSelectedDate?: string | null
+  // Timeline animation state
+  isTimelineAnimating?: boolean
 }
 
 export interface FilterState {
@@ -47,6 +49,8 @@ export default function LocalEconomyFilterPanel({
   externalSelectedDong,
   externalSelectedBusinessType,
   externalSelectedDate,
+  // Timeline animation state
+  isTimelineAnimating = false,
 }: LocalEconomyFilterPanelProps) {
   
   // Filter states
@@ -106,22 +110,13 @@ export default function LocalEconomyFilterPanel({
     setSelectedDate(value === '전체' ? null : value)
   }
   
-  // Generate available dates (2024년 전체)
+  // Generate available dates (매월 1일만)
   const availableDates = useMemo(() => {
-    const dates = []
-    const startDate = new Date('2024-01-01')
-    const endDate = new Date('2024-12-31')
-    const currentDate = new Date(startDate)
-    
-    while (currentDate <= endDate) {
-      const year = currentDate.getFullYear()
-      const month = String(currentDate.getMonth() + 1).padStart(2, '0')
-      const day = String(currentDate.getDate()).padStart(2, '0')
-      dates.push(`${year}-${month}-${day}`)
-      currentDate.setDate(currentDate.getDate() + 1)
-    }
-    
-    return dates
+    return [
+      '2024-01-01', '2024-02-01', '2024-03-01', '2024-04-01',
+      '2024-05-01', '2024-06-01', '2024-07-01', '2024-08-01',
+      '2024-09-01', '2024-10-01', '2024-11-01', '2024-12-01'
+    ]
   }, [])
   
   
@@ -339,11 +334,19 @@ export default function LocalEconomyFilterPanel({
             <Select 
               value={selectedDate || "전체"} 
               onValueChange={handleDateChange}
+              disabled={isTimelineAnimating}
             >
-              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
+              <SelectTrigger className={`bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2 ${
+                isTimelineAnimating ? 'opacity-50' : ''
+              }`}>
                 <SelectValue>
-                  {selectedDate ? 
-                    `${selectedDate.substring(0, 4)}년 ${selectedDate.substring(5, 7)}월 ${selectedDate.substring(8, 10)}일` : 
+                  {isTimelineAnimating && selectedDate ? 
+                    `📅 재생 중: ${new Date(selectedDate).toLocaleDateString('ko-KR', { 
+                      year: 'numeric', 
+                      month: 'long' 
+                    })}` :
+                    selectedDate ? 
+                    `${selectedDate.substring(0, 4)}년 ${selectedDate.substring(5, 7)}월` : 
                     "전체 기간"
                   }
                 </SelectValue>
@@ -355,85 +358,20 @@ export default function LocalEconomyFilterPanel({
                 >
                   전체 기간
                 </SelectItem>
-                {/* 최근 날짜 몇 개만 표시 (성능 고려) */}
-                <SelectItem 
-                  value="2024-12-31"
-                  className="text-gray-200 hover:bg-gray-900/50 font-semibold"
-                >
-                  2024년 12월 31일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-12-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 12월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-11-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 11월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-10-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 10월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-09-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 9월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-08-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 8월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-07-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 7월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-06-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 6월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-05-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 5월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-04-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 4월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-03-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 3월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-02-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 2월 1일
-                </SelectItem>
-                <SelectItem 
-                  value="2024-01-01"
-                  className="text-gray-200 hover:bg-gray-900/50"
-                >
-                  2024년 1월 1일
-                </SelectItem>
+                {/* 매월 1일 날짜 표시 */}
+                {availableDates.map(date => (
+                  <SelectItem 
+                    key={date}
+                    value={date}
+                    className="text-gray-200 hover:bg-gray-900/50"
+                  >
+                    {new Date(date).toLocaleDateString('ko-KR', { 
+                      year: 'numeric', 
+                      month: 'long', 
+                      day: 'numeric' 
+                    })}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>

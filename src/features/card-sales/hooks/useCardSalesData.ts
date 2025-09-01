@@ -106,6 +106,19 @@ interface UseLayerStateReturn {
   updateBearing: (bearing: number) => void
   onRotationInteractionStart: () => void
   onRotationInteractionEnd: () => void
+  
+  // 시계열 애니메이션 상태
+  timelineAnimationEnabled: boolean
+  isTimelinePlaying: boolean
+  timelineSpeed: number
+  currentMonthIndex: number
+  monthlyDates: string[]
+  
+  // 시계열 애니메이션 설정 함수들
+  setTimelineAnimationEnabled: (enabled: boolean) => void
+  setIsTimelinePlaying: (playing: boolean) => void
+  setTimelineSpeed: (speed: number) => void
+  toggleTimelineAnimation: () => void
 }
 
 export function useLayerState(): UseLayerStateReturn {
@@ -148,6 +161,19 @@ export function useLayerState(): UseLayerStateReturn {
   const [rotationDirection, setRotationDirectionState] = useState<'clockwise' | 'counterclockwise'>('clockwise')
   const [currentBearing, setCurrentBearing] = useState(0)
   const [isRotating, setIsRotating] = useState(false)
+  
+  // 시계열 애니메이션 상태
+  const [timelineAnimationEnabled, setTimelineAnimationEnabled] = useState(false)
+  const [isTimelinePlaying, setIsTimelinePlaying] = useState(false)
+  const [timelineSpeed, setTimelineSpeed] = useState(2000) // 2초 기본값
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(0)
+  
+  // 매월 1일 날짜 배열
+  const monthlyDates = useMemo(() => [
+    '2024-01-01', '2024-02-01', '2024-03-01', '2024-04-01',
+    '2024-05-01', '2024-06-01', '2024-07-01', '2024-08-01',
+    '2024-09-01', '2024-10-01', '2024-11-01', '2024-12-01'
+  ], [])
   
   // 파도 애니메이션 설정 (memoized for performance)
   const waveAnimationConfig = useMemo(() => ({
@@ -245,6 +271,37 @@ export function useLayerState(): UseLayerStateReturn {
       setIsRotating(true)
     }
   }, [rotationEnabled])
+  
+  // 시계열 애니메이션 토글 함수
+  const toggleTimelineAnimation = useCallback(() => {
+    setIsTimelinePlaying(prev => !prev)
+  }, [])
+  
+  // 시계열 애니메이션 자동 순환 로직
+  useEffect(() => {
+    if (timelineAnimationEnabled && isTimelinePlaying) {
+      const interval = setInterval(() => {
+        setCurrentMonthIndex(prevIndex => {
+          const nextIndex = (prevIndex + 1) % 12
+          // 날짜 변경
+          const nextDate = monthlyDates[nextIndex]
+          setSelectedDate(nextDate)
+          console.log('[Timeline Animation] Changed to:', nextDate)
+          return nextIndex
+        })
+      }, timelineSpeed)
+      
+      return () => clearInterval(interval)
+    }
+  }, [timelineAnimationEnabled, isTimelinePlaying, timelineSpeed, monthlyDates])
+  
+  // 시계열 애니메이션 활성화 시 현재 날짜를 첫 번째 월로 설정
+  useEffect(() => {
+    if (timelineAnimationEnabled && !selectedDate) {
+      setSelectedDate(monthlyDates[0])
+      setCurrentMonthIndex(0)
+    }
+  }, [timelineAnimationEnabled, monthlyDates, selectedDate])
   
   // 계산된 값들 (memoized for performance)
   const rotationDirectionText = useMemo(() => 
@@ -650,5 +707,18 @@ export function useLayerState(): UseLayerStateReturn {
     updateBearing,
     onRotationInteractionStart,
     onRotationInteractionEnd,
+    
+    // 시계열 애니메이션 상태
+    timelineAnimationEnabled,
+    isTimelinePlaying,
+    timelineSpeed,
+    currentMonthIndex,
+    monthlyDates,
+    
+    // 시계열 애니메이션 설정 함수들
+    setTimelineAnimationEnabled,
+    setIsTimelinePlaying,
+    setTimelineSpeed,
+    toggleTimelineAnimation,
   }
 }

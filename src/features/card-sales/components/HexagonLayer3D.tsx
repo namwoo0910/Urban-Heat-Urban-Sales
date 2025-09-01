@@ -194,6 +194,17 @@ export default function HexagonScene() {
     selectedDate,
     setSelectedDate,
     
+    // Timeline animation states and functions
+    timelineAnimationEnabled,
+    isTimelinePlaying,
+    timelineSpeed,
+    currentMonthIndex,
+    monthlyDates,
+    setTimelineAnimationEnabled,
+    setIsTimelinePlaying,
+    setTimelineSpeed,
+    toggleTimelineAnimation,
+    
   } = useLayerState()
   
   // 기본 지도 상태
@@ -2311,6 +2322,8 @@ export default function HexagonScene() {
         externalSelectedDong={selectedDong}
         externalSelectedBusinessType={selectedBusinessType}
         externalSelectedDate={selectedDate}
+        // Timeline animation state
+        isTimelineAnimating={timelineAnimationEnabled && isTimelinePlaying}
       />
 
       {/* 선택된 지역 매출액 정보 */}
@@ -2397,6 +2410,18 @@ export default function HexagonScene() {
         onAnimationSpeedChange={setAnimationSpeed}
         onWaveAmplitudeChange={setWaveAmplitude}
         onToggleAnimation={toggleAnimation}
+        
+        // 시계열 애니메이션 props
+        timelineAnimationEnabled={timelineAnimationEnabled}
+        isTimelinePlaying={isTimelinePlaying}
+        timelineSpeed={timelineSpeed}
+        currentMonthIndex={currentMonthIndex}
+        monthlyDates={monthlyDates}
+        onTimelineAnimationEnabledChange={setTimelineAnimationEnabled}
+        onIsTimelinePlayingChange={setIsTimelinePlaying}
+        onTimelineSpeedChange={setTimelineSpeed}
+        onToggleTimelineAnimation={toggleTimelineAnimation}
+        
         // 회전 애니메이션 props
         rotationEnabled={rotationEnabled}
         rotationSpeed={rotationSpeed}

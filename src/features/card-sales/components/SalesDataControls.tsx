@@ -6,7 +6,10 @@ import { ChevronDown } from "lucide-react"
 import { 
   MapPin, 
   RefreshCw,
-  Loader2
+  Loader2,
+  Play,
+  Pause,
+  Calendar
 } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Label } from "@/src/shared/components/ui/label"
@@ -120,6 +123,17 @@ interface UnifiedControlsProps {
   onRotationSpeedChange?: (speed: number) => void
   onRotationDirectionChange?: (direction: 'clockwise' | 'counterclockwise') => void
   onToggleRotation?: () => void
+  
+  // Timeline animation props
+  timelineAnimationEnabled?: boolean
+  isTimelinePlaying?: boolean
+  timelineSpeed?: number
+  currentMonthIndex?: number
+  monthlyDates?: string[]
+  onTimelineAnimationEnabledChange?: (enabled: boolean) => void
+  onIsTimelinePlayingChange?: (playing: boolean) => void
+  onTimelineSpeedChange?: (speed: number) => void
+  onToggleTimelineAnimation?: () => void
 }
 
 // Theme adjustment state interface
@@ -159,6 +173,17 @@ export default function UnifiedControls({
   // Height scale props
   heightScale = 10000000,
   onHeightScaleChange,
+  
+  // Timeline animation props
+  timelineAnimationEnabled = false,
+  isTimelinePlaying = false,
+  timelineSpeed = 2000,
+  currentMonthIndex = 0,
+  monthlyDates = [],
+  onTimelineAnimationEnabledChange,
+  onIsTimelinePlayingChange,
+  onTimelineSpeedChange,
+  onToggleTimelineAnimation,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('modern')
@@ -538,6 +563,77 @@ export default function UnifiedControls({
               </div>
               <p className="text-xs text-gray-400">
                 {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
+              </p>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 시계열 애니메이션 토글 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-200 text-xs font-semibold">
+                  <Calendar className="inline w-3 h-3 mr-1" />
+                  시계열 애니메이션
+                </Label>
+                <Switch
+                  checked={timelineAnimationEnabled}
+                  onCheckedChange={onTimelineAnimationEnabledChange}
+                  className="scale-75"
+                  disabled={isDataLoading}
+                />
+              </div>
+              {timelineAnimationEnabled && (
+                <div className="space-y-2 pl-2">
+                  {/* 재생/일시정지 버튼과 현재 월 표시 */}
+                  <div className="flex items-center justify-between">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={onToggleTimelineAnimation}
+                      className="text-gray-200 hover:bg-gray-900/50 h-6 px-2"
+                    >
+                      {isTimelinePlaying ? (
+                        <><Pause className="w-3 h-3 mr-1" /> 일시정지</>
+                      ) : (
+                        <><Play className="w-3 h-3 mr-1" /> 재생</>
+                      )}
+                    </Button>
+                    <span className="text-xs text-gray-400">
+                      {monthlyDates && monthlyDates[currentMonthIndex] ? 
+                        new Date(monthlyDates[currentMonthIndex]).toLocaleDateString('ko-KR', { 
+                          year: 'numeric', 
+                          month: 'long' 
+                        }) : 
+                        '2024년 1월'}
+                    </span>
+                  </div>
+                  
+                  {/* 속도 조절 */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-gray-300 text-xs">속도</Label>
+                      <span className="text-xs text-gray-400">{(timelineSpeed / 1000).toFixed(1)}초</span>
+                    </div>
+                    <Slider
+                      value={[timelineSpeed]}
+                      onValueChange={(value) => onTimelineSpeedChange?.(value[0])}
+                      min={500}
+                      max={5000}
+                      step={500}
+                      disabled={isDataLoading}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>빠름</span>
+                      <span>느림</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-gray-400">
+                {timelineAnimationEnabled ? 
+                  '매월 1일 데이터를 자동으로 순환합니다' : 
+                  '시계열 데이터를 월별로 재생합니다'}
               </p>
             </div>
 
