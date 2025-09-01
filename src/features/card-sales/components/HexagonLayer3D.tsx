@@ -94,6 +94,16 @@ const DEFAULT_SEOUL_VIEW = {
   maxZoom: 13
 } as const
 
+// 줌 설정 통합 관리
+const ZOOM_SETTINGS = {
+  DONG: 13,              // 동 선택시 줌 레벨
+  GU: 13,                  // 구 선택시 줌 레벨
+  PITCH_DONG: 40,          // 동 선택시 카메라 각도
+  PITCH_GU: 30,            // 구 선택시 카메라 각도
+  TRANSITION_DURATION: 1500,
+  TRANSITION_SPEED: 1.2
+} as const
+
 export default function HexagonScene() {
   const mapRef = useRef<MapRef>(null)
   const cleanupRef = useRef<(() => void)[]>([])
@@ -226,6 +236,32 @@ export default function HexagonScene() {
     }, transitionDuration + 100)
   }, [])
   
+  // 통합 줌 처리 함수 - 3D 폴리곤 클릭과 필터 패널 선택 모두에서 사용
+  const handleDistrictZoom = useCallback((guName: string, dongName?: string | null) => {
+    // 동 중심점 우선 사용
+    const dongCenter = dongName ? getDistrictCenter('동', dongName) : null
+    const center = dongCenter || getDistrictCenter('구', guName)
+    
+    if (center) {
+      isProgrammaticUpdateRef.current = true
+      setViewState(prev => ({
+        ...prev,
+        longitude: center[0],
+        latitude: center[1],
+        zoom: dongCenter ? ZOOM_SETTINGS.DONG : ZOOM_SETTINGS.GU,
+        pitch: dongCenter ? ZOOM_SETTINGS.PITCH_DONG : ZOOM_SETTINGS.PITCH_GU,
+        bearing: prev.bearing || 0,
+        transitionDuration: ZOOM_SETTINGS.TRANSITION_DURATION,
+        transitionInterpolator: new FlyToInterpolator({ speed: ZOOM_SETTINGS.TRANSITION_SPEED }),
+        transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
+      }))
+      
+      setTimeout(() => {
+        isProgrammaticUpdateRef.current = false
+      }, ZOOM_SETTINGS.TRANSITION_DURATION + 100)
+    }
+  }, [setViewState])
+  
   // Handle filter panel changes - simplified to prevent loops
   const handleFilterChange = useCallback((filters: FilterState) => {
     // Directly update states without checking current values
@@ -238,26 +274,25 @@ export default function HexagonScene() {
     setSelectedBusinessType(filters.selectedBusinessType)
     setSelectedDate(filters.selectedDate || null)
     
-    // 행정동 선택시에도 현재 표시 모드를 유지
-    // Display mode는 사용자가 버튼을 통해서만 변경
-    // Note: selectedSubCategory removed - not part of FilterState interface
-  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setSelectedDate])
+    // 필터에서 행정동 선택시 통합 줌 함수 사용
+    if (filters.selectedDong && filters.selectedGu) {
+      handleDistrictZoom(filters.selectedGu, filters.selectedDong)
+    } else if (filters.selectedGu && !filters.selectedDong) {
+      // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
+      console.log('[GuSelection] Maintaining Seoul-wide view with district highlight')
+      // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
+    }
+  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setSelectedDate, handleDistrictZoom])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
   
-  // Animation state for selected districts
-  const [animatingDistrict, setAnimatingDistrict] = useState<string | null>(null)
-  const [previousSelectedDistrict, setPreviousSelectedDistrict] = useState<string | null>(null)
 
   // District selection hook
   const districtSelection = useDistrictSelection({ 
     mapRef,
     onDistrictSelect: (districtName, feature) => {
       console.log('Selected district:', districtName)
-      // Trigger animation for newly selected district
-      setAnimatingDistrict(districtName)
-      setPreviousSelectedDistrict(districtName)
       
       // Update filter panel when map is clicked
       if (feature?.layer?.id === 'sgg-fill') {
@@ -469,9 +504,6 @@ export default function HexagonScene() {
   // Manage animation state for selected districts
   useEffect(() => {
     if (districtSelection.selectedDistrict) {
-      // Start animation for new selection
-      setAnimatingDistrict(districtSelection.selectedDistrict)
-      
       // Force re-render of layers to apply color changes
       const map = mapRef.current?.getMap()
       if (map) {
@@ -500,7 +532,6 @@ export default function HexagonScene() {
       return () => clearTimeout(animationTimer)
     } else {
       // Clear animation when no district is selected
-      setAnimatingDistrict(null)
     }
   }, [districtSelection.selectedDistrict])
 
@@ -796,25 +827,8 @@ export default function HexagonScene() {
               setSelectedDongCode(dongCode || getDongCode(guName, dongName))
               setSelectedGuCode(guCode || getDistrictCode(guName))
               
-              // 줌인 (기존 로직 재사용)
-              const guCenter = getDistrictCenter('구', guName)
-              if (guCenter) {
-                isProgrammaticUpdateRef.current = true
-                setViewState(prev => ({
-                  ...prev,
-                  longitude: guCenter[0],
-                  latitude: guCenter[1],
-                  zoom: 13,
-                  pitch: 30,
-                  bearing: prev.bearing || 0,
-                  transitionDuration: 1500,
-                  transitionInterpolator: new FlyToInterpolator({ speed: 1.2 }),
-                  transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
-                }))
-                setTimeout(() => {
-                  isProgrammaticUpdateRef.current = false
-                }, 1600)
-              }
+              // 통합 줌 함수 사용
+              handleDistrictZoom(guName, dongName)
             }
           }
         },
@@ -1827,34 +1841,6 @@ export default function HexagonScene() {
         })
         
         setSelectedDistrictData(selectedFeatureData)
-        
-        // 카메라 이동 로직 수정
-        if (selectedDong && selectedGu) {
-          // 동 선택시: 해당 구로 줌인
-          const guCenter = getDistrictCenter('구', selectedGu)
-          if (guCenter) {
-            isProgrammaticUpdateRef.current = true
-            setViewState(prevState => ({
-              ...prevState,
-              longitude: guCenter[0],
-              latitude: guCenter[1],
-              zoom: 11, // 구 레벨 줌 (행정동들이 잘 보이는 레벨)
-              pitch: 30, // 적당한 3D 각도
-              bearing: prevState.bearing || 0,
-              transitionDuration: 1500,
-              transitionInterpolator: new FlyToInterpolator({ speed: 1.2 }),
-              transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
-            }))
-            setTimeout(() => {
-              isProgrammaticUpdateRef.current = false
-            }, 1600)
-          }
-        } else if (selectedGu && !selectedDong) {
-          // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
-          // 줌 변경 없이 현재 뷰 유지 (서울 전체가 보이는 상태)
-          console.log('[GuSelection] Maintaining Seoul-wide view with district highlight')
-          // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
-        }
       } else {
         setSelectedDistrictData(null)
         console.log('[District Selection] No feature found for codes:', { guCode: selectedGuCode, dongCode: selectedDongCode })
@@ -1909,14 +1895,7 @@ export default function HexagonScene() {
           if (isHovering) return 'pointer'
           return 'grab'
         }}
-        parameters={{
-          depthTest: true,
-          depthFunc: 0x0203, // GL.LEQUAL
-          blend: true,
-          blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
-          blendEquation: 0x8006 // GL.FUNC_ADD
-        }}
-        onClick={(info, event) => {
+        onClick={() => {
           // 이벤트가 레이어로 전파되도록 함
           return true
         }}
@@ -2358,7 +2337,7 @@ export default function HexagonScene() {
         onDongVisibleChange={(visible) => districtSelection.setDongVisible(visible)}
         // Additional display options
         showDistrictLabels={showDistrictLabels}
-        onDistrictLabelsChange={(visible) => setShowDistrictLabels(visible)}
+        onDistrictLabelsToggle={(visible: boolean) => setShowDistrictLabels(visible)}
         onBoundaryToggle={(show) => {
           setShowBoundary(show)
           const map = mapRef.current?.getMap()
