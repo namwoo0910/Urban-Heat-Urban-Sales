@@ -238,16 +238,16 @@ export function getModernDistrictColor(
   }
   
   if (isHovered) {
-    // Subtle white glow for hover
-    r = Math.min(255, r + 20);
-    g = Math.min(255, g + 20);
-    b = Math.min(255, b + 20);
+    // Strong white glow for hover - much more visible
+    r = Math.min(255, r + 50);
+    g = Math.min(255, g + 50);
+    b = Math.min(255, b + 50);
   }
   
   // Alpha channel
   let alpha = 235; // Slightly transparent for depth
   if (isSelected) alpha = 255;
-  if (isHovered) alpha = 245;
+  if (isHovered) alpha = 255; // Full opacity for maximum visibility when hovered
   
   // Apply theme adjustments (brightness, saturation, contrast, opacity)
   return applyColorAdjustments(r, g, b, alpha);

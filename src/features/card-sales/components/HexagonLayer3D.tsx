@@ -642,6 +642,11 @@ export default function HexagonScene() {
             return 0 // 숨김
           }
           
+          // Add elevation boost when gu is hovered for 3D pop-out effect
+          if (hoveredDistrict === guName) {
+            return height * 1.2  // 20% elevation boost for better visibility
+          }
+          
           return height
         },
         
@@ -683,8 +688,14 @@ export default function HexagonScene() {
             const isThisDongSelected = selectedDong && dongName === selectedDong
             // Check if this dong is in selected gu
             const isInSelectedGu = selectedGu && guName === selectedGu
-            // Check if this dong is being hovered
-            const isHovered = hoveredDistrict === dongName
+            // Check if this dong is being hovered directly OR if its gu is being hovered
+            const isHovered = hoveredDistrict === dongName || hoveredDistrict === guName
+            
+            // Special strong highlighting when gu is hovered
+            if (hoveredDistrict === guName) {
+              // Use bright yellow-gold highlight for entire gu
+              return [255, 230, 100, 255]
+            }
             
             // Dimmed color for non-selected areas when something is selected
             if ((selectedGu || selectedDong) && !isInSelectedGu) {
@@ -705,6 +716,11 @@ export default function HexagonScene() {
           if (selectedDong && dongName === selectedDong) {
             return convertColorExpressionToRGB(height, 'bright', guName, dongName, true, false, totalSales)
           }
+          // Strong highlight if gu is hovered (show district boundary effect)
+          if (hoveredDistrict === guName) {
+            // Use bright golden highlight for entire gu
+            return [255, 215, 0, 255]  // Gold color with full opacity
+          }
           if (selectedGu && guName === selectedGu) {
             return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
           }
@@ -721,15 +737,29 @@ export default function HexagonScene() {
           
           if (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') {
             const isHighlighted = (selectedDong && dongName === selectedDong) || 
-                                 hoveredDistrict === dongName
+                                 hoveredDistrict === dongName ||
+                                 hoveredDistrict === guName  // Highlight edges when gu is hovered
             return getModernEdgeColor(guName, isHighlighted, currentThemeKey)
+          }
+          
+          // Strong highlight edges when gu is hovered
+          if (hoveredDistrict === guName) {
+            return [255, 255, 0, 255]  // Bright pure yellow edges with full opacity for hovered gu
           }
           
           // Fallback to simple white edges
           return [255, 255, 255, 30]
         },
+        // Dynamic line width based on hover state
+        getLineWidth: (d: any) => {
+          const guName = d.properties.guName || d.properties['자치구']
+          if (hoveredDistrict === guName) {
+            return 3  // Thicker lines for hovered gu
+          }
+          return 1  // Default line width
+        },
         lineWidthMinPixels: 1.5,
-        lineWidthMaxPixels: 2,
+        lineWidthMaxPixels: 4,
         
         // Modern material properties for sophisticated 3D effect
         material: (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') 
@@ -774,7 +804,7 @@ export default function HexagonScene() {
                   ...prev,
                   longitude: guCenter[0],
                   latitude: guCenter[1],
-                  zoom: 11,
+                  zoom: 13,
                   pitch: 30,
                   bearing: prev.bearing || 0,
                   transitionDuration: 1500,
@@ -791,15 +821,17 @@ export default function HexagonScene() {
         
         // Transitions for smooth animations
         transitions: {
-          getElevation: 600,
-          getFillColor: 600
+          getElevation: 300,  // Faster transition for more responsive hover
+          getFillColor: 300,  // Faster color transition
+          getLineWidth: 200   // Quick line width transition
         },
         
         // Update triggers for reactive updates
         updateTriggers: {
-          getElevation: [selectedGu, selectedDong, selectedBusinessType, dongSalesMap, heightScale],
+          getElevation: [selectedGu, selectedDong, selectedBusinessType, dongSalesMap, heightScale, hoveredDistrict],
           getFillColor: [selectedGu, selectedDong, currentThemeKey, hoveredDistrict, themeAdjustments],
-          getLineColor: [selectedGu, selectedDong, currentThemeKey, hoveredDistrict, themeAdjustments]
+          getLineColor: [selectedGu, selectedDong, currentThemeKey, hoveredDistrict, themeAdjustments],
+          getLineWidth: [hoveredDistrict]
         }
       })
     ]
@@ -835,7 +867,7 @@ export default function HexagonScene() {
       layers.push(...columnLayers)
     }
     
-    // Add District Labels TextLayer (LAST - renders on top of 3D polygons)
+    // Add District Labels TextLayer (LAST - renders on top of everything)
     if (showDistrictLabels) {
       const districtTextLayers = createDistrictLabelsTextLayer({
         visible: showDistrictLabels && viewState.zoom >= 10,
@@ -888,7 +920,8 @@ export default function HexagonScene() {
     return layers
   }, [is3DMode, dongData3D, displayMode, columnLayers, createDong3DPolygonLayers, 
       showDistrictLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
-      handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick])
+      handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick,
+      setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -2321,10 +2354,11 @@ export default function HexagonScene() {
         showBoundary={showBoundary}
         showSeoulBase={showSeoulBase}
         // District visibility props
-        sggVisible={districtSelection.sggVisible}
         dongVisible={districtSelection.dongVisible}
-        onSggVisibleChange={(visible) => districtSelection.setSggVisible(visible)}
         onDongVisibleChange={(visible) => districtSelection.setDongVisible(visible)}
+        // Additional display options
+        showDistrictLabels={showDistrictLabels}
+        onDistrictLabelsChange={(visible) => setShowDistrictLabels(visible)}
         onBoundaryToggle={(show) => {
           setShowBoundary(show)
           const map = mapRef.current?.getMap()
