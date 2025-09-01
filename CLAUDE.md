@@ -11,11 +11,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Essential Commands
 
 ```bash
-npm run dev          # Start dev server (http://localhost:3000)
+npm run dev          # Start dev server (http://localhost:3000) - USER RUNS THIS MANUALLY
 npm run build        # Production build (auto-runs particle generation)
 npm run lint         # Run Next.js linting
 npm run generate-particles  # Generate particle boundary data
 ```
+
+**Important**: Claude should NOT run `npm run dev`. The user will run the dev server manually. Claude should complete all code changes and provide a summary of what was done.
 
 ## Architecture & Key Patterns
 

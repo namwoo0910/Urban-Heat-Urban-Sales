@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { DeckGL } from '@deck.gl/react'
-import { Map as MapGL, Source, Layer, Popup } from 'react-map-gl'
+import { Map as MapGL, Source, Layer } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator, FlyToInterpolator } from '@deck.gl/core'
@@ -244,13 +244,6 @@ export default function HexagonScene() {
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
-  
-  // Hover state for fill-extrusion layer tooltips
-  const [hoveredFeature, setHoveredFeature] = useState<{
-    lngLat: [number, number]
-    properties: any
-    layerId: string
-  } | null>(null)
   
   // Animation state for selected districts
   const [animatingDistrict, setAnimatingDistrict] = useState<string | null>(null)
@@ -740,14 +733,8 @@ export default function HexagonScene() {
         onHover: (info: any) => {
           if (info.object) {
             const properties = info.object.properties
-            setHoveredFeature({
-              lngLat: info.coordinate as [number, number],
-              properties,
-              layerId: 'dong-3d-polygon'
-            })
             setHoveredDistrict(properties.ADM_DR_NM || properties.DONG_NM || properties['행정동'])
           } else {
-            setHoveredFeature(null)
             setHoveredDistrict(null)
           }
         },
@@ -816,7 +803,6 @@ export default function HexagonScene() {
     setSelectedGu,
     setSelectedDongCode,
     setSelectedGuCode,
-    setHoveredFeature,
     setHoveredDistrict,
     setViewState,
     hoveredDistrict,
@@ -1810,61 +1796,6 @@ export default function HexagonScene() {
     layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
   })
 
-  // Format tooltip content for fill-extrusion layers
-  const formatExtrusionTooltip = useCallback((properties: any, layerId: string) => {
-    // Check if it's a Gu (district) layer
-    // Removed sgg-extrusion layer - tooltips now handled by Deck.gl PolygonLayer
-    if (layerId === 'sgg-extrusion') {
-      return null
-    }
-    
-    // Removed dong-extrusion layer - tooltips now handled by Deck.gl PolygonLayer
-    if (layerId === 'dong-extrusion') {
-      return null
-    }
-    
-    // Legacy dong-extrusion tooltip code (kept for reference)
-    if (false) {
-      const dongCode = properties.ADM_DR_CD || properties.DONG_CD || properties.H_DONG_CD || properties.EMD_CD
-      const dongName = properties.ADM_DR_NM || properties.DONG_NM || properties.H_DONG_NM || properties.EMD_NM || '동 정보 없음'
-      const guName = properties.SIGUNGU_NM || properties.SGG_NM || ''
-      
-      // Get sales data from dongSalesMap
-      const sales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : properties.sales || 0
-      const height = properties.height || 0
-      
-      // Get business type breakdown if available
-      const businessTypeSales = dongCode && dongSalesByTypeMap.has(Number(dongCode)) 
-        ? dongSalesByTypeMap.get(Number(dongCode)) 
-        : null
-      
-      return (
-        <div className="text-white">
-          <div className="font-bold text-sm mb-2">📍 {guName} {dongName}</div>
-          <div className="text-xs space-y-1">
-            <div>💰 총 매출: {sales.toLocaleString()}원</div>
-            <div>📊 높이: {height.toFixed(0)}m</div>
-            {businessTypeSales && businessTypeSales.size > 0 && (
-              <div className="mt-2 pt-2 border-t border-gray-600">
-                <div className="font-semibold mb-1">업종별 매출:</div>
-                {Array.from(businessTypeSales.entries())
-                  .sort((a, b) => b[1] - a[1])
-                  .slice(0, 3)
-                  .map(([type, amount]) => (
-                    <div key={type} className="pl-2">
-                      • {type}: {amount.toLocaleString()}원
-                    </div>
-                  ))
-                }
-              </div>
-            )}
-          </div>
-        </div>
-      )
-    }
-    
-    return <div className="text-white">데이터 로딩 중...</div>
-  }, [dongSalesMap, dongSalesByTypeMap])
 
   return (
     <div className="relative w-full h-screen flex">
@@ -1951,33 +1882,21 @@ export default function HexagonScene() {
             if (e.features && e.features.length > 0) {
               const feature = e.features[0]
               
-              // Check if hovering over fill-extrusion layers
-              if (feature.layer && (feature.layer.id === 'dong-extrusion' || 
-                  feature.layer.id === 'sgg-extrusion')) {
-                // Set hoveredFeature for tooltip display
-                setHoveredFeature({
-                  lngLat: [e.lngLat.lng, e.lngLat.lat],
-                  properties: feature.properties || {},
-                  layerId: feature.layer.id
-                })
-                mapRef.current!.getCanvas().style.cursor = 'pointer'
-              } else if (feature.properties?.SIGUNGU_NM) {
-                // Original hover logic for district names
+              if (feature.properties?.SIGUNGU_NM) {
+                // Hover logic for district names
                 setHoveredDistrict(feature.properties.SIGUNGU_NM)
                 mapRef.current!.getCanvas().style.cursor = 'pointer'
               }
             } else {
               setHoveredDistrict(null)
-              setHoveredFeature(null)
               mapRef.current!.getCanvas().style.cursor = ''
             }
           }}
           onMouseLeave={() => {
             setHoveredDistrict(null)
-            setHoveredFeature(null)
             mapRef.current!.getCanvas().style.cursor = ''
           }}
-          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'sgg-extrusion', 'dong-extrusion', 'dong-fill', 'dong-line']}
+          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-fill', 'dong-line']}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
@@ -2405,24 +2324,6 @@ export default function HexagonScene() {
             )
           })()}
           
-          {/* Popup for fill-extrusion layer tooltips */}
-          {hoveredFeature && (
-            <Popup
-              longitude={hoveredFeature.lngLat[0]}
-              latitude={hoveredFeature.lngLat[1]}
-              closeButton={false}
-              closeOnClick={false}
-              anchor="bottom"
-              offset={[0, -10]}
-              className="mapbox-tooltip"
-              style={{
-                padding: 0,
-                borderRadius: '8px'
-              }}
-            >
-              {formatExtrusionTooltip(hoveredFeature.properties, hoveredFeature.layerId)}
-            </Popup>
-          )}
           
         </MapGL>
       </DeckGL>
