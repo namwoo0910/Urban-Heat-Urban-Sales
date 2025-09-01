@@ -109,7 +109,7 @@ export default function HexagonScene() {
   const cleanupRef = useRef<(() => void)[]>([])
   const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
-  const [currentThemeKey, setCurrentThemeKey] = useState('modern') // Default to modern theme
+  const [currentThemeKey, setCurrentThemeKey] = useState('blue') // Default to blue theme for districts
   const [is3DMode, setIs3DMode] = useState(true) // 3D 모드를 기본으로 설정
   const [themeAdjustments, setThemeAdjustments] = useState({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })
   

@@ -263,10 +263,10 @@ export function createDongLabelsTextLayer({
     sizeMinPixels: 14,
     sizeMaxPixels: 22,
     
-    // Highlight selected dong
+    // Highlight selected dong with yellow
     getColor: d => {
       if (d.isSelected) {
-        return [255, 100, 150, 255] // Pink for selected
+        return [255, 255, 0, 255] // Yellow for selected dong
       }
       return [255, 255, 255, 255] // White for others
     },
@@ -275,11 +275,8 @@ export function createDongLabelsTextLayer({
     outlineWidth: d => d.isSelected ? 3 : 2,
     outlineColor: [0, 0, 0, 255],
     
-    // Background only for selected
-    background: d => d.isSelected,
-    getBackgroundColor: [255, 100, 150, 100],
-    backgroundPadding: [8, 4, 8, 4],
-    backgroundBorderRadius: 6,
+    // No background for clean look
+    background: false,
     
     // Font
     fontFamily: 'Pretendard Bold, Noto Sans KR Bold',
@@ -314,8 +311,7 @@ export function createDongLabelsTextLayer({
     updateTriggers: {
       getSize: [selectedDong],
       getColor: [selectedDong],
-      outlineWidth: [selectedDong],
-      background: [selectedDong]
+      outlineWidth: [selectedDong]
     }
   })
   
