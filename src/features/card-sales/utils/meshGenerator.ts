@@ -239,12 +239,18 @@ export function generateGridMesh(
         colors[colorIdx + 3] = 0  // A (fully transparent)
       }
       
-      // Set vertex position (converted to meters from center)
+      // Set vertex position (converted to meters from center with correct latitude scaling)
       const centerX = (minX + maxX) / 2
       const centerY = (minY + maxY) / 2
       
-      positions[idx * 3] = (x - centerX) * 111000     // Convert to meters
-      positions[idx * 3 + 1] = (y - centerY) * 111000  // Convert to meters
+      // At Seoul's latitude (37.5°N), correct scale factors:
+      // Latitude: 111000 meters per degree (constant)
+      // Longitude: 111000 * cos(37.5°) ≈ 88000 meters per degree
+      const latScale = 111000
+      const lonScale = 111000 * Math.cos(centerY * Math.PI / 180) // Correct for latitude
+      
+      positions[idx * 3] = (x - centerX) * lonScale     // Convert to meters with latitude correction
+      positions[idx * 3 + 1] = (y - centerY) * latScale  // Convert to meters
       positions[idx * 3 + 2] = z
       
       // Set texture coordinates
@@ -333,9 +339,14 @@ export function generateGridMesh(
       const hUp = row > 0 ? heightMap[row - 1][col] : h
       const hDown = row < resolution - 1 ? heightMap[row + 1][col] : h
       
-      // Calculate normal using central differences
-      const dx = (hRight - hLeft) / (width * 111000 / resolution) 
-      const dy = (hDown - hUp) / (height * 111000 / resolution)
+      // Calculate normal using central differences (accounting for meter conversion)
+      // Need to use the same scale factors as vertex positions
+      const centerY = (minY + maxY) / 2
+      const latScale = 111000
+      const lonScale = 111000 * Math.cos(centerY * Math.PI / 180)
+      
+      const dx = (hRight - hLeft) / (width * lonScale / resolution) 
+      const dy = (hDown - hUp) / (height * latScale / resolution)
       
       // Normal vector (pointing up)
       const nx = -dx
