@@ -71,7 +71,7 @@ export function generateGridMesh(
   options: MeshGeneratorOptions = {}
 ): MeshGeometry {
   const {
-    resolution = 60,  // 60x60 grid by default for better boundary accuracy
+    resolution = 100,  // 100x100 grid by default for better boundary accuracy (dynamic generation)
     heightScale = 1,
     smoothing = true
   } = options
@@ -96,12 +96,12 @@ export function generateGridMesh(
     maxY = Math.max(maxY, bbox[3])
   })
 
-  // Add padding
-  const padding = 0.01
-  minX -= padding
-  minY -= padding
-  maxX += padding
-  maxY += padding
+  // No padding - mesh should exactly match Seoul boundaries
+  // const padding = 0.01
+  // minX -= padding
+  // minY -= padding
+  // maxX += padding
+  // maxY += padding
 
   const width = maxX - minX
   const height = maxY - minY
@@ -381,29 +381,17 @@ export function generateGridMesh(
       const insideCount = (tlInside ? 1 : 0) + (trInside ? 1 : 0) + 
                           (blInside ? 1 : 0) + (brInside ? 1 : 0)
       
-      // Include triangles based on how many vertices are inside
-      // If all 4 vertices are inside, include both triangles
-      // If 3 vertices are inside, include both triangles (one will be on the boundary)
-      // If 2 vertices are inside, only include if they form a valid triangle
-      // If 1 or 0 vertices are inside, exclude
+      // Only include triangles where ALL vertices are inside Seoul
+      // This creates a clean boundary with no partial triangles extending outside
+      // The boundary will be stepped at the mesh resolution, but no lines will extend outside
       
-      if (insideCount >= 3) {
-        // Most of the quad is inside, include both triangles
+      if (insideCount === 4) {
+        // All 4 vertices are inside Seoul - include both triangles
         tempIndices.push(topLeft, bottomLeft, topRight)
         tempIndices.push(topRight, bottomLeft, bottomRight)
-      } else if (insideCount === 2) {
-        // Check which triangles to include based on which vertices are inside
-        // First triangle (top-left, bottom-left, top-right)
-        if ((tlInside && blInside) || (tlInside && trInside) || (blInside && trInside)) {
-          tempIndices.push(topLeft, bottomLeft, topRight)
-        }
-        
-        // Second triangle (top-right, bottom-left, bottom-right)
-        if ((trInside && blInside) || (trInside && brInside) || (blInside && brInside)) {
-          tempIndices.push(topRight, bottomLeft, bottomRight)
-        }
       }
-      // If insideCount is 1 or 0, we don't include any triangles from this quad
+      // If any vertex is outside (insideCount < 4), don't create any triangles
+      // This prevents wireframe edges from extending to the boundary
     }
   }
 

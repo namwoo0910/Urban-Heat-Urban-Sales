@@ -53,8 +53,8 @@ export async function loadStaticSeoulMesh(): Promise<MeshGeometry> {
   // Start loading
   loadingPromise = (async () => {
     try {
-      console.log('[LoadStaticMesh] Fetching seoul-mesh-120.json...')
-      const response = await fetch('/data/seoul-mesh-120.json')
+      console.log('[LoadStaticMesh] Fetching seoul-mesh-200.json...')
+      const response = await fetch('/data/seoul-mesh-200.json')
       
       if (!response.ok) {
         throw new Error(`Failed to load mesh data: ${response.status}`)
@@ -107,7 +107,7 @@ export function clearMeshCache(): void {
  */
 export async function checkStaticMeshExists(): Promise<boolean> {
   try {
-    const response = await fetch('/data/seoul-mesh-120.json', { method: 'HEAD' })
+    const response = await fetch('/data/seoul-mesh-200.json', { method: 'HEAD' })
     return response.ok
   } catch {
     return false

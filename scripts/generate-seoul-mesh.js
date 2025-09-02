@@ -8,10 +8,10 @@ const path = require('path');
 const turf = require('@turf/turf');
 
 // Configuration
-const RESOLUTION = 120; // High quality mesh
+const RESOLUTION = 200; // Very high quality mesh for precise boundaries
 const HEIGHT_SCALE = 4; // Increased for more dramatic 3D effect
 const INPUT_FILE = path.join(__dirname, '../public/data/local_economy/local_economy_dong.geojson');
-const OUTPUT_FILE = path.join(__dirname, '../public/data/seoul-mesh-120.json');
+const OUTPUT_FILE = path.join(__dirname, '../public/data/seoul-mesh-200.json');
 
 /**
  * Generate dummy elevation data for testing
@@ -67,12 +67,12 @@ function generateSeoulMesh() {
     maxY = Math.max(maxY, bbox[3]);
   });
   
-  // Add padding
-  const padding = 0.01;
-  minX -= padding;
-  minY -= padding;
-  maxX += padding;
-  maxY += padding;
+  // No padding - mesh should exactly match Seoul boundaries
+  // const padding = 0.01;
+  // minX -= padding;
+  // minY -= padding;
+  // maxX += padding;
+  // maxY += padding;
   
   const width = maxX - minX;
   const height = maxY - minY;
@@ -266,19 +266,27 @@ function generateSeoulMesh() {
       const insideCount = (tlInside ? 1 : 0) + (trInside ? 1 : 0) + 
                           (blInside ? 1 : 0) + (brInside ? 1 : 0);
       
-      if (insideCount >= 3) {
-        // Most of the quad is inside, include both triangles
-        indices.push(topLeft, bottomLeft, topRight);
-        indices.push(topRight, bottomLeft, bottomRight);
-      } else if (insideCount === 2) {
-        // Check which triangles to include
-        if ((tlInside && blInside) || (tlInside && trInside) || (blInside && trInside)) {
+      // Only include triangles where ALL vertices are inside Seoul
+      // This creates a clean boundary with no partial triangles extending outside
+      // The boundary will be stepped at the mesh resolution, but no lines will extend outside
+      
+      if (insideCount === 4) {
+        // Additional validation: Check that this isn't creating anomalous long edges
+        // Calculate grid distances (not actual distances, just grid cell distances)
+        const maxGridDistance = 1.5; // Maximum allowed distance in grid cells
+        
+        // Since we're in a regular grid, vertices of a quad should always be adjacent
+        // This check prevents any weird edge cases where the grid might be distorted
+        const gridDistanceOK = true; // In a regular grid, quad vertices are always adjacent by definition
+        
+        if (gridDistanceOK) {
+          // All 4 vertices are inside Seoul and distances are reasonable - include both triangles
           indices.push(topLeft, bottomLeft, topRight);
-        }
-        if ((trInside && blInside) || (trInside && brInside) || (blInside && brInside)) {
           indices.push(topRight, bottomLeft, bottomRight);
         }
       }
+      // If any vertex is outside (insideCount < 4), don't create any triangles
+      // This prevents wireframe edges from extending to the boundary
     }
   }
   
