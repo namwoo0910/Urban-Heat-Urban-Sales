@@ -136,6 +136,14 @@ interface UnifiedControlsProps {
   onIsTimelinePlayingChange?: (playing: boolean) => void
   onTimelineSpeedChange?: (speed: number) => void
   onToggleTimelineAnimation?: () => void
+  
+  // Mesh layer props
+  showMeshLayer?: boolean
+  onShowMeshLayerChange?: (show: boolean) => void
+  meshWireframe?: boolean
+  onMeshWireframeChange?: (wireframe: boolean) => void
+  meshResolution?: number
+  onMeshResolutionChange?: (resolution: number) => void
 }
 
 // Theme adjustment state interface
@@ -192,6 +200,14 @@ export default function UnifiedControls({
   onIsTimelinePlayingChange,
   onTimelineSpeedChange,
   onToggleTimelineAnimation,
+  
+  // Mesh layer props
+  showMeshLayer = false,
+  onShowMeshLayerChange,
+  meshWireframe = true,
+  onMeshWireframeChange,
+  meshResolution = 30,  // Reduced default for better performance
+  onMeshResolutionChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('modern')
@@ -600,6 +616,66 @@ export default function UnifiedControls({
               </div>
               <p className="text-xs text-gray-400">
                 {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
+              </p>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+            
+            {/* Seoul Mesh Layer 토글 */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-200 text-xs font-semibold">Seoul Mesh Layer</Label>
+                <Switch
+                  checked={showMeshLayer}
+                  onCheckedChange={onShowMeshLayerChange}
+                  className="scale-75"
+                  disabled={isDataLoading}
+                />
+              </div>
+              {showMeshLayer && (
+                <div className="space-y-3 pl-2">
+                  {/* Wireframe 모드 토글 */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-200 text-xs">Wireframe</Label>
+                    <Switch
+                      checked={meshWireframe}
+                      onCheckedChange={onMeshWireframeChange}
+                      className="scale-75"
+                    />
+                  </div>
+                  
+                  {/* Mesh Resolution 슬라이더 */}
+                  <div className="space-y-1">
+                    <div className="flex justify-between items-center">
+                      <Label className="text-gray-200 text-xs">
+                        Resolution: {meshResolution}x{meshResolution}
+                        {meshResolution > 40 && (
+                          <span className="text-orange-400 ml-1">(slow)</span>
+                        )}
+                      </Label>
+                    </div>
+                    <Slider
+                      value={[meshResolution]}
+                      onValueChange={(value) => onMeshResolutionChange?.(value[0])}
+                      min={20}
+                      max={60}
+                      step={5}
+                      className="w-full"
+                    />
+                    <div className="flex justify-between text-xs text-gray-500">
+                      <span>20 (Fast)</span>
+                      <span>60 (Detailed)</span>
+                    </div>
+                    {meshResolution > 40 && (
+                      <p className="text-xs text-orange-400 mt-1">
+                        ⚠️ High resolution may cause slow loading
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-gray-400">
+                {showMeshLayer ? 'Triangulated mesh surface visualization' : 'Enable to show mesh terrain'}
               </p>
             </div>
 

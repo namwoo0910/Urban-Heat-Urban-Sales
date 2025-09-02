@@ -3,10 +3,12 @@
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { HexagonLayer } from '@deck.gl/aggregation-layers'
 import { ScatterplotLayer, ColumnLayer } from '@deck.gl/layers'
+import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import { BUSINESS_TYPE_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/businessTypeColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
+import { createSeoulMeshLayer, type SeoulMeshLayerProps } from './SeoulMeshLayer'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
 export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'
@@ -906,6 +908,16 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
   })
   
   return [layer]
+}
+
+/**
+ * Create Seoul mesh layer
+ */
+export function createMeshLayer(
+  districtData: any[],
+  config: SeoulMeshLayerProps
+): SimpleMeshLayer | null {
+  return createSeoulMeshLayer(districtData, config)
 }
 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {

@@ -10,7 +10,7 @@ import { PolygonLayer } from '@deck.gl/layers'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
-import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip } from "./LayerManager"
+import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
@@ -335,6 +335,11 @@ export default function HexagonScene() {
   
   // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
   const [heightScale, setHeightScale] = useState<number>(100000000)
+  
+  // Mesh layer states
+  const [showMeshLayer, setShowMeshLayer] = useState<boolean>(false)
+  const [meshWireframe, setMeshWireframe] = useState<boolean>(true)
+  const [meshResolution, setMeshResolution] = useState<number>(30)  // Reduced default for better performance
   
   // Helper function to handle dong click from text labels
   const handleDongClick = useCallback((dongName: string) => {
@@ -884,8 +889,32 @@ export default function HexagonScene() {
     const layers = []
     
     // Add PolygonLayer for 3D dong visualization (FIRST - renders at bottom)
-    if (is3DMode && dongData3D) {
+    if (is3DMode && dongData3D && !showMeshLayer) {
       layers.push(...createDong3DPolygonLayers())
+    }
+    
+    // Add Mesh Layer for Seoul surface visualization
+    if (showMeshLayer && dongData3D) {
+      const meshLayer = createMeshLayer(
+        dongData3D.features || [],
+        {
+          visible: true,
+          wireframe: meshWireframe,
+          resolution: meshResolution,
+          heightScale: 1,
+          opacity: meshWireframe ? 1 : 0.8,
+          pickable: true,
+          onHover: (info: any) => {
+            // Handle mesh hover if needed
+          },
+          onClick: (info: any) => {
+            // Handle mesh click if needed
+          }
+        }
+      )
+      if (meshLayer) {
+        layers.push(meshLayer)
+      }
     }
     
     // Add ColumnLayer for detailed display mode (업종별 표시)
@@ -950,7 +979,8 @@ export default function HexagonScene() {
   }, [is3DMode, dongData3D, displayMode, columnLayers, createDong3DPolygonLayers, 
       showDistrictLabels, showDongLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
       handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick,
-      setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
+      setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode,
+      showMeshLayer, meshWireframe, meshResolution])
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -2439,6 +2469,14 @@ export default function HexagonScene() {
         onRotationSpeedChange={setRotationSpeed}
         onRotationDirectionChange={setRotationDirection}
         onToggleRotation={toggleRotation}
+        
+        // Mesh layer props
+        showMeshLayer={showMeshLayer}
+        onShowMeshLayerChange={setShowMeshLayer}
+        meshWireframe={meshWireframe}
+        onMeshWireframeChange={setMeshWireframe}
+        meshResolution={meshResolution}
+        onMeshResolutionChange={setMeshResolution}
         />
 
       {/* 지도 초기화 버튼 */}

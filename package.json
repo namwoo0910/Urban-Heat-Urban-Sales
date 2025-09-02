@@ -15,6 +15,7 @@
     "@deck.gl/core": "^9.1.14",
     "@deck.gl/extensions": "^9.1.14",
     "@deck.gl/layers": "^9.1.14",
+    "@deck.gl/mesh-layers": "^9.1.14",
     "@deck.gl/react": "^9.1.14",
     "@deck.gl/widgets": "^9.1.14",
     "@gsap/react": "^2.1.2",
@@ -34,13 +35,13 @@
     "lucide-react": "^0.454.0",
     "mapbox-gl": "^3.14.0",
     "next": "15.2.4",
+    "plotly.js": "^2.35.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-map-gl": "^7.1.9",
     "react-plotly.js": "^2.6.0",
     "recharts": "^2.15.4",
-    "tailwind-merge": "^2.5.5",
-    "plotly.js": "^2.35.0"
+    "tailwind-merge": "^2.5.5"
   },
   "devDependencies": {
     "@types/node": "^22",
