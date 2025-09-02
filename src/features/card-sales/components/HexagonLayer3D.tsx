@@ -5,7 +5,7 @@ import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL, Source, Layer } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
-import { LinearInterpolator, FlyToInterpolator } from '@deck.gl/core'
+import { LinearInterpolator, FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import { PolygonLayer } from '@deck.gl/layers'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -110,7 +110,7 @@ export default function HexagonScene() {
   const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   const [currentThemeKey, setCurrentThemeKey] = useState('blue') // Default to blue theme for districts
-  const [is3DMode, setIs3DMode] = useState(true) // 3D 모드를 기본으로 설정
+  const [is3DMode, setIs3DMode] = useState(false) // 3D 모드는 기본적으로 OFF (사용자가 토글해야 활성화)
   const [themeAdjustments, setThemeAdjustments] = useState({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })
   
   // Listen for theme adjustment changes
@@ -337,8 +337,8 @@ export default function HexagonScene() {
   const [heightScale, setHeightScale] = useState<number>(100000000)
   
   // Mesh layer states
-  const [showMeshLayer, setShowMeshLayer] = useState<boolean>(false)
-  const [meshWireframe, setMeshWireframe] = useState<boolean>(true)
+  const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
+  const [meshWireframe, setMeshWireframe] = useState<boolean>(false)  // Default to solid rendering
   const [meshResolution, setMeshResolution] = useState<number>(30)  // Reduced default for better performance
   
   // Helper function to handle dong click from text labels
@@ -884,12 +884,34 @@ export default function HexagonScene() {
     themeAdjustments
   ])
   
+  // Create lighting configuration for 3D mesh rendering
+  const lightingEffect = useMemo(() => {
+    // Ambient light for base illumination
+    const ambientLight = new AmbientLight({
+      color: [255, 255, 255],
+      intensity: 0.5
+    })
+    
+    // Directional light for main illumination (simulating sunlight)
+    const directionalLight = new DirectionalLight({
+      direction: [-1, -3, -1],  // Light coming from upper right
+      color: [255, 255, 255],
+      intensity: 1.0
+    })
+    
+    // Create lighting effect with both lights
+    return new LightingEffect({
+      ambientLight,
+      directionalLight
+    })
+  }, [])  // Lighting configuration is constant
+  
   // Combine all deck.gl layers
   const deckLayers = useMemo(() => {
     const layers = []
     
     // Add PolygonLayer for 3D dong visualization (FIRST - renders at bottom)
-    if (is3DMode && dongData3D && !showMeshLayer) {
+    if (is3DMode && dongData3D) {  // Removed !showMeshLayer to allow both layers
       layers.push(...createDong3DPolygonLayers())
     }
     
@@ -902,7 +924,8 @@ export default function HexagonScene() {
           wireframe: meshWireframe,
           resolution: meshResolution,
           heightScale: 1,
-          opacity: meshWireframe ? 1 : 0.8,
+          // Reduce opacity when 3D mode is also active for better visibility
+          opacity: meshWireframe ? 1 : (is3DMode ? 0.6 : 0.8),
           pickable: true,
           onHover: (info: any) => {
             // Handle mesh hover if needed
@@ -1934,6 +1957,7 @@ export default function HexagonScene() {
         viewState={viewState}
         controller={true}
         layers={deckLayers} // PolygonLayer (3D mode) or ColumnLayer (detailed mode)
+        effects={[lightingEffect]} // Add lighting for solid mesh rendering
         getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
         getCursor={({isDragging, isHovering}) => {
           if (isDragging) return 'grabbing'

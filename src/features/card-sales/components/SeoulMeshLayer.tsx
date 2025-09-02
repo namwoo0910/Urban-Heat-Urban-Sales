@@ -50,25 +50,43 @@ export function createSeoulMeshLayer(
     smoothing: true
   })
 
-  // Validate geometry structure
+  // Validate geometry structure - check raw TypedArrays
   if (!meshGeometry || 
       !meshGeometry.positions || 
-      !meshGeometry.positions.value ||
-      meshGeometry.positions.value.length === 0 ||
+      meshGeometry.positions.length === 0 ||
       !meshGeometry.normals ||
-      !meshGeometry.normals.value ||
-      !meshGeometry.texCoords ||
-      !meshGeometry.texCoords.value) {
+      !meshGeometry.texCoords) {
     console.error('[SeoulMeshLayer] Invalid mesh geometry:', meshGeometry)
     return null
   }
   
   console.log('[SeoulMeshLayer] Mesh geometry created:', {
-    positions: meshGeometry.positions.value.length / meshGeometry.positions.size,
-    normals: meshGeometry.normals.value.length / meshGeometry.normals.size,
-    texCoords: meshGeometry.texCoords.value.length / meshGeometry.texCoords.size,
-    hasIndices: !!meshGeometry.indices
+    positions: meshGeometry.positions.length / 3,  // 3 components per vertex
+    normals: meshGeometry.normals.length / 3,      // 3 components per normal
+    texCoords: meshGeometry.texCoords.length / 2,  // 2 components per texCoord
+    hasIndices: !!meshGeometry.indices,
+    indices: meshGeometry.indices ? meshGeometry.indices.length / 3 : 0  // triangles
   })
+
+  // Create mesh object with proper deck.gl format
+  // Using uppercase attribute names as expected by deck.gl/luma.gl
+  const meshObject = {
+    attributes: {
+      POSITION: {
+        value: meshGeometry.positions,
+        size: 3  // 3 components per vertex (x, y, z)
+      },
+      NORMAL: {
+        value: meshGeometry.normals,
+        size: 3  // 3 components per normal
+      },
+      TEXCOORD_0: {
+        value: meshGeometry.texCoords,
+        size: 2  // 2 components per texture coordinate
+      }
+    },
+    indices: meshGeometry.indices  // Indices stay as raw array
+  }
 
   // Create SimpleMeshLayer
   return new SimpleMeshLayer({
@@ -77,30 +95,30 @@ export function createSeoulMeshLayer(
       position: [126.978, 37.5765, 0]  // Center position for the mesh
     }],
     
-    // Mesh configuration - mesh should be the geometry object
-    mesh: meshGeometry,
+    // Mesh configuration - properly formatted mesh object
+    mesh: meshObject,
     sizeScale: 1,
     wireframe,
     
     // Position accessor - get position from data object
     getPosition: (d: any) => d.position,
     
-    // Color based on height
+    // Color based on height - more vibrant colors for better visibility
     getColor: () => {
-      // For wireframe, use cyan color
+      // For wireframe, use bright cyan color
       if (wireframe) {
         return [0, 255, 255, 255]
       }
-      // For solid, we'll use vertex colors if available, or a gradient
-      return [100, 150, 200, 220]
+      // For solid, use more vibrant blue-purple gradient
+      return [120, 100, 255, 255]  // Bright purple-blue, full opacity
     },
     
     // Material properties for better 3D effect
     material: {
-      ambient: 0.35,
-      diffuse: 0.6,
-      shininess: 32,
-      specularColor: wireframe ? [0, 255, 255] : [255, 255, 255]
+      ambient: 0.5,  // Increased for better visibility
+      diffuse: 0.8,  // Increased for brighter surface
+      shininess: 64,  // Higher shine for more visual pop
+      specularColor: wireframe ? [0, 255, 255] : [200, 200, 255]  // Purple-tinted specular
     },
     
     // Interaction
@@ -130,7 +148,7 @@ export function useSeoulMeshLayer(
   data: any[],
   props: SeoulMeshLayerProps = {}
 ): SimpleMeshLayer | null {
-  // Memoize the data length instead of the full array to avoid unnecessary regeneration
+  // Memoize the data signature to avoid unnecessary regeneration
   const dataSignature = useMemo(() => {
     if (!data || data.length === 0) return null
     return `${data.length}_${data[0]?.properties?.ADM_DR_CD || ''}`

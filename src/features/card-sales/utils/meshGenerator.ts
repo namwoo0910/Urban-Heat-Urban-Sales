@@ -6,9 +6,9 @@
 import * as turf from '@turf/turf'
 
 export interface MeshGeometry {
-  positions: { value: Float32Array; size: number }  // 3D vertex positions (x, y, z)
-  normals: { value: Float32Array; size: number }    // 3D normals for lighting
-  texCoords: { value: Float32Array; size: number }  // 2D texture coordinates
+  positions: Float32Array  // 3D vertex positions (x, y, z) - raw array for mesh
+  normals: Float32Array    // 3D normals for lighting - raw array for mesh
+  texCoords: Float32Array  // 2D texture coordinates - raw array for mesh
   indices?: Uint32Array    // Triangle indices (optional for indexed geometry)
 }
 
@@ -52,8 +52,8 @@ function generateDummyElevation(
   // Add small random variation
   const randomFactor = (Math.random() - 0.5) * 20
   
-  // Ensure positive height and apply bounds
-  return Math.max(10, Math.min(500, baseHeight + randomFactor))
+  // Ensure positive height and apply bounds - increased for better visibility
+  return Math.max(50, Math.min(1000, baseHeight + randomFactor))  // Increased min height for visibility
 }
 
 /**
@@ -71,9 +71,9 @@ export function generateGridMesh(
 
   if (!features || features.length === 0) {
     return {
-      positions: { value: new Float32Array(0), size: 3 },
-      normals: { value: new Float32Array(0), size: 3 },
-      texCoords: { value: new Float32Array(0), size: 2 }
+      positions: new Float32Array(0),
+      normals: new Float32Array(0),
+      texCoords: new Float32Array(0)
     }
   }
 
@@ -295,12 +295,12 @@ export function generateGridMesh(
     gridSize: `${resolution}x${resolution}`
   })
   
-  // Return in the format expected by SimpleMeshLayer
+  // Return raw TypedArrays as expected by SimpleMeshLayer mesh property
   return {
-    positions: { value: positions, size: 3 },
-    normals: { value: normals, size: 3 },
-    texCoords: { value: texCoords, size: 2 },
-    indices
+    positions,  // Raw Float32Array
+    normals,    // Raw Float32Array
+    texCoords,  // Raw Float32Array
+    indices     // Raw Uint32Array
   }
 }
 
