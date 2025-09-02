@@ -10,7 +10,7 @@ import { PolygonLayer } from '@deck.gl/layers'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
-import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
+import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip, createMeshLayer, useStaticSeoulMeshLayer } from "./LayerManager"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
@@ -339,7 +339,7 @@ export default function HexagonScene() {
   // Mesh layer states
   const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
   const [meshWireframe, setMeshWireframe] = useState<boolean>(false)  // Default to solid rendering
-  const [meshResolution, setMeshResolution] = useState<number>(30)  // Reduced default for better performance
+  const [meshResolution, setMeshResolution] = useState<number>(120)  // Using pre-generated high quality mesh
   
   // Helper function to handle dong click from text labels
   const handleDongClick = useCallback((dongName: string) => {
@@ -906,6 +906,20 @@ export default function HexagonScene() {
     })
   }, [])  // Lighting configuration is constant
   
+  // Use static Seoul mesh layer for better performance
+  const staticMeshLayer = useStaticSeoulMeshLayer({
+    visible: showMeshLayer,
+    wireframe: meshWireframe,
+    opacity: meshWireframe ? 1 : (is3DMode ? 0.6 : 0.8),
+    pickable: true,
+    onHover: (info: any) => {
+      // Handle mesh hover if needed
+    },
+    onClick: (info: any) => {
+      // Handle mesh click if needed
+    }
+  })
+  
   // Combine all deck.gl layers
   const deckLayers = useMemo(() => {
     const layers = []
@@ -915,29 +929,10 @@ export default function HexagonScene() {
       layers.push(...createDong3DPolygonLayers())
     }
     
-    // Add Mesh Layer for Seoul surface visualization
-    if (showMeshLayer && dongData3D) {
-      const meshLayer = createMeshLayer(
-        dongData3D.features || [],
-        {
-          visible: true,
-          wireframe: meshWireframe,
-          resolution: meshResolution,
-          heightScale: 1,
-          // Reduce opacity when 3D mode is also active for better visibility
-          opacity: meshWireframe ? 1 : (is3DMode ? 0.6 : 0.8),
-          pickable: true,
-          onHover: (info: any) => {
-            // Handle mesh hover if needed
-          },
-          onClick: (info: any) => {
-            // Handle mesh click if needed
-          }
-        }
-      )
-      if (meshLayer) {
-        layers.push(meshLayer)
-      }
+    // Add static mesh layer for Seoul surface visualization
+    // The static mesh is loaded via the useStaticSeoulMeshLayer hook above
+    if (staticMeshLayer && showMeshLayer) {
+      layers.push(staticMeshLayer)
     }
     
     // Add ColumnLayer for detailed display mode (업종별 표시)

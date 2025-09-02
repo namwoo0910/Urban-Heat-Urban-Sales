@@ -8,7 +8,7 @@ import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import { BUSINESS_TYPE_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/businessTypeColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
-import { createSeoulMeshLayer, type SeoulMeshLayerProps } from './SeoulMeshLayer'
+import { createSeoulMeshLayers, createStaticSeoulMeshLayer, useStaticSeoulMeshLayer, type SeoulMeshLayerProps } from './SeoulMeshLayer'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
 export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'
@@ -911,14 +911,19 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
 }
 
 /**
- * Create Seoul mesh layer
+ * Create Seoul mesh layer (uses static data if available, falls back to dynamic)
  */
 export function createMeshLayer(
   districtData: any[],
   config: SeoulMeshLayerProps
-): SimpleMeshLayer | null {
-  return createSeoulMeshLayer(districtData, config)
+): Array<SimpleMeshLayer | any> {
+  // For now, still use dynamic generation
+  // To use static mesh, the component needs to be updated to use useStaticSeoulMeshLayer hook
+  return createSeoulMeshLayers(districtData, config)
 }
+
+// Export static mesh layer hook for components to use
+export { useStaticSeoulMeshLayer }
 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   visible: true, // 항상 true로 고정

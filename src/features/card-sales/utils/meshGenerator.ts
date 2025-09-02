@@ -10,6 +10,13 @@ export interface MeshGeometry {
   normals: Float32Array    // 3D normals for lighting - raw array for mesh
   texCoords: Float32Array  // 2D texture coordinates - raw array for mesh
   indices?: Uint32Array    // Triangle indices (optional for indexed geometry)
+  colors?: Float32Array    // Vertex colors with alpha (r, g, b, a) - for boundary masking
+  metadata?: {              // Optional metadata for positioning
+    center?: {
+      x: number
+      y: number
+    }
+  }
 }
 
 export interface MeshGeneratorOptions {
@@ -64,7 +71,7 @@ export function generateGridMesh(
   options: MeshGeneratorOptions = {}
 ): MeshGeometry {
   const {
-    resolution = 30,  // 30x30 grid by default (reduced for performance)
+    resolution = 60,  // 60x60 grid by default for better boundary accuracy
     heightScale = 1,
     smoothing = true
   } = options
@@ -99,45 +106,51 @@ export function generateGridMesh(
   const width = maxX - minX
   const height = maxY - minY
 
-  console.time('[MeshGenerator] Union creation')
-  // Create a single unified polygon from all districts for faster point-in-polygon checks
-  let unifiedSeoulBoundary = null
-  try {
-    // Start with first feature
-    unifiedSeoulBoundary = features[0]
-    
-    // Union with remaining features
-    for (let i = 1; i < features.length; i++) {
-      try {
-        unifiedSeoulBoundary = turf.union(
-          unifiedSeoulBoundary,
-          features[i]
-        )
-      } catch (err) {
-        console.warn(`[MeshGenerator] Failed to union feature ${i}:`, err)
+  // Filter valid features first (used throughout the function)
+  const validFeatures = features.filter(feature => {
+    try {
+      // Check if feature has valid geometry
+      if (!feature || !feature.geometry || !feature.geometry.coordinates) {
+        return false
       }
+      // Check if geometry is not empty
+      const coords = feature.geometry.coordinates
+      if (!coords || coords.length === 0) {
+        return false
+      }
+      // Try to calculate area to ensure geometry is valid
+      const area = turf.area(feature)
+      return area > 0
+    } catch {
+      return false
     }
-    console.timeEnd('[MeshGenerator] Union creation')
-    console.log('[MeshGenerator] Created unified boundary from', features.length, 'districts')
-  } catch (err) {
-    console.error('[MeshGenerator] Failed to create unified boundary:', err)
-    // Fall back to individual checks if union fails
-    unifiedSeoulBoundary = null
-  }
+  })
+  
+  console.log(`[MeshGenerator] Valid features: ${validFeatures.length}/${features.length}`)
+  
+  // Skip union creation - it's causing too many issues
+  // Instead, we'll use validFeatures directly for point-in-polygon checks
+  // This is more reliable even if slightly slower
+  const unifiedSeoulBoundary = null
+  
+  console.log('[MeshGenerator] Using individual feature checking for better reliability')
 
   // Create grid vertices
   const vertexCount = resolution * resolution
   const positions = new Float32Array(vertexCount * 3)
   const normals = new Float32Array(vertexCount * 3)
   const texCoords = new Float32Array(vertexCount * 2)
+  const colors = new Float32Array(vertexCount * 4) // RGBA colors for each vertex
   
   // Height map for smoothing
   const heightMap: number[][] = []
+  // Store whether each vertex is inside Seoul
+  const insideMap: boolean[][] = []
 
-  console.time('[MeshGenerator] Vertex generation')
   // Generate vertices
   for (let row = 0; row < resolution; row++) {
     heightMap[row] = []
+    insideMap[row] = []
     for (let col = 0; col < resolution; col++) {
       const idx = (row * resolution + col)
       const u = col / (resolution - 1)
@@ -162,7 +175,9 @@ export function generateGridMesh(
         }
       } else {
         // Fallback to checking individual districts (slower)
-        pointInDistrict = features.some(feature => {
+        // Use validFeatures if available, otherwise use original features
+        const featuresToCheck = validFeatures.length > 0 ? validFeatures : features
+        pointInDistrict = featuresToCheck.some(feature => {
           try {
             const point = turf.point([x, y])
             return turf.booleanPointInPolygon(point, feature)
@@ -172,12 +187,57 @@ export function generateGridMesh(
         })
       }
       
+      // Store whether point is inside Seoul
+      insideMap[row][col] = pointInDistrict
+      
       // Set zero elevation for points outside districts (creates clear boundary)
       if (!pointInDistrict) {
         z = 0  // Changed from 5 to 0 for clearer Seoul boundary
       }
       
       heightMap[row][col] = z
+      
+      // Set vertex colors with height-based gradient and alpha based on location
+      const colorIdx = idx * 4
+      if (pointInDistrict) {
+        // Inside Seoul: height-based gradient with full opacity
+        // Normalize height for color mapping (0 to 1)
+        // Adjusted to match actual height range for full gradient utilization
+        const normalizedHeight = Math.max(0, Math.min(1, z / 6000))
+        
+        // Create gradient from blue (low) to purple (mid) to red (high)
+        let r, g, b
+        if (normalizedHeight < 0.33) {
+          // Blue to cyan (low elevations)
+          const t = normalizedHeight / 0.33
+          r = 0
+          g = 100 + 155 * t  // 100 to 255
+          b = 255
+        } else if (normalizedHeight < 0.67) {
+          // Cyan to purple (mid elevations)
+          const t = (normalizedHeight - 0.33) / 0.34
+          r = 120 * t  // 0 to 120
+          g = 255 - 155 * t  // 255 to 100
+          b = 255
+        } else {
+          // Purple to red/orange (high elevations)
+          const t = (normalizedHeight - 0.67) / 0.33
+          r = 120 + 135 * t  // 120 to 255
+          g = 100 - 50 * t   // 100 to 50
+          b = 255 - 155 * t  // 255 to 100
+        }
+        
+        colors[colorIdx] = r / 255     // R
+        colors[colorIdx + 1] = g / 255 // G
+        colors[colorIdx + 2] = b / 255 // B
+        colors[colorIdx + 3] = 1.0     // A (full opacity)
+      } else {
+        // Outside Seoul: transparent
+        colors[colorIdx] = 0      // R
+        colors[colorIdx + 1] = 0  // G
+        colors[colorIdx + 2] = 0  // B
+        colors[colorIdx + 3] = 0  // A (fully transparent)
+      }
       
       // Set vertex position (converted to meters from center)
       const centerX = (minX + maxX) / 2
@@ -192,7 +252,6 @@ export function generateGridMesh(
       texCoords[idx * 2 + 1] = v
     }
   }
-  console.timeEnd('[MeshGenerator] Vertex generation')
 
   // Apply smoothing if requested
   if (smoothing) {
@@ -221,12 +280,42 @@ export function generateGridMesh(
         }
       }
       
-      // Update positions with smoothed heights
+      // Update positions and colors with smoothed heights
       for (let row = 0; row < resolution; row++) {
         for (let col = 0; col < resolution; col++) {
           const idx = (row * resolution + col)
-          positions[idx * 3 + 2] = smoothedHeights[row][col]
-          heightMap[row][col] = smoothedHeights[row][col]
+          const smoothedZ = smoothedHeights[row][col]
+          positions[idx * 3 + 2] = smoothedZ
+          heightMap[row][col] = smoothedZ
+          
+          // Update colors based on new smoothed height
+          if (insideMap[row][col]) {
+            const colorIdx = idx * 4
+            const normalizedHeight = Math.max(0, Math.min(1, smoothedZ / 6000))
+            
+            let r, g, b
+            if (normalizedHeight < 0.33) {
+              const t = normalizedHeight / 0.33
+              r = 0
+              g = 100 + 155 * t
+              b = 255
+            } else if (normalizedHeight < 0.67) {
+              const t = (normalizedHeight - 0.33) / 0.34
+              r = 120 * t
+              g = 255 - 155 * t
+              b = 255
+            } else {
+              const t = (normalizedHeight - 0.67) / 0.33
+              r = 120 + 135 * t
+              g = 100 - 50 * t
+              b = 255 - 155 * t
+            }
+            
+            colors[colorIdx] = r / 255
+            colors[colorIdx + 1] = g / 255
+            colors[colorIdx + 2] = b / 255
+            colors[colorIdx + 3] = 1.0
+          }
         }
       }
     }
@@ -261,10 +350,8 @@ export function generateGridMesh(
     }
   }
 
-  // Generate triangle indices for indexed rendering
-  const indexCount = (resolution - 1) * (resolution - 1) * 6
-  const indices = new Uint32Array(indexCount)
-  let indexPtr = 0
+  // Generate triangle indices only for triangles inside Seoul boundaries
+  const tempIndices: number[] = []
 
   for (let row = 0; row < resolution - 1; row++) {
     for (let col = 0; col < resolution - 1; col++) {
@@ -273,34 +360,55 @@ export function generateGridMesh(
       const bottomLeft = (row + 1) * resolution + col
       const bottomRight = bottomLeft + 1
 
-      // First triangle
-      indices[indexPtr++] = topLeft
-      indices[indexPtr++] = bottomLeft
-      indices[indexPtr++] = topRight
-
-      // Second triangle
-      indices[indexPtr++] = topRight
-      indices[indexPtr++] = bottomLeft
-      indices[indexPtr++] = bottomRight
+      // Check if vertices of the quad are inside Seoul
+      const tlInside = insideMap[row][col]
+      const trInside = insideMap[row][col + 1]
+      const blInside = insideMap[row + 1][col]
+      const brInside = insideMap[row + 1][col + 1]
+      
+      // Count how many vertices are inside
+      const insideCount = (tlInside ? 1 : 0) + (trInside ? 1 : 0) + 
+                          (blInside ? 1 : 0) + (brInside ? 1 : 0)
+      
+      // Include triangles based on how many vertices are inside
+      // If all 4 vertices are inside, include both triangles
+      // If 3 vertices are inside, include both triangles (one will be on the boundary)
+      // If 2 vertices are inside, only include if they form a valid triangle
+      // If 1 or 0 vertices are inside, exclude
+      
+      if (insideCount >= 3) {
+        // Most of the quad is inside, include both triangles
+        tempIndices.push(topLeft, bottomLeft, topRight)
+        tempIndices.push(topRight, bottomLeft, bottomRight)
+      } else if (insideCount === 2) {
+        // Check which triangles to include based on which vertices are inside
+        // First triangle (top-left, bottom-left, top-right)
+        if ((tlInside && blInside) || (tlInside && trInside) || (blInside && trInside)) {
+          tempIndices.push(topLeft, bottomLeft, topRight)
+        }
+        
+        // Second triangle (top-right, bottom-left, bottom-right)
+        if ((trInside && blInside) || (trInside && brInside) || (blInside && brInside)) {
+          tempIndices.push(topRight, bottomLeft, bottomRight)
+        }
+      }
+      // If insideCount is 1 or 0, we don't include any triangles from this quad
     }
   }
 
-  // Validate array sizes before returning
-  console.log('[MeshGenerator] Generated mesh:', {
-    vertices: positions.length / 3,
-    normals: normals.length / 3,
-    texCoords: texCoords.length / 2,
-    triangles: indices ? indices.length / 3 : 0,
-    resolution,
-    gridSize: `${resolution}x${resolution}`
-  })
+  // Convert to Uint32Array
+  const indices = new Uint32Array(tempIndices)
+
+  // Log simplified mesh info
+  console.log(`[MeshGenerator] Mesh: ${indices.length / 3} triangles, ${resolution}x${resolution} grid`)
   
   // Return raw TypedArrays as expected by SimpleMeshLayer mesh property
   return {
     positions,  // Raw Float32Array
     normals,    // Raw Float32Array
     texCoords,  // Raw Float32Array
-    indices     // Raw Uint32Array
+    indices,    // Raw Uint32Array
+    colors      // Raw Float32Array with RGBA values
   }
 }
 
@@ -314,6 +422,43 @@ export function generateTriangulatedMesh(
   // For now, use grid mesh as it's more suitable for terrain visualization
   // Delaunay triangulation of complex polygons would require more complex implementation
   return generateGridMesh(features, options)
+}
+
+/**
+ * Get unified Seoul boundary polygon from district features
+ */
+export function getUnifiedSeoulBoundary(features: any[]): any {
+  if (!features || features.length === 0) {
+    return null
+  }
+
+  console.time('[MeshGenerator] Creating unified Seoul boundary')
+  let unifiedBoundary = null
+  
+  try {
+    // Start with first feature
+    unifiedBoundary = features[0]
+    
+    // Union with remaining features
+    for (let i = 1; i < features.length; i++) {
+      try {
+        unifiedBoundary = turf.union(
+          unifiedBoundary,
+          features[i]
+        )
+      } catch (err) {
+        console.warn(`[MeshGenerator] Failed to union feature ${i}:`, err)
+      }
+    }
+    
+    console.timeEnd('[MeshGenerator] Creating unified Seoul boundary')
+    console.log('[MeshGenerator] Created unified boundary from', features.length, 'districts')
+    
+    return unifiedBoundary
+  } catch (err) {
+    console.error('[MeshGenerator] Failed to create unified boundary:', err)
+    return null
+  }
 }
 
 /**

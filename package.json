@@ -8,7 +8,8 @@
     "lint": "next lint",
     "start": "next start",
     "generate-particles": "node scripts/generate-static-particles-optimized.js",
-    "prebuild": "npm run generate-particles"
+    "generate-mesh": "node scripts/generate-seoul-mesh.js",
+    "prebuild": "npm run generate-particles && npm run generate-mesh"
   },
   "dependencies": {
     "@deck.gl/aggregation-layers": "^9.1.14",
