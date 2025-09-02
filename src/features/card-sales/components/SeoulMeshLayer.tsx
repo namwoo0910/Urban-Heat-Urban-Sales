@@ -130,7 +130,7 @@ export function createStaticSeoulMeshLayer(
     getPosition: (d: any) => d.position,
     getColor: meshGeometry.colors ? undefined : (() => {
       if (wireframe) {
-        return [0, 255, 255, 255]
+        return [50, 255, 150, 255]  // Bright lime green for better visibility
       }
       return [120, 100, 255, 255]
     }),
@@ -139,7 +139,7 @@ export function createStaticSeoulMeshLayer(
       ambient: 0.5,
       diffuse: 0.8,
       shininess: 64,
-      specularColor: wireframe ? [0, 255, 255] : [200, 200, 255]
+      specularColor: wireframe ? [50, 255, 150] : [200, 200, 255]
     },
     pickable,
     autoHighlight: true,
@@ -265,9 +265,9 @@ export function createSeoulMeshLayer(
     // Color based on height - more vibrant colors for better visibility
     // Use vertex colors if available, otherwise use default colors
     getColor: (() => {
-      // For wireframe, use bright cyan color
+      // For wireframe, use bright lime green for better visibility on dark map
       if (wireframe) {
-        return [0, 255, 255, 255]
+        return [50, 255, 150, 255]  // Bright lime green
       }
       // For solid, use default color (vertex colors will override if present)
       return [120, 100, 255, 255]  // Bright purple-blue, full opacity
@@ -281,7 +281,7 @@ export function createSeoulMeshLayer(
       ambient: 0.5,  // Increased for better visibility
       diffuse: 0.8,  // Increased for brighter surface
       shininess: 64,  // Higher shine for more visual pop
-      specularColor: wireframe ? [0, 255, 255] : [200, 200, 255]  // Purple-tinted specular
+      specularColor: wireframe ? [50, 255, 150] : [200, 200, 255]  // Match wireframe color
     },
     
     // Interaction

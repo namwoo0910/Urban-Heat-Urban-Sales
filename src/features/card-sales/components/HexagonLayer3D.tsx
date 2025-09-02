@@ -213,7 +213,7 @@ export default function HexagonScene() {
   const [showHint, setShowHint] = useState(true)
   const [showBoundary, setShowBoundary] = useState(false)
   const [showSeoulBase, setShowSeoulBase] = useState(false)
-  const [showDistrictLabels, setShowDistrictLabels] = useState(true) // 구 이름 표시
+  const [showDistrictLabels, setShowDistrictLabels] = useState(false) // 구 이름 표시 (기본값: 꺼짐)
   const [showDongLabels, setShowDongLabels] = useState(false) // 동 이름 표시
   
   // DeckGL 뷰 상태 - controlled component pattern for synchronization
