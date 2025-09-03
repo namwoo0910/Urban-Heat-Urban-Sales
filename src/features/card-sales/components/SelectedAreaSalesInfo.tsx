@@ -7,7 +7,6 @@ import React, { useMemo } from 'react'
 import { Card } from '@/src/shared/components/ui/card'
 import { BarChart } from '@/src/shared/components/charts'
 import { TrendingUp, MapPin, Activity, BarChart3 } from 'lucide-react'
-import { categorySalesData } from '../data/salesChartData'
 import { calculateTotalSales, getTopBusinessTypes, formatCurrency } from '../utils/salesCalculator'
 import type { HexagonLayerData } from './LayerManager'
 import type { ClimateCardSalesData } from '../types'
@@ -18,6 +17,7 @@ interface SelectedAreaSalesInfoProps {
   hexagonData: HexagonLayerData[] | null
   climateData: ClimateCardSalesData[] | null
   visible?: boolean
+  selectedDate?: string | null
 }
 
 export function SelectedAreaSalesInfo({
@@ -25,7 +25,8 @@ export function SelectedAreaSalesInfo({
   selectedDong,
   hexagonData,
   climateData,
-  visible = true
+  visible = true,
+  selectedDate
 }: SelectedAreaSalesInfoProps) {
   // 선택된 지역의 총 매출액 계산 및 업종별 매출 집계
   const areaStats = useMemo(() => {
@@ -181,7 +182,7 @@ export function SelectedAreaSalesInfo({
       latestDate,
       topCategories
     }
-  }, [hexagonData, selectedGu, selectedDong])
+  }, [hexagonData, selectedGu, selectedDong, selectedDate])
 
   // formatCurrency는 이제 import한 함수 사용
 
@@ -204,7 +205,7 @@ export function SelectedAreaSalesInfo({
               {areaName}
             </h3>
             <span className="text-sm text-gray-500">
-              {areaStats.latestDate || ''}
+              {selectedDate || '2024-01-01'}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -235,13 +236,8 @@ export function SelectedAreaSalesInfo({
         {/* 업종별 매출 차트 */}
         <div className="pt-0">
           <div style={{ height: '150px', minHeight: '140px', width: '100%' }}>
-            {console.log('[SelectedAreaSalesInfo] 차트 렌더링 - areaStats.topCategories:', areaStats.topCategories)}
-            {console.log('[SelectedAreaSalesInfo] 차트 렌더링 - 데이터 길이:', areaStats.topCategories?.length)}
-            {console.log('[SelectedAreaSalesInfo] 차트 렌더링 - fallback to categorySalesData?:', !areaStats.topCategories || areaStats.topCategories.length === 0)}
             <BarChart
-              data={areaStats.topCategories && areaStats.topCategories.length > 0 
-                ? areaStats.topCategories 
-                : categorySalesData}
+              data={areaStats.topCategories || []}
               xDataKey="name"
               yDataKey="value"
               width="100%"

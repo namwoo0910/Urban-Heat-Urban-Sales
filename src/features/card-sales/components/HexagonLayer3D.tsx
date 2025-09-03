@@ -15,6 +15,7 @@ import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
+import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
 import { BusinessTypeLegend } from "./BusinessTypeLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
@@ -335,7 +336,7 @@ export default function HexagonScene() {
   const [dongSalesByTypeMap, setDongSalesByTypeMap] = useState<Map<number, Map<string, number>>>(new Map())
   
   // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
-  const [heightScale, setHeightScale] = useState<number>(100000000)
+  const [heightScale, setHeightScale] = useState<number>(500000000) // 5억원 단위로 증가 (높이 감소)
   
   // Mesh layer states
   const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
@@ -1092,7 +1093,7 @@ export default function HexagonScene() {
         <span style="opacity: 0.8;">💼</span> <strong>업종:</strong> ${selectedBusinessType}
       </div>
       <div style="margin-bottom: 8px;">
-        <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${Math.round(amount / 10000000).toLocaleString()} 천만원
+        <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${formatKoreanCurrency(amount)}
       </div>
     `
         } else if (businessTypeSales && businessTypeSales.size > 0) {
@@ -1107,7 +1108,7 @@ export default function HexagonScene() {
       </div>
       ${topBusinessTypes.map(([type, amount]) => `
         <div style="padding-left: 16px; font-size: 11px;">
-          • ${type}: ${Math.round(amount / 10000000).toLocaleString()} 천만원
+          • ${type}: ${formatKoreanCurrency(amount)}
         </div>
       `).join('')}
     `
@@ -1119,7 +1120,7 @@ export default function HexagonScene() {
     <span style="opacity: 0.8;">📍</span> <strong>지역:</strong> ${guName} ${dongName}
   </div>
   <div style="margin-bottom: 8px;">
-    <span style="opacity: 0.8;">💰</span> <strong>총 매출:</strong> ${salesInTenMillion.toLocaleString()} 천만원
+    <span style="opacity: 0.8;">💰</span> <strong>총 매출:</strong> ${formatKoreanCurrency(salesInTenMillion * 10000000)}
   </div>
   <div style="margin-bottom: 8px;">
     <span style="opacity: 0.8;">📅</span> <strong>날짜:</strong> ${date}
@@ -1167,7 +1168,7 @@ export default function HexagonScene() {
     <span style="opacity: 0.8;">💼</span> <strong>업종:</strong> ${businessType}
   </div>
   <div>
-    <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${sales.toLocaleString()}원
+    <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${formatKoreanCurrency(sales)}
   </div>
 </div>
         `.trim()
@@ -2408,6 +2409,7 @@ export default function HexagonScene() {
         hexagonData={hexagonData}
         climateData={climateData}
         visible={true}
+        selectedDate={selectedDate}
       />
 
 

@@ -594,11 +594,11 @@ export function getDongHeightBySales(sales: number, scale: number = 100000000): 
   }
   
   // 매출액을 높이로 변환
-  // 1억원 = 300 단위 높이로 매핑
-  // scale = 100000000 (1억원) → height = 300
-  // scale = 50000000 (5천만원) → height = 600 (더 민감한 스케일)
-  // scale = 10000000 (1천만원) → height = 3000 (매우 민감한 스케일)
-  const height = (sales / scale) * 300  // 배율 300 적용
+  // 5억원 = 1500 단위 높이로 매핑 (풀 스케일 복원)
+  // scale = 500000000 (5억원) → height = 1500
+  // scale = 100000000 (1억원) → height = 7500 (더 민감한 스케일)
+  // scale = 50000000 (5천만원) → height = 15000 (매우 민감한 스케일)
+  const height = (sales / scale) * 1500  // 배율 1500 적용 (풀 스케일 20/20 복원)
   
   // 최소값만 제한, 최대값 제한 없음 (매출액에 비례하여 무제한 증가)
   return Math.max(10, height)

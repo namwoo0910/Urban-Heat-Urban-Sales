@@ -189,7 +189,7 @@ export default function UnifiedControls({
   onIs3DModeChange,
   
   // Height scale props
-  heightScale = 10000000,
+  heightScale = 500000000, // 5억원 단위로 기본값 설정
   onHeightScaleChange,
   
   // Timeline animation props
@@ -208,7 +208,7 @@ export default function UnifiedControls({
   onShowMeshLayerChange,
   meshWireframe = true,
   onMeshWireframeChange,
-  meshResolution = 30,  // Reduced default for better performance
+  meshResolution = 120,  // Set default to 120x120
   onMeshResolutionChange,
   meshColor = '#00FFE1',
   onMeshColorChange,

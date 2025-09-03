@@ -15,6 +15,7 @@ import {
 import { 
   getAllBusinessTypes
 } from "../data/businessHierarchy"
+import { dateExtractor } from "../utils/dateExtractor"
 
 interface LocalEconomyFilterPanelProps {
   onFilterChange?: (filters: FilterState) => void
@@ -59,7 +60,10 @@ export default function LocalEconomyFilterPanel({
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
   const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedDate, setSelectedDate] = useState<string | null>('2024-01-01') // 기본값을 1월 1일로 설정
+  const [availableDates, setAvailableDates] = useState<string[]>([])
+  const [isLoadingDates, setIsLoadingDates] = useState(true)
+  const [selectedMonth, setSelectedMonth] = useState<string>('2024-01')
   
   // Get available options
   const availableDistricts = useMemo(() => getAllDistricts(), [])
@@ -110,12 +114,58 @@ export default function LocalEconomyFilterPanel({
     setSelectedDate(value === '전체' ? null : value)
   }
   
-  // Generate available dates (매월 1일만)
-  const availableDates = useMemo(() => {
+  // Handle month change
+  const handleMonthChange = (value: string) => {
+    setSelectedMonth(value)
+    // When month changes, select the first date of that month by default
+    const monthDates = dateExtractor.getDatesForMonth(value)
+    if (monthDates.length > 0) {
+      setSelectedDate(monthDates[0])
+    }
+  }
+  
+  // Load available dates on mount
+  useEffect(() => {
+    const loadDates = async () => {
+      setIsLoadingDates(true)
+      try {
+        const allDates = await dateExtractor.loadAvailableDates()
+        // Set dates for the initial selected month
+        const monthDates = dateExtractor.getDatesForMonth(selectedMonth)
+        setAvailableDates(monthDates)
+        console.log(`[DateLoader] Loaded ${monthDates.length} dates for ${selectedMonth}`)
+      } catch (error) {
+        console.error('[DateLoader] Failed to load dates:', error)
+      } finally {
+        setIsLoadingDates(false)
+      }
+    }
+    
+    loadDates()
+  }, [])
+  
+  // Update available dates when month changes
+  useEffect(() => {
+    const monthDates = dateExtractor.getDatesForMonth(selectedMonth)
+    setAvailableDates(monthDates)
+    console.log(`[DateSelector] Updated dates for ${selectedMonth}:`, monthDates.length)
+  }, [selectedMonth])
+  
+  // Get available months
+  const availableMonths = useMemo(() => {
     return [
-      '2024-01-01', '2024-02-01', '2024-03-01', '2024-04-01',
-      '2024-05-01', '2024-06-01', '2024-07-01', '2024-08-01',
-      '2024-09-01', '2024-10-01', '2024-11-01', '2024-12-01'
+      { value: '2024-01', label: '2024년 1월' },
+      { value: '2024-02', label: '2024년 2월' },
+      { value: '2024-03', label: '2024년 3월' },
+      { value: '2024-04', label: '2024년 4월' },
+      { value: '2024-05', label: '2024년 5월' },
+      { value: '2024-06', label: '2024년 6월' },
+      { value: '2024-07', label: '2024년 7월' },
+      { value: '2024-08', label: '2024년 8월' },
+      { value: '2024-09', label: '2024년 9월' },
+      { value: '2024-10', label: '2024년 10월' },
+      { value: '2024-11', label: '2024년 11월' },
+      { value: '2024-12', label: '2024년 12월' }
     ]
   }, [])
   
@@ -328,50 +378,78 @@ export default function LocalEconomyFilterPanel({
           </Button>
         </div>
         
-        {/* Third Row: 날짜 선택 */}
+        {/* Third Row: 날짜 선택 (월 선택 + 일 선택) */}
         <div className="flex gap-1 mt-1">
+          {/* 월 선택 드롭다운 */}
           <div className="flex-1">
             <Select 
-              value={selectedDate || "전체"} 
-              onValueChange={handleDateChange}
-              disabled={isTimelineAnimating}
+              value={selectedMonth} 
+              onValueChange={handleMonthChange}
+              disabled={isTimelineAnimating || isLoadingDates}
             >
               <SelectTrigger className={`bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2 ${
-                isTimelineAnimating ? 'opacity-50' : ''
+                (isTimelineAnimating || isLoadingDates) ? 'opacity-50' : ''
               }`}>
                 <SelectValue>
-                  {isTimelineAnimating && selectedDate ? 
-                    `📅 재생 중: ${new Date(selectedDate).toLocaleDateString('ko-KR', { 
-                      year: 'numeric', 
-                      month: 'long' 
-                    })}` :
-                    selectedDate ? 
-                    `${selectedDate.substring(0, 4)}년 ${selectedDate.substring(5, 7)}월` : 
-                    "전체 기간"
+                  {isLoadingDates ? '로딩 중...' : 
+                    availableMonths.find(m => m.value === selectedMonth)?.label || selectedMonth
                   }
                 </SelectValue>
               </SelectTrigger>
               <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
-                <SelectItem 
-                  value="전체"
-                  className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
-                >
-                  전체 기간
-                </SelectItem>
-                {/* 매월 1일 날짜 표시 */}
-                {availableDates.map(date => (
+                {availableMonths.map(month => (
                   <SelectItem 
-                    key={date}
-                    value={date}
+                    key={month.value} 
+                    value={month.value}
                     className="text-gray-200 hover:bg-gray-900/50"
                   >
-                    {new Date(date).toLocaleDateString('ko-KR', { 
-                      year: 'numeric', 
-                      month: 'long', 
-                      day: 'numeric' 
-                    })}
+                    {month.label}
                   </SelectItem>
                 ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          {/* 일 선택 드롭다운 */}
+          <div className="flex-1">
+            <Select 
+              value={selectedDate || "전체"} 
+              onValueChange={handleDateChange}
+              disabled={isTimelineAnimating || isLoadingDates || availableDates.length === 0}
+            >
+              <SelectTrigger className={`bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2 ${
+                (isTimelineAnimating || isLoadingDates) ? 'opacity-50' : ''
+              }`}>
+                <SelectValue>
+                  {isTimelineAnimating && selectedDate ? 
+                    `📅 ${new Date(selectedDate).getDate()}일` :
+                    selectedDate ? 
+                    `${new Date(selectedDate).getDate()}일` : 
+                    "날짜 선택"
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
+                {isLoadingDates ? (
+                  <div className="text-gray-400 text-xs p-2">로딩 중...</div>
+                ) : availableDates.length === 0 ? (
+                  <div className="text-gray-400 text-xs p-2">데이터 없음</div>
+                ) : (
+                  availableDates.map(date => {
+                    const dateObj = new Date(date)
+                    const day = dateObj.getDate()
+                    const weekday = dateObj.toLocaleDateString('ko-KR', { weekday: 'short' })
+                    return (
+                      <SelectItem 
+                        key={date}
+                        value={date}
+                        className="text-gray-200 hover:bg-gray-900/50"
+                      >
+                        {`${day}일 (${weekday})`}
+                      </SelectItem>
+                    )
+                  })
+                )}
               </SelectContent>
             </Select>
           </div>
