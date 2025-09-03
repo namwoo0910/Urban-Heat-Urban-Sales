@@ -21,10 +21,6 @@ interface UseLayerStateReturn {
   dataError: string | null
   
   
-  // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
-  displayMode: 'simple' | 'detailed'
-  setDisplayMode: (mode: 'simple' | 'detailed') => void
-  toggleDisplayMode: () => void
   
   // 필터 상태
   filterOptions: ClimateFilterOptions
@@ -42,11 +38,8 @@ interface UseLayerStateReturn {
   
   // 설정 업데이트 함수들
   setVisible: (visible: boolean) => void
-  setRadius: (radius: number) => void
-  setElevationScale: (scale: number) => void
   setCoverage: (coverage: number) => void
   setUpperPercentile: (percentile: number) => void
-  setColorScheme: (scheme: ColorScheme) => void
   
   // 애니메이션 설정 함수들
   setAnimationEnabled: (enabled: boolean) => void
@@ -131,8 +124,6 @@ export function useLayerState(): UseLayerStateReturn {
   const [isDataLoading, setIsDataLoading] = useState(false)
   const [dataError, setDataError] = useState<string | null>(null)
   
-  // 표시 모드 상태 (simple: 행정동별 총합, detailed: 카테고리별 상세)
-  const [displayMode, setDisplayMode] = useState<'simple' | 'detailed'>('simple')
   
   // 필터 상태
   const [filterOptions, setFilterOptions] = useState<ClimateFilterOptions>({
@@ -199,24 +190,12 @@ export function useLayerState(): UseLayerStateReturn {
     setLayerConfig(prev => ({ ...prev, visible: true }))
   }, [])
   
-  const setRadius = useCallback((radius: number) => {
-    setLayerConfig(prev => ({ ...prev, radius }))
-  }, [])
-  
-  const setElevationScale = useCallback((elevationScale: number) => {
-    setLayerConfig(prev => ({ ...prev, elevationScale }))
-  }, [])
-  
   const setCoverage = useCallback((coverage: number) => {
     setLayerConfig(prev => ({ ...prev, coverage }))
   }, [])
   
   const setUpperPercentile = useCallback((upperPercentile: number) => {
     setLayerConfig(prev => ({ ...prev, upperPercentile }))
-  }, [])
-  
-  const setColorScheme = useCallback((colorScheme: ColorScheme) => {
-    setLayerConfig(prev => ({ ...prev, colorScheme }))
   }, [])
   
   // 애니메이션 설정 업데이트 함수들
@@ -333,8 +312,6 @@ export function useLayerState(): UseLayerStateReturn {
     setSelectedDongCode(null)
     setSelectedBusinessType(null)
     setSelectedSubCategory(null)
-    // Reset display mode to simple view
-    setDisplayMode('simple')
   }, [])
   
   // Apply hierarchical filters to data
@@ -567,10 +544,6 @@ export function useLayerState(): UseLayerStateReturn {
     return simplePoints
   }, [selectedBusinessType, selectedGu, selectedDong])
   
-  // Toggle display mode function
-  const toggleDisplayMode = useCallback(() => {
-    setDisplayMode(prev => prev === 'simple' ? 'detailed' : 'simple')
-  }, [])
 
   // 전체 데이터 로딩 함수
   const loadData = useCallback(async () => {
@@ -614,10 +587,8 @@ export function useLayerState(): UseLayerStateReturn {
       })
       console.log(`[ClimateDataLoader] 필터링 후 총 매출: ${(filteredTotalSales/100000000).toFixed(1)}억원`)
       
-      // Create data points based on display mode
-      const hexData = displayMode === 'simple' 
-        ? createSimpleDataPoints(filteredData)
-        : createCategoryDataPoints(filteredData)
+      // Create data points (always use simple mode now)
+      const hexData = createSimpleDataPoints(filteredData)
       
       setClimateData(data) // Keep original data
       setHexagonData(hexData) // Set filtered hexagon data
@@ -638,7 +609,7 @@ export function useLayerState(): UseLayerStateReturn {
     } finally {
       setIsDataLoading(false)
     }
-  }, [filterOptions, applyHierarchicalFilters, displayMode, createSimpleDataPoints, createCategoryDataPoints])
+  }, [filterOptions, applyHierarchicalFilters, createSimpleDataPoints, createCategoryDataPoints])
   
   // 필터 업데이트 함수들
   const setSelectedDate = useCallback((date: string) => {
@@ -656,19 +627,9 @@ export function useLayerState(): UseLayerStateReturn {
   
   const setColorMode = useCallback((mode: ColorMode) => {
     setColorModeState(mode)
-    // 색상 모드에 따라 colorScheme과 colorMode 업데이트
-    const schemeMap: Record<ColorMode, ColorScheme> = {
-      temperature: 'temperature' as ColorScheme,
-      temperatureGroup: 'temperature' as ColorScheme,
-      discomfort: 'discomfort' as ColorScheme,
-      alert: 'alert' as ColorScheme,
-      sales: 'oceanic' as ColorScheme,
-      humidity: 'oceanic' as ColorScheme // 습도는 oceanic 색상 사용
-    }
-    setColorScheme(schemeMap[mode])
-    // LayerConfig의 colorMode도 업데이트
+    // LayerConfig의 colorMode 업데이트
     setLayerConfig(prev => ({ ...prev, colorMode: mode as any }))
-  }, [setColorScheme])
+  }, [])
   
   // Load data when filter options change
   useEffect(() => {
@@ -680,13 +641,11 @@ export function useLayerState(): UseLayerStateReturn {
     if (!climateData) return
     
     const filteredData = applyHierarchicalFilters(climateData)
-    const hexData = displayMode === 'simple' 
-      ? createSimpleDataPoints(filteredData)
-      : createCategoryDataPoints(filteredData)
+    const hexData = createSimpleDataPoints(filteredData)
     
     setHexagonData(hexData)
-    console.log(`[useCardSalesData] Hex data updated: ${hexData.length} points, mode: ${displayMode}`)
-  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, displayMode, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints])
+    console.log(`[useCardSalesData] Hex data updated: ${hexData.length} points`)
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, climateData, applyHierarchicalFilters, createSimpleDataPoints])
   
   
   // Return hexagon data directly
@@ -703,10 +662,6 @@ export function useLayerState(): UseLayerStateReturn {
     dataError,
     
     
-    // 표시 모드
-    displayMode,
-    setDisplayMode,
-    toggleDisplayMode,
     
     // 필터 상태
     filterOptions,
@@ -724,11 +679,8 @@ export function useLayerState(): UseLayerStateReturn {
     
     // 설정 업데이트 함수들
     setVisible,
-    setRadius,
-    setElevationScale,
     setCoverage,
     setUpperPercentile,
-    setColorScheme,
     
     // 애니메이션 설정 함수들
     setAnimationEnabled,

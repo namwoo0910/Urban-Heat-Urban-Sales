@@ -20,8 +20,6 @@ import { dateExtractor } from "../utils/dateExtractor"
 interface LocalEconomyFilterPanelProps {
   onFilterChange?: (filters: FilterState) => void
   className?: string
-  displayMode?: 'simple' | 'detailed'
-  onToggleDisplayMode?: () => void
   // External filter state synchronization
   externalSelectedGu?: string | null
   externalSelectedDong?: string | null
@@ -43,8 +41,6 @@ export interface FilterState {
 export default function LocalEconomyFilterPanel({
   onFilterChange,
   className = "",
-  displayMode = 'simple',
-  onToggleDisplayMode,
   // External filter state synchronization
   externalSelectedGu,
   externalSelectedDong,
@@ -365,17 +361,6 @@ export default function LocalEconomyFilterPanel({
             </Select>
           </div>
           
-          <Button
-            onClick={onToggleDisplayMode}
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 bg-gray-900/80 hover:bg-gray-800/90 text-gray-200 border-gray-700/50 text-xs whitespace-nowrap"
-          >
-            {displayMode === 'simple' 
-              ? (selectedBusinessType ? selectedBusinessType : '업종별')
-              : '총매출'
-            }
-          </Button>
         </div>
         
         {/* Third Row: 날짜 선택 (월 선택 + 일 선택) */}

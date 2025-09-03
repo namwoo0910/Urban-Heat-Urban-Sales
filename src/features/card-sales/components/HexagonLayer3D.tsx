@@ -10,7 +10,7 @@ import { PolygonLayer } from '@deck.gl/layers'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
-import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
+import { LayerManager, formatTooltip, createScatterplotLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
@@ -137,17 +137,10 @@ export default function HexagonScene() {
     dataError,
     colorMode,
     
-    // 표시 모드
-    displayMode,
-    setDisplayMode,
-    toggleDisplayMode,
     selectedHour,
     setVisible,
-    setRadius,
-    setElevationScale,
     setCoverage,
     setUpperPercentile,
-    setColorScheme,
     setColorMode,
     setSelectedHour,
     resetConfig,
@@ -314,8 +307,6 @@ export default function HexagonScene() {
         setSelectedDong(null)  // Clear dong when gu is selected
       } else if (feature?.layer?.id === 'dong-fill') {
         setSelectedDong(districtName)
-        // 행정동 선택시에도 현재 표시 모드를 유지
-        // Display mode는 사용자가 버튼을 통해서만 변경
         // Don't change gu when dong is selected (dong belongs to current gu)
       }
     }
@@ -417,11 +408,10 @@ export default function HexagonScene() {
     setSelectedSubCategory(null)
     
     // 3. 표시 모드를 simple로 리셋
-    setDisplayMode('simple')
     
     // 4. 뷰포트를 서울 전체로 리셋 (재사용 함수 사용)
     resetToDefaultView()
-  }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedSubCategory, setDisplayMode, resetToDefaultView])
+  }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedSubCategory, resetToDefaultView])
 
   // 3D 모드 전환 핸들러
   const handle3DModeToggle = useCallback((enabled: boolean) => {
@@ -636,18 +626,6 @@ export default function HexagonScene() {
     }
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
 
-  // DeckGL 레이어 생성 - ColumnLayer 사용 (3D 바 + 구 이름 표시)
-  const columnLayers = createColumnLayer(hexagonData, {
-    ...layerConfig,
-    selectedBusinessType: selectedBusinessType,
-    colorMode: selectedBusinessType ? 'category' : layerConfig.colorMode,
-    displayMode: displayMode,
-    // Enable interaction handlers
-    onHover: handleHexagonHover,
-    onClick: handleHexagonClick,
-    // District highlighting
-    hoveredDistrict: hoveredDistrict
-  })
   
   // Create Deck.gl PolygonLayer for 3D dong visualization
   const createDong3DPolygonLayers = useCallback(() => {
@@ -942,10 +920,6 @@ export default function HexagonScene() {
       layers.push(preGeneratedMeshLayer)
     }
     
-    // Add ColumnLayer for detailed display mode (업종별 표시)
-    if (displayMode === 'detailed' && !is3DMode) {
-      layers.push(...columnLayers)
-    }
     
     // Add District Labels TextLayer (LAST - renders on top of everything)
     if (showDistrictLabels) {
@@ -1001,7 +975,7 @@ export default function HexagonScene() {
     }
     
     return layers
-  }, [is3DMode, dongData3D, displayMode, columnLayers, createDong3DPolygonLayers, 
+  }, [is3DMode, dongData3D, createDong3DPolygonLayers, 
       showDistrictLabels, showDongLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
       handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick,
       setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode,
@@ -1147,49 +1121,6 @@ export default function HexagonScene() {
         }
       }
       
-      // ColumnLayer의 경우 (업종 카테고리 데이터)
-      if (info.layer?.id === 'column-layer' && info.object.originalData) {
-        const { originalData } = info.object
-        const date = originalData.date || '날짜 정보 없음'
-        const guName = originalData.guName || '정보 없음'
-        const dongName = originalData.dongName || '정보 없음'
-        const businessType = originalData.businessType || originalData.middleCategory || info.object.businessType || info.object.middleCategory || '업종 정보 없음'
-        const sales = originalData.categorySales || info.object.weight || 0
-        
-        const tooltipHtml = `
-<div style="font-family: 'Noto Sans KR', sans-serif;">
-  <div style="margin-bottom: 8px;">
-    <span style="opacity: 0.8;">📅</span> <strong>날짜:</strong> ${date}
-  </div>
-  <div style="margin-bottom: 8px;">
-    <span style="opacity: 0.8;">📍</span> <strong>지역:</strong> ${guName} ${dongName}
-  </div>
-  <div style="margin-bottom: 8px;">
-    <span style="opacity: 0.8;">💼</span> <strong>업종:</strong> ${businessType}
-  </div>
-  <div>
-    <span style="opacity: 0.8;">💰</span> <strong>매출액:</strong> ${formatKoreanCurrency(sales)}
-  </div>
-</div>
-        `.trim()
-        
-        return {
-          html: tooltipHtml,
-          style: {
-            backgroundColor: 'rgba(0, 0, 0, 0.95)',
-            color: 'white',
-            fontSize: '13px',
-            padding: '14px',
-            borderRadius: '8px',
-            whiteSpace: 'normal',
-            maxWidth: '280px',
-            lineHeight: '1.6',
-            boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4)',
-            border: '1px solid rgba(255, 255, 255, 0.15)',
-            backdropFilter: 'blur(8px)'
-          }
-        }
-      }
       
       // 기존 HexagonLayer의 경우 (폴백)
       const enhancedInfo = {
@@ -1936,8 +1867,6 @@ export default function HexagonScene() {
       setSelectedDistrictData(null)
       console.log('[District Selection] No district selected, resetting to Seoul overview')
       
-      // 전체 서울로 돌아가도 현재 표시 모드를 유지
-      // Display mode는 사용자가 버튼을 통해서만 변경
       
       // Return to default Seoul view (재사용 함수 사용)
       resetToDefaultView()
@@ -1974,7 +1903,7 @@ export default function HexagonScene() {
         <DeckGL
         viewState={viewState}
         controller={true}
-        layers={deckLayers} // PolygonLayer (3D mode) or ColumnLayer (detailed mode)
+        layers={deckLayers} // PolygonLayer for 3D visualization
         effects={[lightingEffect]} // Add lighting for solid mesh rendering
         getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
         getCursor={({isDragging, isHovering}) => {
@@ -2391,8 +2320,6 @@ export default function HexagonScene() {
       {/* LocalEconomy Filter Panel - Positioned properly above map */}
       <LocalEconomyFilterPanel
         onFilterChange={handleFilterChange}
-        displayMode={displayMode}
-        onToggleDisplayMode={toggleDisplayMode}
         // External sync props for bidirectional updates
         externalSelectedGu={selectedGu}
         externalSelectedDong={selectedDong}
@@ -2461,19 +2388,13 @@ export default function HexagonScene() {
         onHeightScaleChange={setHeightScale}
         // 레이어 컨트롤 props
         visible={layerConfig.visible}
-        radius={layerConfig.radius}
-        elevationScale={layerConfig.elevationScale}
         coverage={layerConfig.coverage}
         upperPercentile={layerConfig.upperPercentile}
-        colorScheme={layerConfig.colorScheme}
         isDataLoading={isDataLoading}
         dataError={dataError}
         onVisibleChange={setVisible}
-        onRadiusChange={setRadius}
-        onElevationScaleChange={setElevationScale}
         onCoverageChange={setCoverage}
         onUpperPercentileChange={setUpperPercentile}
-        onColorSchemeChange={setColorScheme}
         onReset={resetConfig}
         // 색상 모드 props
         colorMode={colorMode === 'alert' ? 'sales' : colorMode}

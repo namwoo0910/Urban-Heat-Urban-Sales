@@ -83,19 +83,13 @@ interface UnifiedControlsProps {
   
   // LayerControls props
   visible: boolean
-  radius: number
-  elevationScale: number
   coverage: number
   upperPercentile: number
-  colorScheme: ColorScheme
   isDataLoading: boolean
   dataError: string | null
   onVisibleChange: (visible: boolean) => void
-  onRadiusChange: (radius: number) => void
-  onElevationScaleChange: (scale: number) => void
   onCoverageChange: (coverage: number) => void
   onUpperPercentileChange: (percentile: number) => void
-  onColorSchemeChange: (scheme: ColorScheme) => void
   onReset: () => void
   
   // Color mode props
@@ -162,14 +156,8 @@ export default function UnifiedControls({
   currentLayer,
   
   // LayerControls props
-  radius,
-  elevationScale,
-  colorScheme,
   isDataLoading,
   dataError,
-  onRadiusChange,
-  onElevationScaleChange,
-  onColorSchemeChange,
   onReset,
   
   // District visibility props
@@ -837,106 +825,7 @@ export default function UnifiedControls({
               </div>
             )}
 
-            <Separator className="bg-gray-800/50" />
 
-            {/* 형태 설정 */}
-            <div className="space-y-3">
-
-              {/* 반지름 */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <Label className="text-gray-200 text-xs">반지름: {radius}m</Label>
-                </div>
-                <Slider
-                  value={[radius]}
-                  onValueChange={(value) => onRadiusChange(value[0])}
-                  min={100}
-                  max={3000}
-                  step={100}
-                  disabled={isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>100m</span>
-                  <span>3000m</span>
-                </div>
-              </div>
-
-              {/* 높이 스케일 */}
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <Label className="text-gray-200 text-xs">높이 스케일: {elevationScale}x</Label>
-                </div>
-                <Slider
-                  value={[elevationScale]}
-                  onValueChange={(value) => onElevationScaleChange(value[0])}
-                  min={0.1}
-                  max={5}
-                  step={0.1}
-                  disabled={isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>0.1x</span>
-                  <span>5x</span>
-                </div>
-              </div>
-
-            </div>
-
-            <Separator className="bg-gray-800/50" />
-
-            {/* 시각 설정 */}
-            <div className="space-y-3">
-
-              {/* 색상 스킴 */}
-              <div className="space-y-1">
-                <Label className="text-gray-200 text-xs">색상 스킴</Label>
-                <Select
-                  value={colorScheme}
-                  onValueChange={(value: ColorScheme) => onColorSchemeChange(value)}
-                  disabled={isDataLoading}
-                >
-                  <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-black/90 border-white/20 max-h-96">
-                    {Object.entries(COLOR_PALETTE_INFO).map(([key, info]) => (
-                      <SelectItem key={key} value={key} className="text-gray-200 hover:bg-gray-900/50">
-                        <div className="flex items-center space-x-2">
-                          <div 
-                            className="w-4 h-4 rounded"
-                            style={getColorPreviewStyle(key as ColorScheme)}
-                          ></div>
-                          <span>{info.name}</span>
-                          {info.category === 'premium' && (
-                            <Badge variant="secondary" className="text-xs ml-1">Premium</Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-
-              {/* 색상 미리보기 */}
-              <div className="space-y-1">
-                <Label className="text-gray-200 text-xs">색상 미리보기</Label>
-                <div 
-                  className="h-6 rounded-lg"
-                  style={getColorPreviewStyle(colorScheme)}
-                ></div>
-                <div className="flex justify-between text-xs text-gray-500">
-                  <span>낮음</span>
-                  <span>높음</span>
-                </div>
-                <div className="text-xs text-gray-600">
-                  {COLOR_PALETTE_INFO[colorScheme]?.description}
-                </div>
-              </div>
-
-            </div>
 
 
               </div>

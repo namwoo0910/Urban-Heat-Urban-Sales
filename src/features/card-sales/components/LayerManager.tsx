@@ -2,7 +2,7 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { HexagonLayer } from '@deck.gl/aggregation-layers'
-import { ScatterplotLayer, ColumnLayer } from '@deck.gl/layers'
+import { ScatterplotLayer } from '@deck.gl/layers'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
@@ -37,8 +37,6 @@ export interface LayerConfig {
   colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity' | 'category'
   // 선택된 업종 카테고리
   selectedBusinessType?: string | null
-  // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
-  displayMode?: 'simple' | 'detailed'
   // 선택된 지역 필터
   selectedGu?: string | null
   selectedGuCode?: number | null
@@ -508,353 +506,6 @@ export function formatScatterplotTooltip(info: any): string {
   }
 }
 
-// 툴팁 포매터 - ColumnLayer용
-function formatColumnTooltip(object: any): string {
-  if (!object) return ''
-  
-  // originalData에서 정보 추출
-  const originalData = object.originalData || object
-  const date = originalData.date || originalData.기준일자 || '날짜 정보 없음'
-  const guName = originalData.guName || originalData.자치구 || '정보 없음'
-  const dongName = originalData.dongName || originalData.행정동 || '정보 없음'
-  
-  // 업종 정보 추출 - middleCategory가 있으면 사용
-  let middleCategory = originalData.middleCategory || object.middleCategory
-  
-  // salesByCategory 데이터 확인 (ClimateCardSalesData 형식)
-  const salesByCategory = originalData.salesByCategory || originalData.총매출액_업종
-  
-  // middleCategory가 없고 salesByCategory가 있으면 가장 큰 업종 찾기
-  if (!middleCategory && salesByCategory) {
-    const categories = Object.entries(salesByCategory)
-      .filter(([_, value]) => (value as number) > 0)
-      .sort((a, b) => (b[1] as number) - (a[1] as number))
-    
-    if (categories.length > 0) {
-      middleCategory = categories[0][0] // 가장 매출이 높은 업종
-    }
-  }
-  
-  // displayMode 확인
-  const displayMode = originalData.displayMode || object.displayMode
-  
-  // Simple 모드에서는 총 매출액과 주요 업종들 표시
-  if (displayMode === 'simple' && salesByCategory) {
-    const topCategories = Object.entries(salesByCategory)
-      .filter(([_, value]) => (value as number) > 0)
-      .sort((a, b) => (b[1] as number) - (a[1] as number))
-      .slice(0, 3)
-    
-    const totalSales = originalData.totalSales || 
-      Object.values(salesByCategory).reduce((sum, val) => sum + (val as number), 0)
-    
-    return `
-📅 날짜: ${date}
-📍 지역: ${guName} ${dongName}
-💰 총 매출액: ${totalSales.toLocaleString()}원
-━━━━━━━━━━━━━━━━━━━
-📊 주요 업종:
-${topCategories.map(([cat, val]) => `  • ${cat}: ${(val as number).toLocaleString()}원`).join('\n')}
-    `.trim()
-  }
-  
-  // Detailed 모드에서는 특정 카테고리 정보 표시
-  if (middleCategory && salesByCategory) {
-    const categorySales = salesByCategory[middleCategory] || object.weight || 0
-    return `
-📅 날짜: ${date}
-📍 지역: ${guName} ${dongName}
-💼 업종: ${middleCategory}
-💰 매출액: ${categorySales.toLocaleString()}원
-    `.trim()
-  }
-  
-  // 업종 정보가 있으면 표시
-  if (middleCategory) {
-    const sales = object.weight || 0
-    return `
-📅 날짜: ${date}
-📍 지역: ${guName} ${dongName}
-💼 업종: ${middleCategory}
-💰 매출액: ${sales.toLocaleString()}원
-    `.trim()
-  }
-  
-  // 기본 표시 (업종 정보 없을 때)
-  const sales = object.weight || originalData.totalSales || 0
-  return `
-📅 날짜: ${date}
-📍 지역: ${guName} ${dongName}
-💰 매출액: ${sales.toLocaleString()}원
-  `.trim()
-}
-
-// ColumnLayer로 3D 바 표시 (구 이름도 표시 가능) - OPTIMIZED with memoization
-export function createColumnLayer(data: HexagonLayerData[] | null, config: LayerConfig & { 
-  onHover?: (info: any) => void, 
-  onClick?: (info: any) => void,
-  hoveredDistrict?: string | null 
-}): Layer[] {
-  if (!data || !config.visible) return []
-  
-  const layer = new ColumnLayer<HexagonLayerData>({
-    id: 'column-layer',
-    data,
-    
-    // 위치 - simple 모드에서는 오프셋 없이 원래 좌표 사용
-    getPosition: (d: HexagonLayerData) => {
-      // Simple 모드에서는 오프셋 없이 중앙에 하나의 바만 표시
-      if (config.displayMode === 'simple') {
-        return d.originalData?.coordinates || d.coordinates
-      }
-      // Detailed 모드에서는 카테고리별 오프셋 적용
-      return d.coordinates
-    },
-    
-    // 3D 바 설정 - 더 부드러운 원형을 위해 해상도 증가
-    diskResolution: 16,  // 더 부드러운 원형 (12에서 16으로 증가)
-    radius: config.displayMode === 'simple' ? config.radius / 4 : config.radius / 3,  // config.radius 사용
-    extruded: true,  // 3D 활성화
-    wireframe: false,
-    filled: true,
-    
-    // 그림자와 재질 효과
-    material: {
-      ambient: 0.3,     // 주변광
-      diffuse: 0.6,     // 확산광
-      shininess: 32,    // 반짝임
-      specularColor: [60, 64, 70]  // 반사광 색상 (은은한 회색)
-    },
-    
-    // 높이 (colorMode에 따라 변경) - 공통 상수 사용
-    getElevation: (d: HexagonLayerData) => {
-      const mode = config.colorMode || 'sales'
-      
-      switch(mode) {
-        case 'temperature':
-          const temp = d.originalData?.temperature || 20
-          return calculateDataElevation(temp, 'temperature', config.elevationScale)
-          
-        case 'discomfort':
-          const discomfort = d.originalData?.discomfortIndex || 50
-          return calculateDataElevation(discomfort, 'discomfort', config.elevationScale)
-          
-        case 'humidity':
-          const humidity = d.originalData?.humidity || 50
-          return calculateDataElevation(humidity, 'humidity', config.elevationScale)
-          
-        case 'sales':
-        default:
-          // 매출액은 weight 속성에 저장되어 있음
-          const salesValue = d.weight || 0
-          return calculateDataElevation(salesValue, 'sales', config.elevationScale)
-      }
-    },
-    elevationScale: config.elevationScale,  // 일관된 높이 스케일 사용 (1억 = 100)
-    
-    // 색상 (colorScheme 사용)
-    getFillColor: (d: HexagonLayerData) => {
-      // 호버된 구역(동)과 같은 구역이면 전체 색상 변경
-      const isHoveredDistrict = config.hoveredDistrict && d.originalData?.dongName === config.hoveredDistrict
-      
-      // 틸블루 단색 그라데이션 적용 (오렌지 지도와 보색 대비)
-      if (config.displayMode === 'simple') {
-        const value = d.weight
-        const maxValue = 500000000  // 5억원 기준
-        const normalizedValue = Math.min(1, value / maxValue)
-        
-        // 틸블루 단색 그라데이션 (어두운 -> 밝은)
-        let baseColor: [number, number, number, number]
-        
-        if (normalizedValue < 0.2) {
-          baseColor = [0, 50, 65, 230]     // 아주 진한 틸
-        } else if (normalizedValue < 0.4) {
-          baseColor = [0, 80, 100, 230]    // 진한 틸블루
-        } else if (normalizedValue < 0.6) {
-          baseColor = [0, 120, 140, 230]   // 중간 틸블루
-        } else if (normalizedValue < 0.8) {
-          baseColor = [0, 160, 180, 230]   // 밝은 틸블루
-        } else {
-          baseColor = [0, 200, 220, 230]   // 아주 밝은 틸블루
-        }
-        
-        // 호버된 구역이면 밝기 증가 및 광택 효과
-        if (isHoveredDistrict) {
-          return [
-            Math.min(100, baseColor[0] + 50),
-            Math.min(255, baseColor[1] + 40), 
-            Math.min(255, baseColor[2] + 40),
-            255
-          ]
-        }
-        
-        return baseColor
-      }
-      
-      // Detailed 모드에서는 카테고리별 색상 (실제 업종 데이터 사용)
-      if (config.displayMode === 'detailed') {
-        // 카테고리 확인 (category, businessType, originalData 순서로)
-        const category = d.category || d.businessType || d.originalData?.businessType || '전체'
-        let baseColor: [number, number, number, number]
-        
-        // 선택된 카테고리가 있을 때만 필터링
-        if (config.selectedBusinessType) {
-          // 선택된 카테고리와 일치하면 색상 표시, 아니면 회색
-          if (category === config.selectedBusinessType) {
-            baseColor = BUSINESS_TYPE_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
-          } else {
-            baseColor = [128, 128, 128, 100]  // 선택되지 않은 카테고리는 회색
-          }
-        } else {
-          // 선택된 카테고리가 없으면 모든 카테고리 색상 표시
-          baseColor = BUSINESS_TYPE_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
-        }
-        
-        // 호버된 구역이면 색상 강화
-        if (isHoveredDistrict) {
-          return [
-            Math.min(255, baseColor[0] * 1.4),
-            Math.min(255, baseColor[1] * 1.4), 
-            Math.min(255, baseColor[2] * 1.4),
-            Math.min(255, baseColor[3] * 1.2)
-          ]
-        }
-        
-        return baseColor
-      }
-      
-      // 업종 카테고리 색상 모드인 경우 (기존 코드 유지)
-      if (config.colorMode === 'category' && config.selectedBusinessType) {
-        // 데이터에 업종이 있으면 해당 색상 사용
-        if (d.businessType) {
-          // 선택된 카테고리와 일치하면 해당 색상, 아니면 회색
-          if (d.businessType === config.selectedBusinessType) {
-            return BUSINESS_TYPE_COLOR_MAP[d.businessType] || DEFAULT_CATEGORY_COLOR
-          } else {
-            // 선택되지 않은 카테고리는 반투명 회색
-            return [128, 128, 128, 100]
-          }
-        }
-        // originalData에서 업종 정보 확인
-        if (d.originalData?.businessType) {
-          const businessType = d.originalData.businessType
-          if (businessType === config.selectedBusinessType) {
-            return BUSINESS_TYPE_COLOR_MAP[businessType] || DEFAULT_CATEGORY_COLOR
-          } else {
-            return [128, 128, 128, 100]
-          }
-        }
-      }
-      
-      const mode = config.colorMode || 'sales'
-      
-      switch(mode) {
-        case 'temperature':
-          const temp = d.originalData?.temperature || 20
-          // 온도별 색상: 파란색(추움) -> 빨간색(더움)
-          if (temp < 0) return [0, 100, 255, 200]
-          if (temp < 10) return [0, 200, 255, 200]
-          if (temp < 20) return [0, 255, 100, 200]
-          if (temp < 30) return [255, 200, 0, 200]
-          return [255, 50, 0, 200]
-          
-        case 'discomfort':
-          const discomfort = d.originalData?.discomfortIndex || 50
-          // 불쾌지수별 색상: 낮음(파랑) -> 높음(빨강)
-          if (discomfort < 40) return [0, 200, 255, 200]
-          if (discomfort < 60) return [0, 255, 100, 200]
-          if (discomfort < 70) return [255, 200, 0, 200]
-          return [255, 50, 0, 200]
-          
-        case 'humidity':
-          const humidity = d.originalData?.humidity || 50
-          // 습도별 색상: 건조(노랑) -> 습함(파랑)
-          if (humidity < 30) return [255, 200, 0, 200]
-          if (humidity < 50) return [200, 255, 0, 200]
-          if (humidity < 70) return [0, 200, 255, 200]
-          return [0, 100, 255, 200]
-          
-        case 'sales':
-        default:
-          // 매출액별 색상
-          const sales = d.weight
-          if (sales < 10000000) return [0, 100, 255, 200]  // 1천만원 미만: 파랑
-          if (sales < 50000000) return [0, 255, 100, 200]  // 5천만원 미만: 초록
-          if (sales < 100000000) return [255, 200, 0, 200] // 1억원 미만: 노랑
-          return [255, 50, 0, 200]  // 1억원 이상: 빨강
-      }
-    },
-    
-    // 선 색상
-    getLineColor: [255, 255, 255, 80],
-    lineWidthMinPixels: 1,
-    
-    // 상호작용
-    pickable: true,
-    autoHighlight: true,
-    highlightColor: (info: any) => {
-      // 호버된 구역(동)과 같은 구역이면 특별한 색상으로 하이라이트
-      if (config.hoveredDistrict && info.object?.originalData?.dongName === config.hoveredDistrict) {
-        return [0, 255, 255, 180]  // 청록색 하이라이트
-      }
-      return [255, 255, 255, 100]  // 기본 하이라이트
-    },
-    
-    // 툴팁 설정
-    getTooltip: (object: any) => {
-      if (!object) return null
-      
-      // 디버깅: 데이터 구조 확인
-      console.log('[LayerManager] Tooltip data:', {
-        hasOriginalData: !!object.originalData,
-        middleCategory: object.originalData?.middleCategory,
-        salesByCategory: object.originalData?.salesByCategory,
-        총매출액_업종: object.originalData?.총매출액_업종,
-        displayMode: object.originalData?.displayMode,
-        weight: object.weight
-      })
-      
-      return {
-        html: formatColumnTooltip(object),
-        style: {
-          backgroundColor: 'rgba(0, 0, 0, 0.8)',
-          fontSize: '12px',
-          border: '1px solid rgba(255, 255, 255, 0.2)'
-        }
-      }
-    },
-    
-    // 이벤트 핸들러
-    onHover: config.onHover,
-    onClick: config.onClick,
-    
-    // 성능
-    material: {
-      ambient: 0.35,
-      diffuse: 1,
-      shininess: 32,
-      specularColor: [30, 30, 30]
-    },
-    
-    // 애니메이션
-    transitions: {
-      getElevation: 600,
-      getFillColor: 600
-    },
-    
-    // 업데이트 트리거
-    updateTriggers: {
-      getElevation: [config.elevationScale, config.colorMode],  // colorMode 추가
-      elevationScale: [config.elevationScale],  // elevationScale 자체도 추가
-      getFillColor: [config.colorScheme, config.colorMode, config.selectedBusinessType, config.displayMode, config.hoveredDistrict],
-      highlightColor: [config.hoveredDistrict],  // 호버 상태 업데이트
-      radius: [config.radius, config.coverage]  // radius와 coverage 추가
-    }
-  })
-  
-  return [layer]
-}
-
 // ScatterplotLayer로 개별 포인트 표시 (구 이름 표시 가능)
 export function createScatterplotLayer(data: HexagonLayerData[] | null, config: LayerConfig): Layer[] {
   if (!data || !config.visible) return []
@@ -867,21 +518,20 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
     // 위치
     getPosition: (d: HexagonLayerData) => d.coordinates,
     
-    // 크기 (매출액 기반)
-    getRadius: (d: HexagonLayerData) => Math.sqrt(d.weight / 1000000) * 10, // 매출액에 비례한 반지름
+    // 반지름 (매출액 기반)
+    getRadius: (d: HexagonLayerData) => {
+      const salesRatio = d.weight / 1000000  // 백만원 단위
+      return Math.min(config.radius / 2, Math.max(10, salesRatio))
+    },
     radiusScale: 1,
-    radiusMinPixels: 2,
-    radiusMaxPixels: 50,
+    radiusMinPixels: 3,
+    radiusMaxPixels: 30,
     
-    // 색상 (온도 기반)
+    // 색상 (매출액 기반 그라데이션)
     getFillColor: (d: HexagonLayerData) => {
-      const temp = d.originalData?.temperature || 20
-      // 온도에 따른 색상: 파란색(추움) -> 빨간색(더움)
-      if (temp < 0) return [0, 100, 255, 200] // 파란색
-      if (temp < 10) return [0, 200, 255, 200] // 하늘색
-      if (temp < 20) return [0, 255, 100, 200] // 초록색
-      if (temp < 30) return [255, 200, 0, 200] // 노란색
-      return [255, 50, 0, 200] // 빨간색
+      const maxSales = 100000000  // 1억원 기준
+      const ratio = Math.min(1, d.weight / maxSales)
+      return getHeatmapColor(ratio)
     },
     
     // 테두리
@@ -891,56 +541,53 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
     
     // 상호작용
     pickable: true,
-    autoHighlight: true,
-    highlightColor: [255, 255, 255, 100],
+    onHover,
+    onClick,
     
-    // 애니메이션
-    transitions: {
-      getRadius: 600,
-      getFillColor: 600
-    },
+    // 툴팁
+    getTooltip: formatScatterplotTooltip,
     
-    // 업데이트 트리거
+    // 성능
     updateTriggers: {
-      getRadius: [config.elevationScale],
-      getFillColor: [config.colorScheme, config.colorMode]
+      getFillColor: [config.colorScheme],
+      getRadius: [config.radius]
     }
   })
   
   return [layer]
 }
 
-/**
- * Create Seoul mesh layer (uses static data if available, falls back to dynamic)
- */
+// Mesh Layer creation
 export function createMeshLayer(
-  districtData: any[],
-  config: SeoulMeshLayerProps
-): Array<SimpleMeshLayer | any> {
-  // For now, still use dynamic generation
-  // To use static mesh, the component needs to be updated to use useStaticSeoulMeshLayer hook
-  return createSeoulMeshLayers(districtData, config)
+  meshData: any,
+  config: LayerConfig & { hoveredDistrict?: string | null }
+): SimpleMeshLayer[] | null {
+  // Use the pre-generated static mesh layer from SeoulMeshLayer
+  return createStaticSeoulMeshLayer(meshData, config)
 }
 
-// Export static mesh layer hook for components to use
+// Re-export for backward compatibility
 export { useStaticSeoulMeshLayer }
 
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
-  visible: true, // 항상 true로 고정
-  radius: 500,  // 반지름 500m (기본값)
-  elevationScale: 1,  // 높이 스케일 1x로 변경 (기본값)
-  coverage: 1,
+  visible: true,
+  radius: 100,
+  elevationScale: 10,
+  coverage: 0.8,
   upperPercentile: 100,
-  colorScheme: 'tealblue', // tealblue로 변경 (오렌지 보색 테마)
-  animationEnabled: false, // 임시로 애니메이션 OFF (툴팁 테스트용)
-  animationSpeed: 1.0,
-  waveAmplitude: 2.0,
-  colorMode: 'category', // 색상을 카테고리별로 설정
-  selectedBusinessType: null, // 기본적으로 모든 카테고리 표시
-  // GPU WebGL 설정 - DEFAULT ON
-  webglEnabled: true, // GPU rendering ON by default
-  webglRadiusPixels: 80,
+  colorScheme: 'sunset',
+  animationEnabled: false,
+  animationSpeed: 1,
+  waveAmplitude: 1,
+  colorMode: 'sales',
+  selectedBusinessType: null,
+  selectedGu: null,
+  selectedGuCode: null,
+  selectedDong: null,
+  selectedDongCode: null,
+  webglEnabled: false,
+  webglRadiusPixels: 20,
   webglIntensity: 1,
-  webglThreshold: 0.03,
-  useCustomWebGL: true // Use custom WebGL layer by default
+  webglThreshold: 0.05,
+  useCustomWebGL: false,
 }
