@@ -10,7 +10,8 @@ import { PolygonLayer } from '@deck.gl/layers'
 import mapboxgl from "mapbox-gl"
 import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
-import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip, createMeshLayer, useStaticSeoulMeshLayer } from "./LayerManager"
+import { LayerManager, formatTooltip, createScatterplotLayer, createColumnLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
+import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { SalesChartPanel } from "./charts/SalesChartPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
@@ -338,8 +339,9 @@ export default function HexagonScene() {
   
   // Mesh layer states
   const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
-  const [meshWireframe, setMeshWireframe] = useState<boolean>(false)  // Default to solid rendering
-  const [meshResolution, setMeshResolution] = useState<number>(120)  // Using pre-generated high quality mesh
+  const [meshWireframe, setMeshWireframe] = useState<boolean>(true)  // Default to wireframe on
+  const [meshResolution, setMeshResolution] = useState<number>(60)  // Balanced resolution for good performance
+  const [meshColor, setMeshColor] = useState<string>('#00FFE1')  // Default cyan color
   
   // Helper function to handle dong click from text labels
   const handleDongClick = useCallback((dongName: string) => {
@@ -906,19 +908,21 @@ export default function HexagonScene() {
     })
   }, [])  // Lighting configuration is constant
   
-  // Use static Seoul mesh layer for better performance
-  const staticMeshLayer = useStaticSeoulMeshLayer({
+  // Use pre-generated mesh layer for better performance
+  const preGeneratedMeshLayer = usePreGeneratedSeoulMeshLayer({
+    resolution: meshResolution,
     visible: showMeshLayer,
     wireframe: meshWireframe,
     opacity: meshWireframe ? 1 : (is3DMode ? 0.6 : 0.8),
     pickable: true,
+    color: meshColor,  // Pass the mesh color
     onHover: (info: any) => {
       // Handle mesh hover if needed
     },
     onClick: (info: any) => {
       // Handle mesh click if needed
     }
-  })
+  }, dongData3D?.features)
   
   // Combine all deck.gl layers
   const deckLayers = useMemo(() => {
@@ -929,10 +933,9 @@ export default function HexagonScene() {
       layers.push(...createDong3DPolygonLayers())
     }
     
-    // Add static mesh layer for Seoul surface visualization
-    // The static mesh is loaded via the useStaticSeoulMeshLayer hook above
-    if (staticMeshLayer && showMeshLayer) {
-      layers.push(staticMeshLayer)
+    // Add pre-generated mesh layer for Seoul surface visualization
+    if (preGeneratedMeshLayer && showMeshLayer) {
+      layers.push(preGeneratedMeshLayer)
     }
     
     // Add ColumnLayer for detailed display mode (업종별 표시)
@@ -998,7 +1001,7 @@ export default function HexagonScene() {
       showDistrictLabels, showDongLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
       handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick,
       setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode,
-      showMeshLayer, meshWireframe, meshResolution])
+      showMeshLayer, preGeneratedMeshLayer])
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -2496,6 +2499,8 @@ export default function HexagonScene() {
         onMeshWireframeChange={setMeshWireframe}
         meshResolution={meshResolution}
         onMeshResolutionChange={setMeshResolution}
+        meshColor={meshColor}
+        onMeshColorChange={setMeshColor}
         />
 
       {/* 지도 초기화 버튼 */}

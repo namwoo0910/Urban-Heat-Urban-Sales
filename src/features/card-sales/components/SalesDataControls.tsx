@@ -144,6 +144,8 @@ interface UnifiedControlsProps {
   onMeshWireframeChange?: (wireframe: boolean) => void
   meshResolution?: number
   onMeshResolutionChange?: (resolution: number) => void
+  meshColor?: string
+  onMeshColorChange?: (color: string) => void
 }
 
 // Theme adjustment state interface
@@ -208,6 +210,8 @@ export default function UnifiedControls({
   onMeshWireframeChange,
   meshResolution = 30,  // Reduced default for better performance
   onMeshResolutionChange,
+  meshColor = '#00FFE1',
+  onMeshColorChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('modern')
@@ -644,12 +648,55 @@ export default function UnifiedControls({
                     />
                   </div>
                   
+                  {/* Mesh Color Picker */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-200 text-xs">Mesh Color</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={meshColor || '#00FFE1'}
+                        onChange={(e) => onMeshColorChange?.(e.target.value)}
+                        className="w-8 h-8 border border-gray-600 rounded cursor-pointer"
+                        title="Choose mesh color"
+                      />
+                      <span className="text-xs text-gray-400">
+                        {meshColor || '#00FFE1'}
+                      </span>
+                      <button
+                        onClick={() => onMeshColorChange?.('#00FFE1')}
+                        className="text-xs text-gray-400 hover:text-gray-200 ml-auto"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    {/* Preset colors */}
+                    <div className="flex gap-1">
+                      {[
+                        { color: '#00FFE1', name: 'Cyan' },
+                        { color: '#00FF94', name: 'Mint' },
+                        { color: '#94FF00', name: 'Lime' },
+                        { color: '#FFE500', name: 'Yellow' },
+                        { color: '#FF8C00', name: 'Orange' },
+                        { color: '#FF00FF', name: 'Magenta' },
+                        { color: '#FFFFFF', name: 'White' }
+                      ].map(({ color, name }) => (
+                        <button
+                          key={color}
+                          onClick={() => onMeshColorChange?.(color)}
+                          className="w-6 h-6 rounded border border-gray-600 hover:border-gray-400 transition-colors"
+                          style={{ backgroundColor: color }}
+                          title={name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  
                   {/* Mesh Resolution 슬라이더 */}
                   <div className="space-y-1">
                     <div className="flex justify-between items-center">
                       <Label className="text-gray-200 text-xs">
                         Resolution: {meshResolution}x{meshResolution}
-                        {meshResolution > 40 && (
+                        {meshResolution > 80 && (
                           <span className="text-orange-400 ml-1">(slow)</span>
                         )}
                       </Label>
@@ -657,16 +704,16 @@ export default function UnifiedControls({
                     <Slider
                       value={[meshResolution]}
                       onValueChange={(value) => onMeshResolutionChange?.(value[0])}
-                      min={20}
-                      max={60}
-                      step={5}
+                      min={30}
+                      max={120}
+                      step={10}
                       className="w-full"
                     />
                     <div className="flex justify-between text-xs text-gray-500">
-                      <span>20 (Fast)</span>
-                      <span>60 (Detailed)</span>
+                      <span>30 (Fast)</span>
+                      <span>120 (Detailed)</span>
                     </div>
-                    {meshResolution > 40 && (
+                    {meshResolution > 80 && (
                       <p className="text-xs text-orange-400 mt-1">
                         ⚠️ High resolution may cause slow loading
                       </p>

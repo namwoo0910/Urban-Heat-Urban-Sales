@@ -64,6 +64,102 @@ function generateDummyElevation(
 }
 
 /**
+ * Calculate distance to nearest boundary for boundary falloff
+ * Returns a value between 0 (at boundary) and 1 (far from boundary)
+ */
+function calculateBoundaryDistance(
+  row: number,
+  col: number,
+  insideMap: boolean[][],
+  resolution: number
+): number {
+  // Check if this point is inside Seoul
+  if (!insideMap[row][col]) {
+    return 0 // Outside Seoul, distance is 0
+  }
+  
+  // Check immediate neighbors (8-connected)
+  const neighbors = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [0, -1],           [0, 1],
+    [1, -1],  [1, 0],  [1, 1]
+  ]
+  
+  // Check if any neighbor is outside Seoul (making this a boundary point)
+  for (const [dr, dc] of neighbors) {
+    const nr = row + dr
+    const nc = col + dc
+    
+    // If neighbor is out of grid bounds, consider it as boundary
+    if (nr < 0 || nr >= resolution || nc < 0 || nc >= resolution) {
+      // This point is at the edge of the grid
+      return 0 // Boundary adjacent - height should be 0
+    }
+    
+    // Check if neighbor is outside Seoul
+    if (!insideMap[nr][nc]) {
+      // This point is adjacent to boundary
+      return 0 // Boundary adjacent - height should be 0
+    }
+  }
+  
+  // Check extended neighborhood for distance calculation
+  // Maximum search radius (in grid cells)
+  const maxRadius = Math.min(10, resolution / 10) // Adaptive based on resolution
+  let minDistance = maxRadius
+  
+  for (let radius = 2; radius <= maxRadius; radius++) {
+    // Check points at this radius
+    for (let dr = -radius; dr <= radius; dr++) {
+      for (let dc = -radius; dc <= radius; dc++) {
+        // Skip interior points
+        if (Math.abs(dr) < radius && Math.abs(dc) < radius) continue
+        
+        const nr = row + dr
+        const nc = col + dc
+        
+        if (nr >= 0 && nr < resolution && nc >= 0 && nc < resolution) {
+          if (!insideMap[nr][nc]) {
+            // Found boundary at this distance
+            const distance = Math.sqrt(dr * dr + dc * dc)
+            minDistance = Math.min(minDistance, distance)
+          }
+        }
+      }
+    }
+    
+    // If we found a boundary at this radius, stop searching
+    if (minDistance < maxRadius) {
+      break
+    }
+  }
+  
+  // Normalize distance to 0-1 range
+  // Points closer than 5 grid cells to boundary will have falloff
+  // Increased falloff distance for smoother transition
+  const falloffDistance = 5.0
+  return Math.min(1.0, minDistance / falloffDistance)
+}
+
+/**
+ * Apply smooth falloff function for height near boundaries
+ * Returns a factor between 0 (at boundary) and 1 (interior)
+ */
+function applyBoundaryFalloff(distanceFactor: number): number {
+  // distanceFactor is 0 at boundary, 1 in interior
+  if (distanceFactor <= 0) {
+    return 0 // At boundary - height must be 0
+  }
+  if (distanceFactor >= 1.0) {
+    return 1.0 // No falloff in interior
+  }
+  
+  // Use cubic falloff for sharper transition at boundary
+  // This ensures rapid drop to 0 near edges
+  return Math.pow(distanceFactor, 3)
+}
+
+/**
  * Generate a regular grid mesh covering the bounding box of features
  */
 export function generateGridMesh(
@@ -159,10 +255,7 @@ export function generateGridMesh(
       const x = minX + width * u
       const y = minY + height * v
       
-      // Generate elevation
-      let z = generateDummyElevation(x, y) * heightScale
-      
-      // Check if point is inside Seoul boundaries
+      // Check if point is inside Seoul boundaries first
       let pointInDistrict = false
       
       if (unifiedSeoulBoundary) {
@@ -190,9 +283,10 @@ export function generateGridMesh(
       // Store whether point is inside Seoul
       insideMap[row][col] = pointInDistrict
       
-      // Set zero elevation for points outside districts (creates clear boundary)
-      if (!pointInDistrict) {
-        z = 0  // Changed from 5 to 0 for clearer Seoul boundary
+      // Generate elevation only if inside Seoul
+      let z = 0
+      if (pointInDistrict) {
+        z = generateDummyElevation(x, y) * heightScale
       }
       
       heightMap[row][col] = z
@@ -205,26 +299,38 @@ export function generateGridMesh(
         // Adjusted to match actual height range for full gradient utilization
         const normalizedHeight = Math.max(0, Math.min(1, z / 6000))
         
-        // Create gradient from blue (low) to purple (mid) to red (high)
+        // Create bright modern gradient: cyan → teal → mint → lime → yellow → orange
         let r, g, b
-        if (normalizedHeight < 0.33) {
-          // Blue to cyan (low elevations)
-          const t = normalizedHeight / 0.33
-          r = 0
-          g = 100 + 155 * t  // 100 to 255
-          b = 255
-        } else if (normalizedHeight < 0.67) {
-          // Cyan to purple (mid elevations)
-          const t = (normalizedHeight - 0.33) / 0.34
-          r = 120 * t  // 0 to 120
-          g = 255 - 155 * t  // 255 to 100
-          b = 255
+        if (normalizedHeight < 0.2) {
+          // Low elevations: bright cyan to teal
+          const t = normalizedHeight / 0.2
+          r = 0                    // 0 (no red)
+          g = 212 + 43 * t         // 212 to 255 (cyan to teal green)
+          b = 255 - 30 * t         // 255 to 225 (slight reduction)
+        } else if (normalizedHeight < 0.4) {
+          // Mid-low: teal to mint green
+          const t = (normalizedHeight - 0.2) / 0.2
+          r = 0 + 50 * t           // 0 to 50 (slight red addition)
+          g = 255                  // 255 (max green)
+          b = 225 - 77 * t         // 225 to 148 (reducing blue)
+        } else if (normalizedHeight < 0.6) {
+          // Mid: mint green to lime
+          const t = (normalizedHeight - 0.4) / 0.2
+          r = 50 + 98 * t          // 50 to 148 (increasing red for lime)
+          g = 255                  // 255 (max green)
+          b = 148 - 148 * t        // 148 to 0 (removing blue)
+        } else if (normalizedHeight < 0.8) {
+          // Mid-high: lime to bright yellow
+          const t = (normalizedHeight - 0.6) / 0.2
+          r = 148 + 107 * t        // 148 to 255 (max red for yellow)
+          g = 255 - 26 * t         // 255 to 229 (slight green reduction)
+          b = 0                    // 0 (no blue)
         } else {
-          // Purple to red/orange (high elevations)
-          const t = (normalizedHeight - 0.67) / 0.33
-          r = 120 + 135 * t  // 120 to 255
-          g = 100 - 50 * t   // 100 to 50
-          b = 255 - 155 * t  // 255 to 100
+          // High elevations: yellow to bright orange
+          const t = (normalizedHeight - 0.8) / 0.2
+          r = 255                  // 255 (max red)
+          g = 229 - 89 * t         // 229 to 140 (orange)
+          b = 0                    // 0 (no blue)
         }
         
         colors[colorIdx] = r / 255     // R
@@ -259,23 +365,29 @@ export function generateGridMesh(
     }
   }
 
-  // Apply smoothing if requested
+  // Apply smoothing if requested (but preserve boundary falloff)
   if (smoothing) {
     for (let iteration = 0; iteration < 2; iteration++) {
       const smoothedHeights: number[][] = []
       for (let row = 0; row < resolution; row++) {
         smoothedHeights[row] = []
         for (let col = 0; col < resolution; col++) {
+          // Don't smooth if outside Seoul
+          if (!insideMap[row][col]) {
+            smoothedHeights[row][col] = 0
+            continue
+          }
+          
           let sum = heightMap[row][col]
           let count = 1
           
-          // Average with neighbors
+          // Average with neighbors (only inside Seoul)
           for (let dr = -1; dr <= 1; dr++) {
             for (let dc = -1; dc <= 1; dc++) {
               if (dr === 0 && dc === 0) continue
               const nr = row + dr
               const nc = col + dc
-              if (nr >= 0 && nr < resolution && nc >= 0 && nc < resolution) {
+              if (nr >= 0 && nr < resolution && nc >= 0 && nc < resolution && insideMap[nr][nc]) {
                 sum += heightMap[nr][nc]
                 count++
               }
@@ -286,11 +398,19 @@ export function generateGridMesh(
         }
       }
       
-      // Update positions and colors with smoothed heights
+      // Update positions and colors with smoothed heights (but reapply boundary falloff)
       for (let row = 0; row < resolution; row++) {
         for (let col = 0; col < resolution; col++) {
+          if (!insideMap[row][col]) continue
+          
           const idx = (row * resolution + col)
-          const smoothedZ = smoothedHeights[row][col]
+          let smoothedZ = smoothedHeights[row][col]
+          
+          // Reapply boundary falloff after smoothing
+          const boundaryDistance = calculateBoundaryDistance(row, col, insideMap, resolution)
+          const falloffFactor = applyBoundaryFalloff(boundaryDistance)
+          smoothedZ *= falloffFactor
+          
           positions[idx * 3 + 2] = smoothedZ
           heightMap[row][col] = smoothedZ
           
@@ -300,21 +420,31 @@ export function generateGridMesh(
             const normalizedHeight = Math.max(0, Math.min(1, smoothedZ / 6000))
             
             let r, g, b
-            if (normalizedHeight < 0.33) {
-              const t = normalizedHeight / 0.33
+            if (normalizedHeight < 0.2) {
+              const t = normalizedHeight / 0.2
               r = 0
-              g = 100 + 155 * t
-              b = 255
-            } else if (normalizedHeight < 0.67) {
-              const t = (normalizedHeight - 0.33) / 0.34
-              r = 120 * t
-              g = 255 - 155 * t
-              b = 255
+              g = 212 + 43 * t
+              b = 255 - 30 * t
+            } else if (normalizedHeight < 0.4) {
+              const t = (normalizedHeight - 0.2) / 0.2
+              r = 0 + 50 * t
+              g = 255
+              b = 225 - 77 * t
+            } else if (normalizedHeight < 0.6) {
+              const t = (normalizedHeight - 0.4) / 0.2
+              r = 50 + 98 * t
+              g = 255
+              b = 148 - 148 * t
+            } else if (normalizedHeight < 0.8) {
+              const t = (normalizedHeight - 0.6) / 0.2
+              r = 148 + 107 * t
+              g = 255 - 26 * t
+              b = 0
             } else {
-              const t = (normalizedHeight - 0.67) / 0.33
-              r = 120 + 135 * t
-              g = 100 - 50 * t
-              b = 255 - 155 * t
+              const t = (normalizedHeight - 0.8) / 0.2
+              r = 255
+              g = 229 - 89 * t
+              b = 0
             }
             
             colors[colorIdx] = r / 255
@@ -327,6 +457,63 @@ export function generateGridMesh(
     }
   }
 
+  // Apply boundary falloff to smooth edges to ground level
+  console.log('[MeshGenerator] Applying boundary falloff...')
+  for (let row = 0; row < resolution; row++) {
+    for (let col = 0; col < resolution; col++) {
+      if (insideMap[row][col] && heightMap[row][col] > 0) {
+        // Calculate distance to boundary
+        const boundaryDistance = calculateBoundaryDistance(row, col, insideMap, resolution)
+        
+        // Apply falloff
+        const falloffFactor = applyBoundaryFalloff(boundaryDistance)
+        heightMap[row][col] *= falloffFactor
+        
+        // Update vertex z position
+        const idx = row * resolution + col
+        positions[idx * 3 + 2] = heightMap[row][col]
+        
+        // Update colors based on new height
+        const z = heightMap[row][col]
+        const normalizedHeight = Math.max(0, Math.min(1, z / 6000))
+        
+        const colorIdx = idx * 4
+        let r, g, b
+        if (normalizedHeight < 0.2) {
+          const t = normalizedHeight / 0.2
+          r = 0
+          g = 212 + 43 * t
+          b = 255 - 30 * t
+        } else if (normalizedHeight < 0.4) {
+          const t = (normalizedHeight - 0.2) / 0.2
+          r = 0 + 50 * t
+          g = 255
+          b = 225 - 77 * t
+        } else if (normalizedHeight < 0.6) {
+          const t = (normalizedHeight - 0.4) / 0.2
+          r = 50 + 98 * t
+          g = 255
+          b = 148 - 148 * t
+        } else if (normalizedHeight < 0.8) {
+          const t = (normalizedHeight - 0.6) / 0.2
+          r = 148 + 107 * t
+          g = 255 - 26 * t
+          b = 0
+        } else {
+          const t = (normalizedHeight - 0.8) / 0.2
+          r = 255
+          g = 229 - 89 * t
+          b = 0
+        }
+        
+        colors[colorIdx] = r / 255
+        colors[colorIdx + 1] = g / 255
+        colors[colorIdx + 2] = b / 255
+        colors[colorIdx + 3] = 1.0
+      }
+    }
+  }
+  
   // Calculate normals
   for (let row = 0; row < resolution; row++) {
     for (let col = 0; col < resolution; col++) {

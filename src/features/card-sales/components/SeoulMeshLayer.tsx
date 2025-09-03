@@ -8,7 +8,12 @@ import { SolidPolygonLayer } from '@deck.gl/layers'
 import { MaskExtension } from '@deck.gl/extensions'
 import { useMemo, useEffect, useState } from 'react'
 import { generateGridMesh, getHeightColor, type MeshGeometry, getUnifiedSeoulBoundary } from '../utils/meshGenerator'
-import { loadStaticSeoulMesh, checkStaticMeshExists } from '../utils/loadStaticMesh'
+import { 
+  loadStaticSeoulMesh, 
+  checkStaticMeshExists, 
+  hasPreGeneratedMesh, 
+  getNearestAvailableResolution 
+} from '../utils/loadStaticMesh'
 import * as turf from '@turf/turf'
 
 export interface SeoulMeshLayerProps {
@@ -22,6 +27,7 @@ export interface SeoulMeshLayerProps {
   onHover?: (info: any) => void
   onClick?: (info: any) => void
   useMask?: boolean  // Enable masking to Seoul boundaries
+  color?: string  // Custom color for mesh (hex string)
 }
 
 /**
@@ -80,7 +86,8 @@ export function createStaticSeoulMeshLayer(
     opacity = 0.8,
     pickable = true,
     onHover,
-    onClick
+    onClick,
+    color = '#00FFE1'  // Default cyan
   } = props
 
   if (!visible || !meshGeometry) {
@@ -128,27 +135,36 @@ export function createStaticSeoulMeshLayer(
     sizeScale: 1,
     wireframe,
     getPosition: (d: any) => d.position,
-    getColor: meshGeometry.colors ? undefined : (() => {
-      if (wireframe) {
-        return [50, 255, 150, 255]  // Bright lime green for better visibility
+    // Always use getColor to allow custom colors to override vertex colors
+    getColor: (() => {
+      // Parse hex color to RGB
+      const hexToRgb = (hex: string) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+        return result ? [
+          parseInt(result[1], 16),
+          parseInt(result[2], 16),
+          parseInt(result[3], 16),
+          255
+        ] : [0, 255, 200, 255]  // Fallback to default cyan
       }
-      return [120, 100, 255, 255]
+      return hexToRgb(color)
     }),
-    vertexColors: meshGeometry.colors ? true : false,
+    // Disable vertex colors to allow getColor to work
+    vertexColors: false,
     material: {
-      ambient: 0.5,
-      diffuse: 0.8,
-      shininess: 64,
-      specularColor: wireframe ? [50, 255, 150] : [200, 200, 255]
+      ambient: wireframe ? 0.6 : 0.8,   // Brighter ambient light
+      diffuse: wireframe ? 0.9 : 1.0,   // Maximum diffuse
+      shininess: wireframe ? 80 : 48,   // Moderate shine
+      specularColor: wireframe ? [0, 255, 200] : [100, 200, 255]  // Cool specular colors
     },
     pickable,
     autoHighlight: true,
     highlightColor: [255, 255, 255, 100],
     onHover,
     onClick,
-    opacity,
+    opacity: wireframe ? opacity : 1.0,  // Full opacity for solid mode
     updateTriggers: {
-      getColor: [wireframe],
+      getColor: [color, wireframe],
       mesh: [wireframe]
     }
   }
@@ -157,12 +173,13 @@ export function createStaticSeoulMeshLayer(
 }
 
 /**
- * Create a SimpleMeshLayer for Seoul mesh visualization (fallback for dynamic generation)
+ * Create a SimpleMeshLayer for Seoul mesh visualization
+ * Uses pre-generated meshes when available, falls back to dynamic generation
  */
-export function createSeoulMeshLayer(
+export async function createSeoulMeshLayerAsync(
   data: any[],
   props: SeoulMeshLayerProps = {}
-): SimpleMeshLayer | null {
+): Promise<SimpleMeshLayer | null> {
   const {
     visible = true,
     wireframe = false,
@@ -180,13 +197,31 @@ export function createSeoulMeshLayer(
     return null
   }
 
-  // Generate mesh geometry
-  const meshGeometry = generateGridMesh(data, {
-    resolution,
-    heightScale,
-    wireframe,
-    smoothing: true
-  })
+  // Try to use pre-generated mesh if available
+  let meshGeometry: MeshGeometry
+  
+  if (hasPreGeneratedMesh(resolution)) {
+    console.log(`[SeoulMeshLayer] Using pre-generated mesh for resolution ${resolution}`)
+    try {
+      meshGeometry = await loadStaticSeoulMesh(resolution)
+    } catch (error) {
+      console.error(`[SeoulMeshLayer] Failed to load pre-generated mesh, falling back to dynamic:`, error)
+      meshGeometry = generateGridMesh(data, {
+        resolution,
+        heightScale,
+        wireframe,
+        smoothing: true
+      })
+    }
+  } else {
+    console.log(`[SeoulMeshLayer] No pre-generated mesh for resolution ${resolution}, using dynamic generation`)
+    meshGeometry = generateGridMesh(data, {
+      resolution,
+      heightScale,
+      wireframe,
+      smoothing: true
+    })
+  }
 
   // Validate geometry structure - check raw TypedArrays
   if (!meshGeometry || 
@@ -262,26 +297,31 @@ export function createSeoulMeshLayer(
     // Position accessor - get position from data object
     getPosition: (d: any) => d.position,
     
-    // Color based on height - more vibrant colors for better visibility
-    // Use vertex colors if available, otherwise use default colors
+    // Always use getColor to allow custom colors to work
     getColor: (() => {
-      // For wireframe, use bright lime green for better visibility on dark map
-      if (wireframe) {
-        return [50, 255, 150, 255]  // Bright lime green
+      // Parse hex color to RGB
+      const hexToRgb = (hex: string) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+        return result ? [
+          parseInt(result[1], 16),
+          parseInt(result[2], 16),
+          parseInt(result[3], 16),
+          255
+        ] : [0, 255, 200, 255]  // Fallback to default cyan
       }
-      // For solid, use default color (vertex colors will override if present)
-      return [120, 100, 255, 255]  // Bright purple-blue, full opacity
+      const customColor = props.color || '#00FFE1'
+      return hexToRgb(customColor)
     }),
     
-    // Enable vertex colors if they exist
-    vertexColors: meshGeometry.colors ? true : false,
+    // Disable vertex colors to allow getColor to override
+    vertexColors: false,
     
     // Material properties for better 3D effect
     material: {
-      ambient: 0.5,  // Increased for better visibility
-      diffuse: 0.8,  // Increased for brighter surface
-      shininess: 64,  // Higher shine for more visual pop
-      specularColor: wireframe ? [50, 255, 150] : [200, 200, 255]  // Match wireframe color
+      ambient: wireframe ? 0.6 : 0.8,   // Brighter ambient light
+      diffuse: wireframe ? 0.9 : 1.0,   // Maximum diffuse
+      shininess: wireframe ? 80 : 48,   // Moderate shine
+      specularColor: wireframe ? [0, 255, 200] : [100, 200, 255]  // Cool specular colors
     },
     
     // Interaction
@@ -294,16 +334,154 @@ export function createSeoulMeshLayer(
     onClick,
     
     // Rendering
-    opacity,
+    opacity: wireframe ? opacity : 1.0,  // Full opacity for solid mode
     
     // Performance
     updateTriggers: {
-      getColor: [wireframe],
+      getColor: [props.color, wireframe],
       mesh: [resolution, heightScale, wireframe]
     }
   }
 
   // Add MaskExtension if masking is enabled
+  if (useMask) {
+    layerProps.extensions = [new MaskExtension()]
+    layerProps.maskId = 'seoul-boundary-mask'
+  }
+
+  return new SimpleMeshLayer(layerProps)
+}
+
+/**
+ * Synchronous version that uses dynamic generation only
+ * For backward compatibility
+ */
+export function createSeoulMeshLayer(
+  data: any[],
+  props: SeoulMeshLayerProps = {}
+): SimpleMeshLayer | null {
+  const {
+    visible = true,
+    wireframe = false,
+    resolution = 60,
+    heightScale = 1,
+    opacity = 0.8,
+    pickable = true,
+    onHover,
+    onClick,
+    useMask = false
+  } = props
+
+  if (!visible || !data || data.length === 0) {
+    return null
+  }
+
+  // For synchronous version, always use dynamic generation
+  const meshGeometry = generateGridMesh(data, {
+    resolution,
+    heightScale,
+    wireframe,
+    smoothing: true
+  })
+
+  if (!meshGeometry || 
+      !meshGeometry.positions || 
+      meshGeometry.positions.length === 0 ||
+      !meshGeometry.normals ||
+      !meshGeometry.texCoords) {
+    console.error('[SeoulMeshLayer] Invalid mesh geometry:', meshGeometry)
+    return null
+  }
+  
+  // Calculate center from data bounds
+  let centerX = 126.974139
+  let centerY = 37.564876
+  
+  if (data && data.length > 0) {
+    let minX = Infinity, minY = Infinity
+    let maxX = -Infinity, maxY = -Infinity
+    
+    data.forEach(feature => {
+      const bbox = turf.bbox(feature)
+      minX = Math.min(minX, bbox[0])
+      minY = Math.min(minY, bbox[1])
+      maxX = Math.max(maxX, bbox[2])
+      maxY = Math.max(maxY, bbox[3])
+    })
+    
+    centerX = (minX + maxX) / 2
+    centerY = (minY + maxY) / 2
+  }
+
+  const meshObject: any = {
+    attributes: {
+      POSITION: {
+        value: meshGeometry.positions,
+        size: 3
+      },
+      NORMAL: {
+        value: meshGeometry.normals,
+        size: 3
+      },
+      TEXCOORD_0: {
+        value: meshGeometry.texCoords,
+        size: 2
+      }
+    },
+    indices: meshGeometry.indices
+  }
+  
+  if (meshGeometry.colors) {
+    meshObject.attributes.COLOR_0 = {
+      value: meshGeometry.colors,
+      size: 4
+    }
+  }
+
+  const layerProps: any = {
+    id: 'seoul-mesh-layer',
+    data: [{ 
+      position: [centerX, centerY, 0]
+    }],
+    mesh: meshObject,
+    sizeScale: 1,
+    wireframe,
+    getPosition: (d: any) => d.position,
+    // Always use getColor to allow custom colors
+    getColor: (() => {
+      // Parse hex color to RGB
+      const hexToRgb = (hex: string) => {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+        return result ? [
+          parseInt(result[1], 16),
+          parseInt(result[2], 16),
+          parseInt(result[3], 16),
+          255
+        ] : [0, 255, 200, 255]  // Fallback to default cyan
+      }
+      const customColor = props.color || '#00FFE1'
+      return hexToRgb(customColor)
+    }),
+    // Disable vertex colors to allow getColor to work
+    vertexColors: false,
+    material: {
+      ambient: wireframe ? 0.6 : 0.8,
+      diffuse: wireframe ? 0.9 : 1.0,
+      shininess: wireframe ? 80 : 48,
+      specularColor: wireframe ? [0, 255, 200] : [100, 200, 255]
+    },
+    pickable,
+    autoHighlight: true,
+    highlightColor: [255, 255, 255, 100],
+    onHover,
+    onClick,
+    opacity: wireframe ? opacity : 1.0,
+    updateTriggers: {
+      getColor: [props.color, wireframe],
+      mesh: [resolution, heightScale, wireframe]
+    }
+  }
+
   if (useMask) {
     layerProps.extensions = [new MaskExtension()]
     layerProps.maskId = 'seoul-boundary-mask'
@@ -392,41 +570,77 @@ export function useSeoulMeshLayers(
 }
 
 /**
- * React hook for static Seoul mesh layer
+ * React hook for pre-generated Seoul mesh layer
  * Loads pre-generated mesh data for better performance
+ * Supports multiple resolutions with automatic fallback
  */
-export function useStaticSeoulMeshLayer(
-  props: SeoulMeshLayerProps = {}
+export function usePreGeneratedSeoulMeshLayer(
+  props: SeoulMeshLayerProps = {},
+  districtData?: any[]
 ): SimpleMeshLayer | null {
+  const {
+    resolution = 60,
+    visible = true,
+    wireframe = false,
+    opacity = 0.8,
+    pickable = true,
+    onHover,
+    onClick,
+    color = '#00FFE1'
+  } = props
+
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [loadedResolution, setLoadedResolution] = useState<number | null>(null)
 
-  // Load static mesh data
+  // Load pre-generated mesh data when resolution changes
   useEffect(() => {
     let cancelled = false
 
     const loadMesh = async () => {
       try {
         setLoading(true)
-        const exists = await checkStaticMeshExists()
         
-        if (!exists) {
-          console.warn('[useStaticSeoulMeshLayer] Static mesh file not found, falling back to dynamic generation')
-          setError(new Error('Static mesh file not found'))
-          return
-        }
-
-        const data = await loadStaticSeoulMesh()
-        
-        if (!cancelled) {
-          setMeshData(data)
-          setError(null)
+        // Check if pre-generated mesh exists for this resolution
+        if (hasPreGeneratedMesh(resolution)) {
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading pre-generated mesh for resolution ${resolution}`)
+          const data = await loadStaticSeoulMesh(resolution)
+          
+          if (!cancelled) {
+            setMeshData(data)
+            setLoadedResolution(resolution)
+            setError(null)
+          }
+        } else {
+          // Use nearest available resolution
+          const nearestRes = getNearestAvailableResolution(resolution)
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading nearest resolution ${nearestRes} for requested ${resolution}`)
+          const data = await loadStaticSeoulMesh(nearestRes)
+          
+          if (!cancelled) {
+            setMeshData(data)
+            setLoadedResolution(nearestRes)
+            setError(null)
+          }
         }
       } catch (err) {
         if (!cancelled) {
-          console.error('[useStaticSeoulMeshLayer] Failed to load static mesh:', err)
+          console.error('[usePreGeneratedSeoulMeshLayer] Failed to load mesh:', err)
           setError(err as Error)
+          // Fall back to dynamic generation if district data is available
+          if (districtData && districtData.length > 0) {
+            console.log('[usePreGeneratedSeoulMeshLayer] Falling back to dynamic generation')
+            const dynamicMesh = generateGridMesh(districtData, {
+              resolution,
+              heightScale: 1,
+              wireframe,
+              smoothing: true
+            })
+            setMeshData(dynamicMesh)
+            setLoadedResolution(resolution)
+            setError(null)
+          }
         }
       } finally {
         if (!cancelled) {
@@ -440,14 +654,33 @@ export function useStaticSeoulMeshLayer(
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [resolution, wireframe, districtData])
 
   // Create layer from loaded data
   return useMemo(() => {
-    if (!meshData || loading || error || !props.visible) {
+    if (!meshData || loading || !visible) {
       return null
     }
 
-    return createStaticSeoulMeshLayer(meshData, props)
-  }, [meshData, loading, error, props.visible, props.wireframe, props.opacity, props.pickable])
+    return createStaticSeoulMeshLayer(meshData, {
+      visible,
+      wireframe,
+      opacity,
+      pickable,
+      onHover,
+      onClick,
+      color
+    })
+  }, [meshData, loading, visible, wireframe, opacity, pickable, onHover, onClick, color])
+}
+
+/**
+ * React hook for static Seoul mesh layer (backward compatibility)
+ * Loads pre-generated mesh data for better performance
+ */
+export function useStaticSeoulMeshLayer(
+  props: SeoulMeshLayerProps = {}
+): SimpleMeshLayer | null {
+  // Use the new hook with default resolution 200 for backward compatibility
+  return usePreGeneratedSeoulMeshLayer({ ...props, resolution: 200 })
 }
