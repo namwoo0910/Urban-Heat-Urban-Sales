@@ -3,10 +3,11 @@
  * 선택된 지역의 총 매출액을 표시하는 오버레이 컴포넌트
  */
 
-import React, { useMemo } from 'react'
+import React, { useMemo, useState } from 'react'
 import { Card } from '@/src/shared/components/ui/card'
 import { BarChart } from '@/src/shared/components/charts'
 import { TrendingUp, MapPin, Activity, BarChart3 } from 'lucide-react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { calculateTotalSales, getTopBusinessTypes, formatCurrency } from '../utils/salesCalculator'
 import type { HexagonLayerData } from './LayerManager'
 import type { ClimateCardSalesData } from '../types'
@@ -28,6 +29,8 @@ export function SelectedAreaSalesInfo({
   visible = true,
   selectedDate
 }: SelectedAreaSalesInfoProps) {
+  // Chart visibility toggle state
+  const [showChart, setShowChart] = useState(true)
   // 선택된 지역의 총 매출액 계산 및 업종별 매출 집계
   const areaStats = useMemo(() => {
     if (!hexagonData) {
@@ -231,23 +234,50 @@ export function SelectedAreaSalesInfo({
           <span>강수 {areaStats.totalPrecipitation.toFixed(0)}mm</span>
           <span>습도 {areaStats.avgHumidity.toFixed(0)}%</span>
           <span>불쾌지수 {areaStats.avgDiscomfort.toFixed(0)}</span>
+          {/* Colorful chart toggle icon */}
+          <button
+            onClick={() => setShowChart(!showChart)}
+            className="ml-2 transition-all duration-200 hover:scale-110 active:scale-95"
+            title={showChart ? '차트 숨기기' : '차트 보이기'}
+          >
+            <BarChart3 
+              className="w-4 h-4 cursor-pointer"
+              style={{
+                background: 'linear-gradient(45deg, #3b82f6, #10b981, #f59e0b, #ef4444, #8b5cf6)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                filter: 'drop-shadow(0 0 2px rgba(59, 130, 246, 0.5))'
+              }}
+            />
+          </button>
         </div>
 
-        {/* 업종별 매출 차트 */}
-        <div className="pt-0">
-          <div style={{ height: '150px', minHeight: '140px', width: '100%' }}>
-            <BarChart
-              data={areaStats.topCategories || []}
-              xDataKey="name"
-              yDataKey="value"
-              width="100%"
-              height={220}
-              showGrid={true}
-              showTooltip={true}
-              barSize={25}
-            />
-          </div>
-        </div>
+        {/* 업종별 매출 차트 - 토글 가능 */}
+        <AnimatePresence>
+          {showChart && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.3, ease: 'easeInOut' }}
+              className="pt-0 overflow-hidden"
+            >
+              <div style={{ height: '150px', minHeight: '140px', width: '100%' }}>
+                <BarChart
+                  data={areaStats.topCategories || []}
+                  xDataKey="name"
+                  yDataKey="value"
+                  width="100%"
+                  height={220}
+                  showGrid={true}
+                  showTooltip={true}
+                  barSize={25}
+                />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </Card>
   )
