@@ -13,7 +13,7 @@ import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, createScatterplotLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
-import { SalesChartPanel } from "./charts/SalesChartPanel"
+import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
@@ -109,7 +109,7 @@ const ZOOM_SETTINGS = {
 export default function HexagonScene() {
   const mapRef = useRef<MapRef>(null)
   const cleanupRef = useRef<(() => void)[]>([])
-  const [showChartPanel, setShowChartPanel] = useState(false)
+  const [showChartPanel, setShowChartPanel] = useState(true)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   const [currentThemeKey, setCurrentThemeKey] = useState('blue') // Default to blue theme for districts
   const [is3DMode, setIs3DMode] = useState(false) // 3D 모드는 기본적으로 OFF (사용자가 토글해야 활성화)
@@ -2520,7 +2520,7 @@ export default function HexagonScene() {
       {/* Chart Panel - Right Side */}
       {showChartPanel && (
         <div className="w-2/5 h-full p-4 bg-black/80">
-          <SalesChartPanel />
+          <DefaultChartsPanel />
         </div>
       )}
       
