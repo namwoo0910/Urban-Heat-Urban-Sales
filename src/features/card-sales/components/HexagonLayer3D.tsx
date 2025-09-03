@@ -908,7 +908,7 @@ export default function HexagonScene() {
     })
   }, [])  // Lighting configuration is constant
   
-  // Use pre-generated mesh layer for better performance
+  // Use pre-generated mesh layer for better performance with real sales data
   const preGeneratedMeshLayer = usePreGeneratedSeoulMeshLayer({
     resolution: meshResolution,
     visible: showMeshLayer,
@@ -916,6 +916,9 @@ export default function HexagonScene() {
     opacity: meshWireframe ? 1 : (is3DMode ? 0.6 : 0.8),
     pickable: true,
     color: meshColor,  // Pass the mesh color
+    dongBoundaries: dongData3D?.features,  // Pass dong boundaries for sales mapping
+    dongSalesMap: dongSalesMap,  // Pass sales data map
+    salesHeightScale: heightScale,  // Use the same height scale as polygon layer
     onHover: (info: any) => {
       // Handle mesh hover if needed
     },
@@ -1333,6 +1336,12 @@ export default function HexagonScene() {
         console.log(`[SalesData] Loaded sales for ${salesByDong.size} dongs`)
         console.log(`[SalesData] Loaded business type sales for ${salesByDongAndType.size} dongs`)
         
+        // Debug: Check if there are any dongCodes with 0 in them
+        const dongCodesWithZero = Array.from(salesByDong.keys()).filter(code => code === 0 || code < 10000000)
+        if (dongCodesWithZero.length > 0) {
+          console.warn(`[SalesData] Found ${dongCodesWithZero.length} invalid dong codes (0 or too small):`, dongCodesWithZero)
+        }
+        
         // Log min/max sales for normalization reference
         const salesValues = Array.from(salesByDong.values())
         if (salesValues.length > 0) {
@@ -1397,6 +1406,16 @@ export default function HexagonScene() {
           const guName = feature.properties['자치구'] || feature.properties.SGG_NM || feature.properties.SIGUNGU_NM || feature.properties.SIG_KOR_NM
           const dongName = feature.properties['행정동'] || feature.properties.H_DONG_NM || feature.properties.ADM_DR_NM || feature.properties.EMD_NM || feature.properties.EMD_KOR_NM
           const dongCode = feature.properties['행정동코드'] || feature.properties.H_CODE || feature.properties.ADM_DR_CD || 0
+          
+          // Debug first few dong codes
+          if (index < 3) {
+            console.log(`[Dong3D] Feature ${index}:`, {
+              guName,
+              dongName,
+              dongCode,
+              allProperties: Object.keys(feature.properties)
+            })
+          }
           
           // Get sales data for this dong
           // 업종 선택시 해당 업종 매출, 아니면 총 매출

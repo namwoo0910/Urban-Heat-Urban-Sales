@@ -4,6 +4,7 @@
  */
 
 import * as turf from '@turf/turf'
+import { getDongHeightBySales } from '@shared/utils/district3DUtils'
 
 export interface MeshGeometry {
   positions: Float32Array  // 3D vertex positions (x, y, z) - raw array for mesh
@@ -24,6 +25,53 @@ export interface MeshGeneratorOptions {
   heightScale?: number     // Scale factor for elevation
   wireframe?: boolean      // Whether to generate wireframe mesh
   smoothing?: boolean      // Apply smoothing to heights
+  dongBoundaries?: any[]   // Dong boundary GeoJSON features
+  dongSalesMap?: Map<number, number>  // Map of dongCode to total sales
+  salesHeightScale?: number  // Scale for converting sales to height (default: 100000000 = 1억원)
+}
+
+/**
+ * Find which dong a point belongs to and return its sales data
+ * @param x Longitude
+ * @param y Latitude
+ * @param dongBoundaries Dong boundary features
+ * @param dongSalesMap Map of dongCode to sales
+ * @returns Object with dongCode and sales, or null if not in any dong
+ */
+function findDongAndSales(
+  x: number,
+  y: number,
+  dongBoundaries: any[],
+  dongSalesMap?: Map<number, number>
+): { dongCode: number; sales: number } | null {
+  if (!dongBoundaries || dongBoundaries.length === 0) {
+    return null
+  }
+
+  const point = turf.point([x, y])
+  
+  for (const feature of dongBoundaries) {
+    try {
+      if (turf.booleanPointInPolygon(point, feature)) {
+        // Extract dong code from properties
+        const dongCode = feature.properties?.['행정동코드'] || 
+                        feature.properties?.H_CODE || 
+                        feature.properties?.ADM_DR_CD ||
+                        feature.properties?.dongCode ||
+                        feature.properties?.dong_code ||
+                        0
+        
+        const sales = dongSalesMap?.get(Number(dongCode)) || 0
+        
+        return { dongCode: Number(dongCode), sales }
+      }
+    } catch {
+      // Skip invalid features
+      continue
+    }
+  }
+  
+  return null
 }
 
 /**
@@ -169,8 +217,68 @@ export function generateGridMesh(
   const {
     resolution = 100,  // 100x100 grid by default for better boundary accuracy (dynamic generation)
     heightScale = 1,
-    smoothing = true
+    smoothing = true,
+    dongBoundaries,
+    dongSalesMap,
+    salesHeightScale = 100000000  // Default: 1억원 = 300 units height
   } = options
+  
+  // Check if we should use sales data
+  const useSalesData = dongBoundaries && dongBoundaries.length > 0 && dongSalesMap && dongSalesMap.size > 0
+  
+  if (useSalesData) {
+    console.log('[MeshGenerator] Using real sales data for mesh generation')
+    console.log(`[MeshGenerator] - Dong boundaries: ${dongBoundaries.length} features`)
+    console.log(`[MeshGenerator] - Sales data: ${dongSalesMap.size} dongs`)
+    console.log(`[MeshGenerator] - Height scale: ${salesHeightScale}`)
+    
+    // Find missing dongs (in boundaries but not in sales data)
+    const boundaryDongCodes = new Set<number>()
+    dongBoundaries.forEach(feature => {
+      const dongCode = feature.properties?.['행정동코드'] || 
+                      feature.properties?.H_CODE || 
+                      feature.properties?.ADM_DR_CD ||
+                      feature.properties?.dongCode ||
+                      feature.properties?.dong_code ||
+                      0
+      if (dongCode) {
+        boundaryDongCodes.add(Number(dongCode))
+      }
+    })
+    
+    const missingInSales: number[] = []
+    const missingInBoundaries: number[] = []
+    
+    // Check which dongs are missing sales data
+    boundaryDongCodes.forEach(code => {
+      if (!dongSalesMap.has(code)) {
+        missingInSales.push(code)
+      }
+    })
+    
+    // Check which sales data don't have boundaries
+    dongSalesMap.forEach((_, code) => {
+      if (!boundaryDongCodes.has(code)) {
+        missingInBoundaries.push(code)
+      }
+    })
+    
+    if (missingInSales.length > 0) {
+      console.log(`[MeshGenerator] ⚠️ ${missingInSales.length} dongs have boundaries but no sales data:`, missingInSales)
+    }
+    if (missingInBoundaries.length > 0) {
+      console.log(`[MeshGenerator] ⚠️ ${missingInBoundaries.length} dongs have sales data but no boundaries:`, missingInBoundaries)
+    }
+    
+    // Log sample sales data
+    const sampleSales = Array.from(dongSalesMap.entries()).slice(0, 3)
+    sampleSales.forEach(([code, sales]) => {
+      const height = getDongHeightBySales(sales, salesHeightScale)
+      console.log(`[MeshGenerator] - Dong ${code}: ${(sales/100000000).toFixed(1)}억원 → height ${height.toFixed(0)}`)
+    })
+  } else {
+    console.log('[MeshGenerator] Using dummy elevation data (no sales data provided)')
+  }
 
   if (!features || features.length === 0) {
     return {
@@ -283,10 +391,23 @@ export function generateGridMesh(
       // Store whether point is inside Seoul
       insideMap[row][col] = pointInDistrict
       
-      // Generate elevation only if inside Seoul
+      // Generate elevation based on sales data or dummy data
       let z = 0
       if (pointInDistrict) {
-        z = generateDummyElevation(x, y) * heightScale
+        if (useSalesData) {
+          // Use real sales data for height
+          const dongInfo = findDongAndSales(x, y, dongBoundaries, dongSalesMap)
+          if (dongInfo && dongInfo.sales > 0) {
+            // Use sales-based height calculation
+            z = getDongHeightBySales(dongInfo.sales, salesHeightScale)
+          } else {
+            // Point is in Seoul but not in a dong with sales data - use minimal height
+            z = 10
+          }
+        } else {
+          // Use dummy elevation for testing
+          z = generateDummyElevation(x, y) * heightScale
+        }
       }
       
       heightMap[row][col] = z
@@ -367,7 +488,11 @@ export function generateGridMesh(
 
   // Apply smoothing if requested (but preserve boundary falloff)
   if (smoothing) {
-    for (let iteration = 0; iteration < 2; iteration++) {
+    // Use fewer iterations and gentler smoothing for sales data to preserve dong boundaries
+    const iterations = useSalesData ? 1 : 2
+    const smoothingFactor = useSalesData ? 0.3 : 0.5  // Less aggressive smoothing for sales data
+    
+    for (let iteration = 0; iteration < iterations; iteration++) {
       const smoothedHeights: number[][] = []
       for (let row = 0; row < resolution; row++) {
         smoothedHeights[row] = []
@@ -378,23 +503,27 @@ export function generateGridMesh(
             continue
           }
           
-          let sum = heightMap[row][col]
-          let count = 1
+          let sum = 0
+          let count = 0
+          const originalHeight = heightMap[row][col]
           
           // Average with neighbors (only inside Seoul)
           for (let dr = -1; dr <= 1; dr++) {
             for (let dc = -1; dc <= 1; dc++) {
-              if (dr === 0 && dc === 0) continue
               const nr = row + dr
               const nc = col + dc
               if (nr >= 0 && nr < resolution && nc >= 0 && nc < resolution && insideMap[nr][nc]) {
-                sum += heightMap[nr][nc]
-                count++
+                // Apply distance-based weights
+                const weight = (dr === 0 && dc === 0) ? 4 : (dr === 0 || dc === 0) ? 2 : 1
+                sum += heightMap[nr][nc] * weight
+                count += weight
               }
             }
           }
           
-          smoothedHeights[row][col] = sum / count
+          // Blend original with smoothed value
+          const smoothedValue = count > 0 ? sum / count : originalHeight
+          smoothedHeights[row][col] = originalHeight * (1 - smoothingFactor) + smoothedValue * smoothingFactor
         }
       }
       

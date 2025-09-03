@@ -28,6 +28,9 @@ export interface SeoulMeshLayerProps {
   onClick?: (info: any) => void
   useMask?: boolean  // Enable masking to Seoul boundaries
   color?: string  // Custom color for mesh (hex string)
+  dongBoundaries?: any[]  // Dong boundary features for sales mapping
+  dongSalesMap?: Map<number, number>  // Map of dongCode to total sales
+  salesHeightScale?: number  // Scale for converting sales to height
 }
 
 /**
@@ -189,7 +192,10 @@ export async function createSeoulMeshLayerAsync(
     pickable = true,
     onHover,
     onClick,
-    useMask = false  // Temporarily disable masking to restore rendering
+    useMask = false,  // Temporarily disable masking to restore rendering
+    dongBoundaries,
+    dongSalesMap,
+    salesHeightScale
   } = props
 
   // Don't create layer if not visible or no data
@@ -210,7 +216,10 @@ export async function createSeoulMeshLayerAsync(
         resolution,
         heightScale,
         wireframe,
-        smoothing: true
+        smoothing: true,
+        dongBoundaries,
+        dongSalesMap,
+        salesHeightScale
       })
     }
   } else {
@@ -219,7 +228,10 @@ export async function createSeoulMeshLayerAsync(
       resolution,
       heightScale,
       wireframe,
-      smoothing: true
+      smoothing: true,
+      dongBoundaries,
+      dongSalesMap,
+      salesHeightScale
     })
   }
 
@@ -369,7 +381,10 @@ export function createSeoulMeshLayer(
     pickable = true,
     onHover,
     onClick,
-    useMask = false
+    useMask = false,
+    dongBoundaries,
+    dongSalesMap,
+    salesHeightScale
   } = props
 
   if (!visible || !data || data.length === 0) {
@@ -381,7 +396,10 @@ export function createSeoulMeshLayer(
     resolution,
     heightScale,
     wireframe,
-    smoothing: true
+    smoothing: true,
+    dongBoundaries,
+    dongSalesMap,
+    salesHeightScale
   })
 
   if (!meshGeometry || 
@@ -586,7 +604,10 @@ export function usePreGeneratedSeoulMeshLayer(
     pickable = true,
     onHover,
     onClick,
-    color = '#00FFE1'
+    color = '#00FFE1',
+    dongBoundaries,
+    dongSalesMap,
+    salesHeightScale
   } = props
 
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
@@ -602,9 +623,31 @@ export function usePreGeneratedSeoulMeshLayer(
       try {
         setLoading(true)
         
-        // Check if pre-generated mesh exists for this resolution
+        // If sales data is provided, always use dynamic generation for accurate heights
+        if (dongSalesMap && dongSalesMap.size > 0) {
+          console.log(`[usePreGeneratedSeoulMeshLayer] Using dynamic generation with sales data (${dongSalesMap.size} dongs)`)
+          if (districtData && districtData.length > 0) {
+            const dynamicMesh = generateGridMesh(districtData, {
+              resolution,
+              heightScale: 1,
+              wireframe,
+              smoothing: true,
+              dongBoundaries: dongBoundaries || districtData,
+              dongSalesMap,
+              salesHeightScale
+            })
+            if (!cancelled) {
+              setMeshData(dynamicMesh)
+              setLoadedResolution(resolution)
+              setError(null)
+            }
+            return
+          }
+        }
+        
+        // Only use pre-generated mesh if no sales data is provided
         if (hasPreGeneratedMesh(resolution)) {
-          console.log(`[usePreGeneratedSeoulMeshLayer] Loading pre-generated mesh for resolution ${resolution}`)
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading pre-generated mesh for resolution ${resolution} (no sales data)`)
           const data = await loadStaticSeoulMesh(resolution)
           
           if (!cancelled) {
@@ -635,7 +678,10 @@ export function usePreGeneratedSeoulMeshLayer(
               resolution,
               heightScale: 1,
               wireframe,
-              smoothing: true
+              smoothing: true,
+              dongBoundaries: dongBoundaries || districtData,  // Use dongBoundaries if provided, otherwise use districtData
+              dongSalesMap,
+              salesHeightScale
             })
             setMeshData(dynamicMesh)
             setLoadedResolution(resolution)
@@ -654,7 +700,7 @@ export function usePreGeneratedSeoulMeshLayer(
     return () => {
       cancelled = true
     }
-  }, [resolution, wireframe, districtData])
+  }, [resolution, wireframe, districtData, dongBoundaries, dongSalesMap, salesHeightScale])
 
   // Create layer from loaded data
   return useMemo(() => {
