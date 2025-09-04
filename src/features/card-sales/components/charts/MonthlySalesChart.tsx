@@ -8,10 +8,12 @@ import {
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer
+  ResponsiveContainer,
+  ReferenceLine
 } from '@/src/shared/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/shared/components/ui/select'
 import { loadMonthlySalesData, SALES_CATEGORIES, type MonthlySalesDataPoint } from '@/src/features/card-sales/data/monthlySalesData'
+import { getWeatherEventsForChart } from '@/src/features/card-sales/data/weatherEventsData'
 
 // 금액 포맷터 (억원 단위)
 const formatCurrency = (value: number) => {
@@ -48,6 +50,9 @@ export function MonthlySalesChart() {
   const [salesData, setSalesData] = useState<MonthlySalesDataPoint[]>([])
   const [isLoading, setIsLoading] = useState(true)
   
+  // Get weather events for reference lines
+  const weatherEvents = useMemo(() => getWeatherEventsForChart(), [])
+  
   // CSV 데이터 로드
   useEffect(() => {
     loadMonthlySalesData().then((data) => {
@@ -64,7 +69,7 @@ export function MonthlySalesChart() {
   const chartData = useMemo(() => {
     if (salesData.length === 0) return []
     
-    return salesData.map(dataPoint => {
+    return salesData.map((dataPoint, index) => {
       let salesValue: number
       
       if (selectedCategory === '전체') {
@@ -75,6 +80,7 @@ export function MonthlySalesChart() {
       
       return {
         name: dataPoint.month,
+        monthIndex: index, // Add numeric index for precise positioning
         sales: salesValue,
         formattedSales: salesValue / 100000000 // 억원 단위로 변환
       }
@@ -139,12 +145,19 @@ export function MonthlySalesChart() {
         <ResponsiveContainer width="100%" height={250}>
           <LineChart 
             data={chartData}
-            margin={{ top: 10, right: 20, bottom: 10, left: 20 }}
+            margin={{ top: 10, right: 20, bottom: 5, left: 20 }}
           >
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} stroke="#374151" />
             
             <XAxis 
-              dataKey="name" 
+              dataKey="monthIndex"
+              type="number"
+              domain={[0, 11]}
+              ticks={[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]}
+              tickFormatter={(value) => {
+                const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
+                return monthNames[value] || ''
+              }}
               tick={{ fontSize: 12, fill: '#9CA3AF' }}
               axisLine={{ stroke: '#4B5563' }}
               tickLine={{ stroke: '#4B5563' }}
@@ -167,6 +180,17 @@ export function MonthlySalesChart() {
             
             <Tooltip content={<CustomTooltip />} />
             
+            {/* Weather event reference lines - positioned at exact days */}
+            {weatherEvents.map((event, index) => (
+              <ReferenceLine
+                key={`weather-${event.date}-${index}`}
+                x={event.precisePosition}
+                stroke={event.color}
+                strokeOpacity={0.3}
+                strokeWidth={1.5}
+              />
+            ))}
+            
             {/* 매출액 Line */}
             <Line 
               type="monotone"
@@ -179,6 +203,22 @@ export function MonthlySalesChart() {
             />
           </LineChart>
         </ResponsiveContainer>
+        
+        {/* 날씨 이벤트 범례 - X축 중앙 아래 */}
+        <div className="flex justify-center gap-6 mt-0 text-xs">
+          <span className="flex items-center gap-1">
+            <span className="w-4 h-1 bg-blue-500"></span>
+            <span className="text-gray-400">한파</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-4 h-1 bg-green-500"></span>
+            <span className="text-gray-400">온화</span>
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="w-4 h-1 bg-red-500"></span>
+            <span className="text-gray-400">폭염</span>
+          </span>
+        </div>
       </div>
     </div>
   )
