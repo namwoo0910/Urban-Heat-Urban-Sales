@@ -17,7 +17,6 @@ import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
-import { BusinessTypeLegend } from "./BusinessTypeLegend"
 import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode, getDongCode } from "../data/districtCodeMappings"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
@@ -2466,8 +2465,6 @@ export default function HexagonScene() {
         </div>
       )}
 
-      {/* Middle Category Legend */}
-      <BusinessTypeLegend selectedCategory={selectedBusinessType} />
 
       {/* 오류 표시 */}
       {dataError && (
