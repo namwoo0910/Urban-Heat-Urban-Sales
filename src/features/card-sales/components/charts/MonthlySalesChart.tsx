@@ -116,7 +116,7 @@ export function MonthlySalesChart() {
     <div className="w-full h-full relative">
       {/* 업종 선택 드롭다운 */}
       <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-        <SelectTrigger className="absolute -top-[55px] right-2 z-10 w-[180px] h-8 text-xs bg-white/10 border-white/20 text-white">
+        <SelectTrigger className="absolute top-0 right-2 z-10 w-[120px] h-8 text-xs bg-white/10 border-white/20 text-white">
           <SelectValue placeholder="업종 선택" />
         </SelectTrigger>
         <SelectContent className="max-h-[300px] overflow-y-auto bg-black/90 border-white/20">
@@ -141,8 +141,8 @@ export function MonthlySalesChart() {
       </div>
       
       {/* 차트 */}
-      <div className="flex-1" style={{ minHeight: '250px' }}>
-        <ResponsiveContainer width="100%" height={250}>
+      <div className="h-full">
+        <ResponsiveContainer width="100%" height="80%">
           <LineChart 
             data={chartData}
             margin={{ top: 10, right: 20, bottom: 5, left: 20 }}
