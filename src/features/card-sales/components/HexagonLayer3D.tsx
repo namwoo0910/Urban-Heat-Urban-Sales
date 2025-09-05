@@ -44,6 +44,7 @@ import {
 } from "@/src/shared/utils/district3DUtils"
 import { RotateCcw } from "lucide-react"
 import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getAccentColor, applyColorAdjustments, getSimpleSalesColor } from "../utils/modernColorPalette"
+import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import "../styles/HexagonLayer.css"
 import "@/src/shared/styles/districtEffects.css"
 
@@ -209,6 +210,7 @@ export default function HexagonScene() {
   const [showSeoulBase, setShowSeoulBase] = useState(false)
   const [showDistrictLabels, setShowDistrictLabels] = useState(false) // 구 이름 표시 (기본값: 꺼짐)
   const [showDongLabels, setShowDongLabels] = useState(false) // 동 이름 표시
+  const [chartPanelWidth, setChartPanelWidth] = useState<number | undefined>(undefined) // 차트 패널 너비
   
   // DeckGL 뷰 상태 - controlled component pattern for synchronization
   const [viewState, setViewState] = useState<MapViewState>({
@@ -1907,8 +1909,8 @@ export default function HexagonScene() {
 
   return (
     <div className="relative w-full h-screen flex">
-      {/* Map Section - Left Side */}
-      <div className={`relative transition-all duration-500 ${showChartPanel ? 'w-3/5' : 'w-full'}`}>
+      {/* Map Section - Flexible Width */}
+      <div className={`relative flex-1 transition-all duration-300`}>
         {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
         <DeckGL
         viewState={viewState}
@@ -2542,11 +2544,19 @@ export default function HexagonScene() {
       `}</style>
       </div>
       
-      {/* Chart Panel - Right Side */}
+      {/* Chart Panel - Resizable Right Side */}
       {showChartPanel && (
-        <div className="w-2/5 h-full p-4 bg-black/80">
-          <DefaultChartsPanel />
-        </div>
+        <ResizablePanel
+          initialWidth={chartPanelWidth || (typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600)}
+          minWidth={300}
+          maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
+          onResize={(width) => setChartPanelWidth(width)}
+          className="h-full bg-black/80"
+        >
+          <div className="h-full p-4">
+            <DefaultChartsPanel />
+          </div>
+        </ResizablePanel>
       )}
       
       {/* Chart Panel Toggle Button */}
