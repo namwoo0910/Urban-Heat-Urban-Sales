@@ -764,6 +764,91 @@ export function usePreGeneratedSeoulMeshLayer(
 }
 
 /**
+ * React hook that returns raw mesh geometry data for custom layer implementations
+ * Used by AnimatedMeshLayer for GPU-based vertex animations
+ */
+export function useMeshGeometry(
+  resolution: number = 30,
+  districtData?: any[]
+): { meshData: MeshGeometry | null; loading: boolean; error: Error | null } {
+  const { getBinaryMeshLoader, MESH_RESOLUTIONS } = require('../utils/binaryMeshLoader')
+  
+  const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  // Map resolution to MESH_RESOLUTIONS
+  const getMeshResolution = (res: number) => {
+    if (res <= 30) return MESH_RESOLUTIONS.ULTRA_LOW
+    if (res <= 60) return MESH_RESOLUTIONS.LOW
+    if (res <= 90) return MESH_RESOLUTIONS.MEDIUM
+    if (res <= 120) return MESH_RESOLUTIONS.HIGH
+    return MESH_RESOLUTIONS.ULTRA_HIGH
+  }
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadMesh = async () => {
+      try {
+        setLoading(true)
+        
+        // Try to load pre-generated mesh first
+        const loader = getBinaryMeshLoader({
+          useBinary: true,
+          useCompression: true,
+          useWorker: true,
+          progressiveLoading: true,
+          cacheEnabled: true
+        })
+        
+        const targetResolution = getMeshResolution(resolution)
+        console.log(`[useMeshGeometry] Loading mesh at resolution ${targetResolution}`)
+        
+        const data = await loader.loadProgressive(targetResolution)
+        
+        if (!cancelled) {
+          setMeshData(data)
+          setError(null)
+        }
+        
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[useMeshGeometry] Failed to load mesh:', err)
+          setError(err as Error)
+          
+          // Fall back to dynamic generation if district data is available
+          if (districtData && districtData.length > 0) {
+            console.log('[useMeshGeometry] Falling back to dynamic generation')
+            const dynamicMesh = generateGridMesh(districtData, {
+              resolution,
+              heightScale: 1,
+              wireframe: false,
+              smoothing: true,
+              dongBoundaries: districtData
+            })
+            setMeshData(dynamicMesh)
+            setError(null)
+          }
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadMesh()
+
+    return () => {
+      cancelled = true
+    }
+  }, [resolution, districtData])
+
+  return { meshData, loading, error }
+}
+
+/**
  * React hook for static Seoul mesh layer (backward compatibility)
  * Loads pre-generated mesh data for better performance
  */

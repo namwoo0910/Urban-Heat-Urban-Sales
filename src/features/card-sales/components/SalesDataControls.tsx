@@ -776,6 +776,36 @@ export default function UnifiedControls({
                       <span>느림</span>
                     </div>
                   </div>
+                  
+                  {/* Animation Quality Control */}
+                  <div className="space-y-1 mt-3 pt-3 border-t border-gray-800/30">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-gray-300 text-xs">애니메이션 품질</Label>
+                      <div className="flex items-center gap-2">
+                        <button
+                          className="px-2 py-0.5 text-xs rounded bg-gray-800/50 hover:bg-gray-700/50 text-gray-300"
+                          onClick={() => onTimelineSpeedChange?.(500)}
+                        >
+                          빠름
+                        </button>
+                        <button
+                          className="px-2 py-0.5 text-xs rounded bg-gray-800/50 hover:bg-gray-700/50 text-gray-300"
+                          onClick={() => onTimelineSpeedChange?.(1200)}
+                        >
+                          부드러움
+                        </button>
+                        <button
+                          className="px-2 py-0.5 text-xs rounded bg-gray-800/50 hover:bg-gray-700/50 text-gray-300"
+                          onClick={() => onTimelineSpeedChange?.(2000)}
+                        >
+                          매우 부드러움
+                        </button>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      높이 변화 전환 효과를 조절합니다
+                    </p>
+                  </div>
                 </div>
               )}
               <p className="text-xs text-gray-400">

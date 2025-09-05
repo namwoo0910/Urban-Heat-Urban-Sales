@@ -13,6 +13,7 @@ import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, createScatterplotLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
+import { useHeightInterpolation } from "../hooks/useHeightInterpolation"
 import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
@@ -329,6 +330,14 @@ export default function HexagonScene() {
   
   // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
   const [heightScale, setHeightScale] = useState<number>(500000000) // 5억원 단위로 증가 (높이 감소)
+  
+  // Height interpolation for smooth timeline animations
+  const heightInterpolation = useHeightInterpolation({
+    duration: timelineAnimationEnabled ? 1200 : 800,  // Longer duration for timeline animation
+    easing: 'smooth',  // Smooth easing for natural motion
+    enabled: true,  // Always enable for better UX
+    fps: 60  // Target 60 FPS
+  })
   
   // Mesh layer states
   const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
@@ -845,7 +854,7 @@ export default function HexagonScene() {
         
         // Transitions for smooth animations
         transitions: {
-          getElevation: 300,  // Faster transition for more responsive hover
+          getElevation: timelineAnimationEnabled && isTimelinePlaying ? 0 : 300,  // Disable deck.gl transition during timeline animation (we use interpolation instead)
           getFillColor: 300,  // Faster color transition
           getLineWidth: 200   // Quick line width transition
         },
@@ -1310,6 +1319,30 @@ export default function HexagonScene() {
     loadSalesData()
   }, [selectedDate])  // Reload when date changes
   
+  // Update interpolation targets when sales data changes
+  useEffect(() => {
+    if (dongSalesMap.size === 0) return
+    
+    // Calculate target heights for all dongs
+    const targetHeights = new Map<number, number>()
+    
+    dongSalesMap.forEach((sales, dongCode) => {
+      // Get sales for current filter
+      let dongSales = sales
+      if (selectedBusinessType && dongSalesByTypeMap?.has(dongCode)) {
+        const typeMap = dongSalesByTypeMap.get(dongCode)
+        dongSales = typeMap?.get(selectedBusinessType) || 0
+      }
+      
+      // Calculate height based on sales
+      const height = getDongHeightBySales(dongSales, heightScale)
+      targetHeights.set(dongCode, height)
+    })
+    
+    // Update interpolation targets
+    heightInterpolation.updateTargetHeights(targetHeights)
+  }, [dongSalesMap, dongSalesByTypeMap, selectedBusinessType, heightScale])
+  
   // 3D 모드용 데이터 전처리
   useEffect(() => {
     if (!sggData || !dongData || dongSalesMap.size === 0 || !dongSalesByTypeMap) return
@@ -1361,18 +1394,8 @@ export default function HexagonScene() {
             })
           }
           
-          // Get sales data for this dong
-          // 업종 선택시 해당 업종 매출, 아니면 총 매출
-          let dongSales = 0
-          if (selectedBusinessType && dongSalesByTypeMap.has(Number(dongCode))) {
-            const typeMap = dongSalesByTypeMap.get(Number(dongCode))
-            dongSales = typeMap?.get(selectedBusinessType) || 0
-          } else {
-            dongSales = dongSalesMap.get(Number(dongCode)) || 0
-          }
-          
-          // Calculate height based on absolute sales value with adjustable scale
-          const height = getDongHeightBySales(dongSales, heightScale)
+          // Get interpolated height for smooth animation
+          const height = heightInterpolation.getInterpolatedHeight(Number(dongCode))
           
           // Log first and last dong for debugging
           if (index === 0 || index === dongData.features.length - 1) {
@@ -1380,7 +1403,6 @@ export default function HexagonScene() {
               guName, 
               dongName, 
               dongCode,
-              dongSales: dongSales.toLocaleString(),
               height: Math.round(height),
               dongIndex: index 
             })
@@ -1402,6 +1424,49 @@ export default function HexagonScene() {
     
     process3DData()
   }, [sggData, dongData, dongSalesMap, dongSalesByTypeMap, selectedBusinessType, heightScale])
+  
+  // Update dong3D continuously during height animation
+  useEffect(() => {
+    if (!heightInterpolation.isAnimating || !dongData) return
+    
+    let animationFrame: number
+    
+    const updateHeights = () => {
+      // Update dong3D with current interpolated heights
+      const dong3D = {
+        ...dongData,
+        features: dongData.features.map((feature: any) => {
+          const dongCode = feature.properties['행정동코드'] || 
+                          feature.properties.H_CODE || 
+                          feature.properties.ADM_DR_CD || 0
+          
+          const interpolatedHeight = heightInterpolation.getInterpolatedHeight(Number(dongCode))
+          
+          return {
+            ...feature,
+            properties: {
+              ...feature.properties,
+              height: interpolatedHeight
+            }
+          }
+        })
+      }
+      
+      setDongData3D(dong3D)
+      
+      if (heightInterpolation.isAnimating) {
+        animationFrame = requestAnimationFrame(updateHeights)
+      }
+    }
+    
+    animationFrame = requestAnimationFrame(updateHeights)
+    
+    return () => {
+      if (animationFrame) {
+        cancelAnimationFrame(animationFrame)
+      }
+    }
+  }, [heightInterpolation.isAnimating, dongData])
   
   // 3D 모드 변경 시 조명 설정
   useEffect(() => {
