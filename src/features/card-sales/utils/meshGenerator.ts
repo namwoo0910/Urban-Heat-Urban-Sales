@@ -697,17 +697,18 @@ export function generateGridMesh(
       const insideCount = (tlInside ? 1 : 0) + (trInside ? 1 : 0) + 
                           (blInside ? 1 : 0) + (brInside ? 1 : 0)
       
-      // Only include triangles where ALL vertices are inside Seoul
-      // This creates a clean boundary with no partial triangles extending outside
-      // The boundary will be stepped at the mesh resolution, but no lines will extend outside
+      // Include triangles where at least 1 vertex is inside Seoul
+      // This creates the most complete mesh coverage with smooth boundaries
+      // Some triangles will extend outside, but this ensures no gaps in the mesh
       
-      if (insideCount === 4) {
-        // All 4 vertices are inside Seoul - include both triangles
+      if (insideCount >= 1) {
+        // At least one vertex is inside Seoul - include both triangles
+        // This maximizes mesh coverage and creates the smoothest boundary
         tempIndices.push(topLeft, bottomLeft, topRight)
         tempIndices.push(topRight, bottomLeft, bottomRight)
       }
-      // If any vertex is outside (insideCount < 4), don't create any triangles
-      // This prevents wireframe edges from extending to the boundary
+      // Only skip triangles where all vertices are outside (insideCount < 1)
+      // This creates the most complete mesh with best boundary coverage
     }
   }
 
