@@ -641,6 +641,17 @@ export default function HexagonScene() {
         autoHighlight: true,
         highlightColor: [255, 255, 255, 60],
         
+        // GPU Optimization Parameters
+        parameters: {
+          depthTest: true,
+          depthFunc: 0x0203, // GL.LEQUAL
+          blend: true,
+          blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
+          cullFace: 0x0405, // GL.BACK - cull back faces
+          cullFaceMode: true,
+          polygonOffsetFill: true // Prevent z-fighting
+        },
+        
         // Geometry
         getPolygon: (d: any) => {
           // Handle both Polygon and MultiPolygon
@@ -1909,6 +1920,23 @@ export default function HexagonScene() {
           if (isDragging) return 'grabbing'
           if (isHovering) return 'pointer'
           return 'grab'
+        }}
+        // GPU Optimization Parameters
+        parameters={{
+          depthTest: true,
+          depthFunc: 0x0203, // GL.LEQUAL
+          blend: true,
+          blendFunc: [0x0302, 0x0303, 0x0001, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA]
+          blendEquation: 0x8006, // GL.FUNC_ADD
+          polygonOffsetFill: true,
+          cullFace: 0x0405, // GL.BACK
+          cullFaceMode: true
+        }}
+        // Performance optimizations
+        useDevicePixels={window.innerWidth <= 768 ? false : true} // Disable high DPI on mobile
+        _typedArrayManagerProps={{
+          overAlloc: 1.2,  // Reduce over-allocation (default 2.0)
+          poolSize: 100    // Limit pool size for memory efficiency
         }}
         onClick={() => {
           // 이벤트가 레이어로 전파되도록 함

@@ -286,6 +286,14 @@ export function LayerManager({
             coverage: config.coverage,
             extruded: true, // IMPORTANT: Enable 3D bars
             pickable: true,
+            // GPU Optimization Parameters
+            parameters: {
+              depthTest: true,
+              blend: true,
+              blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
+              cullFace: 0x0405, // GL.BACK
+              cullFaceMode: true
+            },
             colorRange: COLOR_RANGES[config.colorScheme],
             upperPercentile: config.upperPercentile,
             onHover: (info, event) => {
@@ -340,6 +348,14 @@ export function LayerManager({
           coverage: config.coverage,
           extruded: true, // IMPORTANT: Enable 3D bars
           pickable: true,
+          // GPU Optimization Parameters
+          parameters: {
+            depthTest: true,
+            blend: true,
+            blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
+            cullFace: 0x0405, // GL.BACK
+            cullFaceMode: true
+          },
           colorRange: COLOR_RANGES[config.colorScheme],
           upperPercentile: config.upperPercentile,
           onHover: (info, event) => {

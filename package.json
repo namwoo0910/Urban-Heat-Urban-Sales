@@ -9,7 +9,9 @@
     "start": "next start",
     "generate-particles": "node scripts/generate-static-particles-optimized.js",
     "generate-mesh": "node scripts/generate-seoul-mesh.js",
-    "prebuild": "npm run generate-particles && npm run generate-mesh"
+    "convert-mesh-binary": "node scripts/convertMeshToBinary.js",
+    "optimize-mesh": "npm run generate-mesh && npm run convert-mesh-binary",
+    "prebuild": "npm run generate-particles && npm run optimize-mesh"
   },
   "dependencies": {
     "@deck.gl/aggregation-layers": "^9.1.14",

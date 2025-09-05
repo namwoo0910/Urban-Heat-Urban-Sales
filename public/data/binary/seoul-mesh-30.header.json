@@ -1,0 +1,63 @@
+{
+  "format": "seoul-mesh-binary",
+  "version": "1.0.0",
+  "metadata": {
+    "version": "1.0.0",
+    "resolution": 30,
+    "vertices": 900,
+    "triangles": 754,
+    "bounds": {
+      "minX": 126.76448395995175,
+      "maxX": 127.18379492774767,
+      "minY": 37.42829747715148,
+      "maxY": 37.70145527323081
+    },
+    "center": {
+      "x": 126.97413944384971,
+      "y": 37.56487637519115
+    },
+    "generated": "2025-09-05T03:19:46.370Z",
+    "source": "local_economy_dong.geojson",
+    "originalFile": "seoul-mesh-30.json",
+    "converted": "2025-09-05T03:20:37.530Z"
+  },
+  "offsets": {
+    "positions": {
+      "offset": 0,
+      "length": 10800,
+      "type": "Float32Array",
+      "itemSize": 3,
+      "count": 900
+    },
+    "normals": {
+      "offset": 10800,
+      "length": 10800,
+      "type": "Float32Array",
+      "itemSize": 3,
+      "count": 900
+    },
+    "texCoords": {
+      "offset": 21600,
+      "length": 7200,
+      "type": "Float32Array",
+      "itemSize": 2,
+      "count": 900
+    },
+    "colors": {
+      "offset": 28800,
+      "length": 14400,
+      "type": "Float32Array",
+      "itemSize": 4,
+      "count": 900
+    },
+    "indices": {
+      "offset": 43200,
+      "length": 9048,
+      "type": "Uint32Array",
+      "itemSize": 1,
+      "count": 2262
+    }
+  },
+  "totalSize": 52248,
+  "compressed": false
+}

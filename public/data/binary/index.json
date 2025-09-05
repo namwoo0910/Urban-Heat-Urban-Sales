@@ -1,0 +1,36 @@
+{
+  "version": "1.0.0",
+  "generated": "2025-09-05T03:20:37.587Z",
+  "files": [
+    {
+      "resolution": 120,
+      "header": "seoul-mesh-120.header.json",
+      "binary": "seoul-mesh-120.bin",
+      "compressed": "seoul-mesh-120.bin.gz"
+    },
+    {
+      "resolution": 200,
+      "header": "seoul-mesh-200.header.json",
+      "binary": "seoul-mesh-200.bin",
+      "compressed": "seoul-mesh-200.bin.gz"
+    },
+    {
+      "resolution": 30,
+      "header": "seoul-mesh-30.header.json",
+      "binary": "seoul-mesh-30.bin",
+      "compressed": "seoul-mesh-30.bin.gz"
+    },
+    {
+      "resolution": 60,
+      "header": "seoul-mesh-60.header.json",
+      "binary": "seoul-mesh-60.bin",
+      "compressed": "seoul-mesh-60.bin.gz"
+    },
+    {
+      "resolution": 90,
+      "header": "seoul-mesh-90.header.json",
+      "binary": "seoul-mesh-90.bin",
+      "compressed": "seoul-mesh-90.bin.gz"
+    }
+  ]
+}
