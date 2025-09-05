@@ -90,9 +90,9 @@ const convertColorExpressionToRGB = (
 const DEFAULT_SEOUL_VIEW = {
   longitude: 126.978,
   latitude: 37.5765,
-  zoom: 10.5,
-  pitch: 20,  // 3D 각도로 설정
-  bearing: 4,  // 3D 방향으로 설정
+  zoom: 10.8,
+  pitch: 40,  // 옆에서 본 각도로 설정 (side view angle)
+  bearing: 6,  // 3D 방향으로 설정
   minZoom: 5,
   maxZoom: 13
 } as const
@@ -342,8 +342,8 @@ export default function HexagonScene() {
   // Mesh layer states
   const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
   const [meshWireframe, setMeshWireframe] = useState<boolean>(true)  // Default to wireframe on
-  const [meshResolution, setMeshResolution] = useState<number>(60)  // Balanced resolution for good performance
-  const [meshColor, setMeshColor] = useState<string>('#00FFE1')  // Default cyan color
+  const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
+  const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
   
   // Helper function to handle dong click from text labels
   const handleDongClick = useCallback((dongName: string) => {
