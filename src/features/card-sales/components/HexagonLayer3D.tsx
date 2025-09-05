@@ -46,6 +46,7 @@ import {
 import { RotateCcw } from "lucide-react"
 import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getAccentColor, applyColorAdjustments, getSimpleSalesColor } from "../utils/modernColorPalette"
 import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
+import * as turf from '@turf/turf'
 import "../styles/HexagonLayer.css"
 import "@/src/shared/styles/districtEffects.css"
 
@@ -567,6 +568,48 @@ export default function HexagonScene() {
     currentBearingRef.current = viewState.bearing || 0
   }, [])
 
+  // Find which dong a coordinate belongs to
+  const findDongAtCoordinate = useCallback((
+    lng: number,
+    lat: number,
+    dongBoundaries: any[]
+  ): { dongName: string; dongCode: number; sales?: number } | null => {
+    if (!dongBoundaries || dongBoundaries.length === 0) {
+      return null
+    }
+    
+    const point = turf.point([lng, lat])
+    
+    for (const feature of dongBoundaries) {
+      try {
+        if (turf.booleanPointInPolygon(point, feature)) {
+          const dongCode = feature.properties?.['행정동코드'] || 
+                          feature.properties?.H_CODE || 
+                          feature.properties?.ADM_DR_CD ||
+                          feature.properties?.dongCode ||
+                          feature.properties?.dong_code ||
+                          0
+          
+          const dongName = feature.properties?.ADM_DR_NM || 
+                          feature.properties?.DONG_NM || 
+                          feature.properties?.['행정동'] ||
+                          'Unknown'
+          
+          return {
+            dongName,
+            dongCode: Number(dongCode),
+            sales: dongSalesMap?.get(Number(dongCode))
+          }
+        }
+      } catch {
+        // Skip invalid features
+        continue
+      }
+    }
+    
+    return null
+  }, [dongSalesMap])
+
   // Handle hexagon hover for district-wide highlighting
   const handleHexagonHover = useCallback((info: PickingInfo) => {
     const canvas = mapRef.current?.getCanvas()
@@ -914,17 +957,13 @@ export default function HexagonScene() {
     visible: showMeshLayer,
     wireframe: meshWireframe,
     opacity: meshWireframe ? 1 : (is3DMode ? 0.6 : 0.8),
-    pickable: true,
+    pickable: false,  // Disabled to prevent tooltips and highlighting
+    useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
     color: meshColor,  // Pass the mesh color
     dongBoundaries: dongData3D?.features,  // Pass dong boundaries for sales mapping
     dongSalesMap: dongSalesMap,  // Pass sales data map
-    salesHeightScale: heightScale,  // Use the same height scale as polygon layer
-    onHover: (info: any) => {
-      // Handle mesh hover if needed
-    },
-    onClick: (info: any) => {
-      // Handle mesh click if needed
-    }
+    salesHeightScale: heightScale  // Use the same height scale as polygon layer
+    // onHover and onClick removed - mesh layer is purely visual
   }, dongData3D?.features)
   
   // Combine all deck.gl layers
