@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
 import { DeckGL } from '@deck.gl/react'
-import { Map as MapGL, Source, Layer } from 'react-map-gl'
+import { Map as MapGL } from 'react-map-gl'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator, FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
@@ -14,6 +14,7 @@ import { LayerManager, formatTooltip, createScatterplotLayer, formatScatterplotT
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { useHeightInterpolation } from "../hooks/useHeightInterpolation"
+import { useOptimizedDailyData } from "../hooks/useOptimizedDailyData"
 import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
@@ -47,6 +48,8 @@ import { RotateCcw } from "lucide-react"
 import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getAccentColor, applyColorAdjustments, getSimpleSalesColor } from "../utils/modernColorPalette"
 import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
+import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
+import type { FeatureCollection } from 'geojson'
 import "../styles/HexagonLayer.css"
 import "@/src/shared/styles/districtEffects.css"
 
@@ -220,6 +223,9 @@ export default function HexagonScene() {
     bearing: 0  // 초기 bearing은 0으로 설정
   })
   
+  // 드래그 상태 추가 - 성능 최적화용
+  const [isDragging, setIsDragging] = useState(false)
+  
   // 회전 제어를 위한 ref
   const rotationEnabledRef = useRef(false)
   const userInteractingRef = useRef(false)
@@ -336,7 +342,7 @@ export default function HexagonScene() {
   const heightInterpolation = useHeightInterpolation({
     duration: timelineAnimationEnabled ? 1200 : 800,  // Longer duration for timeline animation
     easing: 'smooth',  // Smooth easing for natural motion
-    enabled: true,  // Always enable for better UX
+    enabled: is3DMode,  // Only enable in 3D mode for performance
     fps: 60  // Target 60 FPS
   })
   
@@ -527,23 +533,8 @@ export default function HexagonScene() {
     if (districtSelection.selectedDistrict) {
       // Force re-render of layers to apply color changes
       const map = mapRef.current?.getMap()
-      if (map) {
-        // Ensure layers are visible with proper opacity
-        const fillLayer = map.getLayer('sgg-select-fill')
-        const animatedLayer = map.getLayer('sgg-select-fill-animated')
-        
-        if (fillLayer) {
-          // Force the layer to update
-          map.setPaintProperty('sgg-select-fill', 'fill-opacity', 
-            map.getPaintProperty('sgg-select-fill', 'fill-opacity'))
-        }
-        
-        if (animatedLayer) {
-          // Force the animated layer to update
-          map.setPaintProperty('sgg-select-fill-animated', 'fill-opacity',
-            map.getPaintProperty('sgg-select-fill-animated', 'fill-opacity'))
-        }
-      }
+      // Selection layer updates now handled by Deck.gl unified layers
+      // No need for manual layer property updates
       
       // Keep animation active
       const animationTimer = setTimeout(() => {
@@ -680,8 +671,8 @@ export default function HexagonScene() {
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
 
   
-  // Create Deck.gl PolygonLayer for 3D dong visualization
-  const createDong3DPolygonLayers = useCallback(() => {
+  // Temporary placeholder - actual implementation will be defined after optimizedDongMap
+  let createDong3DPolygonLayers: any = useCallback(() => {
     if (!dongData3D || !dongData3D.features) return []
     
     return [
@@ -716,10 +707,16 @@ export default function HexagonScene() {
           return d.geometry.coordinates[0]
         },
         
-        // Height - 선택 상태에 따른 차별화
+        // Height - 사전 계산된 높이 사용
         getElevation: (d: any) => {
           const guName = d.properties.guName || d.properties['자치구']
-          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
+          const dongCode = d.properties.ADM_DR_CD || 
+                          d.properties.dongCode || 
+                          d.properties.dong_code ||
+                          d.properties['행정동코드'] ||
+                          d.properties.DONG_CD
+          
+          // Use pre-calculated height from properties (will be updated after optimizedDongMap is available)
           const height = d.properties.height || 0
           
           // 동 선택 시: 선택된 구의 동만 원래 높이
@@ -745,11 +742,10 @@ export default function HexagonScene() {
         
         elevationScale: 1,
         
-        // Modern color system with district-based variations
+        // 사전 계산된 색상 사용
         getFillColor: (d: any) => {
           const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
           const guName = d.properties.guName || d.properties['자치구']
-          const height = d.properties.height || 0
           
           // Try multiple ways to get dongCode
           const dongCode = d.properties.ADM_DR_CD || 
@@ -758,6 +754,8 @@ export default function HexagonScene() {
                           d.properties['행정동코드'] ||
                           d.properties.DONG_CD;
           
+          // Use existing calculation (will be replaced after optimizedDongMap is available)
+          const height = d.properties.height || 0
           const totalSales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : 0
           
           // Debug logging for 40-step gradient
@@ -904,10 +902,9 @@ export default function HexagonScene() {
         
         // Update triggers for reactive updates
         updateTriggers: {
-          getElevation: [selectedGu, selectedDong, selectedBusinessType, dongSalesMap, heightScale, hoveredDistrict],
-          getFillColor: [selectedGu, selectedDong, currentThemeKey, hoveredDistrict, themeAdjustments],
-          getLineColor: [selectedGu, selectedDong, currentThemeKey, hoveredDistrict, themeAdjustments],
-          getLineWidth: [hoveredDistrict]
+          getElevation: [selectedGu, selectedDong, dongSalesMap, heightScale],
+          getFillColor: [selectedGu, selectedDong, currentThemeKey, dongSalesMap, themeAdjustments],
+          getLineColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments]
         }
       })
     ]
@@ -966,12 +963,90 @@ export default function HexagonScene() {
     // onHover and onClick removed - mesh layer is purely visual
   }, dongData3D?.features)
   
+  // Load Seoul boundary data for unified layers
+  const [seoulBoundaryData, setSeoulBoundaryData] = useState<FeatureCollection | null>(null)
+  
+  useEffect(() => {
+    // Load Seoul boundary GeoJSON
+    fetch('/seoul_boundary.geojson')
+      .then(res => res.json())
+      .then(data => setSeoulBoundaryData(data))
+      .catch(err => console.warn('Failed to load Seoul boundary:', err))
+  }, [])
+
+  // Create unified Deck.gl layers to replace Mapbox native layers
+  const unifiedLayers = useUnifiedDeckGLLayers({
+    sggData,
+    dongData,
+    jibData,
+    dongData3D,
+    seoulBoundaryData,
+    is3DMode,
+    isDragging,
+    viewState,
+    selectedGu,
+    selectedDong,
+    hoveredDistrict,
+    sggVisible: districtSelection.sggVisible,
+    dongVisible: districtSelection.dongVisible,
+    jibVisible: districtSelection.jibVisible,
+    showBoundary,
+    dongSalesMap,
+    heightScale,
+    currentThemeKey,
+    onHover: (info: PickingInfo) => {
+      if (info.object) {
+        const feature = info.object
+        const name = feature.properties?.SIGUNGU_NM || 
+                    feature.properties?.ADM_DR_NM || 
+                    feature.properties?.DONG_NM
+        setHoveredDistrict(name)
+      } else {
+        setHoveredDistrict(null)
+      }
+    },
+    onClick: (info: PickingInfo) => {
+      if (info.object) {
+        const feature = info.object
+        const props = feature.properties
+        
+        // 동 클릭 처리
+        if (props.ADM_DR_NM || props.DONG_NM) {
+          const dongName = props.ADM_DR_NM || props.DONG_NM
+          const guName = props.guName || props['자치구']
+          const dongCode = props.ADM_DR_CD || props.DONG_CD
+          const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
+          
+          if (dongName && guName) {
+            setSelectedDong(dongName)
+            setSelectedGu(guName)
+            setSelectedDongCode(dongCode || getDongCode(guName, dongName))
+            setSelectedGuCode(guCode || getDistrictCode(guName))
+            handleDistrictZoom(guName, dongName)
+          }
+        }
+        // 구 클릭 처리
+        else if (props.SIGUNGU_NM || props.GU_NM) {
+          const guName = props.SIGUNGU_NM || props.GU_NM
+          setSelectedGu(guName)
+          setSelectedGuCode(getDistrictCode(guName))
+          setSelectedDong(null)
+          setSelectedDongCode(null)
+        }
+      }
+    }
+  })
+  
   // Combine all deck.gl layers
   const deckLayers = useMemo(() => {
     const layers = []
     
+    // Add unified 2D layers (replacing Mapbox native layers)
+    layers.push(...unifiedLayers)
+    
     // Add PolygonLayer for 3D dong visualization (FIRST - renders at bottom)
-    if (is3DMode && dongData3D) {  // Removed !showMeshLayer to allow both layers
+    // Show 3D layers at any zoom level when 3D mode is enabled
+    if (is3DMode && dongData3D) {
       layers.push(...createDong3DPolygonLayers())
     }
     
@@ -1039,7 +1114,7 @@ export default function HexagonScene() {
       showDistrictLabels, showDongLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
       handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick,
       setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode,
-      showMeshLayer, preGeneratedMeshLayer])
+      showMeshLayer, preGeneratedMeshLayer, unifiedLayers])
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -1226,23 +1301,7 @@ export default function HexagonScene() {
     }
   }
 
-  // 안전한 레이어 관리 헬퍼 함수 (Context7 패턴)
-  const addLayerSafely = (layerId: string, layerConfig: any, beforeId?: string) => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-    
-    try {
-      // 기존 레이어가 있다면 제거
-      if (map.getLayer(layerId)) {
-        map.removeLayer(layerId)
-      }
-      
-      // 새 레이어 추가
-      map.addLayer(layerConfig, beforeId)
-    } catch (error) {
-      console.warn(`Failed to add layer ${layerId}:`, error)
-    }
-  }
+  // [REMOVED] Mapbox native layer helper - now using Deck.gl unified layers only
 
   useEffect(() => {
     // Mapbox access token 설정
@@ -1287,76 +1346,317 @@ export default function HexagonScene() {
     loadData()
   }, [])
   
-  // Load sales data and aggregate by dong
+  // 최적화된 일별 데이터 사용
+  const formatSelectedDate = selectedDate ? 
+    `20${selectedDate.slice(0,2)}-${selectedDate.slice(2,4)}-${selectedDate.slice(4,6)}` : 
+    '2024-01-01'
+  
+  const { 
+    features: optimizedFeatures, 
+    dongMap: optimizedDongMap,
+    isLoading: isOptimizedLoading,
+    error: optimizedError 
+  } = useOptimizedDailyData({ 
+    selectedDate: formatSelectedDate,
+    enabled: true 
+  })
+
+  // Load sales data from optimized data
   useEffect(() => {
-    const loadSalesData = async () => {
-      try {
-        console.log('[SalesData] Loading dong sales data...', selectedDate ? `for date: ${selectedDate}` : 'for all dates')
-        
-        // Apply date filter if selected
-        const options = selectedDate ? { date: selectedDate } : undefined
-        const allData = await climateDataLoader.loadAllData(options)
-        
-        // Aggregate sales by dongCode
-        const salesByDong = new Map<number, number>()
-        const salesByDongAndType = new Map<number, Map<string, number>>()
-        
-        allData.forEach(item => {
-          if (item.dongCode) {
-            // 총 매출 저장 (기존)
-            if (item.totalSales) {
-              const currentTotal = salesByDong.get(item.dongCode) || 0
-              salesByDong.set(item.dongCode, currentTotal + item.totalSales)
-            }
-            
-            // 업종별 매출 저장 (추가)
-            if (item.salesByCategory && Object.keys(item.salesByCategory).length > 0) {
-              let dongTypeMap = salesByDongAndType.get(item.dongCode)
-              if (!dongTypeMap) {
-                dongTypeMap = new Map<string, number>()
-                salesByDongAndType.set(item.dongCode, dongTypeMap)
-              }
-              
-              Object.entries(item.salesByCategory).forEach(([category, amount]) => {
-                const current = dongTypeMap.get(category) || 0
-                dongTypeMap.set(category, current + amount)
-              })
-            }
-          }
+    if (!optimizedFeatures || !optimizedDongMap) {
+      console.log('[OptimizedData] Waiting for optimized data...')
+      return
+    }
+
+    console.log(`[OptimizedData] Processing ${optimizedFeatures.length} optimized features`)
+    
+    // Convert optimized data to existing map format for compatibility
+    const salesByDong = new Map<number, number>()
+    const salesByDongAndType = new Map<number, Map<string, number>>()
+    
+    optimizedFeatures.forEach(feature => {
+      salesByDong.set(feature.dongCode, feature.totalSales)
+      
+      if (feature.salesByType && Object.keys(feature.salesByType).length > 0) {
+        const typeMap = new Map<string, number>()
+        Object.entries(feature.salesByType).forEach(([type, amount]) => {
+          typeMap.set(type, amount)
         })
-        
-        console.log(`[SalesData] Loaded sales for ${salesByDong.size} dongs`)
-        console.log(`[SalesData] Loaded business type sales for ${salesByDongAndType.size} dongs`)
-        
-        // Debug: Check if there are any dongCodes with 0 in them
-        const dongCodesWithZero = Array.from(salesByDong.keys()).filter(code => code === 0 || code < 10000000)
-        if (dongCodesWithZero.length > 0) {
-          console.warn(`[SalesData] Found ${dongCodesWithZero.length} invalid dong codes (0 or too small):`, dongCodesWithZero)
-        }
-        
-        // Log min/max sales for normalization reference
-        const salesValues = Array.from(salesByDong.values())
-        if (salesValues.length > 0) {
-          const minSales = Math.min(...salesValues)
-          const maxSales = Math.max(...salesValues)
-          console.log(`[SalesData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
-          
-          // Log sample dongCode keys for debugging
-          const sampleKeys = Array.from(salesByDong.keys()).slice(0, 5)
-          console.log(`[SalesData] Sample dongCode keys:`, sampleKeys)
-        } else {
-          console.warn(`[SalesData] No sales data found!`)
-        }
-        
-        setDongSalesMap(salesByDong)
-        setDongSalesByTypeMap(salesByDongAndType)
-      } catch (error) {
-        console.error('[SalesData] Failed to load sales data:', error)
+        salesByDongAndType.set(feature.dongCode, typeMap)
       }
+    })
+    
+    console.log(`[OptimizedData] Loaded sales for ${salesByDong.size} dongs (optimized)`)
+    
+    // Log min/max for reference
+    const salesValues = optimizedFeatures.map(f => f.totalSales)
+    if (salesValues.length > 0) {
+      const minSales = Math.min(...salesValues)
+      const maxSales = Math.max(...salesValues)
+      console.log(`[OptimizedData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
     }
     
-    loadSalesData()
-  }, [selectedDate])  // Reload when date changes
+    setDongSalesMap(salesByDong)
+    setDongSalesByTypeMap(salesByDongAndType)
+  }, [optimizedFeatures, optimizedDongMap])
+  
+  // Now redefine createDong3DPolygonLayers with optimizedDongMap available
+  createDong3DPolygonLayers = useCallback(() => {
+    if (!dongData3D || !dongData3D.features) return []
+    
+    return [
+      new PolygonLayer({
+        id: 'dong-3d-polygon',
+        data: dongData3D.features,
+        pickable: true,
+        extruded: true,
+        wireframe: false,
+        filled: true,
+        autoHighlight: true,
+        highlightColor: [255, 255, 255, 60],
+        
+        // GPU Optimization Parameters
+        parameters: {
+          depthTest: true,
+          depthFunc: 0x0203, // GL.LEQUAL
+          blend: true,
+          blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
+          cullFace: 0x0405, // GL.BACK - cull back faces
+          cullFaceMode: true,
+          polygonOffsetFill: true // Prevent z-fighting
+        },
+        
+        // Geometry
+        getPolygon: (d: any) => {
+          // Handle both Polygon and MultiPolygon
+          if (d.geometry.type === 'MultiPolygon') {
+            // Return the first polygon for MultiPolygon
+            return d.geometry.coordinates[0][0]
+          }
+          return d.geometry.coordinates[0]
+        },
+        
+        // Height - 사전 계산된 높이 사용
+        getElevation: (d: any) => {
+          const guName = d.properties.guName || d.properties['자치구']
+          const dongCode = d.properties.ADM_DR_CD || 
+                          d.properties.dongCode || 
+                          d.properties.dong_code ||
+                          d.properties['행정동코드'] ||
+                          d.properties.DONG_CD
+          
+          // 최적화된 데이터에서 사전 계산된 높이 가져오기
+          const optimizedFeature = dongCode && optimizedDongMap ? optimizedDongMap.get(Number(dongCode)) : null
+          const height = optimizedFeature?.height || d.properties.height || 0
+          
+          // 동 선택 시: 선택된 구의 동만 원래 높이
+          if (selectedDong) {
+            if (guName === selectedGu) {
+              return height
+            }
+            return 10 // 다른 구의 동들은 낮은 높이
+          }
+          
+          // 구 선택 시: 선택된 구의 동만 표시
+          if (selectedGu && guName !== selectedGu) {
+            return 0 // 숨김
+          }
+          
+          // Add elevation boost when gu is hovered for 3D pop-out effect
+          if (hoveredDistrict === guName) {
+            return height * 1.2  // 20% elevation boost for better visibility
+          }
+          
+          return height
+        },
+        
+        elevationScale: 1,
+        
+        // 사전 계산된 색상 사용
+        getFillColor: (d: any) => {
+          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
+          const guName = d.properties.guName || d.properties['자치구']
+          
+          // Try multiple ways to get dongCode
+          const dongCode = d.properties.ADM_DR_CD || 
+                          d.properties.dongCode || 
+                          d.properties.dong_code ||
+                          d.properties['행정동코드'] ||
+                          d.properties.DONG_CD;
+          
+          // 최적화된 데이터에서 사전 계산된 색상 가져오기
+          const optimizedFeature = dongCode && optimizedDongMap ? optimizedDongMap.get(Number(dongCode)) : null
+          if (optimizedFeature && optimizedFeature.fillColorRGB) {
+            // 현재 테마에 맞는 사전 계산된 색상 사용
+            const themeKey = currentThemeKey === 'modern' || currentThemeKey === 'adjacent' ? 'blue' : 
+                            currentThemeKey === 'bright' ? 'bright' :
+                            currentThemeKey === 'green' ? 'green' :
+                            currentThemeKey === 'purple' ? 'purple' :
+                            currentThemeKey === 'orange' ? 'orange' : 'blue'
+            
+            const precomputedColor = optimizedFeature.fillColorRGB[themeKey as keyof typeof optimizedFeature.fillColorRGB]
+            if (precomputedColor) {
+              // 선택/호버 상태에 따른 색상 조정
+              if (hoveredDistrict === guName) {
+                return [255, 230, 100, 255] // 호버시 하이라이트
+              }
+              if ((selectedGu || selectedDong) && guName !== selectedGu) {
+                return getDimmedColor() // 선택되지 않은 영역 dimmed
+              }
+              return precomputedColor
+            }
+          }
+          
+          // Fallback to existing calculation if optimized data not available
+          const height = d.properties.height || 0
+          const totalSales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : 0
+          
+          // Use modern color system for 'modern' and 'adjacent' themes
+          if (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') {
+            // Check if this dong is selected
+            const isThisDongSelected = selectedDong && dongName === selectedDong
+            // Check if this dong is in selected gu
+            const isInSelectedGu = selectedGu && guName === selectedGu
+            // Check if this dong is being hovered directly OR if its gu is being hovered
+            const isHovered = hoveredDistrict === dongName || hoveredDistrict === guName
+            
+            // Special strong highlighting when gu is hovered
+            if (hoveredDistrict === guName) {
+              // Use bright yellow-gold highlight for entire gu
+              return [255, 230, 100, 255]
+            }
+            
+            // Dimmed color for non-selected areas when something is selected
+            if ((selectedGu || selectedDong) && !isInSelectedGu) {
+              return getDimmedColor()
+            }
+            
+            return getModernDistrictColor(
+              guName,
+              dongName,
+              height,
+              currentThemeKey,
+              isThisDongSelected,
+              isHovered
+            )
+          }
+          
+          // Fallback to legacy color system with sales-based intensity
+          if (selectedDong && dongName === selectedDong) {
+            return convertColorExpressionToRGB(height, 'bright', guName, dongName, true, false, totalSales)
+          }
+          // Strong highlight if gu is hovered (show district boundary effect)
+          if (hoveredDistrict === guName) {
+            // Use bright golden highlight for entire gu
+            return [255, 215, 0, 255]  // Gold color with full opacity
+          }
+          if (selectedGu && guName === selectedGu) {
+            return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
+          }
+          // Dimmed color for non-selected areas when something is selected
+          if ((selectedGu || selectedDong) && guName !== selectedGu) {
+            return getDimmedColor()
+          }
+          
+          return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
+        },
+        
+        // Line color for borders - ensure visibility
+        getLineColor: (d: any) => {
+          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
+          const guName = d.properties.guName || d.properties['자치구']
+          
+          // Highlight selected/hovered dong with bright edge
+          if (selectedDong === dongName || hoveredDistrict === dongName || hoveredDistrict === guName) {
+            return [255, 255, 255, 200]  // Bright white edge for selected/hovered
+          }
+          
+          // Subtle edges for non-selected areas
+          if ((selectedGu || selectedDong) && guName !== selectedGu) {
+            return [100, 100, 100, 80]  // Very subtle for non-focused areas
+          }
+          
+          // Standard edge color - visible but not distracting
+          return [150, 150, 150, 120]
+        },
+        
+        lineWidthMinPixels: 0.5,
+        lineWidthMaxPixels: 2,
+        getLineWidth: 1,
+        
+        // Material properties for better 3D appearance
+        material: {
+          ambient: 0.35,
+          diffuse: 0.6,
+          shininess: 20,
+          specularColor: [255, 255, 255]
+        },
+        
+        onHover: (info: any) => {
+          if (info.object) {
+            const properties = info.object.properties
+            setHoveredDistrict(properties.ADM_DR_NM || properties.DONG_NM || properties['행정동'])
+          } else {
+            setHoveredDistrict(null)
+          }
+        },
+        
+        onClick: (info: any) => {
+          if (info.object) {
+            const props = info.object.properties
+            const dongName = props.ADM_DR_NM || props.DONG_NM || props['행정동']
+            const guName = props.guName || props['자치구']
+            const dongCode = props.ADM_DR_CD || props.DONG_CD || props['행정동코드']
+            const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
+            
+            // 선택 상태 업데이트
+            if (dongName && guName) {
+              setSelectedDong(dongName)
+              setSelectedGu(guName)
+              setSelectedDongCode(dongCode || getDongCode(guName, dongName))
+              setSelectedGuCode(guCode || getDistrictCode(guName))
+              
+              // 통합 줌 함수 사용
+              handleDistrictZoom(guName, dongName)
+            }
+          }
+        },
+        
+        // Transitions for smooth animations
+        transitions: {
+          getElevation: timelineAnimationEnabled && isTimelinePlaying ? 0 : 300,  // Disable deck.gl transition during timeline animation (we use interpolation instead)
+          getFillColor: 300,  // Faster color transition
+          getLineWidth: 200   // Quick line width transition
+        },
+        
+        // Update triggers for reactive updates (최적화: optimizedDongMap 추가)
+        updateTriggers: {
+          getElevation: [selectedGu, selectedDong, optimizedDongMap, heightScale],
+          getFillColor: [selectedGu, selectedDong, currentThemeKey, optimizedDongMap, themeAdjustments],
+          getLineColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments]
+        }
+      })
+    ]
+  }, [
+    dongData3D, 
+    optimizedDongMap,
+    selectedGu, 
+    selectedDong, 
+    selectedBusinessType, 
+    dongSalesMap,
+    dongSalesByTypeMap,
+    currentThemeKey,
+    themeAdjustments,
+    hoveredDistrict,
+    heightScale,
+    setSelectedGu,
+    setSelectedGuCode,
+    setSelectedDong,
+    setSelectedDongCode,
+    handleDistrictZoom,
+    timelineAnimationEnabled,
+    isTimelinePlaying
+  ])
   
   // Update interpolation targets when sales data changes
   useEffect(() => {
@@ -1531,33 +1831,8 @@ export default function HexagonScene() {
     const map = mapRef.current?.getMap()
     if (!map) return
 
-    // very-dark 스타일일 때 검정 오버레이 추가
-    if (currentLayer === 'very-dark') {
-      // 맵 스타일 로드 완료 후 오버레이 추가
-      const addOverlay = () => {
-        if (!map.getLayer("dark-overlay")) {
-          addLayerSafely("dark-overlay", {
-            id: "dark-overlay",
-            type: "background",
-            paint: {
-              'background-color': 'rgba(0, 0, 0, 0.3)'  // 40% 검정 오버레이
-            }
-          })
-        }
-      }
-      
-      // 스타일 로드 완료 확인
-      if (map.isStyleLoaded()) {
-        addOverlay()
-      } else {
-        map.once('styledata', addOverlay)
-      }
-    } else {
-      // 다른 스타일로 변경시 오버레이 제거
-      if (map.getLayer("dark-overlay")) {
-        map.removeLayer("dark-overlay")
-      }
-    }
+    // Dark overlay now handled through Deck.gl layer opacity/styling
+    // No longer using Mapbox native background layers
   }, [currentLayer])
 
   // Update district colors when data changes
@@ -1568,26 +1843,8 @@ export default function HexagonScene() {
     // Get fresh paint properties with current theme
     const paint = getDistrictLayerPaint()
     
-    // Update colors when sgg or dong data loads
-    if (sggData && map.getLayer('sgg-fill')) {
-      map.setPaintProperty('sgg-fill', 'fill-color', paint.sggFill['fill-color'])
-      map.setPaintProperty('sgg-fill', 'fill-opacity', paint.sggFill['fill-opacity'])
-    }
-    
-    if (sggData && map.getLayer('sgg-line')) {
-      map.setPaintProperty('sgg-line', 'line-color', paint.sggLine['line-color'])
-      map.setPaintProperty('sgg-line', 'line-width', paint.sggLine['line-width'])
-    }
-    
-    if (dongData && map.getLayer('dong-fill')) {
-      map.setPaintProperty('dong-fill', 'fill-color', paint.dongFill['fill-color'])
-      map.setPaintProperty('dong-fill', 'fill-opacity', paint.dongFill['fill-opacity'])
-    }
-    
-    if (dongData && map.getLayer('dong-line')) {
-      map.setPaintProperty('dong-line', 'line-color', paint.dongLine['line-color'])
-      map.setPaintProperty('dong-line', 'line-width', paint.dongLine['line-width'])
-    }
+    // Layer colors now managed by Deck.gl unified layers through props
+    // Updates trigger automatically via updateTriggers
   }, [sggData, dongData])
 
   // Listen for theme changes
@@ -1617,52 +1874,9 @@ export default function HexagonScene() {
       
       // Removed dong-extrusion layer update - now using Deck.gl PolygonLayer
       
-      // Update all layer colors
-      if (map.getLayer('sgg-fill')) {
-        map.setPaintProperty('sgg-fill', 'fill-color', paint.sggFill['fill-color'])
-        map.setPaintProperty('sgg-fill', 'fill-opacity', paint.sggFill['fill-opacity'])
-        console.log('[HexagonLayer3D] Updated sgg-fill')
-      }
-      
-      if (map.getLayer('sgg-line')) {
-        map.setPaintProperty('sgg-line', 'line-color', paint.sggLine['line-color'])
-        map.setPaintProperty('sgg-line', 'line-width', paint.sggLine['line-width'])
-        if (paint.sggLine['line-blur']) {
-          map.setPaintProperty('sgg-line', 'line-blur', paint.sggLine['line-blur'])
-        }
-        if (paint.sggLine['line-opacity']) {
-          map.setPaintProperty('sgg-line', 'line-opacity', paint.sggLine['line-opacity'])
-        }
-        console.log('[HexagonLayer3D] Updated sgg-line')
-      }
-      
-      if (map.getLayer('dong-fill')) {
-        map.setPaintProperty('dong-fill', 'fill-color', paint.dongFill['fill-color'])
-        map.setPaintProperty('dong-fill', 'fill-opacity', paint.dongFill['fill-opacity'])
-        console.log('[HexagonLayer3D] Updated dong-fill')
-      }
-      
-      if (map.getLayer('dong-line')) {
-        map.setPaintProperty('dong-line', 'line-color', paint.dongLine['line-color'])
-        map.setPaintProperty('dong-line', 'line-width', paint.dongLine['line-width'])
-        if (paint.dongLine['line-blur']) {
-          map.setPaintProperty('dong-line', 'line-blur', paint.dongLine['line-blur'])
-        }
-        if (paint.dongLine['line-opacity']) {
-          map.setPaintProperty('dong-line', 'line-opacity', paint.dongLine['line-opacity'])
-        }
-        console.log('[HexagonLayer3D] Updated dong-line')
-      }
-      
-      // Also update seoul boundary if it exists
-      if (map.getLayer('seoul-boundary')) {
-        const seoulPaint = getDistrictLayerPaint().seoulBoundaryLine
-        if (seoulPaint) {
-          map.setPaintProperty('seoul-boundary', 'line-color', seoulPaint['line-color'])
-          map.setPaintProperty('seoul-boundary', 'line-width', seoulPaint['line-width'])
-          console.log('[HexagonLayer3D] Updated seoul-boundary')
-        }
-      }
+      // Theme updates now handled by Deck.gl unified layers
+      // Colors update automatically through props and updateTriggers
+      console.log('[HexagonLayer3D] Theme updated - Deck.gl layers will re-render')
     }
     
     // Listen for theme change events
@@ -1682,115 +1896,12 @@ export default function HexagonScene() {
     setTimeout(() => {
       const paint = getDistrictLayerPaint()
       
-      // Ensure district fill layer has proper paint properties
-      if (map.getLayer('sgg-fill')) {
-        // Apply the district-specific colors dynamically
-        map.setPaintProperty('sgg-fill', 'fill-color', paint.sggFill['fill-color'])
-        map.setPaintProperty('sgg-fill', 'fill-opacity', paint.sggFill['fill-opacity'])
-      }
-      
-      // Ensure district line layer has proper paint properties
-      if (map.getLayer('sgg-line')) {
-        map.setPaintProperty('sgg-line', 'line-color', paint.sggLine['line-color'])
-        map.setPaintProperty('sgg-line', 'line-width', paint.sggLine['line-width'])
-        map.setPaintProperty('sgg-line', 'line-blur', paint.sggLine['line-blur'])
-        map.setPaintProperty('sgg-line', 'line-opacity', paint.sggLine['line-opacity'])
-      }
-      
-      // Ensure dong fill layer has proper paint properties
-      if (map.getLayer('dong-fill')) {
-        map.setPaintProperty('dong-fill', 'fill-color', paint.dongFill['fill-color'])
-        map.setPaintProperty('dong-fill', 'fill-opacity', paint.dongFill['fill-opacity'])
-      }
-      
-      // Ensure dong line layer has proper paint properties
-      if (map.getLayer('dong-line')) {
-        map.setPaintProperty('dong-line', 'line-color', paint.dongLine['line-color'])
-        map.setPaintProperty('dong-line', 'line-width', paint.dongLine['line-width'])
-        map.setPaintProperty('dong-line', 'line-blur', paint.dongLine['line-blur'])
-        map.setPaintProperty('dong-line', 'line-opacity', paint.dongLine['line-opacity'])
-      }
+      // District layer styling now handled by Deck.gl unified layers
+      // Paint properties applied through layer props
     }, 100) // Small delay to ensure layers are ready
 
-    // 서울 정확한 행정구역 GeoJSON 데이터 로드 (안전한 소스 추가)
-    if (!map.getSource("seoul-boundary")) {
-      try {
-        map.addSource("seoul-boundary", {
-          type: "geojson",
-          data: "/seoul_boundary.geojson"
-        })
-      } catch (error) {
-        console.warn("Failed to add seoul-boundary source:", error)
-      }
-    }
-
-    // 서울 경계선 레이어 - 경계만 표시, 내부 색칠 없음
-    if (map.getSource("seoul-boundary")) {
-      // 서울 경계 그림자 효과 (선택적)
-      addLayerSafely("seoul-boundary-shadow", {
-        id: "seoul-boundary-shadow",
-        type: "line",
-        source: "seoul-boundary",
-        layout: {
-          "line-join": "round",
-          "line-cap": "round",
-          visibility: showBoundary ? "visible" : "none"
-        },
-        paint: {
-          "line-color": "rgba(0, 0, 0, 0.2)",
-          "line-width": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            8, 3,
-            12, 5,
-            16, 7
-          ],
-          "line-blur": 2,
-          "line-opacity": 0.5,
-          "line-translate": [2, 2]
-        },
-      })
-
-      // 메인 서울 경계선 - 깔끔한 아웃라인만
-      addLayerSafely("seoul-boundary-line", {
-        id: "seoul-boundary-line",
-        type: "line",
-        source: "seoul-boundary",
-        layout: {
-          "line-join": "round",
-          "line-cap": "round",
-          visibility: showBoundary ? "visible" : "none"
-        },
-        paint: getDistrictLayerPaint().seoulBoundaryLine,
-      })
-
-      // 서울 경계 하이라이트 효과 (선택적)
-      addLayerSafely("seoul-boundary-highlight", {
-        id: "seoul-boundary-highlight",
-        type: "line",
-        source: "seoul-boundary",
-        layout: {
-          "line-join": "round",
-          "line-cap": "round",
-          visibility: showBoundary ? "visible" : "none"
-        },
-        paint: {
-          "line-color": "rgba(255, 255, 255, 0.3)",
-          "line-width": [
-            "interpolate",
-            ["linear"],
-            ["zoom"],
-            8, 0.5,
-            12, 1,
-            16, 1.5
-          ],
-          "line-blur": 0.5,
-          "line-opacity": 0.6,
-          "line-translate": [-1, -1]
-        },
-      })
-    }
+    // Seoul boundary layers removed - now handled by Deck.gl unified layers
+    // All district boundaries are rendered through GeoJsonLayer for better performance
   }
 
   // District selection data for separate layers
@@ -2021,9 +2132,9 @@ export default function HexagonScene() {
         controller={true}
         layers={deckLayers} // PolygonLayer for 3D visualization
         effects={[lightingEffect]} // Add lighting for solid mesh rendering
-        getTooltip={false ? undefined : getTooltip} // 임시로 selectionMode 무시하고 항상 툴팁 활성화
-        getCursor={({isDragging, isHovering}) => {
-          if (isDragging) return 'grabbing'
+        getTooltip={isDragging ? undefined : getTooltip} // 드래그 중 툴팁 비활성화로 성능 최적화
+        getCursor={({isDragging: dragging, isHovering}) => {
+          if (dragging) return 'grabbing'
           if (isHovering) return 'pointer'
           return 'grab'
         }}
@@ -2050,11 +2161,13 @@ export default function HexagonScene() {
         }}
         onLoad={rotateCamera} // Start rotation when deck.gl loads
         onDragStart={() => {
+          setIsDragging(true) // 드래그 상태 설정
           userInteractingRef.current = true
           onAnimationInteractionStart()
           onRotationInteractionStart()
         }}
         onDragEnd={() => {
+          setIsDragging(false) // 드래그 상태 해제
           userInteractingRef.current = false
           onAnimationInteractionEnd()
           onRotationInteractionEnd()
@@ -2121,316 +2234,10 @@ export default function HexagonScene() {
             setHoveredDistrict(null)
             mapRef.current!.getCanvas().style.cursor = ''
           }}
-          interactiveLayerIds={['sgg-fill', 'sgg-line', 'sgg-select-fill', 'sgg-hover-fill', 'dong-fill', 'dong-line']}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
-          {/* District layers with enhanced 3D visualization */}
-          {sggData && (
-            <Source id="sgg-source" type="geojson" data={is3DMode && sggData3D ? sggData3D : sggData}>
-              
-              {/* 3D Extrusion layer removed - now using Deck.gl PolygonLayer */}
-              
-              {/* District fill - 2D 배경 with district-specific colors - DISABLED IN 3D MODE */}
-              {!is3DMode && (
-                <Layer
-                  id="sgg-fill"
-                  type="fill"
-                  paint={getDistrictLayerPaint().sggFill as any}
-                  layout={{ 
-                    visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                  }}
-                />
-              )}
-              
-              {/* 네온 글로우 효과 - 외곽 글로우 (2D 모드에서만 표시) */}
-              {!is3DMode && (
-                <Layer
-                  id="sgg-glow-outer"
-                  type="line"
-                  paint={{
-                    'line-color': 'rgba(0, 255, 255, 0.2)',
-                    'line-width': 8,
-                    'line-blur': 6,
-                    'line-opacity': 0.5
-                  }}
-                  layout={{ 
-                    visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                  }}
-                />
-              )}
-              
-              {/* 네온 글로우 효과 - 중간 글로우 (2D 모드에서만) */}
-              {!is3DMode && (
-                <Layer
-                  id="sgg-glow-mid"
-                  type="line"
-                  paint={{
-                    'line-color': 'rgba(100, 200, 255, 0.4)',
-                    'line-width': 4,
-                    'line-blur': 3,
-                    'line-opacity': 0.7
-                  }}
-                  layout={{ 
-                    visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                  }}
-                />
-              )}
-              
-              {/* 메인 경계선 - 네온 코어 (3D 모드에서도 표시) */}
-              <Layer
-                id="sgg-line"
-                type="line"
-                paint={getDistrictLayerPaint().sggLine as any}
-                layout={{ 
-                  visibility: districtSelection.sggVisible ? 'visible' : 'none' 
-                }}
-              />
-              
-              {/* Modern hover effect with neon glow and 3D */}
-              {hoveredDistrict && hoveredDistrict !== districtSelection.selectedDistrict && [
-                /* Hover glow effect */
-                <Layer
-                  key="sgg-hover-glow"
-                  id="sgg-hover-glow"
-                  type="line"
-                  source="sgg-source"
-                  paint={{
-                    'line-color': 'rgba(0, 255, 255, 0.3)',
-                    'line-width': 8,
-                    'line-blur': 4
-                  }}
-                  filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
-                />,
-                
-                /* Hover line with bright neon */
-                <Layer
-                  key="sgg-hover-line"
-                  id="sgg-hover-line"
-                  type="line"
-                  source="sgg-source"
-                  paint={{
-                    'line-color': 'rgba(0, 255, 255, 0.9)',
-                    'line-width': 2.5,
-                    'line-opacity': 1
-                  }}
-                  filter={['==', ['get', 'SIGUNGU_NM'], hoveredDistrict]}
-                />
-              ]}
-              
-              {/* Removed - using setPaintProperty instead */}
-            </Source>
-          )}
-          
-          {/* Dong layers with 3D effects */}
-          {dongData && (
-            <Source id="dong-source" type="geojson" data={is3DMode && dongData3D ? dongData3D : dongData}>
-              
-              {/* 3D Dong Extrusion layer removed - now using Deck.gl PolygonLayer */}
-              
-              {/* Dong fill with district-aware colors - ONLY IN 2D MODE */}
-              {!is3DMode && (
-                <Layer
-                  id="dong-fill"
-                  type="fill"
-                  paint={getDistrictLayerPaint().dongFill as any}
-                  layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
-                />
-              )}
-              
-              {/* Dong neon glow lines (2D 모드에서만) */}
-              {!is3DMode && (
-                <Layer
-                  id="dong-glow"
-                  type="line"
-                  paint={{
-                    'line-color': 'rgba(200, 100, 255, 0.15)',
-                    'line-width': 4,
-                    'line-blur': 3,
-                    'line-opacity': 0.6
-                  }}
-                  layout={{ 
-                    visibility: districtSelection.dongVisible ? 'visible' : 'none' 
-                  }}
-                />
-              )}
-              
-              {/* Dong main lines with modern style (3D 모드에서도 표시) */}
-              <Layer
-                id="dong-line"
-                type="line"
-                paint={getDistrictLayerPaint().dongLine as any}
-                layout={{ visibility: districtSelection.dongVisible ? 'visible' : 'none' }}
-              />
-            </Source>
-          )}
-          
-          {/* Jib layers */}
-          {jibData && !districtSelection.selectionMode && viewState.zoom > 10 && (
-            <Source id="jib-source" type="geojson" data={jibData}>
-              <Layer
-                id="jib-line"
-                type="line"
-                paint={getDistrictLayerPaint().jibLine as any}
-                layout={{ visibility: districtSelection.jibVisible ? 'visible' : 'none' }}
-                minzoom={10}
-              />
-            </Source>
-          )}
-
-          {/* Selected District Layer with enhanced visibility - ONLY IN 2D MODE */}
-          {!is3DMode && selectedDistrictData && (
-            <Source id="selected-district-source" type="geojson" data={selectedDistrictData}>
-              
-              {/* Fill layer for selected area - subtle background */}
-              <Layer
-                id="selected-fill"
-                type="fill"
-                paint={{
-                  'fill-color': [
-                    'case',
-                    // 동 선택시 - 다양한 속성명 지원 및 타입 변환
-                    ['any',
-                      ['==', ['to-string', ['get', 'ADM_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'H_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'DONG_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'ADM_DR_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'EMD_CD']], String(selectedDongCode)]
-                    ], 'rgba(255, 100, 150, 0.2)', // 동 - 핑크색
-                    // 구 선택시 - 다양한 속성명 지원
-                    ['any',
-                      ['==', ['to-string', ['get', 'SIG_CD']], String(selectedGuCode)],
-                      ['==', ['to-string', ['get', 'SGG_CD']], String(selectedGuCode)],
-                      ['==', ['to-string', ['get', 'GU_CD']], String(selectedGuCode)],
-                      ['==', ['to-string', ['get', 'SIGUNGU_CD']], String(selectedGuCode)],
-                      ['==', ['get', 'SIGUNGU_NM'], selectedGu]
-                    ], 'rgba(102, 126, 234, 0.15)', // 구 - 파란색
-                    'rgba(102, 126, 234, 0.1)' // 기본값
-                  ],
-                  'fill-opacity': 0.6
-                }}
-              />
-              
-              {/* Selected shadow for depth */}
-              <Layer
-                id="selected-shadow"
-                type="line"
-                paint={{
-                  'line-color': 'rgba(0, 0, 0, 0.5)',
-                  'line-width': 10,
-                  'line-blur': 6,
-                  'line-translate': [4, 4],
-                  'line-translate-anchor': 'viewport'
-                }}
-              />
-              
-              {/* Selected glow effect - outer (더 밝고 넓게) */}
-              <Layer
-                id="selected-glow-outer"
-                type="line"
-                paint={{
-                  'line-color': [
-                    'case',
-                    // 동 선택시 - 다양한 속성명 지원
-                    ['any',
-                      ['==', ['to-string', ['get', 'ADM_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'H_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'DONG_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'ADM_DR_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'EMD_CD']], String(selectedDongCode)]
-                    ], 'rgba(255, 100, 150, 0.4)', // 동
-                    'rgba(102, 126, 234, 0.4)' // 구
-                  ],
-                  'line-width': selectedDong ? 20 : 18,
-                  'line-blur': 8
-                }}
-              />
-              
-              {/* Selected glow effect - mid */}
-              <Layer
-                id="selected-glow-mid"
-                type="line"
-                paint={{
-                  'line-color': [
-                    'case',
-                    // 동 선택시 - 다양한 속성명 지원
-                    ['any',
-                      ['==', ['to-string', ['get', 'ADM_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'H_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'DONG_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'ADM_DR_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'EMD_CD']], String(selectedDongCode)]
-                    ], 'rgba(255, 100, 150, 0.6)', // 동
-                    'rgba(102, 126, 234, 0.6)' // 구
-                  ],
-                  'line-width': selectedDong ? 12 : 10,
-                  'line-blur': 4
-                }}
-              />
-              
-              {/* Selected district outline with bright neon (더 두껍게) */}
-              <Layer
-                id="selected-district-line"
-                type="line"
-                paint={{
-                  'line-color': [
-                    'case',
-                    // 동 선택시 - 다양한 속성명 지원
-                    ['any',
-                      ['==', ['to-string', ['get', 'ADM_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'H_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'DONG_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'ADM_DR_CD']], String(selectedDongCode)],
-                      ['==', ['to-string', ['get', 'EMD_CD']], String(selectedDongCode)]
-                    ], '#ff00aa', // 동 - 핑크
-                    '#00ff88' // 구 - 민트그린
-                  ],
-                  'line-width': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, selectedDong ? 4 : 5,
-                    12, selectedDong ? 6 : 8,
-                    16, selectedDong ? 8 : 10
-                  ],
-                  'line-opacity': 1
-                }}
-              />
-              
-              {/* Inner bright line for emphasis */}
-              <Layer
-                id="selected-district-inner"
-                type="line"
-                paint={{
-                  'line-color': '#ffffff',
-                  'line-width': [
-                    'interpolate',
-                    ['linear'],
-                    ['zoom'],
-                    8, 1.5,
-                    12, 2.5,
-                    16, 3.5
-                  ],
-                  'line-opacity': 0.9
-                }}
-              />
-              
-              {/* 구 경계 보조선 (동 선택시) - 연한 표시 */}
-              {selectedDong && (
-                <Layer
-                  id="selected-gu-boundary"
-                  type="line"
-                  paint={{
-                    'line-color': 'rgba(102, 126, 234, 0.5)',
-                    'line-width': 3,
-                    'line-opacity': 0.6,
-                    'line-dasharray': [2, 2]
-                  }}
-                  filter={['==', ['get', 'SIGUNGU_NM'], selectedGu]}
-                />
-              )}
-            </Source>
-          )}
+          {/* All layers are now rendered by Deck.gl for better performance */}
           
           {/* District Labels Layer - Now handled by Deck.gl TextLayer in deckLayers */}
           {/* Old Mapbox implementation commented out - replaced with Deck.gl TextLayer for proper 3D rendering
@@ -2495,17 +2302,8 @@ export default function HexagonScene() {
           const map = mapRef.current?.getMap()
           if (map) {
             // Toggle all Seoul boundary layers
-            const boundaryLayers = ['seoul-boundary-shadow', 'seoul-boundary-line', 'seoul-boundary-highlight']
-            boundaryLayers.forEach(layerId => {
-              const layer = map.getLayer(layerId)
-              if (layer) {
-                try {
-                  map.setLayoutProperty(layerId, 'visibility', show ? 'visible' : 'none')
-                } catch (error) {
-                  console.warn(`Failed to toggle ${layerId} visibility:`, error)
-                }
-              }
-            })
+            // Boundary visibility now controlled through Deck.gl layer props
+            console.log('[HexagonLayer3D] Boundary visibility:', show)
           }
         }}
         onSeoulBaseToggle={(show) => {
