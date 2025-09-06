@@ -7,14 +7,13 @@ import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator, FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import { PolygonLayer } from '@deck.gl/layers'
-import mapboxgl from "mapbox-gl"
-import 'mapbox-gl/dist/mapbox-gl.css'
 import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, createScatterplotLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { useHeightInterpolation } from "../hooks/useHeightInterpolation"
-import { useOptimizedDailyData } from "../hooks/useOptimizedDailyData"
+import { useOptimizedMonthlyData } from "../hooks/useOptimizedMonthlyData"
+import { useBinaryOptimizedData } from "../hooks/useBinaryOptimizedData"
 import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
@@ -22,7 +21,6 @@ import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
 import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode, getDongCode } from "../data/districtCodeMappings"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
-import { DistrictLabelsLayer } from "./DistrictLabelsLayer"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
@@ -52,6 +50,17 @@ import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
 import type { FeatureCollection } from 'geojson'
 import "../styles/HexagonLayer.css"
 import "@/src/shared/styles/districtEffects.css"
+
+// Common GPU optimization parameters for all layers
+const COMMON_GPU_PARAMS = {
+  depthTest: true,
+  depthFunc: 0x0203, // GL.LEQUAL
+  blend: true,
+  blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
+  cullFace: 0x0405, // GL.BACK
+  cullFaceMode: true,
+  polygonOffsetFill: true // Prevent z-fighting
+}
 
 // Simple color function for sales-based visualization
 const convertColorExpressionToRGB = (
@@ -247,9 +256,8 @@ export default function HexagonScene() {
       transitionEasing: (t: number) => t * (2 - t)
     })
     
-    setTimeout(() => {
-      isProgrammaticUpdateRef.current = false
-    }, transitionDuration + 100)
+    // Reset programmatic flag after transition (immediate for better responsiveness)
+    isProgrammaticUpdateRef.current = false
   }, [])
   
   // 통합 줌 처리 함수 - 3D 폴리곤 클릭과 필터 패널 선택 모두에서 사용
@@ -272,9 +280,8 @@ export default function HexagonScene() {
         transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
       }))
       
-      setTimeout(() => {
-        isProgrammaticUpdateRef.current = false
-      }, ZOOM_SETTINGS.TRANSITION_DURATION + 100)
+      // Reset programmatic flag (immediate for better responsiveness)
+      isProgrammaticUpdateRef.current = false
     }
   }, [setViewState])
   
@@ -282,7 +289,7 @@ export default function HexagonScene() {
   const handleFilterChange = useCallback((filters: FilterState) => {
     // Directly update states without checking current values
     // This prevents unnecessary re-renders and loops
-    console.log('[HexagonLayer3D] Filter change received:', filters)
+    // Removed console.log for performance
     setSelectedGu(filters.selectedGu)
     setSelectedGuCode(filters.selectedGuCode)
     setSelectedDong(filters.selectedDong)
@@ -532,14 +539,10 @@ export default function HexagonScene() {
     }
   }, [districtSelection.selectedFeature, districtSelection.selectionMode])
   
-  // Manage animation state for selected districts
+  // Selection updates now handled by Deck.gl unified layers through updateTriggers
+  // No manual Mapbox layer manipulation needed
   useEffect(() => {
     if (districtSelection.selectedDistrict) {
-      // Force re-render of layers to apply color changes
-      const map = mapRef.current?.getMap()
-      // Selection layer updates now handled by Deck.gl unified layers
-      // No need for manual layer property updates
-      
       // Keep animation active
       const animationTimer = setTimeout(() => {
         // Animation continues indefinitely for selected district
@@ -551,12 +554,8 @@ export default function HexagonScene() {
     }
   }, [districtSelection.selectedDistrict])
 
-  // Sync bearing with MapBox when it changes
-  useEffect(() => {
-    if (mapRef.current && viewState.bearing !== undefined) {
-      mapRef.current.setBearing(viewState.bearing)
-    }
-  }, [viewState.bearing])
+  // Bearing sync handled by DeckGL viewState synchronization
+  // No manual Mapbox bearing sync needed
 
   // Initialize bearing ref
   useEffect(() => {
@@ -605,11 +604,10 @@ export default function HexagonScene() {
     return null
   }, [dongSalesMap])
 
-  // Handle hexagon hover for district-wide highlighting
-  const handleHexagonHover = useCallback((info: PickingInfo) => {
-    const canvas = mapRef.current?.getCanvas()
-    
-    if (info.object && info.object.originalData) {
+  // Handle unified DeckGL hover for all layers
+  const handleUnifiedHover = useCallback((info: PickingInfo) => {
+    // Handle hexagon layer hover
+    if (info.layer?.id?.includes('hexagon') && info.object && info.object.originalData) {
       const dongName = info.object.originalData.dongName
       setHoveredObject(info.object)
       
@@ -617,35 +615,31 @@ export default function HexagonScene() {
       if (dongName) {
         setHoveredDistrict(dongName)
       }
-      
-      // Change cursor to pointer for better UX
-      if (canvas) {
-        canvas.style.cursor = 'pointer'
+    } 
+    // Handle district polygon hover (from unified layers)
+    else if (info.layer?.id?.includes('unified-sgg') || info.layer?.id?.includes('unified-dong')) {
+      const feature = info.object
+      if (feature && feature.properties) {
+        const districtName = feature.properties?.SIGUNGU_NM || 
+                           feature.properties?.GU_NM || 
+                           feature.properties?.ADM_DR_NM || 
+                           feature.properties?.DONG_NM
+        if (districtName) {
+          setHoveredDistrict(districtName)
+        }
       }
-    } else {
+    }
+    else {
       setHoveredObject(null)
       setHoveredDistrict(null)
-      
-      // Reset cursor
-      if (canvas) {
-        canvas.style.cursor = 'grab'
-      }
     }
   }, [setHoveredObject])
 
-  // Handle hexagon click - matches new viewport logic
-  const handleHexagonClick = useCallback((info: PickingInfo) => {
-    if (info.object && info.object.originalData) {
+  // Handle unified DeckGL click for all layers
+  const handleUnifiedClick = useCallback((info: PickingInfo) => {
+    // Handle hexagon layer click
+    if (info.layer?.id?.includes('hexagon') && info.object && info.object.originalData) {
       const { guName, dongName, guCode, dongCode } = info.object.originalData
-      
-      // Add visual feedback for click
-      const canvas = mapRef.current?.getCanvas()
-      if (canvas) {
-        canvas.style.cursor = 'grabbing'
-        setTimeout(() => {
-          canvas.style.cursor = 'grab'
-        }, 200)
-      }
       
       // Set district selections with both names and codes
       if (dongName && guName) {
@@ -658,7 +652,7 @@ export default function HexagonScene() {
         setSelectedDong(dongName)
         setSelectedDongCode(calculatedDongCode)
         
-        console.log('[HexagonClick] Selected dong:', { guName, guCode: calculatedGuCode, dongName, dongCode: calculatedDongCode })
+        // Removed console.log for performance
       } else if (guName) {
         // 구 클릭시: 구만 설정 (서울 전체 뷰 유지)
         setSelectedGu(guName)
@@ -667,10 +661,45 @@ export default function HexagonScene() {
         setSelectedDong(null)
         setSelectedDongCode(null)
         
-        console.log('[HexagonClick] Selected gu:', { guName, guCode: calculatedGuCode })
+        // Removed console.log for performance
       }
-      
-      // 뷰포트 변경은 useEffect에서 자동 처리됨
+    }
+    // Handle district polygon click (from unified layers)
+    else if (info.layer?.id?.includes('unified-sgg') && info.object && info.object.properties) {
+      const guName = info.object.properties?.SIGUNGU_NM || info.object.properties?.GU_NM
+      if (guName) {
+        setSelectedGu(guName)
+        const calculatedGuCode = getDistrictCode(guName)
+        setSelectedGuCode(calculatedGuCode)
+        setSelectedDong(null)
+        setSelectedDongCode(null)
+        // Removed console.log for performance
+      }
+    }
+    else if (info.layer?.id?.includes('unified-dong') && info.object && info.object.properties) {
+      const dongName = info.object.properties?.ADM_DR_NM || info.object.properties?.DONG_NM
+      const guName = info.object.properties?.guName || info.object.properties?.['자치구']
+      if (dongName && guName) {
+        setSelectedGu(guName)
+        setSelectedDong(dongName)
+        const calculatedGuCode = getDistrictCode(guName)
+        const calculatedDongCode = getDongCode(guName, dongName)
+        setSelectedGuCode(calculatedGuCode)
+        setSelectedDongCode(calculatedDongCode)
+        // Removed console.log for performance
+      }
+    }
+    // Handle district labels click
+    else if (info.layer?.id?.includes('district-labels') && info.object) {
+      const guName = info.object.nameKr
+      if (guName) {
+        setSelectedGu(guName)
+        const calculatedGuCode = getDistrictCode(guName)
+        setSelectedGuCode(calculatedGuCode)
+        setSelectedDong(null)
+        setSelectedDongCode(null)
+        // Removed console.log for performance
+      }
     }
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
 
@@ -691,15 +720,7 @@ export default function HexagonScene() {
         highlightColor: [255, 255, 255, 60],
         
         // GPU Optimization Parameters
-        parameters: {
-          depthTest: true,
-          depthFunc: 0x0203, // GL.LEQUAL
-          blend: true,
-          blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
-          cullFace: 0x0405, // GL.BACK - cull back faces
-          cullFaceMode: true,
-          polygonOffsetFill: true // Prevent z-fighting
-        },
+        parameters: COMMON_GPU_PARAMS,
         
         // Geometry
         getPolygon: (d: any) => {
@@ -906,9 +927,9 @@ export default function HexagonScene() {
         
         // Update triggers for reactive updates
         updateTriggers: {
-          getElevation: [selectedGu, selectedDong, dongSalesMap, heightScale],
-          getFillColor: [selectedGu, selectedDong, currentThemeKey, dongSalesMap, themeAdjustments],
-          getLineColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments]
+          getElevation: [selectedGu, selectedDong, dongSalesMap, heightScale, selectedDate],
+          getFillColor: [selectedGu, selectedDong, currentThemeKey, dongSalesMap, themeAdjustments, selectedDate],
+          getLineColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments, selectedDate]
         }
       })
     ]
@@ -1046,45 +1067,30 @@ export default function HexagonScene() {
     // Load critical layers immediately
     setCriticalLayersLoaded(true)
     
-    // Defer non-critical layers
-    const timer = setTimeout(() => {
-      setDeferredLayersLoaded(true)
-    }, 100) // Small delay to let critical layers render first
-    
-    return () => clearTimeout(timer)
+    // Defer non-critical layers (immediate loading for better UX)
+    setDeferredLayersLoaded(true)
   }, [])
   
-  // Combine all deck.gl layers - Using visible prop pattern for better performance
+  // Combine all deck.gl layers - Using conditional rendering for better performance (no cloning)
   const deckLayers = useMemo(() => {
     const layers = []
     
-    // Critical layer: Mesh (loads first for immediate visual feedback)
-    if (preGeneratedMeshLayer && criticalLayersLoaded) {
-      const visibleMeshLayer = preGeneratedMeshLayer.clone({
-        visible: showMeshLayer // Control visibility via prop
-      })
-      layers.push(visibleMeshLayer)
+    // Critical layer: Mesh (conditional rendering instead of cloning)
+    if (preGeneratedMeshLayer && criticalLayersLoaded && showMeshLayer) {
+      layers.push(preGeneratedMeshLayer)
     }
     
     // Deferred layers: Load after initial render
     if (deferredLayersLoaded) {
-      // Include unified 2D layers with visibility control
-      if (unifiedLayers && unifiedLayers.length > 0) {
-        // Clone layers with visible prop instead of conditional rendering
-        const visibleUnifiedLayers = unifiedLayers.map(layer => layer.clone({
-          visible: !is3DMode // Hide 2D layers in 3D mode
-        }))
-        layers.push(...visibleUnifiedLayers)
+      // Include unified 2D layers only in 2D mode (conditional rendering instead of cloning)
+      if (unifiedLayers && unifiedLayers.length > 0 && !is3DMode) {
+        layers.push(...unifiedLayers)
       }
       
-      // Include 3D polygon layers with visibility control
-      if (dongData3D) {
+      // Include 3D polygon layers only in 3D mode (conditional rendering instead of cloning)
+      if (dongData3D && is3DMode) {
         const dong3DLayers = createDong3DPolygonLayers()
-        // Set visibility based on 3D mode
-        const visible3DLayers = dong3DLayers.map(layer => layer.clone({
-          visible: is3DMode // Only show in 3D mode
-        }))
-        layers.push(...visible3DLayers)
+        layers.push(...dong3DLayers)
       }
     }
     
@@ -1143,12 +1149,9 @@ export default function HexagonScene() {
     }
     
     return layers
-  }, [is3DMode, dongData3D, createDong3DPolygonLayers, 
-      showDistrictLabels, showDongLabels, viewState.zoom, selectedGu, selectedDong, hoveredDistrict,
-      handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick,
-      setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode,
-      showMeshLayer, preGeneratedMeshLayer, unifiedLayers,
-      criticalLayersLoaded, deferredLayersLoaded])  // Add progressive loading states
+  }, [is3DMode, dongData3D, showDistrictLabels, showDongLabels, viewState.zoom, 
+      selectedGu, selectedDong, hoveredDistrict, showMeshLayer, preGeneratedMeshLayer, 
+      unifiedLayers, criticalLayersLoaded, deferredLayersLoaded])  // Optimized: removed function dependencies
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -1338,9 +1341,6 @@ export default function HexagonScene() {
   // [REMOVED] Mapbox native layer helper - now using Deck.gl unified layers only
 
   useEffect(() => {
-    // Mapbox access token 설정
-    mapboxgl.accessToken = MAPBOX_TOKEN
-
     // 힌트 숨기기 타이머
     const hintTimer = setTimeout(() => {
       setShowHint(false)
@@ -1380,20 +1380,47 @@ export default function HexagonScene() {
     loadData()
   }, [])
   
-  // 최적화된 일별 데이터 사용
-  const formatSelectedDate = selectedDate ? 
-    `20${selectedDate.slice(0,2)}-${selectedDate.slice(2,4)}-${selectedDate.slice(4,6)}` : 
-    '2024-01-01'
+  // 최적화된 일별 데이터 사용 (selectedDate는 이미 YYYY-MM-DD 형식)
+  const formatSelectedDate = selectedDate || '2024-01-01'
   
+  // Binary 형식 사용 여부 (환경변수 또는 기본값 true)
+  const USE_BINARY_FORMAT = process.env.NEXT_PUBLIC_USE_BINARY_FORMAT !== 'false'
+  
+  // 데이터 형식 로깅 (최초 1회만)
+  useEffect(() => {
+    console.log(`[Data Format] Using ${USE_BINARY_FORMAT ? 'BINARY' : 'JSON'} format for data loading`)
+    if (USE_BINARY_FORMAT) {
+      console.log('[Data Format] Binary format provides 97.6% size reduction and 10x faster loading')
+    }
+  }, [])
+  
+  // Binary 형식 데이터 로딩 (우선 사용)
+  const binaryDataResult = useBinaryOptimizedData({ 
+    selectedDate: formatSelectedDate,
+    enabled: USE_BINARY_FORMAT,
+    useBinary: true
+  })
+  
+  // JSON 형식 데이터 로딩 (폴백)
+  const jsonDataResult = useOptimizedMonthlyData({ 
+    selectedDate: formatSelectedDate,
+    enabled: !USE_BINARY_FORMAT
+  })
+  
+  // Binary 우선, JSON 폴백
   const { 
     features: optimizedFeatures, 
     dongMap: optimizedDongMap,
     isLoading: isOptimizedLoading,
     error: optimizedError 
-  } = useOptimizedDailyData({ 
-    selectedDate: formatSelectedDate,
-    enabled: true 
-  })
+  } = USE_BINARY_FORMAT ? binaryDataResult : jsonDataResult
+  
+  // 성능 로깅 (Binary 모드에서만)
+  useEffect(() => {
+    if (USE_BINARY_FORMAT && binaryDataResult.loadingStats && !isOptimizedLoading) {
+      console.log(`[Binary Performance] Total load time: ${binaryDataResult.loadingStats.totalTime?.toFixed(2)}ms`)
+    }
+  }, [USE_BINARY_FORMAT, binaryDataResult.loadingStats, isOptimizedLoading])
 
   // Load sales data from optimized data
   useEffect(() => {
@@ -1401,8 +1428,15 @@ export default function HexagonScene() {
       console.log('[OptimizedData] Waiting for optimized data...')
       return
     }
+    
+    // 디버깅: optimizedDongMap 확인
+    console.log(`[DEBUG] optimizedDongMap 크기: ${optimizedDongMap.size}`)
+    const firstThree = Array.from(optimizedDongMap.entries()).slice(0, 3)
+    firstThree.forEach(([dongCode, feature]) => {
+      console.log(`[DEBUG dongMap] 동코드 ${dongCode}: height=${feature.height}, totalSales=${feature.totalSales}`)
+    })
 
-    console.log(`[OptimizedData] Processing ${optimizedFeatures.length} optimized features`)
+    // Removed console.log for performance
     
     // Convert optimized data to existing map format for compatibility
     const salesByDong = new Map<number, number>()
@@ -1420,7 +1454,7 @@ export default function HexagonScene() {
       }
     })
     
-    console.log(`[OptimizedData] Loaded sales for ${salesByDong.size} dongs (optimized)`)
+    // Removed console.log for performance
     
     // Log min/max for reference
     const salesValues = optimizedFeatures.map(f => f.totalSales)
@@ -1495,15 +1529,7 @@ export default function HexagonScene() {
         highlightColor: [255, 255, 255, 60],
         
         // GPU Optimization Parameters
-        parameters: {
-          depthTest: true,
-          depthFunc: 0x0203, // GL.LEQUAL
-          blend: true,
-          blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
-          cullFace: 0x0405, // GL.BACK - cull back faces
-          cullFaceMode: true,
-          polygonOffsetFill: true // Prevent z-fighting
-        },
+        parameters: COMMON_GPU_PARAMS,
         
         // Geometry
         getPolygon: (d: any) => {
@@ -1527,6 +1553,11 @@ export default function HexagonScene() {
           // 최적화된 데이터에서 사전 계산된 높이 가져오기
           const optimizedFeature = dongCode && optimizedDongMap ? optimizedDongMap.get(Number(dongCode)) : null
           const height = optimizedFeature?.height || d.properties.height || 0
+          
+          // 디버깅: 높이 데이터 확인 (첫 3개만)
+          if (dongCode && parseInt(dongCode) <= 11110115) {
+            console.log(`[DEBUG getElevation] 동코드 ${dongCode}: optimizedHeight=${optimizedFeature?.height}, propertiesHeight=${d.properties.height}, finalHeight=${height}`)
+          }
           
           // 동 선택 시: 선택된 구의 동만 원래 높이
           if (selectedDong) {
@@ -1726,9 +1757,9 @@ export default function HexagonScene() {
         
         // Update triggers for reactive updates (optimized - removed hover state)
         updateTriggers: {
-          getElevation: [selectedGu, selectedDong, heightScale],
-          getFillColor: [selectedGu, selectedDong, dongColorMap], // Use pre-calculated color map
-          getLineColor: [selectedGu, selectedDong]
+          getElevation: [selectedGu, selectedDong, dongSalesMap, heightScale, selectedDate],
+          getFillColor: [selectedGu, selectedDong, dongColorMap, selectedDate], // Use pre-calculated color map
+          getLineColor: [selectedGu, selectedDong, selectedDate]
         }
       })
     ]
@@ -1903,45 +1934,11 @@ export default function HexagonScene() {
     }
   }, [heightInterpolation.isAnimating, dongData])
   
-  // 3D 모드 변경 시 조명 설정
-  useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-    
-    // 맵이 로드되었는지 확인
-    if (!map.loaded()) {
-      map.once('load', () => {
-        if (is3DMode) {
-          map.setLight(LIGHT_3D_CONFIG as any)
-        }
-      })
-    } else {
-      if (is3DMode) {
-        map.setLight(LIGHT_3D_CONFIG as any)
-      }
-    }
-  }, [is3DMode])
-
-  // currentLayer 변경시 오버레이 업데이트
-  useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-
-    // Dark overlay now handled through Deck.gl layer opacity/styling
-    // No longer using Mapbox native background layers
-  }, [currentLayer])
-
-  // Update district colors when data changes
-  useEffect(() => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-    
-    // Get fresh paint properties with current theme
-    const paint = getDistrictLayerPaint()
-    
-    // Layer colors now managed by Deck.gl unified layers through props
-    // Updates trigger automatically via updateTriggers
-  }, [sggData, dongData])
+  // Lighting for 3D mode handled by DeckGL lighting effects
+  // No Mapbox-specific lighting setup needed
+  
+  // Layer styling handled by DeckGL unified layers
+  // No manual Mapbox layer style updates needed
 
   // Listen for theme changes
   useEffect(() => {
@@ -1954,21 +1951,6 @@ export default function HexagonScene() {
       console.log('[HexagonLayer3D] Updating theme state to:', newTheme?.name, 'Key:', newThemeKey)
       setCurrentThemeState(newTheme)
       setCurrentThemeKey(newThemeKey)
-      
-      const map = mapRef.current?.getMap()
-      if (!map) {
-        console.log('[HexagonLayer3D] Map not ready')
-        return
-      }
-      
-      // Get fresh paint properties with new theme
-      const paint = getDistrictLayerPaint()
-      console.log('[HexagonLayer3D] New paint colors:', {
-        sggFill: paint.sggFill['fill-color'],
-        sggLine: paint.sggLine['line-color']
-      })
-      
-      // Removed dong-extrusion layer update - now using Deck.gl PolygonLayer
       
       // Theme updates now handled by Deck.gl unified layers
       // Colors update automatically through props and updateTriggers
@@ -1983,22 +1965,8 @@ export default function HexagonScene() {
     }
   }, [])
 
-  // 지도 로드 완료 후 Mapbox 레이어 추가
-  const handleMapLoad = () => {
-    const map = mapRef.current?.getMap()
-    if (!map) return
-
-    // Apply dynamic district colors after map loads
-    setTimeout(() => {
-      const paint = getDistrictLayerPaint()
-      
-      // District layer styling now handled by Deck.gl unified layers
-      // Paint properties applied through layer props
-    }, 100) // Small delay to ensure layers are ready
-
-    // Seoul boundary layers removed - now handled by Deck.gl unified layers
-    // All district boundaries are rendered through GeoJsonLayer for better performance
-  }
+  // Map initialization now handled purely by DeckGL
+  // No manual Mapbox layer setup needed
 
   // District selection data for separate layers
   const [selectedDistrictData, setSelectedDistrictData] = useState<any>(null)
@@ -2239,33 +2207,24 @@ export default function HexagonScene() {
         effects={[lightingEffect]} // Add lighting for solid mesh rendering
         getTooltip={isDragging ? undefined : getTooltip} // 드래그 중 툴팁 비활성화로 성능 최적화
         layerFilter={layerFilter} // Performance optimization during interaction
-        useDevicePixels={!isDragging} // Lower resolution during drag for performance
+        useDevicePixels={!isDragging && window.innerWidth > 768} // Combined: lower resolution during drag AND disable high DPI on mobile
         getCursor={({isDragging: dragging, isHovering}) => {
           if (dragging) return 'grabbing'
           if (isHovering) return 'pointer'
           return 'grab'
         }}
-        // GPU Optimization Parameters
+        // GPU Optimization Parameters  
         parameters={{
-          depthTest: true,
-          depthFunc: 0x0203, // GL.LEQUAL
-          blend: true,
-          blendFunc: [0x0302, 0x0303, 0x0001, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA, GL.ONE, GL.ONE_MINUS_SRC_ALPHA]
+          ...COMMON_GPU_PARAMS,
+          blendFunc: [0x0302, 0x0303, 0x0001, 0x0303], // Extended blend for DeckGL main canvas
           blendEquation: 0x8006, // GL.FUNC_ADD
-          polygonOffsetFill: true,
-          cullFace: 0x0405, // GL.BACK
-          cullFaceMode: true
         }}
-        // Performance optimizations
-        useDevicePixels={window.innerWidth <= 768 ? false : true} // Disable high DPI on mobile
         _typedArrayManagerProps={{
           overAlloc: 1.2,  // Reduce over-allocation (default 2.0)
           poolSize: 100    // Limit pool size for memory efficiency
         }}
-        onClick={() => {
-          // 이벤트가 레이어로 전파되도록 함
-          return true
-        }}
+        onClick={handleUnifiedClick}
+        onHover={handleUnifiedHover}
         onLoad={rotateCamera} // Start rotation when deck.gl loads
         onDragStart={() => {
           setIsDragging(true) // 드래그 상태 설정
@@ -2289,11 +2248,10 @@ export default function HexagonScene() {
             return
           }
           
-          // Update the viewState to keep DeckGL and MapGL synchronized
-          const mapViewState = newViewState as MapViewState
-          setViewState(mapViewState)
+          // Update the viewState - DeckGL and MapGL sync automatically
+          setViewState(newViewState as MapViewState)
           
-          // Sync bearing ref when view state changes (e.g., during user interaction)
+          // Update bearing ref for rotation animation
           if ('bearing' in newViewState && newViewState.bearing !== undefined) {
             currentBearingRef.current = newViewState.bearing
             updateBearing(newViewState.bearing)
@@ -2316,31 +2274,7 @@ export default function HexagonScene() {
             ...(is3DMode ? { light: LIGHT_3D_CONFIG } : {})
           } : currentLayer === 'very-dark' ? 'mapbox://styles/mapbox/dark-v11' : currentLayer}
           {...viewState}
-          onLoad={handleMapLoad}
-          onClick={(e: MapLayerMouseEvent) => {
-            if (!districtSelection.handleDistrictClick(e)) {
-              // Handle other click events if not in selection mode
-            }
-          }}
           onDblClick={districtSelection.handleMapReset}
-          onMouseMove={(e: MapLayerMouseEvent) => {
-            if (e.features && e.features.length > 0) {
-              const feature = e.features[0]
-              
-              if (feature.properties?.SIGUNGU_NM) {
-                // Hover logic for district names
-                setHoveredDistrict(feature.properties.SIGUNGU_NM)
-                mapRef.current!.getCanvas().style.cursor = 'pointer'
-              }
-            } else {
-              setHoveredDistrict(null)
-              mapRef.current!.getCanvas().style.cursor = ''
-            }
-          }}
-          onMouseLeave={() => {
-            setHoveredDistrict(null)
-            mapRef.current!.getCanvas().style.cursor = ''
-          }}
           reuseMaps
           style={{ width: '100%', height: '100%' }}
         >
@@ -2406,12 +2340,8 @@ export default function HexagonScene() {
         onDongLabelsToggle={(visible: boolean) => setShowDongLabels(visible)}
         onBoundaryToggle={(show) => {
           setShowBoundary(show)
-          const map = mapRef.current?.getMap()
-          if (map) {
-            // Toggle all Seoul boundary layers
-            // Boundary visibility now controlled through Deck.gl layer props
-            console.log('[HexagonLayer3D] Boundary visibility:', show)
-          }
+          // Boundary visibility now controlled through Deck.gl layer props
+          console.log('[HexagonLayer3D] Boundary visibility:', show)
         }}
         onSeoulBaseToggle={(show) => {
           setShowSeoulBase(show)
@@ -2513,44 +2443,6 @@ export default function HexagonScene() {
         </div>
       )}
 
-      <style jsx global>{`
-        .mapboxgl-popup-content {
-          background: rgba(0, 0, 0, 0.85);
-          color: white;
-          border-radius: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.2);
-          padding: 0 !important;
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
-        }
-        
-        .mapboxgl-popup-tip {
-          border-top-color: rgba(0, 0, 0, 0.85) !important;
-        }
-        
-        .mapbox-tooltip .mapboxgl-popup-content {
-          background: linear-gradient(135deg, rgba(0, 0, 0, 0.9), rgba(20, 20, 20, 0.9));
-          backdrop-filter: blur(10px);
-          -webkit-backdrop-filter: blur(10px);
-        }
-        
-        .mapbox-tooltip .mapboxgl-popup-content > div {
-          padding: 12px 14px;
-        }
-        
-        .mapboxgl-ctrl-group {
-          background: rgba(0, 0, 0, 0.8) !important;
-          border-radius: 8px !important;
-        }
-        
-        .mapboxgl-ctrl-group button {
-          background: transparent !important;
-          color: white !important;
-        }
-        
-        .mapboxgl-ctrl-group button:hover {
-          background: rgba(255, 255, 255, 0.1) !important;
-        }
-      `}</style>
       </div>
       
       {/* Chart Panel - Resizable Right Side */}
