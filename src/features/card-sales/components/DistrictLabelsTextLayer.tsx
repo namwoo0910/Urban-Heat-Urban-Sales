@@ -37,12 +37,11 @@ export function createDistrictLabelsTextLayer({
     return layers
   }
   
-  // Calculate text size based on zoom level
+  // Calculate text size based on zoom level - use integer zoom for performance
   const getTextSize = () => {
-    const zoom = viewState.zoom
-    if (zoom < 10.5) return 12
+    const zoom = Math.floor(viewState.zoom) // Round to integer to reduce recalculation
+    if (zoom < 10) return 12
     if (zoom < 11) return 14
-    if (zoom < 11.5) return 16
     if (zoom < 12) return 18
     if (zoom < 13) return 20
     return 22

@@ -352,6 +352,10 @@ export default function HexagonScene() {
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
   const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
   
+  // Progressive rendering states for performance
+  const [deferredLayersLoaded, setDeferredLayersLoaded] = useState(false)
+  const [criticalLayersLoaded, setCriticalLayersLoaded] = useState(false)
+  
   // Helper function to handle dong click from text labels
   const handleDongClick = useCallback((dongName: string) => {
     if (!dongName || !selectedGu) return
@@ -1037,22 +1041,51 @@ export default function HexagonScene() {
     }
   })
   
-  // Combine all deck.gl layers
+  // Progressive layer loading for better initial render performance
+  useEffect(() => {
+    // Load critical layers immediately
+    setCriticalLayersLoaded(true)
+    
+    // Defer non-critical layers
+    const timer = setTimeout(() => {
+      setDeferredLayersLoaded(true)
+    }, 100) // Small delay to let critical layers render first
+    
+    return () => clearTimeout(timer)
+  }, [])
+  
+  // Combine all deck.gl layers - Using visible prop pattern for better performance
   const deckLayers = useMemo(() => {
     const layers = []
     
-    // Add unified 2D layers (replacing Mapbox native layers)
-    layers.push(...unifiedLayers)
-    
-    // Add PolygonLayer for 3D dong visualization (FIRST - renders at bottom)
-    // Show 3D layers at any zoom level when 3D mode is enabled
-    if (is3DMode && dongData3D) {
-      layers.push(...createDong3DPolygonLayers())
+    // Critical layer: Mesh (loads first for immediate visual feedback)
+    if (preGeneratedMeshLayer && criticalLayersLoaded) {
+      const visibleMeshLayer = preGeneratedMeshLayer.clone({
+        visible: showMeshLayer // Control visibility via prop
+      })
+      layers.push(visibleMeshLayer)
     }
     
-    // Add pre-generated mesh layer for Seoul surface visualization
-    if (preGeneratedMeshLayer && showMeshLayer) {
-      layers.push(preGeneratedMeshLayer)
+    // Deferred layers: Load after initial render
+    if (deferredLayersLoaded) {
+      // Include unified 2D layers with visibility control
+      if (unifiedLayers && unifiedLayers.length > 0) {
+        // Clone layers with visible prop instead of conditional rendering
+        const visibleUnifiedLayers = unifiedLayers.map(layer => layer.clone({
+          visible: !is3DMode // Hide 2D layers in 3D mode
+        }))
+        layers.push(...visibleUnifiedLayers)
+      }
+      
+      // Include 3D polygon layers with visibility control
+      if (dongData3D) {
+        const dong3DLayers = createDong3DPolygonLayers()
+        // Set visibility based on 3D mode
+        const visible3DLayers = dong3DLayers.map(layer => layer.clone({
+          visible: is3DMode // Only show in 3D mode
+        }))
+        layers.push(...visible3DLayers)
+      }
     }
     
     
@@ -1111,10 +1144,11 @@ export default function HexagonScene() {
     
     return layers
   }, [is3DMode, dongData3D, createDong3DPolygonLayers, 
-      showDistrictLabels, showDongLabels, viewState, selectedGu, selectedDong, hoveredDistrict,
+      showDistrictLabels, showDongLabels, viewState.zoom, selectedGu, selectedDong, hoveredDistrict,
       handleDistrictLabelClick, setHoveredDistrict, calculatePolygonCentroid, handleDongClick,
       setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode,
-      showMeshLayer, preGeneratedMeshLayer, unifiedLayers])
+      showMeshLayer, preGeneratedMeshLayer, unifiedLayers,
+      criticalLayersLoaded, deferredLayersLoaded])  // Add progressive loading states
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // const deckLayers = LayerManager({
@@ -1400,6 +1434,51 @@ export default function HexagonScene() {
     setDongSalesByTypeMap(salesByDongAndType)
   }, [optimizedFeatures, optimizedDongMap])
   
+  // Memoize dong colors for performance
+  const dongColorMap = useMemo(() => {
+    if (!dongData3D || !dongData3D.features) return new Map()
+    
+    const colorMap = new Map()
+    dongData3D.features.forEach((feature: any) => {
+      const dongCode = feature.properties.ADM_DR_CD || 
+                      feature.properties.dongCode || 
+                      feature.properties.dong_code ||
+                      feature.properties['행정동코드'] ||
+                      feature.properties.DONG_CD
+      
+      if (dongCode) {
+        // Pre-calculate base color (without hover/selection state)
+        const height = feature.properties.height || 0
+        const guName = feature.properties.guName || feature.properties['자치구']
+        const dongName = feature.properties.ADM_DR_NM || feature.properties.DONG_NM || feature.properties['행정동']
+        const totalSales = dongSalesMap.get(Number(dongCode)) || 0
+        
+        // Use optimized data if available
+        const optimizedFeature = optimizedDongMap?.get(Number(dongCode))
+        let baseColor
+        
+        if (optimizedFeature?.fillColorRGB) {
+          const themeKey = currentThemeKey === 'modern' || currentThemeKey === 'adjacent' ? 'blue' : 
+                          currentThemeKey === 'bright' ? 'bright' :
+                          currentThemeKey === 'green' ? 'green' :
+                          currentThemeKey === 'purple' ? 'purple' :
+                          currentThemeKey === 'orange' ? 'orange' : 'blue'
+          baseColor = optimizedFeature.fillColorRGB[themeKey as keyof typeof optimizedFeature.fillColorRGB]
+        } else {
+          baseColor = convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
+        }
+        
+        colorMap.set(dongCode, {
+          baseColor,
+          guName,
+          dongName
+        })
+      }
+    })
+    
+    return colorMap
+  }, [dongData3D, dongSalesMap, optimizedDongMap, currentThemeKey])
+
   // Now redefine createDong3DPolygonLayers with optimizedDongMap available
   createDong3DPolygonLayers = useCallback(() => {
     if (!dongData3D || !dongData3D.features) return []
@@ -1472,19 +1551,35 @@ export default function HexagonScene() {
         
         elevationScale: 1,
         
-        // 사전 계산된 색상 사용
+        // Use pre-calculated colors for better performance
         getFillColor: (d: any) => {
-          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
-          const guName = d.properties.guName || d.properties['자치구']
-          
-          // Try multiple ways to get dongCode
           const dongCode = d.properties.ADM_DR_CD || 
                           d.properties.dongCode || 
                           d.properties.dong_code ||
                           d.properties['행정동코드'] ||
                           d.properties.DONG_CD;
           
-          // 최적화된 데이터에서 사전 계산된 색상 가져오기
+          // Get pre-calculated color data for performance
+          const colorData = dongCode ? dongColorMap.get(dongCode) : null;
+          const guName = colorData?.guName || d.properties.guName || d.properties['자치구']
+          const dongName = colorData?.dongName || d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
+          
+          // Use pre-calculated base color and apply state changes
+          if (colorData && colorData.baseColor) {
+            // Apply hover/selection state to pre-calculated color
+            if (hoveredDistrict === guName) {
+              return [255, 230, 100, 255] // 호버시 하이라이트
+            }
+            if ((selectedGu || selectedDong) && guName !== selectedGu) {
+              return getDimmedColor() // 선택되지 않은 영역 dimmed
+            }
+            if (selectedDong && dongName === selectedDong) {
+              return [255, 200, 0, 255] // Selected dong highlight
+            }
+            return colorData.baseColor // Use pre-calculated color
+          }
+          
+          // Fallback to old calculation if color map not available
           const optimizedFeature = dongCode && optimizedDongMap ? optimizedDongMap.get(Number(dongCode)) : null
           if (optimizedFeature && optimizedFeature.fillColorRGB) {
             // 현재 테마에 맞는 사전 계산된 색상 사용
@@ -1629,17 +1724,18 @@ export default function HexagonScene() {
           getLineWidth: 200   // Quick line width transition
         },
         
-        // Update triggers for reactive updates (최적화: optimizedDongMap 추가)
+        // Update triggers for reactive updates (optimized - removed hover state)
         updateTriggers: {
-          getElevation: [selectedGu, selectedDong, optimizedDongMap, heightScale],
-          getFillColor: [selectedGu, selectedDong, currentThemeKey, optimizedDongMap, themeAdjustments],
-          getLineColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments]
+          getElevation: [selectedGu, selectedDong, heightScale],
+          getFillColor: [selectedGu, selectedDong, dongColorMap], // Use pre-calculated color map
+          getLineColor: [selectedGu, selectedDong]
         }
       })
     ]
   }, [
     dongData3D, 
     optimizedDongMap,
+    dongColorMap,  // Add pre-calculated color map
     selectedGu, 
     selectedDong, 
     selectedBusinessType, 
@@ -2114,13 +2210,22 @@ export default function HexagonScene() {
     }
   }, [])
 
-  console.log('[DeckGL Config]', {
-    selectionMode: districtSelection.selectionMode,
-    layersCount: deckLayers.length,
-    hasGetTooltip: !!getTooltip,
-    layersPassedCount: districtSelection.selectionMode ? 0 : deckLayers.length
-  })
-
+  // Layer filter for performance optimization during interaction
+  const layerFilter = useCallback(({ layer, viewport }) => {
+    // During drag, only render essential layers
+    if (isDragging) {
+      // Always render mesh and essential 3D layers
+      if (layer.id.includes('mesh') || layer.id.includes('3d-polygon')) {
+        return true
+      }
+      // Skip text layers and other overlays during drag
+      if (layer.id.includes('text') || layer.id.includes('label')) {
+        return false
+      }
+    }
+    // Default: render all layers
+    return true
+  }, [isDragging])
 
   return (
     <div className="relative w-full h-screen flex">
@@ -2133,6 +2238,8 @@ export default function HexagonScene() {
         layers={deckLayers} // PolygonLayer for 3D visualization
         effects={[lightingEffect]} // Add lighting for solid mesh rendering
         getTooltip={isDragging ? undefined : getTooltip} // 드래그 중 툴팁 비활성화로 성능 최적화
+        layerFilter={layerFilter} // Performance optimization during interaction
+        useDevicePixels={!isDragging} // Lower resolution during drag for performance
         getCursor={({isDragging: dragging, isHovering}) => {
           if (dragging) return 'grabbing'
           if (isHovering) return 'pointer'

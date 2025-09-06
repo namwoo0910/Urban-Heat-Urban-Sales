@@ -208,8 +208,8 @@ export async function createSeoulMeshLayerAsync(
     salesHeightScale
   } = props
 
-  // Don't create layer if not visible or no data
-  if (!visible || !data || data.length === 0) {
+  // Return layer with visible=false instead of null for better performance
+  if (!data || data.length === 0) {
     return null
   }
 
@@ -304,12 +304,15 @@ export async function createSeoulMeshLayerAsync(
     }
   }
 
-  // Create SimpleMeshLayer with optional masking
+  // Create SimpleMeshLayer with optimized configuration
   const layerProps: any = {
     id: 'seoul-mesh-layer',
     data: [{ 
       position: [centerX, centerY, 0]  // Center position calculated from data bounds
     }],
+    
+    // Control visibility through prop instead of conditional rendering
+    visible,
     
     // Mesh configuration - properly formatted mesh object
     mesh: meshObject,
@@ -330,21 +333,8 @@ export async function createSeoulMeshLayerAsync(
     // Position accessor - get position from data object
     getPosition: (d: any) => d.position,
     
-    // Always use getColor to allow custom colors to work
-    getColor: (() => {
-      // Parse hex color to RGB
-      const hexToRgb = (hex: string) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-        return result ? [
-          parseInt(result[1], 16),
-          parseInt(result[2], 16),
-          parseInt(result[3], 16),
-          255
-        ] : [0, 255, 200, 255]  // Fallback to default cyan
-      }
-      const customColor = props.color || '#00FFE1'
-      return hexToRgb(customColor)
-    }),
+    // Memoized color to avoid re-computation
+    getColor: [0, 255, 225, 255], // Static color for best performance
     
     // Disable vertex colors to allow getColor to override
     vertexColors: false,
