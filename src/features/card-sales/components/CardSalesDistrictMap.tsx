@@ -41,7 +41,7 @@ import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
 import type { FeatureCollection } from 'geojson'
-import "../styles/HexagonLayer.css"
+import "../styles/CardSalesDistrictMap.css"
 import "@/src/shared/styles/districtEffects.css"
 
 // Common GPU optimization parameters for all layers
@@ -113,7 +113,7 @@ const ZOOM_SETTINGS = {
   TRANSITION_SPEED: 1.2
 } as const
 
-export default function HexagonScene() {
+export default function CardSalesDistrictMap() {
   const mapRef = useRef<MapRef>(null)
   const cleanupRef = useRef<(() => void)[]>([])
   const [showChartPanel, setShowChartPanel] = useState(true)

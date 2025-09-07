@@ -11,7 +11,7 @@ import { Badge } from "@/src/shared/components/ui/badge"
 import { Map, Layers, Zap } from "lucide-react"
 
 // Dynamic imports for better performance
-const HexagonScene = lazy(() => import("@/src/features/card-sales/components/HexagonLayer3D"))
+const CardSalesDistrictMap = lazy(() => import("@/src/features/card-sales/components/CardSalesDistrictMap"))
 
 // Dynamic import for animated mesh background
 const AnimatedMeshBackground = dynamic(
@@ -113,7 +113,7 @@ const LocalEconomyPage = () => {
               <div className="text-white">시각화 로딩 중...</div>
             </div>
           }>
-            <HexagonScene />
+            <CardSalesDistrictMap />
           </Suspense>
         </div>
       )}
