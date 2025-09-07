@@ -15,7 +15,7 @@ import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { useHeightInterpolation } from "../hooks/useHeightInterpolation"
 import { useOptimizedMonthlyData } from "../hooks/useOptimizedMonthlyData"
-import { useBinaryOptimizedData } from "../hooks/useBinaryOptimizedData"
+// import { useBinaryOptimizedData } from "../hooks/useBinaryOptimizedData" // Moved to del
 import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { climateDataLoader } from '../utils/climateDataLoader'
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
@@ -1359,33 +1359,33 @@ export default function CardSalesDistrictMap() {
     }
   }, [])
   
-  // Binary 형식 데이터 로딩 (우선 사용)
-  const binaryDataResult = useBinaryOptimizedData({ 
-    selectedDate: formatSelectedDate,
-    enabled: USE_BINARY_FORMAT,
-    useBinary: true
-  })
+  // Binary 형식 데이터 로딩 - 주석 처리 (moved to del)
+  // const binaryDataResult = useBinaryOptimizedData({ 
+  //   selectedDate: formatSelectedDate,
+  //   enabled: USE_BINARY_FORMAT,
+  //   useBinary: true
+  // })
   
-  // JSON 형식 데이터 로딩 (폴백)
+  // JSON 형식 데이터 로딩만 사용
   const jsonDataResult = useOptimizedMonthlyData({ 
     selectedDate: formatSelectedDate,
-    enabled: !USE_BINARY_FORMAT
+    enabled: true // Always use JSON format now
   })
   
-  // Binary 우선, JSON 폴백
+  // JSON 데이터만 사용
   const { 
     features: optimizedFeatures, 
     dongMap: optimizedDongMap,
     isLoading: isOptimizedLoading,
     error: optimizedError 
-  } = USE_BINARY_FORMAT ? binaryDataResult : jsonDataResult
+  } = jsonDataResult // Only use JSON data now
   
-  // 성능 로깅 (Binary 모드에서만)
+  // 성능 로깅 - 주석 처리 (binary data removed)
   useEffect(() => {
-    if (USE_BINARY_FORMAT && binaryDataResult.loadingStats && !isOptimizedLoading) {
+    if (false) { // Disabled since binary data is removed
       // console.log(`[Binary Performance] Total load time: ${binaryDataResult.loadingStats.totalTime?.toFixed(2)}ms`)
     }
-  }, [USE_BINARY_FORMAT, binaryDataResult.loadingStats, isOptimizedLoading])
+  }, []) // Removed dependencies since binary data is removed
 
   // Load sales data from optimized data
   useEffect(() => {

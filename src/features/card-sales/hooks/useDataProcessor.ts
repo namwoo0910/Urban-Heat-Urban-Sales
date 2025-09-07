@@ -7,7 +7,7 @@
 
 import { useMemo, useEffect, useState } from 'react'
 import { useOptimizedMonthlyData } from './useOptimizedMonthlyData'
-import { useBinaryOptimizedData } from './useBinaryOptimizedData'
+// import { useBinaryOptimizedData } from './useBinaryOptimizedData' // Moved to del
 import { useHeightInterpolation } from './useHeightInterpolation'
 import { loadDistrictData } from '@/src/shared/utils/districtUtils'
 import type { FeatureCollection } from 'geojson'
@@ -50,14 +50,18 @@ export function useDataProcessor(filters?: FilterState): UseDataProcessorReturn 
     error: salesError 
   } = useOptimizedMonthlyData(filters)
   
-  // Binary optimized data
-  const { 
-    optimizedDongData,
-    optimizedDongMap,
-    dongColorMap,
-    isLoading: isBinaryLoading,
-    error: binaryError
-  } = useBinaryOptimizedData()
+  // Binary optimized data - commented out (moved to del)
+  // const { 
+  //   optimizedDongData,
+  //   optimizedDongMap,
+  //   dongColorMap,
+  //   isLoading: isBinaryLoading,
+  //   error: binaryError
+  // } = useBinaryOptimizedData()
+  
+  // Temporary placeholder values
+  const isBinaryLoading = false
+  const binaryError = null
   
   // Height interpolation
   const heightInterpolation = useHeightInterpolation(dongSalesMap)
