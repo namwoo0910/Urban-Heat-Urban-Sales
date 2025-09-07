@@ -116,7 +116,7 @@ const ZOOM_SETTINGS = {
 export default function CardSalesDistrictMap() {
   const mapRef = useRef<MapRef>(null)
   const cleanupRef = useRef<(() => void)[]>([])
-  const [showChartPanel, setShowChartPanel] = useState(true)
+  const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   const [currentThemeKey, setCurrentThemeKey] = useState('blue') // Default to blue theme for districts
   const [is3DMode, setIs3DMode] = useState(false) // 3D 모드는 기본적으로 OFF (사용자가 토글해야 활성화)
@@ -2405,35 +2405,120 @@ export default function CardSalesDistrictMap() {
 
       </div>
       
-      {/* Chart Panel - Resizable Right Side */}
-      {showChartPanel && (
-        <ResizablePanel
-          initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
-          minWidth={300}
-          maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
-          className="h-full bg-black/80"
+      {/* Chart Open Button - Always visible at right edge */}
+      {!showChartPanel && (
+        <button
+          onClick={() => setShowChartPanel(true)}
+          className="fixed top-4 right-0 bg-black/90 backdrop-blur-md border-l border-t border-b border-gray-800/50 rounded-l-lg shadow-2xl hover:bg-gray-900/50 transition-all duration-300 z-40 group hover:pl-1"
         >
-          <div className="h-full p-4">
-            <DefaultChartsPanel />
+          <div className="py-6 px-3 flex flex-col items-center justify-center space-y-3">
+            {/* Icon */}
+            <svg 
+              className="w-5 h-5 text-blue-400 transition-transform duration-300"
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+            
+            {/* Vertical Text */}
+            <div 
+              className="text-gray-200 font-bold text-sm tracking-wider"
+              style={{ 
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed'
+              }}
+            >
+              차트열기
+            </div>
+            
+            {/* Arrow Indicator */}
+            <svg 
+              className="w-4 h-4 text-gray-400 transition-transform duration-300 rotate-180"
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </div>
-        </ResizablePanel>
+        </button>
       )}
       
-      {/* Chart Panel Toggle Button */}
-      <button
-        onClick={() => setShowChartPanel(!showChartPanel)}
-        className="absolute top-[66px] right-4 z-20 px-4 py-2 bg-blue-600/80 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2"
+      {/* Chart Panel with Wing Button */}
+      <div 
+        className={`fixed top-0 right-0 h-full flex transition-all duration-500 z-40 ${
+          showChartPanel ? 'translate-x-0' : 'translate-x-full'
+        }`}
       >
-        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-            d={showChartPanel 
-              ? "M6 18L18 6M6 6l12 12" 
-              : "M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-            } 
-          />
-        </svg>
-        <span>{showChartPanel ? 'Close' : 'Charts'}</span>
-      </button>
+        {/* Wing Button - Vertical Tab */}
+        <button
+          onClick={() => setShowChartPanel(!showChartPanel)}
+          className="absolute top-4 -left-12 bg-black/90 backdrop-blur-md border-l border-t border-b border-gray-800/50 rounded-l-lg shadow-2xl hover:bg-gray-900/50 transition-all duration-300 group hover:pr-1"
+        >
+          <div className="py-6 px-3 flex flex-col items-center justify-center space-y-3">
+            {/* Icon */}
+            <svg 
+              className={`w-5 h-5 text-blue-400 transition-transform duration-300 ${
+                showChartPanel ? 'rotate-180' : ''
+              }`} 
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                strokeWidth={2} 
+                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+              />
+            </svg>
+            
+            {/* Vertical Text */}
+            <div 
+              className="text-gray-200 font-bold text-sm tracking-wider"
+              style={{ 
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed'
+              }}
+            >
+              {showChartPanel ? '차트닫기' : '차트열기'}
+            </div>
+            
+            {/* Arrow Indicator */}
+            <svg 
+              className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${
+                showChartPanel ? 'rotate-0' : 'rotate-180'
+              }`}
+              fill="none" 
+              stroke="currentColor" 
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </div>
+        </button>
+        
+        {/* Chart Panel */}
+        {showChartPanel && (
+          <ResizablePanel
+            initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
+            minWidth={300}
+            maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
+            className="h-screen bg-black/80 border-l border-gray-800/50"
+          >
+            <div className="h-full p-4 overflow-y-auto">
+              <DefaultChartsPanel />
+            </div>
+          </ResizablePanel>
+        )}
+      </div>
     </div>
   )
 }

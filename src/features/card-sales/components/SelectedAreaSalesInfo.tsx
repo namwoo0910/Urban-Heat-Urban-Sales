@@ -30,7 +30,7 @@ export function SelectedAreaSalesInfo({
   selectedDate
 }: SelectedAreaSalesInfoProps) {
   // Chart visibility toggle state
-  const [showChart, setShowChart] = useState(true)
+  const [showChart, setShowChart] = useState(false)
   // 선택된 지역의 총 매출액 계산 및 업종별 매출 집계
   const areaStats = useMemo(() => {
     if (!hexagonData) {

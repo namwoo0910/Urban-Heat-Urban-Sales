@@ -7,7 +7,7 @@
 
 "use client"
 
-import React, { useState, useMemo, useCallback, useRef, useEffect, lazy, Suspense } from 'react'
+import React, { useState, useMemo, useCallback, useRef, useEffect, lazy, Suspense, startTransition } from 'react'
 import { throttle } from 'lodash-es'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import type { MapRef } from 'react-map-gl'
@@ -45,7 +45,7 @@ import {
 import type { FilterState } from '../LocalEconomyFilterPanel'
 import type { FeatureCollection } from 'geojson'
 
-// Lazy load heavy components
+// Lazy load heavy components - no additional delay needed since we control timing with showChartsDelayed
 const DefaultChartsPanel = lazy(() => import('../charts/DefaultChartsPanel'))
 const ResizablePanel = lazy(() => import('@/src/shared/components/ResizablePanel'))
 
@@ -71,11 +71,16 @@ export default function CardSalesDistrictMap() {
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
   
   // UI state
-  const [showChartPanel, setShowChartPanel] = useState(true)
+  const [showChartPanel, setShowChartPanel] = useState(false)
   const [showMeshLayer, setShowMeshLayer] = useState(false)
   const [showBoundary, setShowBoundary] = useState(false)
   const [showDistrictLabels, setShowDistrictLabels] = useState(false)
   const [showDongLabels, setShowDongLabels] = useState(false)
+  
+  // Progressive rendering state
+  const [renderPhase, setRenderPhase] = useState<'mesh' | 'charts'>('mesh')
+  const [chartsReady, setChartsReady] = useState(false)
+  const [showChartsDelayed, setShowChartsDelayed] = useState(false)
   
   // Theme state
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
@@ -97,12 +102,81 @@ export default function CardSalesDistrictMap() {
     error
   } = useDataProcessor()
   
-  // Mesh layer
+  // Mesh layer - only render if not showing charts or during mesh phase
   const { meshLayer, isLoading: meshLoading } = usePreGeneratedSeoulMeshLayer({
-    visible: showMeshLayer && !is3DMode,
+    visible: showMeshLayer && !is3DMode && (!showChartPanel || renderPhase === 'mesh'),
     opacity: 0.6,
     colorTheme: currentThemeKey
   })
+  
+  // Monitor mesh loading performance
+  useEffect(() => {
+    if (showMeshLayer && !meshLoading) {
+      console.log('Mesh layer loaded:', {
+        renderPhase,
+        showChartPanel,
+        timestamp: performance.now()
+      })
+    }
+  }, [meshLoading, showMeshLayer, renderPhase, showChartPanel])
+  
+  // Progressive rendering effect - render charts after mesh is ready with delay
+  useEffect(() => {
+    let timer: NodeJS.Timeout | null = null
+    
+    if (showChartPanel && !meshLoading) {
+      // Performance monitoring
+      console.time('chart-render-delay')
+      console.log('Starting chart delay timer (1 second)...')
+      
+      // Delay chart rendering by 1 second to ensure mesh is fully visible first
+      timer = setTimeout(() => {
+        console.timeEnd('chart-render-delay')
+        console.time('chart-render')
+        console.log('Enabling chart rendering now...')
+        
+        setShowChartsDelayed(true)
+        startTransition(() => {
+          setRenderPhase('charts')
+          setChartsReady(true)
+        })
+      }, 1000) // 1 second delay for complete separation
+      
+    } else if (!showChartPanel) {
+      // Reset when chart panel is closed
+      setShowChartsDelayed(false)
+      setRenderPhase('mesh')
+      setChartsReady(false)
+    }
+    
+    return () => {
+      if (timer) {
+        clearTimeout(timer)
+      }
+    }
+  }, [showChartPanel, meshLoading])
+  
+  // Monitor chart rendering completion
+  useEffect(() => {
+    if (renderPhase === 'charts' && chartsReady) {
+      // Chart rendering completed
+      console.timeEnd('chart-render')
+      
+      // Log performance metrics
+      if (performance && performance.now) {
+        console.log('Performance Metrics:', {
+          renderPhase: 'charts',
+          timestamp: performance.now(),
+          memory: (performance as any).memory ? {
+            usedJSHeapSize: ((performance as any).memory.usedJSHeapSize / 1048576).toFixed(2) + ' MB',
+            totalJSHeapSize: ((performance as any).memory.totalJSHeapSize / 1048576).toFixed(2) + ' MB'
+          } : 'N/A'
+        })
+      }
+    }
+  }, [renderPhase, chartsReady])
+  
+  // Reset has been moved to the main progressive rendering effect above
   
   // District selection helper
   const districtSelection = useDistrictSelection({
@@ -458,24 +532,61 @@ export default function CardSalesDistrictMap() {
         onReset={handleReset}
       />
       
-      <Suspense fallback={
-        <div className="absolute bottom-4 right-4 bg-gray-800 p-4 rounded">
-          Loading charts...
-        </div>
-      }>
-        {showChartPanel && (
-          <ResizablePanel
-            initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
-            minWidth={300}
-            maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
-            className="h-full bg-black/80"
-          >
-            <div className="h-full p-4">
-              <DefaultChartsPanel />
+      {/* Progressive rendering: Only show charts after delay */}
+      {showChartsDelayed && (
+        <div 
+          className="absolute top-0 right-0 h-full"
+          style={{
+            animation: 'slideInFromRight 0.5s ease-out',
+            opacity: chartsReady ? 1 : 0,
+            transition: 'opacity 0.3s ease-in-out'
+          }}
+        >
+          <Suspense fallback={
+            <div className="absolute bottom-4 right-4 bg-gray-800/90 p-4 rounded-lg shadow-lg">
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-white"></div>
+                <span className="text-white text-sm">Loading charts...</span>
+              </div>
             </div>
-          </ResizablePanel>
-        )}
-      </Suspense>
+          }>
+            <ResizablePanel
+              initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
+              minWidth={300}
+              maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
+              className="h-full bg-black/80"
+            >
+              <div className="h-full p-4">
+                <DefaultChartsPanel />
+              </div>
+            </ResizablePanel>
+          </Suspense>
+        </div>
+      )}
+      
+      {/* Show countdown indicator during delay */}
+      {showChartPanel && !showChartsDelayed && !meshLoading && (
+        <div className="absolute bottom-4 right-4 bg-gray-800/90 p-4 rounded-lg shadow-lg">
+          <div className="flex items-center space-x-2">
+            <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
+            <span className="text-white text-sm">Initializing charts...</span>
+          </div>
+        </div>
+      )}
+      
+      {/* CSS Animation Keyframes */}
+      <style jsx>{`
+        @keyframes slideInFromRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   )
 }

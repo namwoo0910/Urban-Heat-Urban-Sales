@@ -185,12 +185,19 @@ export default function AnimatedMeshBackground({
     })
   }, [meshData, loading, fallbackMesh, animationTime, waveAmplitude, waveFrequency, waveSpeed, breathingScale, wireframe, opacity, color])
   
-  // Animation loop
+  // Animation loop with visibility detection
   useEffect(() => {
     const frameDuration = 1000 / targetFPS
     let lastFrameTime = performance.now()
+    let isVisible = true
     
     const animate = (currentTime: number) => {
+      // Pause animation if page is hidden or component is not visible
+      if (!isVisible || document.hidden) {
+        animationRef.current = requestAnimationFrame(animate)
+        return
+      }
+      
       const deltaTime = currentTime - lastFrameTime
       
       // Limit frame rate for performance
@@ -203,12 +210,49 @@ export default function AnimatedMeshBackground({
       animationRef.current = requestAnimationFrame(animate)
     }
     
+    // Handle visibility change
+    const handleVisibilityChange = () => {
+      isVisible = !document.hidden
+      if (!isVisible) {
+        console.log('AnimatedMeshBackground: Pausing animation (page hidden)')
+      } else {
+        console.log('AnimatedMeshBackground: Resuming animation (page visible)')
+        lastFrameTime = performance.now() // Reset timing to avoid jumps
+      }
+    }
+    
+    // Handle Intersection Observer for component visibility
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        isVisible = entry.isIntersecting
+        if (!isVisible) {
+          console.log('AnimatedMeshBackground: Pausing animation (component not visible)')
+        } else {
+          console.log('AnimatedMeshBackground: Resuming animation (component visible)')
+          lastFrameTime = performance.now()
+        }
+      },
+      { threshold: 0.1 }
+    )
+    
+    // Observe the component's root element
+    const rootElement = document.querySelector('.animated-mesh-background-root')
+    if (rootElement) {
+      observer.observe(rootElement)
+    }
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange)
     animationRef.current = requestAnimationFrame(animate)
     
     return () => {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
       }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      if (rootElement) {
+        observer.unobserve(rootElement)
+      }
+      observer.disconnect()
     }
   }, [targetFPS])
   
@@ -226,7 +270,7 @@ export default function AnimatedMeshBackground({
   }, [animatedLayer])
   
   return (
-    <div className="absolute inset-0 w-full h-full">
+    <div className="absolute inset-0 w-full h-full animated-mesh-background-root">
       <DeckGL
         viewState={viewState}
         views={views}
