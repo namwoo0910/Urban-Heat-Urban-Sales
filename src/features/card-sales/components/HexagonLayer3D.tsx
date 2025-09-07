@@ -8,6 +8,7 @@ import type { MapRef } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator, FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import { PolygonLayer } from '@deck.gl/layers'
+import { createDong3DPolygonLayers, createDong2DPolygonLayers } from '../utils/createDeckLayers'
 import UnifiedControls from "./SalesDataControls"
 import { LayerManager, formatTooltip, formatScatterplotTooltip } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
@@ -387,13 +388,13 @@ export default function HexagonScene() {
   }, [])
 
 
-  const handleLayerChange = (layer: string) => {
+  const handleLayerChange = useCallback((layer: string) => {
     setCurrentLayer(layer)
-  }
+  }, [])
 
-  const handleTimeChange = (time: number) => {
+  const handleTimeChange = useCallback((time: number) => {
     setCurrentTime(time)
-  }
+  }, [])
   
   // 구 이름 클릭 핸들러
   const handleDistrictLabelClick = useCallback((districtName: string) => {

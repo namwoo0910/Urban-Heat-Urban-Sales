@@ -38,7 +38,7 @@ export interface FilterState {
   selectedDate: string | null      // 선택된 날짜 (YYYY-MM-DD 형식)
 }
 
-export default function LocalEconomyFilterPanel({
+const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   onFilterChange,
   className = "",
   // External filter state synchronization
@@ -442,4 +442,18 @@ export default function LocalEconomyFilterPanel({
       </Card>
     </div>
   )
-}
+}, (prevProps, nextProps) => {
+  // Custom comparison function for React.memo
+  // Return true if props are equal (skip re-render)
+  return (
+    prevProps.externalSelectedGu === nextProps.externalSelectedGu &&
+    prevProps.externalSelectedDong === nextProps.externalSelectedDong &&
+    prevProps.externalSelectedBusinessType === nextProps.externalSelectedBusinessType &&
+    prevProps.externalSelectedDate === nextProps.externalSelectedDate &&
+    prevProps.isTimelineAnimating === nextProps.isTimelineAnimating &&
+    prevProps.className === nextProps.className &&
+    prevProps.onFilterChange === nextProps.onFilterChange
+  )
+})
+
+export default LocalEconomyFilterPanel
