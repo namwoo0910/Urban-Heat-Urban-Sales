@@ -1,14 +1,15 @@
 "use client"
 
 import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
+import { throttle, debounce } from 'lodash-es'
 import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL } from 'react-map-gl'
-import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
+import type { MapRef } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator, FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import { PolygonLayer } from '@deck.gl/layers'
 import UnifiedControls from "./SalesDataControls"
-import { LayerManager, formatTooltip, createScatterplotLayer, formatScatterplotTooltip, createMeshLayer } from "./LayerManager"
+import { LayerManager, formatTooltip, formatScatterplotTooltip } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { useHeightInterpolation } from "../hooks/useHeightInterpolation"
@@ -24,26 +25,17 @@ import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
-import { loadDistrictData, getDistrictLayerPaint, getDistrictColors, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
+import { loadDistrictData, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
-import { calculateBoundaryElevation } from "@/src/shared/constants/elevationConstants"
 import { 
-  createSplitPolygon, 
   getDistrictHeight,
   getDongHeight,
   getDongHeightBySales,
-  get3DColorExpression,
-  get3DColorExpressionDark,
-  get3DColorExpressionBright,
-  getDong3DColorExpression,
-  getDong3DColorExpressionDark,
-  getDong3DColorExpressionBright,
   CAMERA_3D_CONFIG, 
-  CAMERA_2D_CONFIG,
-  LIGHT_3D_CONFIG 
+  CAMERA_2D_CONFIG
 } from "@/src/shared/utils/district3DUtils"
 import { RotateCcw } from "lucide-react"
-import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getAccentColor, applyColorAdjustments, getSimpleSalesColor } from "../utils/modernColorPalette"
+import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, applyColorAdjustments, getSimpleSalesColor } from "../utils/modernColorPalette"
 import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
@@ -219,12 +211,9 @@ export default function HexagonScene() {
   // 기본 지도 상태
   const [currentLayer, setCurrentLayer] = useState("very-dark")
   const [currentTime, setCurrentTime] = useState(100)
-  const [showHint, setShowHint] = useState(true)
   const [showBoundary, setShowBoundary] = useState(false)
-  const [showSeoulBase, setShowSeoulBase] = useState(false)
   const [showDistrictLabels, setShowDistrictLabels] = useState(false) // 구 이름 표시 (기본값: 꺼짐)
   const [showDongLabels, setShowDongLabels] = useState(false) // 동 이름 표시
-  const [chartPanelWidth, setChartPanelWidth] = useState<number | undefined>(undefined) // 차트 패널 너비
   
   // DeckGL 뷰 상태 - controlled component pattern for synchronization
   const [viewState, setViewState] = useState<MapViewState>({
@@ -289,7 +278,7 @@ export default function HexagonScene() {
   const handleFilterChange = useCallback((filters: FilterState) => {
     // Directly update states without checking current values
     // This prevents unnecessary re-renders and loops
-    // Removed console.log for performance
+    // Removed // console.log for performance
     setSelectedGu(filters.selectedGu)
     setSelectedGuCode(filters.selectedGuCode)
     setSelectedDong(filters.selectedDong)
@@ -302,7 +291,7 @@ export default function HexagonScene() {
       handleDistrictZoom(filters.selectedGu, filters.selectedDong)
     } else if (filters.selectedGu && !filters.selectedDong) {
       // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
-      console.log('[GuSelection] Maintaining Seoul-wide view with district highlight')
+      // console.log('[GuSelection] Maintaining Seoul-wide view with district highlight')
       // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
     }
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setSelectedDate, handleDistrictZoom])
@@ -315,7 +304,7 @@ export default function HexagonScene() {
   const districtSelection = useDistrictSelection({ 
     mapRef,
     onDistrictSelect: (districtName, feature) => {
-      console.log('Selected district:', districtName)
+      // console.log('Selected district:', districtName)
       
       // Update filter panel when map is clicked
       if (feature?.layer?.id === 'sgg-fill') {
@@ -359,9 +348,8 @@ export default function HexagonScene() {
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
   const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
   
-  // Progressive rendering states for performance
-  const [deferredLayersLoaded, setDeferredLayersLoaded] = useState(false)
-  const [criticalLayersLoaded, setCriticalLayersLoaded] = useState(false)
+  // Remove progressive rendering states - not needed with optimized loading
+  // All layers now load on demand based on visibility settings
   
   // Helper function to handle dong click from text labels
   const handleDongClick = useCallback((dongName: string) => {
@@ -409,7 +397,7 @@ export default function HexagonScene() {
   
   // 구 이름 클릭 핸들러
   const handleDistrictLabelClick = useCallback((districtName: string) => {
-    console.log('District label clicked:', districtName)
+    // console.log('District label clicked:', districtName)
     setSelectedGu(districtName)
     setSelectedDong(null)
     // 구 코드 설정
@@ -421,7 +409,7 @@ export default function HexagonScene() {
     
     // 구 라벨 클릭시: 서울 전체 뷰 유지, 하이라이트만 표시
     // 줌인하지 않음
-    console.log('[District Label Click] Selected gu:', districtName, ' - maintaining Seoul view')
+    // console.log('[District Label Click] Selected gu:', districtName, ' - maintaining Seoul view')
   }, [setSelectedGu, setSelectedDong, setSelectedGuCode, setSelectedDongCode])
   
   // 전체 초기화 함수 - 필터, 레이어, 뷰 모두 리셋
@@ -562,6 +550,40 @@ export default function HexagonScene() {
     currentBearingRef.current = viewState.bearing || 0
   }, [])
 
+  // Helper function to extract district code from various property names
+  const getDistrictCode = useCallback((properties: any): string | null => {
+    return properties?.ADM_DR_CD || 
+           properties?.dongCode || 
+           properties?.dong_code ||
+           properties?.['행정동코드'] ||
+           properties?.DONG_CD ||
+           properties?.H_CODE ||
+           null
+  }, [])
+  
+  // Helper function to extract district name from various property names
+  const getDistrictName = useCallback((properties: any): string | null => {
+    return properties?.ADM_DR_NM || 
+           properties?.dongName || 
+           properties?.dong_name ||
+           properties?.['행정동'] ||
+           properties?.DONG_NM ||
+           properties?.H_DONG_NM ||
+           properties?.EMD_NM ||
+           properties?.EMD_KOR_NM ||
+           null
+  }, [])
+  
+  // Helper function to extract gu name from various property names
+  const getGuName = useCallback((properties: any): string | null => {
+    return properties?.guName || 
+           properties?.['자치구'] ||
+           properties?.SGG_NM ||
+           properties?.SIGUNGU_NM ||
+           properties?.SIG_KOR_NM ||
+           null
+  }, [])
+
   // Find which dong a coordinate belongs to
   const findDongAtCoordinate = useCallback((
     lng: number,
@@ -577,16 +599,8 @@ export default function HexagonScene() {
     for (const feature of dongBoundaries) {
       try {
         if (turf.booleanPointInPolygon(point, feature)) {
-          const dongCode = feature.properties?.['행정동코드'] || 
-                          feature.properties?.H_CODE || 
-                          feature.properties?.ADM_DR_CD ||
-                          feature.properties?.dongCode ||
-                          feature.properties?.dong_code ||
-                          0
-          
-          const dongName = feature.properties?.ADM_DR_NM || 
-                          feature.properties?.DONG_NM || 
-                          feature.properties?.['행정동'] ||
+          const dongCode = getDistrictCode(feature.properties) || 0
+          const dongName = getDistrictName(feature.properties) ||
                           'Unknown'
           
           return {
@@ -604,36 +618,41 @@ export default function HexagonScene() {
     return null
   }, [dongSalesMap])
 
-  // Handle unified DeckGL hover for all layers
-  const handleUnifiedHover = useCallback((info: PickingInfo) => {
-    // Handle hexagon layer hover
-    if (info.layer?.id?.includes('hexagon') && info.object && info.object.originalData) {
-      const dongName = info.object.originalData.dongName
-      setHoveredObject(info.object)
+  // Handle unified DeckGL hover for all layers - debounced for performance
+  const handleUnifiedHover = useMemo(() => 
+    debounce((info: PickingInfo) => {
+      // Skip during drag for performance
+      if (isDragging) return
       
-      // Set hovered district for district-wide highlighting
-      if (dongName) {
-        setHoveredDistrict(dongName)
-      }
-    } 
-    // Handle district polygon hover (from unified layers)
-    else if (info.layer?.id?.includes('unified-sgg') || info.layer?.id?.includes('unified-dong')) {
-      const feature = info.object
-      if (feature && feature.properties) {
-        const districtName = feature.properties?.SIGUNGU_NM || 
-                           feature.properties?.GU_NM || 
-                           feature.properties?.ADM_DR_NM || 
-                           feature.properties?.DONG_NM
-        if (districtName) {
-          setHoveredDistrict(districtName)
+      // Handle hexagon layer hover
+      if (info.layer?.id?.includes('hexagon') && info.object && info.object.originalData) {
+        const dongName = info.object.originalData.dongName
+        setHoveredObject(info.object)
+        
+        // Set hovered district for district-wide highlighting
+        if (dongName) {
+          setHoveredDistrict(dongName)
+        }
+      } 
+      // Handle district polygon hover (from unified layers)
+      else if (info.layer?.id?.includes('unified-sgg') || info.layer?.id?.includes('unified-dong')) {
+        const feature = info.object
+        if (feature && feature.properties) {
+          const districtName = feature.properties?.SIGUNGU_NM || 
+                             feature.properties?.GU_NM || 
+                             feature.properties?.ADM_DR_NM || 
+                             feature.properties?.DONG_NM
+          if (districtName) {
+            setHoveredDistrict(districtName)
+          }
         }
       }
-    }
-    else {
-      setHoveredObject(null)
-      setHoveredDistrict(null)
-    }
-  }, [setHoveredObject])
+      else {
+        setHoveredObject(null)
+        setHoveredDistrict(null)
+      }
+    }, 50), // 50ms debounce
+  [setHoveredObject, isDragging])
 
   // Handle unified DeckGL click for all layers
   const handleUnifiedClick = useCallback((info: PickingInfo) => {
@@ -652,7 +671,7 @@ export default function HexagonScene() {
         setSelectedDong(dongName)
         setSelectedDongCode(calculatedDongCode)
         
-        // Removed console.log for performance
+        // Removed // console.log for performance
       } else if (guName) {
         // 구 클릭시: 구만 설정 (서울 전체 뷰 유지)
         setSelectedGu(guName)
@@ -661,24 +680,24 @@ export default function HexagonScene() {
         setSelectedDong(null)
         setSelectedDongCode(null)
         
-        // Removed console.log for performance
+        // Removed // console.log for performance
       }
     }
     // Handle district polygon click (from unified layers)
     else if (info.layer?.id?.includes('unified-sgg') && info.object && info.object.properties) {
-      const guName = info.object.properties?.SIGUNGU_NM || info.object.properties?.GU_NM
+      const guName = getGuName(info.object.properties)
       if (guName) {
         setSelectedGu(guName)
         const calculatedGuCode = getDistrictCode(guName)
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(null)
         setSelectedDongCode(null)
-        // Removed console.log for performance
+        // Removed // console.log for performance
       }
     }
     else if (info.layer?.id?.includes('unified-dong') && info.object && info.object.properties) {
-      const dongName = info.object.properties?.ADM_DR_NM || info.object.properties?.DONG_NM
-      const guName = info.object.properties?.guName || info.object.properties?.['자치구']
+      const dongName = getDistrictName(info.object.properties)
+      const guName = getGuName(info.object.properties)
       if (dongName && guName) {
         setSelectedGu(guName)
         setSelectedDong(dongName)
@@ -686,7 +705,7 @@ export default function HexagonScene() {
         const calculatedDongCode = getDongCode(guName, dongName)
         setSelectedGuCode(calculatedGuCode)
         setSelectedDongCode(calculatedDongCode)
-        // Removed console.log for performance
+        // Removed // console.log for performance
       }
     }
     // Handle district labels click
@@ -698,7 +717,7 @@ export default function HexagonScene() {
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(null)
         setSelectedDongCode(null)
-        // Removed console.log for performance
+        // Removed // console.log for performance
       }
     }
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
@@ -706,6 +725,8 @@ export default function HexagonScene() {
   
   // Temporary placeholder - actual implementation will be defined after optimizedDongMap
   let createDong3DPolygonLayers: any = useCallback(() => {
+    // Skip layer creation if polygon layer is off
+    if (!layerConfig.visible) return []
     if (!dongData3D || !dongData3D.features) return []
     
     return [
@@ -734,12 +755,8 @@ export default function HexagonScene() {
         
         // Height - 사전 계산된 높이 사용
         getElevation: (d: any) => {
-          const guName = d.properties.guName || d.properties['자치구']
-          const dongCode = d.properties.ADM_DR_CD || 
-                          d.properties.dongCode || 
-                          d.properties.dong_code ||
-                          d.properties['행정동코드'] ||
-                          d.properties.DONG_CD
+          const guName = getGuName(d.properties)
+          const dongCode = getDistrictCode(d.properties)
           
           // Use pre-calculated height from properties (will be updated after optimizedDongMap is available)
           const height = d.properties.height || 0
@@ -769,15 +786,11 @@ export default function HexagonScene() {
         
         // 사전 계산된 색상 사용
         getFillColor: (d: any) => {
-          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
-          const guName = d.properties.guName || d.properties['자치구']
+          const dongName = getDistrictName(d.properties)
+          const guName = getGuName(d.properties)
           
           // Try multiple ways to get dongCode
-          const dongCode = d.properties.ADM_DR_CD || 
-                          d.properties.dongCode || 
-                          d.properties.dong_code ||
-                          d.properties['행정동코드'] ||
-                          d.properties.DONG_CD;
+          const dongCode = getDistrictCode(d.properties);
           
           // Use existing calculation (will be replaced after optimizedDongMap is available)
           const height = d.properties.height || 0
@@ -787,12 +800,12 @@ export default function HexagonScene() {
           if (!(window as any)._firstLogDone || Math.random() < 0.005) {
             const step = 125000000; // 1.25억
             const colorIndex = Math.min(Math.floor(totalSales / step), 39);
-            console.log('🎨 40-Step Gradient:', {
-              dongName,
-              totalSales: totalSales ? `${(totalSales / 100000000).toFixed(1)}억` : '0',
-              colorIndex: `${colorIndex}/39`,
-              theme: currentThemeKey
-            })
+            // console.log('🎨 40-Step Gradient:', {
+            //   dongName,
+            //   totalSales: totalSales ? `${(totalSales / 100000000).toFixed(1)}억` : '0',
+            //   colorIndex: `${colorIndex}/39`,
+            //   theme: currentThemeKey
+            // })
             if (!(window as any)._firstLogDone) {
               (window as any)._firstLogDone = true;
             }
@@ -848,8 +861,8 @@ export default function HexagonScene() {
         
         // Modern edge rendering with district-based colors
         getLineColor: (d: any) => {
-          const guName = d.properties.guName || d.properties['자치구']
-          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
+          const guName = getGuName(d.properties)
+          const dongName = getDistrictName(d.properties)
           
           if (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') {
             const isHighlighted = (selectedDong && dongName === selectedDong) || 
@@ -868,7 +881,7 @@ export default function HexagonScene() {
         },
         // Dynamic line width based on hover state
         getLineWidth: (d: any) => {
-          const guName = d.properties.guName || d.properties['자치구']
+          const guName = getGuName(d.properties)
           if (hoveredDistrict === guName) {
             return 3  // Thicker lines for hovered gu
           }
@@ -891,7 +904,7 @@ export default function HexagonScene() {
         onHover: (info: any) => {
           if (info.object) {
             const properties = info.object.properties
-            setHoveredDistrict(properties.ADM_DR_NM || properties.DONG_NM || properties['행정동'])
+            setHoveredDistrict(getDistrictName(properties))
           } else {
             setHoveredDistrict(null)
           }
@@ -900,9 +913,9 @@ export default function HexagonScene() {
         onClick: (info: any) => {
           if (info.object) {
             const props = info.object.properties
-            const dongName = props.ADM_DR_NM || props.DONG_NM || props['행정동']
-            const guName = props.guName || props['자치구']
-            const dongCode = props.ADM_DR_CD || props.DONG_CD || props['행정동코드']
+            const dongName = getDistrictName(props)
+            const guName = getGuName(props)
+            const dongCode = getDistrictCode(props)
             const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
             
             // 선택 상태 업데이트
@@ -925,12 +938,12 @@ export default function HexagonScene() {
           getLineWidth: 200   // Quick line width transition
         },
         
-        // Update triggers for reactive updates
-        updateTriggers: {
-          getElevation: [selectedGu, selectedDong, dongSalesMap, heightScale, selectedDate],
-          getFillColor: [selectedGu, selectedDong, currentThemeKey, dongSalesMap, themeAdjustments, selectedDate],
-          getLineColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments, selectedDate]
-        }
+        // Update triggers for reactive updates - optimized based on layer visibility
+        updateTriggers: layerConfig.visible ? {
+          getElevation: [dongSalesMap, heightScale],  // Only essential dependencies
+          getFillColor: [selectedGu, selectedDong, currentThemeKey],  // Only visual changes
+          getLineColor: [selectedGu, selectedDong, currentThemeKey]
+        } : {}
       })
     ]
   }, [
@@ -1037,9 +1050,9 @@ export default function HexagonScene() {
         
         // 동 클릭 처리
         if (props.ADM_DR_NM || props.DONG_NM) {
-          const dongName = props.ADM_DR_NM || props.DONG_NM
+          const dongName = getDistrictName(props)
           const guName = props.guName || props['자치구']
-          const dongCode = props.ADM_DR_CD || props.DONG_CD
+          const dongCode = getDistrictCode(props)
           const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
           
           if (dongName && guName) {
@@ -1052,7 +1065,7 @@ export default function HexagonScene() {
         }
         // 구 클릭 처리
         else if (props.SIGUNGU_NM || props.GU_NM) {
-          const guName = props.SIGUNGU_NM || props.GU_NM
+          const guName = getGuName(props)
           setSelectedGu(guName)
           setSelectedGuCode(getDistrictCode(guName))
           setSelectedDong(null)
@@ -1062,36 +1075,31 @@ export default function HexagonScene() {
     }
   })
   
-  // Progressive layer loading for better initial render performance
-  useEffect(() => {
-    // Load critical layers immediately
-    setCriticalLayersLoaded(true)
-    
-    // Defer non-critical layers (immediate loading for better UX)
-    setDeferredLayersLoaded(true)
-  }, [])
+  // Remove unnecessary progressive loading - all layers load immediately now
+  // Layer loading state is managed directly in the render logic
   
   // Combine all deck.gl layers - Using conditional rendering for better performance (no cloning)
   const deckLayers = useMemo(() => {
+    // Early return if all layers are off
+    if (!showMeshLayer && !layerConfig.visible && !showDistrictLabels && !showDongLabels) {
+      return []
+    }
     const layers = []
     
     // Critical layer: Mesh (conditional rendering instead of cloning)
-    if (preGeneratedMeshLayer && criticalLayersLoaded && showMeshLayer) {
+    if (preGeneratedMeshLayer && showMeshLayer) {
       layers.push(preGeneratedMeshLayer)
     }
     
-    // Deferred layers: Load after initial render
-    if (deferredLayersLoaded) {
-      // Include unified 2D layers only in 2D mode (conditional rendering instead of cloning)
-      if (unifiedLayers && unifiedLayers.length > 0 && !is3DMode) {
-        layers.push(...unifiedLayers)
-      }
-      
-      // Include 3D polygon layers only in 3D mode (conditional rendering instead of cloning)
-      if (dongData3D && is3DMode) {
-        const dong3DLayers = createDong3DPolygonLayers()
-        layers.push(...dong3DLayers)
-      }
+    // Include unified 2D layers only in 2D mode (conditional rendering instead of cloning)
+    if (unifiedLayers && unifiedLayers.length > 0 && !is3DMode) {
+      layers.push(...unifiedLayers)
+    }
+    
+    // Include 3D polygon layers only in 3D mode (conditional rendering instead of cloning)
+    if (dongData3D && is3DMode) {
+      const dong3DLayers = createDong3DPolygonLayers()
+      layers.push(...dong3DLayers)
     }
     
     
@@ -1117,7 +1125,7 @@ export default function HexagonScene() {
       // Add dong labels when a gu is selected
       if (selectedGu && dongData3D) {
         const dongLabelData = dongData3D.features?.filter((feature: any) => {
-          const guName = feature.properties?.guName || feature.properties?.['자치구']
+          const guName = getGuName(feature.properties)
           return guName === selectedGu
         }).map((feature: any) => ({
           properties: {
@@ -1151,34 +1159,9 @@ export default function HexagonScene() {
     return layers
   }, [is3DMode, dongData3D, showDistrictLabels, showDongLabels, viewState.zoom, 
       selectedGu, selectedDong, hoveredDistrict, showMeshLayer, preGeneratedMeshLayer, 
-      unifiedLayers, criticalLayersLoaded, deferredLayersLoaded])  // Optimized: removed function dependencies
+      unifiedLayers])  // Optimized: removed function dependencies and loading states
   
   // 기존 HexagonLayer 코드 (주석 처리)
-  // const deckLayers = LayerManager({
-  //   data: hexagonData,
-  //   config: layerConfig,
-  //   onHover: (info: PickingInfo) => {
-  //     console.log('[HexagonLayer3D] onHover triggered:', {
-  //       hasObject: !!info.object,
-  //       object: info.object,
-  //       x: info.x,
-  //       y: info.y,
-  //       picked: info.picked,
-  //       layerId: info.layer?.id
-  //     })
-  //     setHoveredObject(info.object)
-  //   },
-  //   onClick: (info: PickingInfo) => {
-  //     console.log('[HexagonLayer3D] onClick triggered:', info)
-  //     setSelectedObject(info.object)
-  //   },
-  //   onAnimationInteractionStart,
-  //   onAnimationInteractionEnd
-  // })
-
-  // 자치구 선택 디버깅
-
-
   // 툴팁 핸들러 (Context7 권장 패턴)
   const getTooltip = (info: PickingInfo) => {
     if (!info.object) {
@@ -1191,23 +1174,16 @@ export default function HexagonScene() {
         const properties = info.object.properties
         
         // 한글과 영문 속성명 모두 체크
-        const dongCode = properties['행정동코드'] || 
-                        properties.ADM_DR_CD || 
-                        properties.H_CODE || 
-                        properties.DONG_CD ||
-                        properties.dong_code ||
-                        properties.dongCode
+        const dongCode = getDistrictCode(properties)
         
-        const dongName = properties['행정동'] || 
-                        properties.ADM_DR_NM || 
+        const dongName = getDistrictName(properties) || 
                         properties.H_DONG_NM || 
                         properties.DONG_NM || 
                         properties.EMD_NM ||
                         properties.EMD_KOR_NM ||
                         '행정동 정보 없음'
         
-        const guName = properties.guName || 
-                      properties['자치구'] || 
+        const guName = getGuName(properties) || 
                       properties.SGG_NM || 
                       properties.SIGUNGU_NM ||
                       properties.SIG_KOR_NM ||
@@ -1339,18 +1315,6 @@ export default function HexagonScene() {
   }
 
   // [REMOVED] Mapbox native layer helper - now using Deck.gl unified layers only
-
-  useEffect(() => {
-    // 힌트 숨기기 타이머
-    const hintTimer = setTimeout(() => {
-      setShowHint(false)
-    }, 3000)
-
-    // 정리 함수
-    return () => {
-      clearTimeout(hintTimer)
-    }
-  }, [])
   
   // Load district data
   useEffect(() => {
@@ -1364,14 +1328,14 @@ export default function HexagonScene() {
       if (sgg) {
         setSggData(sgg)
         if (sgg.features?.[0]) {
-          console.log('[DataLoad] Sample sgg properties:', sgg.features[0].properties)
+          // console.log('[DataLoad] Sample sgg properties:', sgg.features[0].properties)
         }
       }
       if (dong) {
         setDongData(dong)
         if (dong.features?.[0]) {
-          console.log('[DataLoad] Sample dong properties:', dong.features[0].properties)
-          console.log('[DataLoad] Dong property keys:', Object.keys(dong.features[0].properties))
+          // console.log('[DataLoad] Sample dong properties:', dong.features[0].properties)
+          // console.log('[DataLoad] Dong property keys:', Object.keys(dong.features[0].properties))
         }
       }
       if (jib) setJibData(jib)
@@ -1388,9 +1352,9 @@ export default function HexagonScene() {
   
   // 데이터 형식 로깅 (최초 1회만)
   useEffect(() => {
-    console.log(`[Data Format] Using ${USE_BINARY_FORMAT ? 'BINARY' : 'JSON'} format for data loading`)
+    // console.log(`[Data Format] Using ${USE_BINARY_FORMAT ? 'BINARY' : 'JSON'} format for data loading`)
     if (USE_BINARY_FORMAT) {
-      console.log('[Data Format] Binary format provides 97.6% size reduction and 10x faster loading')
+      // console.log('[Data Format] Binary format provides 97.6% size reduction and 10x faster loading')
     }
   }, [])
   
@@ -1418,25 +1382,25 @@ export default function HexagonScene() {
   // 성능 로깅 (Binary 모드에서만)
   useEffect(() => {
     if (USE_BINARY_FORMAT && binaryDataResult.loadingStats && !isOptimizedLoading) {
-      console.log(`[Binary Performance] Total load time: ${binaryDataResult.loadingStats.totalTime?.toFixed(2)}ms`)
+      // console.log(`[Binary Performance] Total load time: ${binaryDataResult.loadingStats.totalTime?.toFixed(2)}ms`)
     }
   }, [USE_BINARY_FORMAT, binaryDataResult.loadingStats, isOptimizedLoading])
 
   // Load sales data from optimized data
   useEffect(() => {
     if (!optimizedFeatures || !optimizedDongMap) {
-      console.log('[OptimizedData] Waiting for optimized data...')
+      // console.log('[OptimizedData] Waiting for optimized data...')
       return
     }
     
     // 디버깅: optimizedDongMap 확인
-    console.log(`[DEBUG] optimizedDongMap 크기: ${optimizedDongMap.size}`)
+    // console.log(`[DEBUG] optimizedDongMap 크기: ${optimizedDongMap.size}`)
     const firstThree = Array.from(optimizedDongMap.entries()).slice(0, 3)
     firstThree.forEach(([dongCode, feature]) => {
-      console.log(`[DEBUG dongMap] 동코드 ${dongCode}: height=${feature.height}, totalSales=${feature.totalSales}`)
+      // console.log(`[DEBUG dongMap] 동코드 ${dongCode}: height=${feature.height}, totalSales=${feature.totalSales}`)
     })
 
-    // Removed console.log for performance
+    // Removed // console.log for performance
     
     // Convert optimized data to existing map format for compatibility
     const salesByDong = new Map<number, number>()
@@ -1454,14 +1418,14 @@ export default function HexagonScene() {
       }
     })
     
-    // Removed console.log for performance
+    // Removed // console.log for performance
     
     // Log min/max for reference
     const salesValues = optimizedFeatures.map(f => f.totalSales)
     if (salesValues.length > 0) {
       const minSales = Math.min(...salesValues)
       const maxSales = Math.max(...salesValues)
-      console.log(`[OptimizedData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
+      // console.log(`[OptimizedData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
     }
     
     setDongSalesMap(salesByDong)
@@ -1474,17 +1438,13 @@ export default function HexagonScene() {
     
     const colorMap = new Map()
     dongData3D.features.forEach((feature: any) => {
-      const dongCode = feature.properties.ADM_DR_CD || 
-                      feature.properties.dongCode || 
-                      feature.properties.dong_code ||
-                      feature.properties['행정동코드'] ||
-                      feature.properties.DONG_CD
+      const dongCode = getDistrictCode(feature.properties)
       
       if (dongCode) {
         // Pre-calculate base color (without hover/selection state)
         const height = feature.properties.height || 0
-        const guName = feature.properties.guName || feature.properties['자치구']
-        const dongName = feature.properties.ADM_DR_NM || feature.properties.DONG_NM || feature.properties['행정동']
+        const guName = getGuName(feature.properties)
+        const dongName = getDistrictName(feature.properties)
         const totalSales = dongSalesMap.get(Number(dongCode)) || 0
         
         // Use optimized data if available
@@ -1515,6 +1475,8 @@ export default function HexagonScene() {
 
   // Now redefine createDong3DPolygonLayers with optimizedDongMap available
   createDong3DPolygonLayers = useCallback(() => {
+    // Skip layer creation if polygon layer is off
+    if (!layerConfig.visible) return []
     if (!dongData3D || !dongData3D.features) return []
     
     return [
@@ -1543,12 +1505,8 @@ export default function HexagonScene() {
         
         // Height - 사전 계산된 높이 사용
         getElevation: (d: any) => {
-          const guName = d.properties.guName || d.properties['자치구']
-          const dongCode = d.properties.ADM_DR_CD || 
-                          d.properties.dongCode || 
-                          d.properties.dong_code ||
-                          d.properties['행정동코드'] ||
-                          d.properties.DONG_CD
+          const guName = getGuName(d.properties)
+          const dongCode = getDistrictCode(d.properties)
           
           // 최적화된 데이터에서 사전 계산된 높이 가져오기
           const optimizedFeature = dongCode && optimizedDongMap ? optimizedDongMap.get(Number(dongCode)) : null
@@ -1556,7 +1514,7 @@ export default function HexagonScene() {
           
           // 디버깅: 높이 데이터 확인 (첫 3개만)
           if (dongCode && parseInt(dongCode) <= 11110115) {
-            console.log(`[DEBUG getElevation] 동코드 ${dongCode}: optimizedHeight=${optimizedFeature?.height}, propertiesHeight=${d.properties.height}, finalHeight=${height}`)
+            // console.log(`[DEBUG getElevation] 동코드 ${dongCode}: optimizedHeight=${optimizedFeature?.height}, propertiesHeight=${d.properties.height}, finalHeight=${height}`)
           }
           
           // 동 선택 시: 선택된 구의 동만 원래 높이
@@ -1584,16 +1542,12 @@ export default function HexagonScene() {
         
         // Use pre-calculated colors for better performance
         getFillColor: (d: any) => {
-          const dongCode = d.properties.ADM_DR_CD || 
-                          d.properties.dongCode || 
-                          d.properties.dong_code ||
-                          d.properties['행정동코드'] ||
-                          d.properties.DONG_CD;
+          const dongCode = getDistrictCode(d.properties);
           
           // Get pre-calculated color data for performance
           const colorData = dongCode ? dongColorMap.get(dongCode) : null;
           const guName = colorData?.guName || d.properties.guName || d.properties['자치구']
-          const dongName = colorData?.dongName || d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
+          const dongName = colorData?.dongName || getDistrictName(d.properties)
           
           // Use pre-calculated base color and apply state changes
           if (colorData && colorData.baseColor) {
@@ -1689,8 +1643,8 @@ export default function HexagonScene() {
         
         // Line color for borders - ensure visibility
         getLineColor: (d: any) => {
-          const dongName = d.properties.ADM_DR_NM || d.properties.DONG_NM || d.properties['행정동']
-          const guName = d.properties.guName || d.properties['자치구']
+          const dongName = getDistrictName(d.properties)
+          const guName = getGuName(d.properties)
           
           // Highlight selected/hovered dong with bright edge
           if (selectedDong === dongName || hoveredDistrict === dongName || hoveredDistrict === guName) {
@@ -1721,7 +1675,7 @@ export default function HexagonScene() {
         onHover: (info: any) => {
           if (info.object) {
             const properties = info.object.properties
-            setHoveredDistrict(properties.ADM_DR_NM || properties.DONG_NM || properties['행정동'])
+            setHoveredDistrict(getDistrictName(properties))
           } else {
             setHoveredDistrict(null)
           }
@@ -1730,9 +1684,9 @@ export default function HexagonScene() {
         onClick: (info: any) => {
           if (info.object) {
             const props = info.object.properties
-            const dongName = props.ADM_DR_NM || props.DONG_NM || props['행정동']
-            const guName = props.guName || props['자치구']
-            const dongCode = props.ADM_DR_CD || props.DONG_CD || props['행정동코드']
+            const dongName = getDistrictName(props)
+            const guName = getGuName(props)
+            const dongCode = getDistrictCode(props)
             const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
             
             // 선택 상태 업데이트
@@ -1756,11 +1710,11 @@ export default function HexagonScene() {
         },
         
         // Update triggers for reactive updates (optimized - removed hover state)
-        updateTriggers: {
-          getElevation: [selectedGu, selectedDong, dongSalesMap, heightScale, selectedDate],
-          getFillColor: [selectedGu, selectedDong, dongColorMap, selectedDate], // Use pre-calculated color map
-          getLineColor: [selectedGu, selectedDong, selectedDate]
-        }
+        updateTriggers: layerConfig.visible ? {
+          getElevation: [dongSalesMap, heightScale],  // Only essential dependencies
+          getFillColor: [selectedGu, selectedDong, dongColorMap],  // Use pre-calculated color map
+          getLineColor: [selectedGu, selectedDong]
+        } : {}
       })
     ]
   }, [
@@ -1787,6 +1741,8 @@ export default function HexagonScene() {
   
   // Update interpolation targets when sales data changes
   useEffect(() => {
+    // Skip processing if layers are off
+    if (!showMeshLayer && !layerConfig.visible) return
     if (dongSalesMap.size === 0) return
     
     // Calculate target heights for all dongs
@@ -1811,6 +1767,8 @@ export default function HexagonScene() {
   
   // 3D 모드용 데이터 전처리
   useEffect(() => {
+    // Skip processing if layers are off
+    if (!showMeshLayer && !layerConfig.visible) return
     if (!sggData || !dongData || dongSalesMap.size === 0 || !dongSalesByTypeMap) return
     
     // 3D 효과를 위한 데이터 처리 (갈라짐 없이)
@@ -1820,7 +1778,7 @@ export default function HexagonScene() {
       const minSales = Math.min(...salesValues)
       const maxSales = Math.max(...salesValues)
       const avgSales = salesValues.reduce((a, b) => a + b, 0) / salesValues.length
-      console.log(`[3D Processing] Sales stats - Min: ${minSales.toLocaleString()}, Max: ${maxSales.toLocaleString()}, Avg: ${avgSales.toLocaleString()}`)
+      // console.log(`[3D Processing] Sales stats - Min: ${minSales.toLocaleString()}, Max: ${maxSales.toLocaleString()}, Avg: ${avgSales.toLocaleString()}`)
       
       // 구 데이터 3D 처리
       const sgg3D = {
@@ -1847,17 +1805,17 @@ export default function HexagonScene() {
         features: dongData.features.map((feature: any, index: number) => {
           // Use Korean property names from the actual GeoJSON data
           const guName = feature.properties['자치구'] || feature.properties.SGG_NM || feature.properties.SIGUNGU_NM || feature.properties.SIG_KOR_NM
-          const dongName = feature.properties['행정동'] || feature.properties.H_DONG_NM || feature.properties.ADM_DR_NM || feature.properties.EMD_NM || feature.properties.EMD_KOR_NM
-          const dongCode = feature.properties['행정동코드'] || feature.properties.H_CODE || feature.properties.ADM_DR_CD || 0
+          const dongName = getDistrictName(feature.properties)
+          const dongCode = getDistrictCode(feature.properties) || 0
           
           // Debug first few dong codes
           if (index < 3) {
-            console.log(`[Dong3D] Feature ${index}:`, {
-              guName,
-              dongName,
-              dongCode,
-              allProperties: Object.keys(feature.properties)
-            })
+            // console.log(`[Dong3D] Feature ${index}:`, {
+            //   guName,
+            //   dongName,
+            //   dongCode,
+            //   allProperties: Object.keys(feature.properties)
+            // })
           }
           
           // Get interpolated height for smooth animation
@@ -1865,13 +1823,13 @@ export default function HexagonScene() {
           
           // Log first and last dong for debugging
           if (index === 0 || index === dongData.features.length - 1) {
-            console.log(`[Dong 3D] Index ${index}:`, { 
-              guName, 
-              dongName, 
-              dongCode,
-              height: Math.round(height),
-              dongIndex: index 
-            })
+            // console.log(`[Dong 3D] Index ${index}:`, { 
+            //   guName, 
+            //   dongName, 
+            //   dongCode,
+            //   height: Math.round(height),
+            //   dongIndex: index 
+            // })
           }
           
           return {
@@ -1893,6 +1851,8 @@ export default function HexagonScene() {
   
   // Update dong3D continuously during height animation
   useEffect(() => {
+    // Skip animation if layers are off
+    if (!showMeshLayer && !layerConfig.visible) return
     if (!heightInterpolation.isAnimating || !dongData) return
     
     let animationFrame: number
@@ -1902,9 +1862,7 @@ export default function HexagonScene() {
       const dong3D = {
         ...dongData,
         features: dongData.features.map((feature: any) => {
-          const dongCode = feature.properties['행정동코드'] || 
-                          feature.properties.H_CODE || 
-                          feature.properties.ADM_DR_CD || 0
+          const dongCode = getDistrictCode(feature.properties) || 0
           
           const interpolatedHeight = heightInterpolation.getInterpolatedHeight(Number(dongCode))
           
@@ -1943,18 +1901,18 @@ export default function HexagonScene() {
   // Listen for theme changes
   useEffect(() => {
     const handleThemeChange = (event: Event) => {
-      console.log('[HexagonLayer3D] Theme change event received', event)
+      // console.log('[HexagonLayer3D] Theme change event received', event)
       
       // Force React re-render by updating state
       const newTheme = getCurrentTheme()
       const newThemeKey = getCurrentThemeKey()
-      console.log('[HexagonLayer3D] Updating theme state to:', newTheme?.name, 'Key:', newThemeKey)
+      // console.log('[HexagonLayer3D] Updating theme state to:', newTheme?.name, 'Key:', newThemeKey)
       setCurrentThemeState(newTheme)
       setCurrentThemeKey(newThemeKey)
       
       // Theme updates now handled by Deck.gl unified layers
       // Colors update automatically through props and updateTriggers
-      console.log('[HexagonLayer3D] Theme updated - Deck.gl layers will re-render')
+      // console.log('[HexagonLayer3D] Theme updated - Deck.gl layers will re-render')
     }
     
     // Listen for theme change events
@@ -1974,7 +1932,7 @@ export default function HexagonScene() {
   // Create fast lookup indices for districts
   const sggIndex = useMemo(() => {
     if (!sggData?.features) {
-      console.log('[SggIndex] No sgg data available')
+      // console.log('[SggIndex] No sgg data available')
       return new Map()
     }
     
@@ -1992,7 +1950,7 @@ export default function HexagonScene() {
         index.set(codeNumber, f)
         // 디버깅용 - 첫 5개 항목 로깅
         if (index.size <= 5) {
-          console.log('[SggIndex] Added by code:', { code: codeNumber, name: guName })
+          // console.log('[SggIndex] Added by code:', { code: codeNumber, name: guName })
         }
       }
       
@@ -2000,19 +1958,19 @@ export default function HexagonScene() {
       if (guName) {
         index.set(guName, f)
         if (index.size <= 10) {
-          console.log('[SggIndex] Added by name:', guName)
+          // console.log('[SggIndex] Added by name:', guName)
         }
       }
     })
     
-    console.log('[SggIndex] Created index with', index.size, 'entries (codes and names)')
-    console.log('[SggIndex] Sample keys:', Array.from(index.keys()).slice(0, 10))
+    // console.log('[SggIndex] Created index with', index.size, 'entries (codes and names)')
+    // console.log('[SggIndex] Sample keys:', Array.from(index.keys()).slice(0, 10))
     return index
   }, [sggData])
 
   const dongIndex = useMemo(() => {
     if (!dongData?.features) {
-      console.log('[DongIndex] No dong data available')
+      // console.log('[DongIndex] No dong data available')
       return new Map()
     }
     
@@ -2021,7 +1979,7 @@ export default function HexagonScene() {
     dongData.features.forEach((f: any) => {
       const props = f.properties || {}
       // 행정동 코드로 인덱싱 - 다양한 속성명 지원 (한글 속성명 포함)
-      const dongCode = props.ADM_CD || props.H_CD || props.DONG_CD || props.ADM_DR_CD || props.EMD_CD || props['행정동코드']
+      const dongCode = getDistrictCode(props)
       
       if (dongCode) {
         // 코드를 숫자로 변환하여 저장
@@ -2029,12 +1987,12 @@ export default function HexagonScene() {
         index.set(codeNumber, f)
         // 디버깅용 - 첫 5개 항목 로깅
         if (index.size <= 5) {
-          console.log('[DongIndex] Added:', { code: codeNumber, name: props.ADM_NM || props.H_DONG_NM || props.DONG_NM })
+          // console.log('[DongIndex] Added:', { code: codeNumber, name: props.ADM_NM || props.H_DONG_NM || props.DONG_NM })
         }
       }
     })
     
-    console.log('[DongIndex] Created code-based index with', index.size, 'entries')
+    // console.log('[DongIndex] Created code-based index with', index.size, 'entries')
     return index
   }, [dongData])
 
@@ -2047,16 +2005,16 @@ export default function HexagonScene() {
         features: [districtSelection.selectedFeature]
       }
       
-      console.log('[Setting Selected District from Map Click]', {
-        districtName: districtSelection.selectedDistrict,
-        layerType: districtSelection.selectedFeature?.layer?.id,
-        hasFeature: !!districtSelection.selectedFeature
-      })
+      // console.log('[Setting Selected District from Map Click]', {
+      //   districtName: districtSelection.selectedDistrict,
+      //   layerType: districtSelection.selectedFeature?.layer?.id,
+      //   hasFeature: !!districtSelection.selectedFeature
+      // })
       
       setSelectedDistrictData(selectedFeatureData)
     } else if (!selectedGu && !selectedDong) {
       // Only clear if no filter is selected
-      console.log('[Clearing Selected District]')
+      // console.log('[Clearing Selected District]')
       setSelectedDistrictData(null)
     }
   }, [districtSelection.selectedDistrict, districtSelection.selectedFeature, selectedGu, selectedDong])
@@ -2072,12 +2030,12 @@ export default function HexagonScene() {
     }
 
     if (selectedGuCode || selectedDongCode || selectedGu || selectedDong) {
-      console.log('[District Selection] Selected:', { 
-        guCode: selectedGuCode, 
-        guName: selectedGu,
-        dongCode: selectedDongCode,
-        dongName: selectedDong 
-      })
+      // console.log('[District Selection] Selected:', { 
+      //   guCode: selectedGuCode, 
+      //   guName: selectedGu,
+      //   dongCode: selectedDongCode,
+      //   dongName: selectedDong 
+      // })
       
       let foundFeature = null
       let foundGuFeature = null // 동 선택시 구 경계도 필요
@@ -2085,11 +2043,11 @@ export default function HexagonScene() {
       // Fast lookup using Map index with codes - O(1) instead of O(n)
       // 동이 선택된 경우 동 경계를 하이라이트
       if (selectedDongCode) {
-        console.log('[DongSelection] Looking for dong code:', selectedDongCode, 'Type:', typeof selectedDongCode)
+        // console.log('[DongSelection] Looking for dong code:', selectedDongCode, 'Type:', typeof selectedDongCode)
         const dongFeature = dongIndex.get(selectedDongCode)
         if (dongFeature) {
-          console.log('[DongSelection] Found dong feature:', dongFeature.properties)
-          console.log('[DongSelection] Dong properties keys:', Object.keys(dongFeature.properties))
+          // console.log('[DongSelection] Found dong feature:', dongFeature.properties)
+          // console.log('[DongSelection] Dong properties keys:', Object.keys(dongFeature.properties))
           foundFeature = dongFeature
           
           // 동 선택시 해당 구 경계도 찾기
@@ -2099,36 +2057,36 @@ export default function HexagonScene() {
               sggFeature = sggIndex.get(selectedGu)
             }
             if (sggFeature) {
-              console.log('[DongSelection] Also found gu feature for context:', sggFeature.properties)
+              // console.log('[DongSelection] Also found gu feature for context:', sggFeature.properties)
               foundGuFeature = sggFeature
             }
           }
         } else {
-          console.log('[DongSelection] Dong code not found in index!')
-          console.log('[DongSelection] Available keys types:', Array.from(dongIndex.keys()).slice(0, 5).map(k => typeof k))
-          console.log('[DongSelection] Available codes:', Array.from(dongIndex.keys()).slice(0, 10))
+          // console.log('[DongSelection] Dong code not found in index!')
+          // console.log('[DongSelection] Available keys types:', Array.from(dongIndex.keys()).slice(0, 5).map(k => typeof k))
+          // console.log('[DongSelection] Available codes:', Array.from(dongIndex.keys()).slice(0, 10))
         }
       }
       // 구만 선택된 경우 구 경계를 하이라이트  
       else if (selectedGuCode || selectedGu) {
-        console.log('[GuSelection] Looking for gu:', { code: selectedGuCode, name: selectedGu })
-        console.log('[GuSelection] sggIndex size:', sggIndex.size)
+        // console.log('[GuSelection] Looking for gu:', { code: selectedGuCode, name: selectedGu })
+        // console.log('[GuSelection] sggIndex size:', sggIndex.size)
         
         // Try code first
         let sggFeature = selectedGuCode ? sggIndex.get(selectedGuCode) : null
         
         // If code doesn't work, try name as fallback
         if (!sggFeature && selectedGu) {
-          console.log('[GuSelection] Code not found, trying name:', selectedGu)
+          // console.log('[GuSelection] Code not found, trying name:', selectedGu)
           sggFeature = sggIndex.get(selectedGu)
         }
         
         if (sggFeature) {
-          console.log('[GuSelection] Found gu feature:', sggFeature.properties)
+          // console.log('[GuSelection] Found gu feature:', sggFeature.properties)
           foundFeature = sggFeature
         } else {
-          console.log('[GuSelection] Gu not found in index!')
-          console.log('[GuSelection] Available keys (first 20):', Array.from(sggIndex.keys()).slice(0, 20))
+          // console.log('[GuSelection] Gu not found in index!')
+          // console.log('[GuSelection] Available keys (first 20):', Array.from(sggIndex.keys()).slice(0, 20))
         }
       }
       
@@ -2143,20 +2101,20 @@ export default function HexagonScene() {
           features: features
         }
         
-        console.log('[SelectedFeatures] Created FeatureCollection with', features.length, 'features')
+        // console.log('[SelectedFeatures] Created FeatureCollection with', features.length, 'features')
         features.forEach((f, idx) => {
-          console.log(`[Feature ${idx}]:`, Object.keys(f.properties).slice(0, 5), '...')
+          // console.log(`[Feature ${idx}]:`, Object.keys(f.properties).slice(0, 5), '...')
         })
         
         setSelectedDistrictData(selectedFeatureData)
       } else {
         setSelectedDistrictData(null)
-        console.log('[District Selection] No feature found for codes:', { guCode: selectedGuCode, dongCode: selectedDongCode })
+        // console.log('[District Selection] No feature found for codes:', { guCode: selectedGuCode, dongCode: selectedDongCode })
       }
     } else {
       // Reset to Seoul overview when no filter is selected
       setSelectedDistrictData(null)
-      console.log('[District Selection] No district selected, resetting to Seoul overview')
+      // console.log('[District Selection] No district selected, resetting to Seoul overview')
       
       
       // Return to default Seoul view (재사용 함수 사용)
@@ -2242,21 +2200,23 @@ export default function HexagonScene() {
             setTimeout(rotateCamera, 1000) // 1 second delay before resuming
           }
         }}
-        onViewStateChange={({ viewState: newViewState }) => {
-          // Skip if this is a programmatic update to prevent infinite loops
-          if (isProgrammaticUpdateRef.current) {
-            return
-          }
-          
-          // Update the viewState - DeckGL and MapGL sync automatically
-          setViewState(newViewState as MapViewState)
-          
-          // Update bearing ref for rotation animation
-          if ('bearing' in newViewState && newViewState.bearing !== undefined) {
-            currentBearingRef.current = newViewState.bearing
-            updateBearing(newViewState.bearing)
-          }
-        }}
+        onViewStateChange={useMemo(() => 
+          throttle(({ viewState: newViewState }) => {
+            // Skip if this is a programmatic update to prevent infinite loops
+            if (isProgrammaticUpdateRef.current) {
+              return
+            }
+            
+            // Update the viewState - DeckGL and MapGL sync automatically
+            setViewState(newViewState as MapViewState)
+            
+            // Update bearing ref for rotation animation
+            if ('bearing' in newViewState && newViewState.bearing !== undefined) {
+              currentBearingRef.current = newViewState.bearing
+              updateBearing(newViewState.bearing)
+            }
+          }, 16), // 60fps
+        [setViewState, updateBearing])}
       >
         <MapGL
           ref={mapRef}
@@ -2329,7 +2289,6 @@ export default function HexagonScene() {
         currentLayer={currentLayer}
         currentTime={currentTime}
         showBoundary={showBoundary}
-        showSeoulBase={showSeoulBase}
         // District visibility props
         dongVisible={districtSelection.dongVisible}
         onDongVisibleChange={(visible) => districtSelection.setDongVisible(visible)}
@@ -2341,12 +2300,12 @@ export default function HexagonScene() {
         onBoundaryToggle={(show) => {
           setShowBoundary(show)
           // Boundary visibility now controlled through Deck.gl layer props
-          console.log('[HexagonLayer3D] Boundary visibility:', show)
+          // console.log('[HexagonLayer3D] Boundary visibility:', show)
         }}
         onSeoulBaseToggle={(show) => {
           setShowSeoulBase(show)
           // Seoul base is now removed, this toggle can be deprecated or repurposed
-          console.log('Seoul base toggle is deprecated - boundary only mode active')
+          // console.log('Seoul base toggle is deprecated - boundary only mode active')
         }}
         // 3D 모드 props
         is3DMode={is3DMode}
@@ -2422,7 +2381,7 @@ export default function HexagonScene() {
         지도 초기화
       </button>
 
-      {showHint && (
+      {false && (
         <div className="absolute bottom-4 right-4 info-panel glow-effect transition-all duration-1000 opacity-90 hover:opacity-100 z-10">
           <div className="flex items-center gap-3">
             <span className="text-2xl">🗺️</span>
@@ -2448,10 +2407,9 @@ export default function HexagonScene() {
       {/* Chart Panel - Resizable Right Side */}
       {showChartPanel && (
         <ResizablePanel
-          initialWidth={chartPanelWidth || (typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600)}
+          initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
           minWidth={300}
           maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
-          onResize={(width) => setChartPanelWidth(width)}
           className="h-full bg-black/80"
         >
           <div className="h-full p-4">
