@@ -24,6 +24,7 @@ import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode, getDongCode } from "../data/districtCodeMappings"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
+import { MeshLoadingOverlay } from "./MeshLoadingOverlay"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { loadDistrictData, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
@@ -988,7 +989,7 @@ export default function CardSalesDistrictMap() {
   }, [])  // Lighting configuration is constant
   
   // Use pre-generated mesh layer for better performance with real sales data
-  const preGeneratedMeshLayer = usePreGeneratedSeoulMeshLayer({
+  const { layer: preGeneratedMeshLayer, isLoading: isMeshLoading } = usePreGeneratedSeoulMeshLayer({
     resolution: meshResolution,
     visible: showMeshLayer,
     wireframe: meshWireframe,
@@ -2156,6 +2157,9 @@ export default function CardSalesDistrictMap() {
 
   return (
     <div className="relative w-full h-screen flex">
+      {/* Mesh Loading Overlay */}
+      <MeshLoadingOverlay isLoading={isMeshLoading && showMeshLayer} />
+      
       {/* Map Section - Flexible Width */}
       <div className={`relative flex-1 transition-all duration-300`}>
         {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
@@ -2255,6 +2259,13 @@ export default function CardSalesDistrictMap() {
           {/* 동 레이블은 이제 Deck.gl TextLayer로 처리됨 - 중복 제거 */}
           
           
+          {/* Semi-transparent black overlay for very-dark mode - inside MapGL, under DeckGL layers */}
+          {currentLayer === 'very-dark' && (
+            <div 
+              className="absolute inset-0 bg-black/70 pointer-events-none" 
+              style={{ mixBlendMode: 'multiply' }}
+            />
+          )}
         </MapGL>
       </DeckGL>
       

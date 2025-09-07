@@ -617,7 +617,7 @@ export function useSeoulMeshLayers(
 export function usePreGeneratedSeoulMeshLayer(
   props: SeoulMeshLayerProps = {},
   districtData?: any[]
-): SimpleMeshLayer | null {
+): { layer: SimpleMeshLayer | null; isLoading: boolean } {
   const {
     resolution = 60,
     visible = true,
@@ -661,6 +661,10 @@ export function usePreGeneratedSeoulMeshLayer(
         if (dongSalesMap && dongSalesMap.size > 0) {
           console.log(`[usePreGeneratedSeoulMeshLayer] Using dynamic generation with sales data (${dongSalesMap.size} dongs)`)
           if (districtData && districtData.length > 0) {
+            // Add artificial delay to show loading animation
+            // This ensures users see the beautiful loading screen
+            await new Promise(resolve => setTimeout(resolve, 1500))
+            
             const dynamicMesh = generateGridMesh(districtData, {
               resolution,
               heightScale: 1,
@@ -736,7 +740,7 @@ export function usePreGeneratedSeoulMeshLayer(
   }, [resolution, wireframe, districtData, dongBoundaries, dongSalesMap, salesHeightScale])
 
   // Create layer from loaded data
-  return useMemo(() => {
+  const layer = useMemo(() => {
     if (!meshData || loading || !visible) {
       return null
     }
@@ -751,6 +755,9 @@ export function usePreGeneratedSeoulMeshLayer(
       color
     })
   }, [meshData, loading, visible, wireframe, opacity, pickable, onHover, onClick, color])
+  
+  // Return both layer and loading state
+  return { layer, isLoading: loading }
 }
 
 /**
@@ -846,5 +853,6 @@ export function useStaticSeoulMeshLayer(
   props: SeoulMeshLayerProps = {}
 ): SimpleMeshLayer | null {
   // Use the new hook with default resolution 200 for backward compatibility
-  return usePreGeneratedSeoulMeshLayer({ ...props, resolution: 200 })
+  const { layer } = usePreGeneratedSeoulMeshLayer({ ...props, resolution: 200 })
+  return layer
 }
