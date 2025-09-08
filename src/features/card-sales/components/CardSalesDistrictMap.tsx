@@ -8,20 +8,19 @@ import type { MapRef } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LinearInterpolator, FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import { PolygonLayer } from '@deck.gl/layers'
-import { createDong3DPolygonLayers, createDong2DPolygonLayers } from '../utils/createDeckLayers'
+// Removed createDong3DPolygonLayers import - using local optimized versions instead
 import UnifiedControls from "./SalesDataControls"
-import { LayerManager, formatTooltip, formatScatterplotTooltip } from "./LayerManager"
+import { formatTooltip, formatScatterplotTooltip } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { useHeightInterpolation } from "../hooks/useHeightInterpolation"
 import { useOptimizedMonthlyData } from "../hooks/useOptimizedMonthlyData"
 // import { useBinaryOptimizedData } from "../hooks/useBinaryOptimizedData" // Moved to del
 import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
-import { climateDataLoader } from '../utils/climateDataLoader'
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
 import type { FilterState } from "./LocalEconomyFilterPanel"
-import { getDistrictCode, getDongCode } from "../data/districtCodeMappings"
+import { getDistrictCode as getDistrictCodeFromMapping, getDongCode as getDongCodeFromMapping } from "../data/districtCodeMappings"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
 import { MeshLoadingOverlay } from "./MeshLoadingOverlay"
@@ -37,7 +36,7 @@ import {
   CAMERA_2D_CONFIG
 } from "@/src/shared/utils/district3DUtils"
 // RotateCcw removed - replay button removed for performance
-import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, applyColorAdjustments, getSimpleSalesColor } from "../utils/modernColorPalette"
+import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getSimpleSalesColor } from "../utils/modernColorPalette"
 import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
@@ -84,13 +83,13 @@ const convertColorExpressionToRGB = (
   const baseAlpha = 242;
   
   // Simple height-based colors for fallback
-  if (h >= 600) return applyColorAdjustments(0, 0, 139, baseAlpha);      // Very high
-  if (h >= 500) return applyColorAdjustments(0, 71, 171, baseAlpha);     // High
-  if (h >= 400) return applyColorAdjustments(30, 144, 255, baseAlpha);   // Medium-high
-  if (h >= 300) return applyColorAdjustments(100, 180, 255, baseAlpha);  // Medium
-  if (h >= 200) return applyColorAdjustments(135, 206, 250, baseAlpha);  // Low-medium
-  if (h >= 100) return applyColorAdjustments(173, 216, 230, baseAlpha);  // Low
-  return applyColorAdjustments(200, 230, 255, baseAlpha);                // Very low
+  if (h >= 600) return [0, 0, 139, baseAlpha];      // Very high
+  if (h >= 500) return [0, 71, 171, baseAlpha];     // High
+  if (h >= 400) return [30, 144, 255, baseAlpha];   // Medium-high
+  if (h >= 300) return [100, 180, 255, baseAlpha];  // Medium
+  if (h >= 200) return [135, 206, 250, baseAlpha];  // Low-medium
+  if (h >= 100) return [173, 216, 230, baseAlpha];  // Low
+  return [200, 230, 255, baseAlpha];                // Very low
 }
 
 // 기본 서울 뷰 설정 상수 (3D 모드 기본)
@@ -284,7 +283,6 @@ export default function CardSalesDistrictMap() {
   const handleFilterChange = useCallback((filters: FilterState) => {
     // Directly update states without checking current values
     // This prevents unnecessary re-renders and loops
-    // Removed // console.log for performance
     setSelectedGu(filters.selectedGu)
     setSelectedGuCode(filters.selectedGuCode)
     setSelectedDong(filters.selectedDong)
@@ -297,7 +295,6 @@ export default function CardSalesDistrictMap() {
       handleDistrictZoom(filters.selectedGu, filters.selectedDong)
     } else if (filters.selectedGu && !filters.selectedDong) {
       // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
-      // console.log('[GuSelection] Maintaining Seoul-wide view with district highlight')
       // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
     }
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setSelectedDate, handleDistrictZoom])
@@ -310,7 +307,6 @@ export default function CardSalesDistrictMap() {
   const districtSelection = useDistrictSelection({ 
     mapRef,
     onDistrictSelect: (districtName, feature) => {
-      // console.log('Selected district:', districtName)
       
       // Update filter panel when map is clicked
       if (feature?.layer?.id === 'sgg-fill') {
@@ -326,7 +322,6 @@ export default function CardSalesDistrictMap() {
   // District GeoJSON data
   const [sggData, setSggData] = useState<any>(null)
   const [dongData, setDongData] = useState<any>(null)
-  const [jibData, setJibData] = useState<any>(null)
   
   // 3D용 분리된 폴리곤 데이터
   const [sggData3D, setSggData3D] = useState<any>(null)
@@ -350,6 +345,21 @@ export default function CardSalesDistrictMap() {
   
   // Mesh layer states
   const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
+  
+  // Wrapper functions to make 3D Polygon Layer and 3D Mesh Layer mutually exclusive
+  const handlePolygonLayerToggle = useCallback((visible: boolean) => {
+    setVisible(visible)
+    if (visible) {
+      setShowMeshLayer(false) // Turn off mesh layer when polygon layer is turned on
+    }
+  }, [setVisible])
+  
+  const handleMeshLayerToggle = useCallback((visible: boolean) => {
+    setShowMeshLayer(visible)
+    if (visible) {
+      setVisible(false) // Turn off polygon layer when mesh layer is turned on
+    }
+  }, [setVisible])
   // Wireframe always true - removed state
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
   const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
@@ -362,7 +372,7 @@ export default function CardSalesDistrictMap() {
     if (!dongName || !selectedGu) return
     
     setSelectedDong(dongName)
-    const dongCode = getDongCode(selectedGu, dongName)
+    const dongCode = getDongCodeFromMapping(selectedGu, dongName)
     if (dongCode) {
       setSelectedDongCode(dongCode)
     }
@@ -403,11 +413,10 @@ export default function CardSalesDistrictMap() {
   
   // 구 이름 클릭 핸들러
   const handleDistrictLabelClick = useCallback((districtName: string) => {
-    // console.log('District label clicked:', districtName)
     setSelectedGu(districtName)
     setSelectedDong(null)
     // 구 코드 설정
-    const guCode = getDistrictCode(districtName)
+    const guCode = getDistrictCodeFromMapping(districtName)
     if (guCode) {
       setSelectedGuCode(guCode)
     }
@@ -415,7 +424,6 @@ export default function CardSalesDistrictMap() {
     
     // 구 라벨 클릭시: 서울 전체 뷰 유지, 하이라이트만 표시
     // 줌인하지 않음
-    // console.log('[District Label Click] Selected gu:', districtName, ' - maintaining Seoul view')
   }, [setSelectedGu, setSelectedDong, setSelectedGuCode, setSelectedDongCode])
   
   // 전체 초기화 함수 - 필터, 레이어, 뷰 모두 리셋
@@ -670,36 +678,33 @@ export default function CardSalesDistrictMap() {
       if (dongName && guName) {
         // 동 클릭시: 구와 동 모두 설정
         setSelectedGu(guName)
-        const calculatedGuCode = guCode || getDistrictCode(guName)
-        const calculatedDongCode = dongCode || getDongCode(guName, dongName)
+        const calculatedGuCode = guCode || getDistrictCodeFromMapping(guName)
+        const calculatedDongCode = dongCode || getDongCodeFromMapping(guName, dongName)
         
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(dongName)
         setSelectedDongCode(calculatedDongCode)
         
-        // Removed // console.log for performance
-      } else if (guName) {
+          } else if (guName) {
         // 구 클릭시: 구만 설정 (서울 전체 뷰 유지)
         setSelectedGu(guName)
-        const calculatedGuCode = guCode || getDistrictCode(guName)
+        const calculatedGuCode = guCode || getDistrictCodeFromMapping(guName)
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(null)
         setSelectedDongCode(null)
         
-        // Removed // console.log for performance
-      }
+          }
     }
     // Handle district polygon click (from unified layers)
     else if (info.layer?.id?.includes('unified-sgg') && info.object && info.object.properties) {
       const guName = getGuName(info.object.properties)
       if (guName) {
         setSelectedGu(guName)
-        const calculatedGuCode = getDistrictCode(guName)
+        const calculatedGuCode = getDistrictCodeFromMapping(guName)
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(null)
         setSelectedDongCode(null)
-        // Removed // console.log for performance
-      }
+          }
     }
     else if (info.layer?.id?.includes('unified-dong') && info.object && info.object.properties) {
       const dongName = getDistrictName(info.object.properties)
@@ -707,30 +712,28 @@ export default function CardSalesDistrictMap() {
       if (dongName && guName) {
         setSelectedGu(guName)
         setSelectedDong(dongName)
-        const calculatedGuCode = getDistrictCode(guName)
-        const calculatedDongCode = getDongCode(guName, dongName)
+        const calculatedGuCode = getDistrictCodeFromMapping(guName)
+        const calculatedDongCode = getDongCodeFromMapping(guName, dongName)
         setSelectedGuCode(calculatedGuCode)
         setSelectedDongCode(calculatedDongCode)
-        // Removed // console.log for performance
-      }
+          }
     }
     // Handle district labels click
     else if (info.layer?.id?.includes('district-labels') && info.object) {
       const guName = info.object.nameKr
       if (guName) {
         setSelectedGu(guName)
-        const calculatedGuCode = getDistrictCode(guName)
+        const calculatedGuCode = getDistrictCodeFromMapping(guName)
         setSelectedGuCode(calculatedGuCode)
         setSelectedDong(null)
         setSelectedDongCode(null)
-        // Removed // console.log for performance
-      }
+          }
     }
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
 
   
-  // Temporary placeholder - actual implementation will be defined after optimizedDongMap
-  let createDong3DPolygonLayers: any = useCallback(() => {
+  // Create 3D polygon layers for dong visualization
+  const createDong3DPolygonLayersOptimized = useCallback(() => {
     // Skip layer creation if polygon layer is off
     if (!layerConfig.visible) return []
     if (!dongData3D || !dongData3D.features) return []
@@ -806,7 +809,6 @@ export default function CardSalesDistrictMap() {
           if (!(window as any)._firstLogDone || Math.random() < 0.005) {
             const step = 125000000; // 1.25억
             const colorIndex = Math.min(Math.floor(totalSales / step), 39);
-            // console.log('🎨 40-Step Gradient:', {
             //   dongName,
             //   totalSales: totalSales ? `${(totalSales / 100000000).toFixed(1)}억` : '0',
             //   colorIndex: `${colorIndex}/39`,
@@ -928,8 +930,8 @@ export default function CardSalesDistrictMap() {
             if (dongName && guName) {
               setSelectedDong(dongName)
               setSelectedGu(guName)
-              setSelectedDongCode(dongCode || getDongCode(guName, dongName))
-              setSelectedGuCode(guCode || getDistrictCode(guName))
+              setSelectedDongCode(dongCode || getDongCodeFromMapping(guName, dongName))
+              setSelectedGuCode(guCode || getDistrictCodeFromMapping(guName))
               
               // 통합 줌 함수 사용
               handleDistrictZoom(guName, dongName)
@@ -1060,7 +1062,6 @@ export default function CardSalesDistrictMap() {
   const unifiedLayers = useUnifiedDeckGLLayers({
     sggData,
     dongData,
-    jibData,
     dongData3D,
     seoulBoundaryData,
     is3DMode,
@@ -1111,7 +1112,7 @@ export default function CardSalesDistrictMap() {
         else if (props.SIGUNGU_NM || props.GU_NM) {
           const guName = getGuName(props)
           setSelectedGu(guName)
-          setSelectedGuCode(getDistrictCode(guName))
+          setSelectedGuCode(getDistrictCodeFromMapping(guName))
           setSelectedDong(null)
           setSelectedDongCode(null)
         }
@@ -1142,7 +1143,8 @@ export default function CardSalesDistrictMap() {
     
     // Include 3D polygon layers only in 3D mode (conditional rendering instead of cloning)
     if (dongData3D && is3DMode) {
-      const dong3DLayers = createDong3DPolygonLayers()
+      // Always use the optimized layers function
+      const dong3DLayers = createDong3DPolygonLayersOptimized()
       layers.push(...dong3DLayers)
     }
     
@@ -1363,26 +1365,21 @@ export default function CardSalesDistrictMap() {
   // Load district data
   useEffect(() => {
     const loadData = async () => {
-      const [sgg, dong, jib] = await Promise.all([
+      const [sgg, dong] = await Promise.all([
         loadDistrictData('sgg'),
-        loadDistrictData('dong'),
-        loadDistrictData('jib')
+        loadDistrictData('dong')
       ])
       
       if (sgg) {
         setSggData(sgg)
         if (sgg.features?.[0]) {
-          // console.log('[DataLoad] Sample sgg properties:', sgg.features[0].properties)
         }
       }
       if (dong) {
         setDongData(dong)
         if (dong.features?.[0]) {
-          // console.log('[DataLoad] Sample dong properties:', dong.features[0].properties)
-          // console.log('[DataLoad] Dong property keys:', Object.keys(dong.features[0].properties))
         }
       }
-      if (jib) setJibData(jib)
     }
     
     loadData()
@@ -1396,10 +1393,6 @@ export default function CardSalesDistrictMap() {
   
   // 데이터 형식 로깅 (최초 1회만)
   useEffect(() => {
-    // console.log(`[Data Format] Using ${USE_BINARY_FORMAT ? 'BINARY' : 'JSON'} format for data loading`)
-    if (USE_BINARY_FORMAT) {
-      // console.log('[Data Format] Binary format provides 97.6% size reduction and 10x faster loading')
-    }
   }, [])
   
   // Binary 형식 데이터 로딩 - 주석 처리 (moved to del)
@@ -1426,25 +1419,20 @@ export default function CardSalesDistrictMap() {
   // 성능 로깅 - 주석 처리 (binary data removed)
   useEffect(() => {
     if (false) { // Disabled since binary data is removed
-      // console.log(`[Binary Performance] Total load time: ${binaryDataResult.loadingStats.totalTime?.toFixed(2)}ms`)
     }
   }, []) // Removed dependencies since binary data is removed
 
   // Load sales data from optimized data
   useEffect(() => {
     if (!optimizedFeatures || !optimizedDongMap) {
-      // console.log('[OptimizedData] Waiting for optimized data...')
       return
     }
     
     // 디버깅: optimizedDongMap 확인
-    // console.log(`[DEBUG] optimizedDongMap 크기: ${optimizedDongMap.size}`)
     const firstThree = Array.from(optimizedDongMap.entries()).slice(0, 3)
     firstThree.forEach(([dongCode, feature]) => {
-      // console.log(`[DEBUG dongMap] 동코드 ${dongCode}: height=${feature.height}, totalSales=${feature.totalSales}`)
     })
 
-    // Removed // console.log for performance
     
     // Convert optimized data to existing map format for compatibility
     const salesByDong = new Map<number, number>()
@@ -1462,14 +1450,12 @@ export default function CardSalesDistrictMap() {
       }
     })
     
-    // Removed // console.log for performance
     
     // Log min/max for reference
     const salesValues = optimizedFeatures.map(f => f.totalSales)
     if (salesValues.length > 0) {
       const minSales = Math.min(...salesValues)
       const maxSales = Math.max(...salesValues)
-      // console.log(`[OptimizedData] Sales range: ${minSales.toLocaleString()} - ${maxSales.toLocaleString()}`)
     }
     
     setDongSalesMap(salesByDong)
@@ -1517,272 +1503,7 @@ export default function CardSalesDistrictMap() {
     return colorMap
   }, [dongData3D, dongSalesMap, optimizedDongMap, currentThemeKey])
 
-  // Now redefine createDong3DPolygonLayers with optimizedDongMap available
-  createDong3DPolygonLayers = useCallback(() => {
-    // Skip layer creation if polygon layer is off
-    if (!layerConfig.visible) return []
-    if (!dongData3D || !dongData3D.features) return []
-    
-    return [
-      new PolygonLayer({
-        id: 'dong-3d-polygon',
-        data: dongData3D.features,
-        pickable: true,
-        extruded: true,
-        wireframe: false,
-        filled: true,
-        autoHighlight: true,
-        highlightColor: [255, 255, 255, 60],
-        
-        // GPU Optimization Parameters
-        parameters: COMMON_GPU_PARAMS,
-        
-        // Geometry
-        getPolygon: (d: any) => {
-          // Handle both Polygon and MultiPolygon
-          if (d.geometry.type === 'MultiPolygon') {
-            // Return the first polygon for MultiPolygon
-            return d.geometry.coordinates[0][0]
-          }
-          return d.geometry.coordinates[0]
-        },
-        
-        // Height - 사전 계산된 높이 사용
-        getElevation: (d: any) => {
-          const guName = getGuName(d.properties)
-          const dongCode = getDistrictCode(d.properties)
-          
-          // 최적화된 데이터에서 사전 계산된 높이 가져오기
-          const optimizedFeature = dongCode && optimizedDongMap ? optimizedDongMap.get(Number(dongCode)) : null
-          const height = optimizedFeature?.height || d.properties.height || 0
-          
-          // 디버깅: 높이 데이터 확인 (첫 3개만)
-          if (dongCode && parseInt(dongCode) <= 11110115) {
-            // console.log(`[DEBUG getElevation] 동코드 ${dongCode}: optimizedHeight=${optimizedFeature?.height}, propertiesHeight=${d.properties.height}, finalHeight=${height}`)
-          }
-          
-          // 동 선택 시: 선택된 구의 동만 원래 높이
-          if (selectedDong) {
-            if (guName === selectedGu) {
-              return height
-            }
-            return 10 // 다른 구의 동들은 낮은 높이
-          }
-          
-          // 구 선택 시: 선택된 구의 동만 표시
-          if (selectedGu && guName !== selectedGu) {
-            return 0 // 숨김
-          }
-          
-          // Add elevation boost when gu is hovered for 3D pop-out effect
-          if (hoveredDistrict === guName) {
-            return height * 1.2  // 20% elevation boost for better visibility
-          }
-          
-          return height
-        },
-        
-        elevationScale: 1,
-        
-        // Use pre-calculated colors for better performance
-        getFillColor: (d: any) => {
-          const dongCode = getDistrictCode(d.properties);
-          
-          // Get pre-calculated color data for performance
-          const colorData = dongCode ? dongColorMap.get(dongCode) : null;
-          const guName = colorData?.guName || d.properties.guName || d.properties['자치구']
-          const dongName = colorData?.dongName || getDistrictName(d.properties)
-          
-          // Use pre-calculated base color and apply state changes
-          if (colorData && colorData.baseColor) {
-            // Apply hover/selection state to pre-calculated color
-            if (hoveredDistrict === guName) {
-              return [255, 230, 100, 255] // 호버시 하이라이트
-            }
-            if ((selectedGu || selectedDong) && guName !== selectedGu) {
-              return getDimmedColor() // 선택되지 않은 영역 dimmed
-            }
-            if (selectedDong && dongName === selectedDong) {
-              return [255, 200, 0, 255] // Selected dong highlight
-            }
-            return colorData.baseColor // Use pre-calculated color
-          }
-          
-          // Fallback to old calculation if color map not available
-          const optimizedFeature = dongCode && optimizedDongMap ? optimizedDongMap.get(Number(dongCode)) : null
-          if (optimizedFeature && optimizedFeature.fillColorRGB) {
-            // 현재 테마에 맞는 사전 계산된 색상 사용
-            const themeKey = currentThemeKey === 'modern' || currentThemeKey === 'adjacent' ? 'blue' : 
-                            currentThemeKey === 'bright' ? 'bright' :
-                            currentThemeKey === 'green' ? 'green' :
-                            currentThemeKey === 'purple' ? 'purple' :
-                            currentThemeKey === 'orange' ? 'orange' : 'blue'
-            
-            const precomputedColor = optimizedFeature.fillColorRGB[themeKey as keyof typeof optimizedFeature.fillColorRGB]
-            if (precomputedColor) {
-              // 선택/호버 상태에 따른 색상 조정
-              if (hoveredDistrict === guName) {
-                return [255, 230, 100, 255] // 호버시 하이라이트
-              }
-              if ((selectedGu || selectedDong) && guName !== selectedGu) {
-                return getDimmedColor() // 선택되지 않은 영역 dimmed
-              }
-              return precomputedColor
-            }
-          }
-          
-          // Fallback to existing calculation if optimized data not available
-          const height = d.properties.height || 0
-          const totalSales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : 0
-          
-          // Use modern color system for 'modern' and 'adjacent' themes
-          if (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') {
-            // Check if this dong is selected
-            const isThisDongSelected = selectedDong && dongName === selectedDong
-            // Check if this dong is in selected gu
-            const isInSelectedGu = selectedGu && guName === selectedGu
-            // Check if this dong is being hovered directly OR if its gu is being hovered
-            const isHovered = hoveredDistrict === dongName || hoveredDistrict === guName
-            
-            // Special strong highlighting when gu is hovered
-            if (hoveredDistrict === guName) {
-              // Use bright yellow-gold highlight for entire gu
-              return [255, 230, 100, 255]
-            }
-            
-            // Dimmed color for non-selected areas when something is selected
-            if ((selectedGu || selectedDong) && !isInSelectedGu) {
-              return getDimmedColor()
-            }
-            
-            return getModernDistrictColor(
-              guName,
-              dongName,
-              height,
-              currentThemeKey,
-              isThisDongSelected,
-              isHovered
-            )
-          }
-          
-          // Fallback to legacy color system with sales-based intensity
-          if (selectedDong && dongName === selectedDong) {
-            return convertColorExpressionToRGB(height, 'bright', guName, dongName, true, false, totalSales)
-          }
-          // Strong highlight if gu is hovered (show district boundary effect)
-          if (hoveredDistrict === guName) {
-            // Use bright golden highlight for entire gu
-            return [255, 215, 0, 255]  // Gold color with full opacity
-          }
-          if (selectedGu && guName === selectedGu) {
-            return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
-          }
-          // Dimmed color for non-selected areas when something is selected
-          if ((selectedGu || selectedDong) && guName !== selectedGu) {
-            return getDimmedColor()
-          }
-          
-          return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
-        },
-        
-        // Line color for borders - ensure visibility
-        getLineColor: (d: any) => {
-          const dongName = getDistrictName(d.properties)
-          const guName = getGuName(d.properties)
-          
-          // Highlight selected/hovered dong with bright edge
-          if (selectedDong === dongName || hoveredDistrict === dongName || hoveredDistrict === guName) {
-            return [255, 255, 255, 200]  // Bright white edge for selected/hovered
-          }
-          
-          // Subtle edges for non-selected areas
-          if ((selectedGu || selectedDong) && guName !== selectedGu) {
-            return [100, 100, 100, 80]  // Very subtle for non-focused areas
-          }
-          
-          // Standard edge color - visible but not distracting
-          return [150, 150, 150, 120]
-        },
-        
-        lineWidthMinPixels: 0.5,
-        lineWidthMaxPixels: 2,
-        getLineWidth: 1,
-        
-        // Material properties for better 3D appearance
-        material: {
-          ambient: 0.35,
-          diffuse: 0.6,
-          shininess: 20,
-          specularColor: [255, 255, 255]
-        },
-        
-        onHover: (info: any) => {
-          if (info.object) {
-            const properties = info.object.properties
-            setHoveredDistrict(getDistrictName(properties))
-          } else {
-            setHoveredDistrict(null)
-          }
-        },
-        
-        onClick: (info: any) => {
-          if (info.object) {
-            const props = info.object.properties
-            const dongName = getDistrictName(props)
-            const guName = getGuName(props)
-            const dongCode = getDistrictCode(props)
-            const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
-            
-            // 선택 상태 업데이트
-            if (dongName && guName) {
-              setSelectedDong(dongName)
-              setSelectedGu(guName)
-              setSelectedDongCode(dongCode || getDongCode(guName, dongName))
-              setSelectedGuCode(guCode || getDistrictCode(guName))
-              
-              // 통합 줌 함수 사용
-              handleDistrictZoom(guName, dongName)
-            }
-          }
-        },
-        
-        // Transitions for smooth animations
-        transitions: {
-          getElevation: timelineAnimationEnabled && isTimelinePlaying ? 0 : 300,  // Disable deck.gl transition during timeline animation (we use interpolation instead)
-          getFillColor: 300,  // Faster color transition
-          getLineWidth: 200   // Quick line width transition
-        },
-        
-        // Update triggers for reactive updates (optimized - removed hover state)
-        updateTriggers: layerConfig.visible ? {
-          getElevation: [dongSalesMap, heightScale],  // Only essential dependencies
-          getFillColor: [selectedGu, selectedDong, dongColorMap],  // Use pre-calculated color map
-          getLineColor: [selectedGu, selectedDong]
-        } : {}
-      })
-    ]
-  }, [
-    dongData3D, 
-    optimizedDongMap,
-    dongColorMap,  // Add pre-calculated color map
-    selectedGu, 
-    selectedDong, 
-    selectedBusinessType, 
-    dongSalesMap,
-    dongSalesByTypeMap,
-    currentThemeKey,
-    themeAdjustments,
-    hoveredDistrict,
-    heightScale,
-    setSelectedGu,
-    setSelectedGuCode,
-    setSelectedDong,
-    setSelectedDongCode,
-    handleDistrictZoom,
-    timelineAnimationEnabled,
-    isTimelinePlaying
-  ])
-  
+  // Create 3D polygon layers with optimized data
   // Update interpolation targets when sales data changes
   useEffect(() => {
     // Skip processing if layers are off
@@ -1822,7 +1543,6 @@ export default function CardSalesDistrictMap() {
       const minSales = Math.min(...salesValues)
       const maxSales = Math.max(...salesValues)
       const avgSales = salesValues.reduce((a, b) => a + b, 0) / salesValues.length
-      // console.log(`[3D Processing] Sales stats - Min: ${minSales.toLocaleString()}, Max: ${maxSales.toLocaleString()}, Avg: ${avgSales.toLocaleString()}`)
       
       // 구 데이터 3D 처리
       const sgg3D = {
@@ -1854,7 +1574,6 @@ export default function CardSalesDistrictMap() {
           
           // Debug first few dong codes
           if (index < 3) {
-            // console.log(`[Dong3D] Feature ${index}:`, {
             //   guName,
             //   dongName,
             //   dongCode,
@@ -1867,7 +1586,6 @@ export default function CardSalesDistrictMap() {
           
           // Log first and last dong for debugging
           if (index === 0 || index === dongData.features.length - 1) {
-            // console.log(`[Dong 3D] Index ${index}:`, { 
             //   guName, 
             //   dongName, 
             //   dongCode,
@@ -1945,18 +1663,15 @@ export default function CardSalesDistrictMap() {
   // Listen for theme changes
   useEffect(() => {
     const handleThemeChange = (event: Event) => {
-      // console.log('[HexagonLayer3D] Theme change event received', event)
       
       // Force React re-render by updating state
       const newTheme = getCurrentTheme()
       const newThemeKey = getCurrentThemeKey()
-      // console.log('[HexagonLayer3D] Updating theme state to:', newTheme?.name, 'Key:', newThemeKey)
       setCurrentThemeState(newTheme)
       setCurrentThemeKey(newThemeKey)
       
       // Theme updates now handled by Deck.gl unified layers
       // Colors update automatically through props and updateTriggers
-      // console.log('[HexagonLayer3D] Theme updated - Deck.gl layers will re-render')
     }
     
     // Listen for theme change events
@@ -1976,7 +1691,6 @@ export default function CardSalesDistrictMap() {
   // Create fast lookup indices for districts
   const sggIndex = useMemo(() => {
     if (!sggData?.features) {
-      // console.log('[SggIndex] No sgg data available')
       return new Map()
     }
     
@@ -1994,7 +1708,6 @@ export default function CardSalesDistrictMap() {
         index.set(codeNumber, f)
         // 디버깅용 - 첫 5개 항목 로깅
         if (index.size <= 5) {
-          // console.log('[SggIndex] Added by code:', { code: codeNumber, name: guName })
         }
       }
       
@@ -2002,19 +1715,15 @@ export default function CardSalesDistrictMap() {
       if (guName) {
         index.set(guName, f)
         if (index.size <= 10) {
-          // console.log('[SggIndex] Added by name:', guName)
         }
       }
     })
     
-    // console.log('[SggIndex] Created index with', index.size, 'entries (codes and names)')
-    // console.log('[SggIndex] Sample keys:', Array.from(index.keys()).slice(0, 10))
     return index
   }, [sggData])
 
   const dongIndex = useMemo(() => {
     if (!dongData?.features) {
-      // console.log('[DongIndex] No dong data available')
       return new Map()
     }
     
@@ -2031,12 +1740,10 @@ export default function CardSalesDistrictMap() {
         index.set(codeNumber, f)
         // 디버깅용 - 첫 5개 항목 로깅
         if (index.size <= 5) {
-          // console.log('[DongIndex] Added:', { code: codeNumber, name: props.ADM_NM || props.H_DONG_NM || props.DONG_NM })
         }
       }
     })
     
-    // console.log('[DongIndex] Created code-based index with', index.size, 'entries')
     return index
   }, [dongData])
 
@@ -2049,16 +1756,10 @@ export default function CardSalesDistrictMap() {
         features: [districtSelection.selectedFeature]
       }
       
-      // console.log('[Setting Selected District from Map Click]', {
-      //   districtName: districtSelection.selectedDistrict,
-      //   layerType: districtSelection.selectedFeature?.layer?.id,
-      //   hasFeature: !!districtSelection.selectedFeature
-      // })
       
       setSelectedDistrictData(selectedFeatureData)
     } else if (!selectedGu && !selectedDong) {
       // Only clear if no filter is selected
-      // console.log('[Clearing Selected District]')
       setSelectedDistrictData(null)
     }
   }, [districtSelection.selectedDistrict, districtSelection.selectedFeature, selectedGu, selectedDong])
@@ -2074,7 +1775,6 @@ export default function CardSalesDistrictMap() {
     }
 
     if (selectedGuCode || selectedDongCode || selectedGu || selectedDong) {
-      // console.log('[District Selection] Selected:', { 
       //   guCode: selectedGuCode, 
       //   guName: selectedGu,
       //   dongCode: selectedDongCode,
@@ -2087,11 +1787,8 @@ export default function CardSalesDistrictMap() {
       // Fast lookup using Map index with codes - O(1) instead of O(n)
       // 동이 선택된 경우 동 경계를 하이라이트
       if (selectedDongCode) {
-        // console.log('[DongSelection] Looking for dong code:', selectedDongCode, 'Type:', typeof selectedDongCode)
         const dongFeature = dongIndex.get(selectedDongCode)
         if (dongFeature) {
-          // console.log('[DongSelection] Found dong feature:', dongFeature.properties)
-          // console.log('[DongSelection] Dong properties keys:', Object.keys(dongFeature.properties))
           foundFeature = dongFeature
           
           // 동 선택시 해당 구 경계도 찾기
@@ -2101,36 +1798,26 @@ export default function CardSalesDistrictMap() {
               sggFeature = sggIndex.get(selectedGu)
             }
             if (sggFeature) {
-              // console.log('[DongSelection] Also found gu feature for context:', sggFeature.properties)
               foundGuFeature = sggFeature
             }
           }
         } else {
-          // console.log('[DongSelection] Dong code not found in index!')
-          // console.log('[DongSelection] Available keys types:', Array.from(dongIndex.keys()).slice(0, 5).map(k => typeof k))
-          // console.log('[DongSelection] Available codes:', Array.from(dongIndex.keys()).slice(0, 10))
         }
       }
       // 구만 선택된 경우 구 경계를 하이라이트  
       else if (selectedGuCode || selectedGu) {
-        // console.log('[GuSelection] Looking for gu:', { code: selectedGuCode, name: selectedGu })
-        // console.log('[GuSelection] sggIndex size:', sggIndex.size)
         
         // Try code first
         let sggFeature = selectedGuCode ? sggIndex.get(selectedGuCode) : null
         
         // If code doesn't work, try name as fallback
         if (!sggFeature && selectedGu) {
-          // console.log('[GuSelection] Code not found, trying name:', selectedGu)
           sggFeature = sggIndex.get(selectedGu)
         }
         
         if (sggFeature) {
-          // console.log('[GuSelection] Found gu feature:', sggFeature.properties)
           foundFeature = sggFeature
         } else {
-          // console.log('[GuSelection] Gu not found in index!')
-          // console.log('[GuSelection] Available keys (first 20):', Array.from(sggIndex.keys()).slice(0, 20))
         }
       }
       
@@ -2145,20 +1832,16 @@ export default function CardSalesDistrictMap() {
           features: features
         }
         
-        // console.log('[SelectedFeatures] Created FeatureCollection with', features.length, 'features')
         features.forEach((f, idx) => {
-          // console.log(`[Feature ${idx}]:`, Object.keys(f.properties).slice(0, 5), '...')
         })
         
         setSelectedDistrictData(selectedFeatureData)
       } else {
         setSelectedDistrictData(null)
-        // console.log('[District Selection] No feature found for codes:', { guCode: selectedGuCode, dongCode: selectedDongCode })
       }
     } else {
       // Reset to Seoul overview when no filter is selected
       setSelectedDistrictData(null)
-      // console.log('[District Selection] No district selected, resetting to Seoul overview')
       
       
       // Return to default Seoul view (재사용 함수 사용)
@@ -2358,12 +2041,10 @@ export default function CardSalesDistrictMap() {
         onBoundaryToggle={(show) => {
           setShowBoundary(show)
           // Boundary visibility now controlled through Deck.gl layer props
-          // console.log('[HexagonLayer3D] Boundary visibility:', show)
         }}
         onSeoulBaseToggle={(show) => {
           setShowSeoulBase(show)
           // Seoul base is now removed, this toggle can be deprecated or repurposed
-          // console.log('Seoul base toggle is deprecated - boundary only mode active')
         }}
         // 3D 모드 props
         is3DMode={is3DMode}
@@ -2377,7 +2058,7 @@ export default function CardSalesDistrictMap() {
         upperPercentile={layerConfig.upperPercentile}
         isDataLoading={isDataLoading}
         dataError={dataError}
-        onVisibleChange={setVisible}
+        onVisibleChange={handlePolygonLayerToggle}
         onCoverageChange={setCoverage}
         onUpperPercentileChange={setUpperPercentile}
         onReset={resetConfig}
@@ -2421,7 +2102,7 @@ export default function CardSalesDistrictMap() {
         
         // Mesh layer props
         showMeshLayer={showMeshLayer}
-        onShowMeshLayerChange={setShowMeshLayer}
+        onShowMeshLayerChange={handleMeshLayerToggle}
         // Wireframe always true - props removed
         meshResolution={meshResolution}
         onMeshResolutionChange={setMeshResolution}

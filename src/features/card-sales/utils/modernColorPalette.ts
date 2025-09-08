@@ -249,8 +249,8 @@ export function getModernDistrictColor(
   if (isSelected) alpha = 255;
   if (isHovered) alpha = 255; // Full opacity for maximum visibility when hovered
   
-  // Apply theme adjustments (brightness, saturation, contrast, opacity)
-  return applyColorAdjustments(r, g, b, alpha);
+  // Return color directly without adjustments
+  return [r, g, b, alpha];
 }
 
 // Get edge color based on district color
@@ -267,15 +267,14 @@ export function getModernEdgeColor(
   }
   
   // Lighter version of district color for subtle edges
-  const adjustments = getThemeAdjustments()
-  const edgeAlpha = Math.floor((120 * adjustments.opacity) / 100)
+  const edgeAlpha = 120;
   
-  return applyColorAdjustments(
+  return [
     Math.min(255, r + 80),
     Math.min(255, g + 80),
     Math.min(255, b + 80),
     edgeAlpha
-  );
+  ];
 }
 
 // Modern material properties for different themes

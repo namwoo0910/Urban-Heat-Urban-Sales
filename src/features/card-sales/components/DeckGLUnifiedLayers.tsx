@@ -15,7 +15,6 @@ interface UnifiedLayersProps {
   // Data
   sggData: FeatureCollection | null
   dongData: FeatureCollection | null
-  jibData: FeatureCollection | null
   dongData3D: FeatureCollection | null
   seoulBoundaryData?: FeatureCollection | null
   
@@ -38,7 +37,6 @@ interface UnifiedLayersProps {
   // Visibility
   sggVisible: boolean
   dongVisible: boolean
-  jibVisible: boolean
   showBoundary?: boolean
   
   // Sales data for 3D height
@@ -77,8 +75,6 @@ const COLORS = {
   GLOW_OUTER: [0, 255, 255, 50] as [number, number, number, number],
   GLOW_MID: [100, 200, 255, 100] as [number, number, number, number],
   
-  // 지번 색상
-  JIB_LINE: [150, 150, 150, 100] as [number, number, number, number],
 }
 
 // 동 높이 계산 (3D 모드)
@@ -103,7 +99,6 @@ const getDongHeight = (
 export function createUnifiedDeckGLLayers({
   sggData,
   dongData,
-  jibData,
   dongData3D,
   seoulBoundaryData,
   is3DMode,
@@ -114,7 +109,6 @@ export function createUnifiedDeckGLLayers({
   hoveredDistrict,
   sggVisible,
   dongVisible,
-  jibVisible,
   showBoundary = false,
   dongSalesMap,
   heightScale = 1,
@@ -384,38 +378,6 @@ export function createUnifiedDeckGLLayers({
     }
   }
   
-  // ========================================
-  // 3. 지번(JIB) 레이어
-  // ========================================
-  if (jibData && jibVisible && viewState.zoom > 14 && !is3DMode) {
-    const jibLayer = new PathLayer({
-      id: 'unified-jib',
-      data: jibData.features,
-      
-      getPath: (feature: Feature) => {
-        if (feature.geometry.type === 'MultiPolygon') {
-          return feature.geometry.coordinates[0][0]
-        }
-        if (feature.geometry.type === 'Polygon') {
-          return feature.geometry.coordinates[0]
-        }
-        return []
-      },
-      
-      getColor: COLORS.JIB_LINE,
-      getWidth: 0.5,
-      widthScale: 1,
-      widthMinPixels: 0.5,
-      widthMaxPixels: 1,
-      
-      // 성능
-      pickable: false,
-      
-      updateTriggers: {}
-    })
-    
-    layers.push(jibLayer)
-  }
   
   return layers
 }
@@ -427,7 +389,6 @@ export function useUnifiedDeckGLLayers(props: UnifiedLayersProps) {
     [
       props.sggData,
       props.dongData,
-      props.jibData,
       props.dongData3D,
       props.seoulBoundaryData,
       props.is3DMode,
@@ -438,7 +399,6 @@ export function useUnifiedDeckGLLayers(props: UnifiedLayersProps) {
       props.hoveredDistrict,
       props.sggVisible,
       props.dongVisible,
-      props.jibVisible,
       props.showBoundary,
       props.dongSalesMap,
       props.heightScale,

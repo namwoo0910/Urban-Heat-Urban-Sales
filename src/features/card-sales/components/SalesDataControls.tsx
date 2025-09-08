@@ -223,7 +223,13 @@ export default function UnifiedControls({
                 <Label className="text-gray-200 text-xs font-semibold">3D Polygon Layer</Label>
                 <Switch
                   checked={is3DMode}
-                  onCheckedChange={onIs3DModeChange}
+                  onCheckedChange={(checked) => {
+                    onIs3DModeChange?.(checked)
+                    // Turn off mesh layer when polygon layer is turned on
+                    if (checked && showMeshLayer) {
+                      onShowMeshLayerChange?.(false)
+                    }
+                  }}
                   className="scale-75"
                   disabled={isDataLoading}
                 />
@@ -241,7 +247,13 @@ export default function UnifiedControls({
                 <Label className="text-gray-200 text-xs font-semibold">3D Mesh Layer</Label>
                 <Switch
                   checked={showMeshLayer}
-                  onCheckedChange={onShowMeshLayerChange}
+                  onCheckedChange={(checked) => {
+                    onShowMeshLayerChange?.(checked)
+                    // Turn off polygon layer when mesh layer is turned on
+                    if (checked && is3DMode) {
+                      onIs3DModeChange?.(false)
+                    }
+                  }}
                   className="scale-75"
                   disabled={isDataLoading}
                 />
