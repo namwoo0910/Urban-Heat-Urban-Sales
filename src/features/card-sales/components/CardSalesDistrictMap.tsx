@@ -6,14 +6,13 @@ import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL } from 'react-map-gl'
 import type { MapRef } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
-import { LinearInterpolator, FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
+import { LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import { PolygonLayer } from '@deck.gl/layers'
 // Removed createDong3DPolygonLayers import - using local optimized versions instead
 import UnifiedControls from "./SalesDataControls"
 import { formatTooltip, formatScatterplotTooltip } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
-import { useHeightInterpolation } from "../hooks/useHeightInterpolation"
 import { useOptimizedMonthlyData } from "../hooks/useOptimizedMonthlyData"
 // import { useBinaryOptimizedData } from "../hooks/useBinaryOptimizedData" // Moved to del
 import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
@@ -23,7 +22,7 @@ import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode as getDistrictCodeFromMapping, getDongCode as getDongCodeFromMapping } from "../data/districtCodeMappings"
 import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
-import { MeshLoadingOverlay } from "./MeshLoadingOverlay"
+// Removed MeshLoadingOverlay import
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { loadDistrictData, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
@@ -157,26 +156,7 @@ export default function CardSalesDistrictMap() {
     setAnimationEnabled,
     setAnimationSpeed,
     setWaveAmplitude,
-    isAnimating,
-    toggleAnimation,
-    onAnimationInteractionStart,
-    onAnimationInteractionEnd,
     
-    // 회전 애니메이션 관련 상태 및 함수들
-    rotationEnabled,
-    rotationSpeed,
-    rotationDirection,
-    isRotating,
-    shouldRotate,
-    rotationDirectionText,
-    bearingDisplay,
-    setRotationEnabled,
-    setRotationSpeed,
-    setRotationDirection,
-    toggleRotation,
-    updateBearing,
-    onRotationInteractionStart,
-    onRotationInteractionEnd,
     
     // Hierarchical filter states and functions
     selectedGu,
@@ -196,16 +176,6 @@ export default function CardSalesDistrictMap() {
     selectedDate,
     setSelectedDate,
     
-    // Timeline animation states and functions
-    timelineAnimationEnabled,
-    isTimelinePlaying,
-    timelineSpeed,
-    currentMonthIndex,
-    monthlyDates,
-    setTimelineAnimationEnabled,
-    setIsTimelinePlaying,
-    setTimelineSpeed,
-    toggleTimelineAnimation,
     
   } = useLayerState()
   
@@ -225,33 +195,19 @@ export default function CardSalesDistrictMap() {
   // 드래그 상태 추가 - 성능 최적화용
   const [isDragging, setIsDragging] = useState(false)
   
-  // 초기 카메라 애니메이션 상태
-  const [hasPlayedInitialAnimation, setHasPlayedInitialAnimation] = useState(false)
-  const [meshOpacity, setMeshOpacity] = useState(0.8)  // 고정 opacity (페이드인 없음)
+  // Removed initial camera animation states
   
-  // 회전 제어를 위한 ref
-  const rotationEnabledRef = useRef(false)
-  const userInteractingRef = useRef(false)
-  const currentBearingRef = useRef(0)
   
-  // Track programmatic vs user-initiated view changes to prevent infinite loops
-  const isProgrammaticUpdateRef = useRef(false)
 
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
   
   // 기본 뷰로 리셋하는 재사용 함수
-  const resetToDefaultView = useCallback((transitionDuration = 800) => {
-    isProgrammaticUpdateRef.current = true
+  const resetToDefaultView = useCallback(() => {
     setViewState({
-      ...DEFAULT_SEOUL_VIEW,
-      transitionDuration,
-      transitionInterpolator: new FlyToInterpolator(),
-      transitionEasing: (t: number) => t * (2 - t)
+      ...DEFAULT_SEOUL_VIEW
     })
     
-    // Reset programmatic flag after transition (immediate for better responsiveness)
-    isProgrammaticUpdateRef.current = false
   }, [])
   
   // 통합 줌 처리 함수 - 3D 폴리곤 클릭과 필터 패널 선택 모두에서 사용
@@ -261,21 +217,15 @@ export default function CardSalesDistrictMap() {
     const center = dongCenter || getDistrictCenter('구', guName)
     
     if (center) {
-      isProgrammaticUpdateRef.current = true
-      setViewState(prev => ({
+        setViewState(prev => ({
         ...prev,
         longitude: center[0],
         latitude: center[1],
         zoom: dongCenter ? ZOOM_SETTINGS.DONG : ZOOM_SETTINGS.GU,
         pitch: dongCenter ? ZOOM_SETTINGS.PITCH_DONG : ZOOM_SETTINGS.PITCH_GU,
         bearing: prev.bearing || 0,
-        transitionDuration: ZOOM_SETTINGS.TRANSITION_DURATION,
-        transitionInterpolator: new FlyToInterpolator({ speed: ZOOM_SETTINGS.TRANSITION_SPEED }),
-        transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
       }))
       
-      // Reset programmatic flag (immediate for better responsiveness)
-      isProgrammaticUpdateRef.current = false
     }
   }, [setViewState])
   
@@ -288,7 +238,7 @@ export default function CardSalesDistrictMap() {
     setSelectedDong(filters.selectedDong)
     setSelectedDongCode(filters.selectedDongCode)
     setSelectedBusinessType(filters.selectedBusinessType)
-    setSelectedDate(filters.selectedDate || null)
+    setSelectedDate(filters.selectedDate)
     
     // 필터에서 행정동 선택시 통합 줌 함수 사용
     if (filters.selectedDong && filters.selectedGu) {
@@ -335,13 +285,6 @@ export default function CardSalesDistrictMap() {
   // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
   const [heightScale, setHeightScale] = useState<number>(500000000) // 5억원 단위로 증가 (높이 감소)
   
-  // Height interpolation for smooth timeline animations
-  const heightInterpolation = useHeightInterpolation({
-    duration: timelineAnimationEnabled ? 1200 : 800,  // Longer duration for timeline animation
-    easing: 'smooth',  // Smooth easing for natural motion
-    enabled: is3DMode,  // Only enable in 3D mode for performance
-    fps: 60  // Target 60 FPS
-  })
   
   // Mesh layer states
   const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
@@ -450,85 +393,26 @@ export default function CardSalesDistrictMap() {
     // 카메라 각도 조정
     if (enabled) {
       // 3D 모드: pitch와 bearing 설정
-      isProgrammaticUpdateRef.current = true
-      setViewState(prev => ({
+        setViewState(prev => ({
         ...prev,
         pitch: 60,
         bearing: -15,
-        transitionDuration: 1200,
-        transitionInterpolator: new FlyToInterpolator(),
-        transitionEasing: (t: number) => t * (2 - t)
       }))
       setTimeout(() => {
-        isProgrammaticUpdateRef.current = false
       }, 1300)
     } else {
       // 2D 모드로 복귀
-      isProgrammaticUpdateRef.current = true
-      setViewState(prev => ({
+        setViewState(prev => ({
         ...prev,
         pitch: 0,
         bearing: 0,
-        transitionDuration: 1000,
-        transitionInterpolator: new FlyToInterpolator(),
-        transitionEasing: (t: number) => t * (2 - t)
       }))
       setTimeout(() => {
-        isProgrammaticUpdateRef.current = false
       }, 1100)
     }
   }, [])
 
-  // Official deck.gl rotation pattern implementation (fixed with ref)
-  const rotateCamera = useCallback(() => {
-    if (!rotationEnabledRef.current || userInteractingRef.current) {
-      return
-    }
-    
-    // Use ref to get current bearing instead of closure value
-    const currentBearing = currentBearingRef.current
-    const increment = 30 * rotationSpeed * (rotationDirection === 'clockwise' ? 1 : -1)
-    const nextBearing = currentBearing + increment
-    const normalizedBearing = nextBearing >= 360 ? nextBearing - 360 : (nextBearing < 0 ? nextBearing + 360 : nextBearing)
-    
-    // Update ref immediately
-    currentBearingRef.current = normalizedBearing
-    
-    // Calculate transition duration based on speed (slower speed = longer duration)
-    const transitionDuration = Math.max(500, 2000 / rotationSpeed)
-    
-    // Update bearing state for UI display
-    updateBearing(normalizedBearing)
-    
-    // Set programmatic flag for rotation animation
-    isProgrammaticUpdateRef.current = true
-    setViewState(prevViewState => {
-      return {
-        ...prevViewState,
-        bearing: normalizedBearing,
-        transitionDuration,
-        transitionInterpolator: new LinearInterpolator(['bearing']),
-        onTransitionEnd: () => {
-          isProgrammaticUpdateRef.current = false
-          if (rotationEnabledRef.current) {
-            rotateCamera()
-          }
-        }
-      }
-    })
-  }, [rotationSpeed, rotationDirection, rotationDirectionText, updateBearing])
-
-  // Update rotation enabled ref when props change
-  useEffect(() => {
-    rotationEnabledRef.current = shouldRotate
-    if (shouldRotate && !userInteractingRef.current) {
-      // Start rotation with a small delay to ensure state is updated
-      const timer = setTimeout(rotateCamera, 100)
-      return () => clearTimeout(timer)
-    }
-  }, [shouldRotate, rotateCamera])
   
-  // Start/stop dash animation for selected district
   useEffect(() => {
     if (districtSelection.selectedFeature && districtSelection.selectionMode) {
       districtSelection.startDashAnimation()
@@ -559,10 +443,6 @@ export default function CardSalesDistrictMap() {
   // Bearing sync handled by DeckGL viewState synchronization
   // No manual Mapbox bearing sync needed
 
-  // Initialize bearing ref
-  useEffect(() => {
-    currentBearingRef.current = viewState.bearing || 0
-  }, [])
 
   // Helper function to extract district code from various property names
   const getDistrictCode = useCallback((properties: any): string | null => {
@@ -941,9 +821,9 @@ export default function CardSalesDistrictMap() {
         
         // Transitions for smooth animations
         transitions: {
-          getElevation: timelineAnimationEnabled && isTimelinePlaying ? 0 : 300,  // Disable deck.gl transition during timeline animation (we use interpolation instead)
-          getFillColor: 300,  // Faster color transition
-          getLineWidth: 200   // Quick line width transition
+          getElevation: 0,  // No animation
+          getFillColor: 0,  // No animation
+          getLineWidth: 0   // No animation
         },
         
         // Update triggers for reactive updates - optimized based on layer visibility
@@ -1000,7 +880,7 @@ export default function CardSalesDistrictMap() {
     visible: showMeshLayer,
     wireframe: true,  // Always wireframe
     opacity: 1,  // Wireframe opacity
-    animatedOpacity: meshOpacity,  // 애니메이션 opacity 사용
+    animatedOpacity: 0.8,  // Fixed opacity
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
     color: meshColor,  // Pass the mesh color
@@ -1010,43 +890,7 @@ export default function CardSalesDistrictMap() {
     // onHover and onClick removed - mesh layer is purely visual
   }, dongData3D?.features)
   
-  // 초기 카메라 애니메이션 효과 - 페이지 로드 시 실행
-  useEffect(() => {
-    // 페이지 로드 시 한 번만 실행 (메쉬 로딩 상태와 무관하게)
-    if (!hasPlayedInitialAnimation) {
-      setHasPlayedInitialAnimation(true)
-      
-      // 약간의 지연 후 애니메이션 시작 (초기 렌더링 완료 대기)
-      setTimeout(() => {
-        // 메쉬가 활성화되어 있으면 opacity 설정
-        if (showMeshLayer) {
-          setMeshOpacity(0.8)
-        }
-        
-        // 초기 뷰 설정 - 한국 전역이 보이는 뷰
-        setViewState({
-          longitude: 127.8,  // 한국 중심 경도
-          latitude: 36.5,    // 한국 중심 위도
-          zoom: 6.5,         // 한국 전체가 보이는 줌 레벨
-          pitch: 30,         // 낮은 각도로 전체 조망
-          bearing: 0,        // 정북향에서 시작
-          transitionDuration: 0
-        })
-        
-        // 단일 트랜지션으로 서울로 이동 (단순화)
-        setTimeout(() => {
-          setViewState({
-            longitude: 126.978,  // 서울 중심
-            latitude: 37.5665,
-            zoom: 10.5,         // 서울 표준 뷰
-            pitch: 60,          // 표준 3D 각도
-            bearing: 0,         // 정북향 유지
-            transitionDuration: 3000  // 3초 동안 부드럽게 전환
-          })
-        }, 100)  // 한국 뷰를 잠시 보여준 후 이동
-      }, 800)  // 페이지 로드 후 애니메이션 시작까지 대기
-    }
-  }, [hasPlayedInitialAnimation, showMeshLayer, setViewState])
+  // Removed initial camera animation
   
   // 자동 회전 기능 제거 - 성능 최적화를 위해 비활성화
   
@@ -1106,7 +950,7 @@ export default function CardSalesDistrictMap() {
           if (dongName && guName) {
             setSelectedDong(dongName)
             setSelectedGu(guName)
-            setSelectedDongCode(dongCode || getDongCode(guName, dongName))
+            setSelectedDongCode(dongCode || getDongCodeFromMapping(guName, dongName))
             setSelectedGuCode(guCode || getDistrictCode(guName))
             handleDistrictZoom(guName, dongName)
           }
@@ -1506,32 +1350,6 @@ export default function CardSalesDistrictMap() {
     return colorMap
   }, [dongData3D, dongSalesMap, optimizedDongMap, currentThemeKey])
 
-  // Create 3D polygon layers with optimized data
-  // Update interpolation targets when sales data changes
-  useEffect(() => {
-    // Skip processing if layers are off
-    if (!showMeshLayer && !layerConfig.visible) return
-    if (dongSalesMap.size === 0) return
-    
-    // Calculate target heights for all dongs
-    const targetHeights = new Map<number, number>()
-    
-    dongSalesMap.forEach((sales, dongCode) => {
-      // Get sales for current filter
-      let dongSales = sales
-      if (selectedBusinessType && dongSalesByTypeMap?.has(dongCode)) {
-        const typeMap = dongSalesByTypeMap.get(dongCode)
-        dongSales = typeMap?.get(selectedBusinessType) || 0
-      }
-      
-      // Calculate height based on sales
-      const height = getDongHeightBySales(dongSales, heightScale)
-      targetHeights.set(dongCode, height)
-    })
-    
-    // Update interpolation targets
-    heightInterpolation.updateTargetHeights(targetHeights)
-  }, [dongSalesMap, dongSalesByTypeMap, selectedBusinessType, heightScale])
   
   // 3D 모드용 데이터 전처리
   useEffect(() => {
@@ -1584,8 +1402,13 @@ export default function CardSalesDistrictMap() {
             // })
           }
           
-          // Get interpolated height for smooth animation
-          const height = heightInterpolation.getInterpolatedHeight(Number(dongCode))
+          // Calculate height directly from sales data
+          let dongSales = dongSalesMap.get(Number(dongCode)) || 0
+          if (selectedBusinessType && dongSalesByTypeMap?.has(Number(dongCode))) {
+            const typeMap = dongSalesByTypeMap.get(Number(dongCode))
+            dongSales = typeMap?.get(selectedBusinessType) || 0
+          }
+          const height = getDongHeightBySales(dongSales, heightScale)
           
           // Log first and last dong for debugging
           if (index === 0 || index === dongData.features.length - 1) {
@@ -1614,48 +1437,6 @@ export default function CardSalesDistrictMap() {
     process3DData()
   }, [sggData, dongData, dongSalesMap, dongSalesByTypeMap, selectedBusinessType, heightScale])
   
-  // Update dong3D continuously during height animation
-  useEffect(() => {
-    // Skip animation if layers are off
-    if (!showMeshLayer && !layerConfig.visible) return
-    if (!heightInterpolation.isAnimating || !dongData) return
-    
-    let animationFrame: number
-    
-    const updateHeights = () => {
-      // Update dong3D with current interpolated heights
-      const dong3D = {
-        ...dongData,
-        features: dongData.features.map((feature: any) => {
-          const dongCode = getDistrictCode(feature.properties) || 0
-          
-          const interpolatedHeight = heightInterpolation.getInterpolatedHeight(Number(dongCode))
-          
-          return {
-            ...feature,
-            properties: {
-              ...feature.properties,
-              height: interpolatedHeight
-            }
-          }
-        })
-      }
-      
-      setDongData3D(dong3D)
-      
-      if (heightInterpolation.isAnimating) {
-        animationFrame = requestAnimationFrame(updateHeights)
-      }
-    }
-    
-    animationFrame = requestAnimationFrame(updateHeights)
-    
-    return () => {
-      if (animationFrame) {
-        cancelAnimationFrame(animationFrame)
-      }
-    }
-  }, [heightInterpolation.isAnimating, dongData])
   
   // Lighting for 3D mode handled by DeckGL lighting effects
   // No Mapbox-specific lighting setup needed
@@ -1888,7 +1669,7 @@ export default function CardSalesDistrictMap() {
   return (
     <div className="relative w-full h-screen flex">
       {/* Mesh Loading Overlay */}
-      <MeshLoadingOverlay isLoading={isMeshLoading && showMeshLayer} />
+      {/* Removed MeshLoadingOverlay */}
       
       {/* Map Section - Flexible Width */}
       <div className={`relative flex-1 transition-all duration-300`}>
@@ -1920,40 +1701,20 @@ export default function CardSalesDistrictMap() {
         }}
         onClick={handleUnifiedClick}
         onHover={handleUnifiedHover}
-        onLoad={rotateCamera} // Start rotation when deck.gl loads
         onDragStart={() => {
           setIsDragging(true) // 드래그 상태 설정
-          userInteractingRef.current = true
-          onAnimationInteractionStart()
-          onRotationInteractionStart()
         }}
         onDragEnd={() => {
           setIsDragging(false) // 드래그 상태 해제
-          userInteractingRef.current = false
-          onAnimationInteractionEnd()
-          onRotationInteractionEnd()
-          // Resume rotation after user interaction ends
-          if (rotationEnabledRef.current) {
-            setTimeout(rotateCamera, 1000) // 1 second delay before resuming
-          }
         }}
         onViewStateChange={useMemo(() => 
           throttle(({ viewState: newViewState }) => {
-            // Skip if this is a programmatic update to prevent infinite loops
-            if (isProgrammaticUpdateRef.current) {
-              return
-            }
             
             // Update the viewState - DeckGL and MapGL sync automatically
             setViewState(newViewState as MapViewState)
             
-            // Update bearing ref for rotation animation
-            if ('bearing' in newViewState && newViewState.bearing !== undefined) {
-              currentBearingRef.current = newViewState.bearing
-              updateBearing(newViewState.bearing)
-            }
           }, 16), // 60fps
-        [setViewState, updateBearing])}
+        [setViewState])}
       >
         <MapGL
           ref={mapRef}
@@ -1968,7 +1729,6 @@ export default function CardSalesDistrictMap() {
                 'background-color': '#000000'
               }
             }],
-            ...(is3DMode ? { light: LIGHT_3D_CONFIG } : {})
           } : currentLayer === 'very-dark' ? 'mapbox://styles/mapbox/dark-v11' : currentLayer}
           {...viewState}
           onDblClick={districtSelection.handleMapReset}
@@ -2011,7 +1771,6 @@ export default function CardSalesDistrictMap() {
         externalSelectedBusinessType={selectedBusinessType}
         externalSelectedDate={selectedDate}
         // Timeline animation state
-        isTimelineAnimating={timelineAnimationEnabled && isTimelinePlaying}
       />
 
       {/* 선택된 지역 매출액 정보 */}
@@ -2028,10 +1787,6 @@ export default function CardSalesDistrictMap() {
       {/* 통합 컨트롤 패널 */}
       <UnifiedControls
         // 지도 컨트롤 props
-        onLayerChange={handleLayerChange}
-        onTimeChange={handleTimeChange}
-        currentLayer={currentLayer}
-        currentTime={currentTime}
         showBoundary={showBoundary}
         // District visibility props
         dongVisible={districtSelection.dongVisible}
@@ -2046,7 +1801,6 @@ export default function CardSalesDistrictMap() {
           // Boundary visibility now controlled through Deck.gl layer props
         }}
         onSeoulBaseToggle={(show) => {
-          setShowSeoulBase(show)
           // Seoul base is now removed, this toggle can be deprecated or repurposed
         }}
         // 3D 모드 props
@@ -2071,37 +1825,12 @@ export default function CardSalesDistrictMap() {
         selectedHour={selectedHour}
         onSelectedHourChange={setSelectedHour}
         // 애니메이션 props
-        animationEnabled={layerConfig.animationEnabled}
         animationSpeed={layerConfig.animationSpeed}
         waveAmplitude={layerConfig.waveAmplitude}
-        isAnimating={isAnimating}
         onAnimationEnabledChange={setAnimationEnabled}
         onAnimationSpeedChange={setAnimationSpeed}
         onWaveAmplitudeChange={setWaveAmplitude}
-        onToggleAnimation={toggleAnimation}
         
-        // 시계열 애니메이션 props
-        timelineAnimationEnabled={timelineAnimationEnabled}
-        isTimelinePlaying={isTimelinePlaying}
-        timelineSpeed={timelineSpeed}
-        currentMonthIndex={currentMonthIndex}
-        monthlyDates={monthlyDates}
-        onTimelineAnimationEnabledChange={setTimelineAnimationEnabled}
-        onIsTimelinePlayingChange={setIsTimelinePlaying}
-        onTimelineSpeedChange={setTimelineSpeed}
-        onToggleTimelineAnimation={toggleTimelineAnimation}
-        
-        // 회전 애니메이션 props
-        rotationEnabled={rotationEnabled}
-        rotationSpeed={rotationSpeed}
-        rotationDirection={rotationDirection}
-        isRotating={isRotating}
-        rotationDirectionText={rotationDirectionText}
-        bearingDisplay={bearingDisplay}
-        onRotationEnabledChange={setRotationEnabled}
-        onRotationSpeedChange={setRotationSpeed}
-        onRotationDirectionChange={setRotationDirection}
-        onToggleRotation={toggleRotation}
         
         // Mesh layer props
         showMeshLayer={showMeshLayer}
