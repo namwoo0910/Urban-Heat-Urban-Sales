@@ -40,20 +40,49 @@ export class AnimatedMeshLayer extends SimpleMeshLayer<any, AnimatedMeshLayerPro
         uniform float waveSpeed;
         uniform float breathingScale;
         
+        // Improved noise function for turbulence
+        float noise(vec2 st) {
+          return fract(sin(dot(st.xy, vec2(12.9898, 78.233))) * 43758.5453123);
+        }
+        
         vec3 animateVertex(vec3 position) {
-          // Wave effect based on X and Y coordinates
-          float waveX = sin(position.x * waveFrequency + animationTime * waveSpeed);
-          float waveY = cos(position.y * waveFrequency * 0.7 + animationTime * waveSpeed * 0.5);
+          // Multi-layer wave system with different frequencies
+          // Primary wave - large scale undulation
+          float wave1 = sin(position.x * waveFrequency + animationTime * waveSpeed) * 0.5;
+          float wave2 = cos(position.y * waveFrequency * 0.7 + animationTime * waveSpeed * 0.8) * 0.5;
           
-          // Combined wave effect
-          float wave = (waveX + waveY * 0.5) * waveAmplitude;
+          // Secondary wave - medium frequency
+          float wave3 = sin((position.x + position.y) * waveFrequency * 2.0 + animationTime * waveSpeed * 1.5) * 0.3;
           
-          // Breathing effect
-          float breathing = sin(animationTime * 0.3) * breathingScale * waveAmplitude;
+          // Tertiary wave - high frequency ripples
+          float wave4 = sin(position.x * waveFrequency * 4.0 + animationTime * waveSpeed * 2.0) * 0.15;
+          float wave5 = cos(position.y * waveFrequency * 3.5 + animationTime * waveSpeed * 2.2) * 0.15;
           
-          // Apply to Z coordinate only for height animation
+          // Ripple effect from center (circular waves)
+          float dist = length(position.xy);
+          float ripple = sin(dist * 0.01 - animationTime * waveSpeed * 0.5) * 0.3;
+          
+          // Turbulence using noise
+          float turbulence = noise(position.xy * 0.01 + animationTime * 0.1) * 0.2;
+          
+          // Combined wave effect with weighted blending
+          float combinedWave = (wave1 + wave2) * 0.4 + wave3 * 0.3 + (wave4 + wave5) * 0.2 + ripple * 0.3 + turbulence;
+          
+          // Enhanced breathing effect with varying speed
+          float breathing1 = sin(animationTime * 0.3) * breathingScale;
+          float breathing2 = cos(animationTime * 0.2) * breathingScale * 0.5;
+          float totalBreathing = (breathing1 + breathing2) * 0.7;
+          
+          // Height modulation based on position (creates interesting patterns)
+          float heightModulation = 1.0 + sin(position.x * 0.001 + position.y * 0.001) * 0.2;
+          
+          // Apply all effects to Z coordinate
           vec3 animatedPos = position;
-          animatedPos.z += wave + breathing;
+          animatedPos.z += (combinedWave * waveAmplitude + totalBreathing * waveAmplitude) * heightModulation;
+          
+          // Add subtle XY displacement for more organic feel
+          animatedPos.x += sin(animationTime * 0.15 + position.y * 0.001) * waveAmplitude * 0.02;
+          animatedPos.y += cos(animationTime * 0.15 + position.x * 0.001) * waveAmplitude * 0.02;
           
           return animatedPos;
         }

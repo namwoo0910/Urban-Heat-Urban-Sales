@@ -86,7 +86,7 @@ export default function AnimatedMeshBackground({
   }, [])
   
   // Use raw mesh geometry for GPU animation
-  const { meshData, loading, error } = useMeshGeometry(resolution)
+  const { meshData, loading, error } = useMeshGeometry(resolution, undefined)
   
   // Debug logging
   useEffect(() => {
@@ -139,7 +139,7 @@ export default function AnimatedMeshBackground({
     return new AnimatedMeshLayer({
       id: 'animated-mesh-gpu',
       data: [{ position: [centerX, centerY, 0] }],
-      mesh: meshObject,
+      mesh: meshObject as any,
       sizeScale: 1,
       getPosition: (d: any) => d.position,
       

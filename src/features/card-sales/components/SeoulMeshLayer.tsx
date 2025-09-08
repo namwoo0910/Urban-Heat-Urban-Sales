@@ -31,6 +31,7 @@ export interface SeoulMeshLayerProps {
   dongBoundaries?: any[]  // Dong boundary features for sales mapping
   dongSalesMap?: Map<number, number>  // Map of dongCode to total sales
   salesHeightScale?: number  // Scale for converting sales to height
+  animatedOpacity?: number  // For animated opacity transitions
 }
 
 /**
@@ -629,7 +630,8 @@ export function usePreGeneratedSeoulMeshLayer(
     color = '#00FFE1',
     dongBoundaries,
     dongSalesMap,
-    salesHeightScale
+    salesHeightScale,
+    animatedOpacity
   } = props
 
   // Import optimized loader components
@@ -748,13 +750,13 @@ export function usePreGeneratedSeoulMeshLayer(
     return createStaticSeoulMeshLayer(meshData, {
       visible,
       wireframe,
-      opacity,
+      opacity: animatedOpacity !== undefined ? animatedOpacity : opacity,
       pickable,
       onHover,
       onClick,
       color
     })
-  }, [meshData, loading, visible, wireframe, opacity, pickable, onHover, onClick, color])
+  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color])
   
   // Return both layer and loading state
   return { layer, isLoading: loading }

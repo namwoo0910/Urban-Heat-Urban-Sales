@@ -226,6 +226,16 @@ export default function CardSalesDistrictMap() {
   // 드래그 상태 추가 - 성능 최적화용
   const [isDragging, setIsDragging] = useState(false)
   
+  // 초기 카메라 애니메이션 상태
+  const [hasPlayedInitialAnimation, setHasPlayedInitialAnimation] = useState(false)
+  const initialAnimationRef = useRef<number | null>(null)
+  const [meshOpacity, setMeshOpacity] = useState(0)  // 페이드인 애니메이션용
+  
+  // 인터랙티브 카메라 컨트롤
+  const [autoRotate, setAutoRotate] = useState(false)  // 자동 회전 모드
+  const autoRotateRef = useRef<number | null>(null)
+  const lastInteractionRef = useRef<number>(Date.now())
+  
   // 회전 제어를 위한 ref
   const rotationEnabledRef = useRef(false)
   const userInteractingRef = useRef(false)
@@ -994,6 +1004,7 @@ export default function CardSalesDistrictMap() {
     visible: showMeshLayer,
     wireframe: meshWireframe,
     opacity: meshWireframe ? 1 : (is3DMode ? 0.6 : 0.8),
+    animatedOpacity: meshOpacity,  // 애니메이션 opacity 사용
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
     color: meshColor,  // Pass the mesh color
@@ -1002,6 +1013,195 @@ export default function CardSalesDistrictMap() {
     salesHeightScale: heightScale  // Use the same height scale as polygon layer
     // onHover and onClick removed - mesh layer is purely visual
   }, dongData3D?.features)
+  
+  // 초기 카메라 애니메이션 효과 - 메쉬 로딩 완료 시 실행
+  useEffect(() => {
+    if (!isMeshLoading && showMeshLayer && !hasPlayedInitialAnimation) {
+      setHasPlayedInitialAnimation(true)
+      
+      // 초기 뷰 설정 (높은 고도에서 시작)
+      setViewState({
+        longitude: 126.978,
+        latitude: 37.5765,
+        zoom: 9,  // 더 높은 곳에서 시작
+        pitch: 45,  // 초기 각도
+        bearing: 0,  // 정북향에서 시작
+        transitionDuration: 0
+      })
+      
+      // 페이드인 애니메이션 시작
+      const fadeInDuration = 2000
+      const fadeInSteps = 20
+      const fadeInInterval = fadeInDuration / fadeInSteps
+      let fadeStep = 0
+      
+      const fadeInAnimation = setInterval(() => {
+        fadeStep++
+        const progress = fadeStep / fadeInSteps
+        const easeOutProgress = 1 - Math.pow(1 - progress, 3)  // Ease-out cubic
+        
+        setMeshOpacity(easeOutProgress * 0.8)  // 최대 0.8 opacity
+        
+        if (fadeStep >= fadeInSteps) {
+          clearInterval(fadeInAnimation)
+        }
+      }, fadeInInterval)
+      
+      // 카메라 애니메이션 시퀀스
+      let animationStep = 0
+      const totalSteps = 3
+      
+      const animateCamera = () => {
+        switch(animationStep) {
+          case 0:
+            // Step 1: 360도 회전하며 줌인
+            setViewState(prev => ({
+              ...prev,
+              zoom: 10.2,
+              pitch: 55,
+              bearing: 360,
+              transitionDuration: 3000,
+              transitionInterpolator: new LinearInterpolator(['bearing', 'zoom', 'pitch']),
+              transitionEasing: (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+            }))
+            animationStep++
+            initialAnimationRef.current = window.setTimeout(animateCamera, 3100)
+            break
+            
+          case 1:
+            // Step 2: 살짝 뒤로 빼며 각도 조정
+            setViewState(prev => ({
+              ...prev,
+              zoom: 10.5,
+              pitch: 50,
+              bearing: 20,
+              transitionDuration: 2000,
+              transitionInterpolator: new FlyToInterpolator(),
+              transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
+            }))
+            animationStep++
+            initialAnimationRef.current = window.setTimeout(animateCamera, 2100)
+            break
+            
+          case 2:
+            // Step 3: 최종 뷰로 안착
+            setViewState({
+              ...DEFAULT_SEOUL_VIEW,
+              pitch: 60,  // 최종 각도
+              bearing: 6,  // 최종 방향
+              transitionDuration: 1500,
+              transitionInterpolator: new FlyToInterpolator(),
+              transitionEasing: (t: number) => 1 - Math.pow(1 - t, 3)
+            })
+            break
+        }
+      }
+      
+      // 애니메이션 시작 (약간의 딜레이 후)
+      initialAnimationRef.current = window.setTimeout(animateCamera, 500)
+      
+      return () => {
+        clearInterval(fadeInAnimation)
+      }
+    }
+    
+    return () => {
+      if (initialAnimationRef.current) {
+        clearTimeout(initialAnimationRef.current)
+      }
+    }
+  }, [isMeshLoading, showMeshLayer, hasPlayedInitialAnimation])
+  
+  // 자동 회전 기능 - 유휴 시간 후 활성화
+  useEffect(() => {
+    const checkIdleTime = () => {
+      const now = Date.now()
+      const idleTime = now - lastInteractionRef.current
+      
+      // 10초 동안 상호작용이 없으면 자동 회전 시작
+      if (idleTime > 10000 && !autoRotate && showMeshLayer) {
+        setAutoRotate(true)
+      }
+    }
+    
+    const idleTimer = setInterval(checkIdleTime, 1000)
+    
+    return () => clearInterval(idleTimer)
+  }, [autoRotate, showMeshLayer])
+  
+  // 자동 회전 애니메이션 - 개선된 타이밍
+  useEffect(() => {
+    if (autoRotate) {
+      let animationFrameId: number | null = null
+      let lastTime = performance.now()
+      
+      const rotate = (currentTime: number) => {
+        // 프레임 간 시간 계산
+        const deltaTime = currentTime - lastTime
+        
+        // 60fps 기준으로 부드러운 회전 (16.67ms per frame)
+        if (deltaTime >= 16) {
+          // 프로그래매틱 업데이트 플래그 설정
+          isProgrammaticUpdateRef.current = true
+          
+          setViewState(prev => ({
+            ...prev,
+            bearing: ((prev.bearing || 0) + 0.3) % 360,  // 더 작은 증분으로 부드럽게
+            // interpolator와 transition 제거 - 직접 업데이트로 버벅임 해결
+          }))
+          
+          // 다음 프레임에서 플래그 해제
+          requestAnimationFrame(() => {
+            isProgrammaticUpdateRef.current = false
+          })
+          
+          lastTime = currentTime
+        }
+        
+        // 계속 회전
+        if (autoRotate) {
+          animationFrameId = requestAnimationFrame(rotate)
+        }
+      }
+      
+      // 애니메이션 시작
+      animationFrameId = requestAnimationFrame(rotate)
+      
+      // Cleanup 함수에 저장
+      autoRotateRef.current = animationFrameId as any
+    } else {
+      // 회전 중지
+      if (autoRotateRef.current) {
+        cancelAnimationFrame(autoRotateRef.current)
+        autoRotateRef.current = null
+      }
+    }
+    
+    return () => {
+      if (autoRotateRef.current) {
+        cancelAnimationFrame(autoRotateRef.current)
+      }
+    }
+  }, [autoRotate])
+  
+  // 사용자 상호작용 감지 (클릭, 드래그 등)
+  useEffect(() => {
+    const handleInteraction = () => {
+      lastInteractionRef.current = Date.now()
+      if (autoRotate) {
+        setAutoRotate(false)
+      }
+    }
+    
+    // 클릭, 휠 이벤트 등에 반응
+    window.addEventListener('click', handleInteraction)
+    window.addEventListener('wheel', handleInteraction)
+    
+    return () => {
+      window.removeEventListener('click', handleInteraction)
+      window.removeEventListener('wheel', handleInteraction)
+    }
+  }, [autoRotate])
   
   // Load Seoul boundary data for unified layers
   const [seoulBoundaryData, setSeoulBoundaryData] = useState<FeatureCollection | null>(null)
@@ -2155,6 +2355,95 @@ export default function CardSalesDistrictMap() {
     return true
   }, [isDragging])
 
+  // 카메라 애니메이션 재생 함수
+  const replayInitialAnimation = useCallback(() => {
+    // 상태 초기화
+    setHasPlayedInitialAnimation(false)
+    setMeshOpacity(0)
+    setAutoRotate(false)
+    
+    // 약간의 딜레이 후 애니메이션 재실행
+    setTimeout(() => {
+      setHasPlayedInitialAnimation(true)
+      
+      // 초기 뷰 설정
+      setViewState({
+        longitude: 126.978,
+        latitude: 37.5765,
+        zoom: 9,
+        pitch: 45,
+        bearing: 0,
+        transitionDuration: 0
+      })
+      
+      // 페이드인 애니메이션
+      const fadeInDuration = 2000
+      const fadeInSteps = 20
+      const fadeInInterval = fadeInDuration / fadeInSteps
+      let fadeStep = 0
+      
+      const fadeInAnimation = setInterval(() => {
+        fadeStep++
+        const progress = fadeStep / fadeInSteps
+        const easeOutProgress = 1 - Math.pow(1 - progress, 3)
+        
+        setMeshOpacity(easeOutProgress * 0.8)
+        
+        if (fadeStep >= fadeInSteps) {
+          clearInterval(fadeInAnimation)
+        }
+      }, fadeInInterval)
+      
+      // 카메라 애니메이션 재생
+      let animationStep = 0
+      
+      const animateCamera = () => {
+        switch(animationStep) {
+          case 0:
+            setViewState(prev => ({
+              ...prev,
+              zoom: 10.2,
+              pitch: 55,
+              bearing: 360,
+              transitionDuration: 3000,
+              transitionInterpolator: new LinearInterpolator(['bearing', 'zoom', 'pitch']),
+              transitionEasing: (t: number) => t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+            }))
+            animationStep++
+            setTimeout(animateCamera, 3100)
+            break
+            
+          case 1:
+            setViewState(prev => ({
+              ...prev,
+              zoom: 10.5,
+              pitch: 50,
+              bearing: 20,
+              transitionDuration: 2000,
+              transitionInterpolator: new FlyToInterpolator(),
+              transitionEasing: (t: number) => t * t * (3.0 - 2.0 * t)
+            }))
+            animationStep++
+            setTimeout(animateCamera, 2100)
+            break
+            
+          case 2:
+            setViewState({
+              ...DEFAULT_SEOUL_VIEW,
+              pitch: 60,
+              bearing: 6,
+              transitionDuration: 1500,
+              transitionInterpolator: new FlyToInterpolator(),
+              transitionEasing: (t: number) => 1 - Math.pow(1 - t, 3)
+            })
+            break
+        }
+      }
+      
+      setTimeout(animateCamera, 500)
+    }, 100)
+  }, [])
+
   return (
     <div className="relative w-full h-screen flex">
       {/* Mesh Loading Overlay */}
@@ -2162,6 +2451,28 @@ export default function CardSalesDistrictMap() {
       
       {/* Map Section - Flexible Width */}
       <div className={`relative flex-1 transition-all duration-300`}>
+        {/* 카메라 애니메이션 재생 버튼 */}
+        {showMeshLayer && (
+          <button
+            onClick={replayInitialAnimation}
+            className="absolute top-4 right-4 z-50 p-3 bg-gray-900/80 hover:bg-gray-800/90 text-white rounded-lg 
+                       shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-105
+                       flex items-center gap-2 border border-gray-700/50"
+            title="카메라 애니메이션 재생"
+          >
+            <RotateCcw className="w-5 h-5" />
+            <span className="text-sm font-medium">애니메이션 재생</span>
+          </button>
+        )}
+        
+        {/* 자동 회전 상태 표시 */}
+        {autoRotate && (
+          <div className="absolute top-20 right-4 z-40 px-3 py-2 bg-blue-900/70 text-white rounded-lg 
+                          shadow-lg backdrop-blur-sm text-sm animate-pulse">
+            자동 회전 중...
+          </div>
+        )}
+        
         {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
         <DeckGL
         viewState={viewState}
