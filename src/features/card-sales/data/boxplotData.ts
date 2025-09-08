@@ -8,6 +8,18 @@ export interface BoxPlotDataPoint {
   hot: BoxPlotStats
 }
 
+export interface DongBoxPlotDataPoint {
+  guCode: number
+  dongCode: number
+  guName: string
+  dongName: string
+  businessType: string
+  dongBusinessKey: string
+  cold: BoxPlotStats
+  mild: BoxPlotStats
+  hot: BoxPlotStats
+}
+
 export interface BoxPlotStats {
   min: number
   Q1: number
@@ -38,6 +50,14 @@ export async function loadNormalizedBoxPlotData(): Promise<BoxPlotDataPoint[]> {
   const response = await fetch('/data/charts/norm_업종x매출_bxplt.csv')
   const text = await response.text()
   return parseNormalizedCsvToBoxPlotData(text)
+}
+
+// 행정동별 x 업종별 박스플롯 데이터 로드
+export async function loadDongBoxPlotData(): Promise<DongBoxPlotDataPoint[]> {
+  const { parseDongCsvToBoxPlotData } = await import('./dongBoxplotData')
+  const response = await fetch('/data/charts/norm_행정동x업종_bxplt.csv')
+  const text = await response.text()
+  return parseDongCsvToBoxPlotData(text)
 }
 
 // CSV 파싱 함수

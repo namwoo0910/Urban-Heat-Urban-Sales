@@ -10,7 +10,6 @@ import { SalesRadarChart } from './SalesRadarChart'
 import { SalesComposedChart } from './SalesComposedChart'
 import { SalesHeatmapChart } from './SalesHeatmapChart'
 import { SalesBoxPlotChart } from './SalesBoxPlotChart'
-import { NormalizedSalesBoxPlot } from './NormalizedSalesBoxPlot'
 import { NormalizedSalesBoxPlotRecharts } from './NormalizedSalesBoxPlotRecharts'
 
 export function SalesChartPanel() {
@@ -25,8 +24,7 @@ export function SalesChartPanel() {
     { id: 'composed', label: '복합 분석', component: SalesComposedChart },
     { id: 'heatmap', label: '히트맵', component: SalesHeatmapChart },
     { id: 'boxplot', label: '날씨 영향', component: SalesBoxPlotChart },
-    { id: 'normalized', label: 'Plotly', component: NormalizedSalesBoxPlot },
-    { id: 'normalized-recharts', label: 'Recharts', component: NormalizedSalesBoxPlotRecharts },
+    { id: 'normalized', label: '정규화 분석', component: NormalizedSalesBoxPlotRecharts },
   ]
 
   return (
@@ -37,7 +35,7 @@ export function SalesChartPanel() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col min-w-0">
-        <TabsList className="grid grid-cols-3 lg:grid-cols-10 gap-1 bg-gray-900/50 border border-gray-800/50 mb-2 h-auto p-1 flex-shrink-0">
+        <TabsList className="grid grid-cols-3 lg:grid-cols-9 gap-1 bg-gray-900/50 border border-gray-800/50 mb-2 h-auto p-1 flex-shrink-0">
           {charts.map((chart) => (
             <TabsTrigger 
               key={chart.id} 

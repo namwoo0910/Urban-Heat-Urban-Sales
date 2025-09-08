@@ -42,7 +42,7 @@ function parseMonthlySalesCSV(csvText: string): MonthlySalesDataPoint[] {
     
     // 각 업종별 매출액
     for (let j = 2; j < headers.length; j++) {
-      const categoryName = headers[j]
+      const categoryName = headers[j].trim()  // 공백 제거
       const value = parseFloat(values[j]) || 0
       categories[categoryName] = value
     }
@@ -55,6 +55,10 @@ function parseMonthlySalesCSV(csvText: string): MonthlySalesDataPoint[] {
   }
   
   console.log('[MonthlySales] Parsed data points:', monthlyData.length)
+  if (monthlyData.length > 0) {
+    console.log('[MonthlySales] First data point categories:', Object.keys(monthlyData[0].categories))
+    console.log('[MonthlySales] Sample category values:', monthlyData[0].categories)
+  }
   return monthlyData
 }
 

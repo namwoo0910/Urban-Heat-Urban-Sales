@@ -1982,7 +1982,14 @@ export default function CardSalesDistrictMap() {
             className="h-screen bg-black/80 border-l border-gray-800/50"
           >
             <div className="h-full p-4 overflow-y-auto">
-              <DefaultChartsPanel />
+              <DefaultChartsPanel 
+                selectedGu={selectedGu}
+                selectedGuCode={selectedGuCode}
+                selectedDong={selectedDong}
+                selectedDongCode={selectedDongCode}
+                selectedBusinessType={selectedBusinessType}
+                selectedDate={selectedDate}
+              />
             </div>
           </ResizablePanel>
         )}

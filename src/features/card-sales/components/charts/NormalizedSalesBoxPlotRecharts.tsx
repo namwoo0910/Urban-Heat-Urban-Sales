@@ -7,11 +7,11 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
   Legend, 
   ResponsiveContainer,
   ReferenceLine,
-  Line
+  Line,
+  Tooltip
 } from '@/src/shared/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/shared/components/ui/select'
 import { 
@@ -168,44 +168,44 @@ const CustomNormalizedBoxPlot = (props: any) => {
   )
 }
 
-// 커스텀 툴팁 컴포넌트
-const CustomNormalizedTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || !payload[0]) return null
-  
-  const data = payload[0].payload
-  
-  // 온도 그룹별 아이콘
-  const getIcon = (group: string) => {
-    switch(group) {
-      case '한파': return '❄️'
-      case '온화': return '🌤️'
-      case '폭염': return '🔥'
-      default: return '🌡️'
-    }
-  }
-  
-  return (
-    <div className="rounded-lg border bg-background p-3 shadow-lg">
-      <p className="font-semibold mb-2 flex items-center gap-2">
-        <span>{getIcon(data.weatherType)}</span>
-        <span>{data.weatherType}</span>
-        {data.businessType && <span className="text-sm text-muted-foreground">({data.businessType})</span>}
-      </p>
-      
-      <div className="text-xs text-muted-foreground space-y-1">
-        <div>최소값: {data.min.toFixed(1)}%</div>
-        <div>Q1: {data.Q1.toFixed(1)}%</div>
-        <div className="font-semibold">중앙값: {data.median.toFixed(1)}%</div>
-        <div>Q3: {data.Q3.toFixed(1)}%</div>
-        <div>최대값: {data.max.toFixed(1)}%</div>
-        <div className="border-t pt-1 mt-1">
-          <div>평균: {data.mean.toFixed(1)}%</div>
-          <div>하한: {data.lowerWhisker.toFixed(1)}%</div>
-          <div>상한: {data.upperWhisker.toFixed(1)}%</div>
+// 중앙값 연결선 전용 툴팁 컴포넌트 (processedData를 props로 받음)
+const createNormalizedMedianTooltip = (processedData: any[]) => {
+  return ({ active, payload }: any) => {
+    if (!active || !payload || payload.length === 0) return null
+    
+    // 모든 날씨의 중앙값 가져오기
+    const 한파Data = processedData.find(d => d.weatherType === '한파')
+    const 온화Data = processedData.find(d => d.weatherType === '온화')
+    const 폭염Data = processedData.find(d => d.weatherType === '폭염')
+    
+    const 한파 = 한파Data?.median || 0
+    const 온화 = 온화Data?.median || 100
+    const 폭염 = 폭염Data?.median || 0
+    
+    // 온화 대비 차이 계산 (온화는 100% 기준)
+    const 한파차이 = (한파 - 100).toFixed(1)
+    const 폭염차이 = (폭염 - 100).toFixed(1)
+    
+    return (
+      <div className="rounded-lg border border-gray-800/50 bg-black/90 backdrop-blur-md p-2 shadow-lg">
+        <div className="text-xs text-gray-400 font-semibold">온화(100%) 대비 차이</div>
+        <div className="text-xs text-gray-400 space-y-0.5 mt-1">
+          <div className="flex items-center gap-2">
+            <span>❄️ 한파:</span>
+            <span className={parseFloat(한파차이) > 0 ? 'text-green-500' : 'text-red-500'}>
+              {parseFloat(한파차이) > 0 ? '+' : ''}{한파차이}%p
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>🔥 폭염:</span>
+            <span className={parseFloat(폭염차이) > 0 ? 'text-green-500' : 'text-red-500'}>
+              {parseFloat(폭염차이) > 0 ? '+' : ''}{폭염차이}%p
+            </span>
+          </div>
         </div>
       </div>
-    </div>
-  )
+    )
+  }
 }
 
 export function NormalizedSalesBoxPlotRecharts() {
@@ -409,7 +409,7 @@ export function NormalizedSalesBoxPlotRecharts() {
               }}
             />
             
-            <Tooltip content={<CustomNormalizedTooltip />} />
+            <Tooltip content={createNormalizedMedianTooltip(processedData)} />
             
             <Legend 
               wrapperStyle={{ paddingTop: '20px' }}

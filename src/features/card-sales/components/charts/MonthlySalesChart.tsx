@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect } from 'react'
+import { useMemo } from 'react'
 import { 
   LineChart, 
   Line, 
@@ -11,9 +11,8 @@ import {
   ResponsiveContainer,
   ReferenceLine
 } from '@/src/shared/components/ui/chart'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/shared/components/ui/select'
-import { loadMonthlySalesData, SALES_CATEGORIES, type MonthlySalesDataPoint } from '@/src/features/card-sales/data/monthlySalesData'
 import { getWeatherEventsForChart } from '@/src/features/card-sales/data/weatherEventsData'
+import { useFilteredMonthlySales } from '@/src/features/card-sales/hooks/useFilteredMonthlySales'
 
 // 금액 포맷터 (억원 단위)
 const formatCurrency = (value: number) => {
@@ -33,37 +32,45 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   const data = payload[0].payload
   
   return (
-    <div className="rounded-lg border bg-background p-3 shadow-lg">
-      <p className="font-semibold mb-2 text-white">{label}</p>
-      <div className="space-y-1 text-sm">
-        <div className="flex items-center gap-2">
-          <div className="w-3 h-3 bg-blue-500 rounded"></div>
-          <span className="text-gray-300">매출액: {formatCurrency(data.sales)}</span>
-        </div>
+    <div className="rounded-lg border border-gray-800/50 bg-black/90 backdrop-blur-md p-2 shadow-lg">
+      <div className="text-xs text-gray-300 flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#DBDEE3' }}></div>
+        <span>매출액: {formatCurrency(data.sales)}</span>
       </div>
     </div>
   )
 }
 
-export function MonthlySalesChart() {
-  const [selectedCategory, setSelectedCategory] = useState<string>('전체')
-  const [salesData, setSalesData] = useState<MonthlySalesDataPoint[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+interface MonthlySalesChartProps {
+  selectedBusinessType?: string | null
+  selectedGuCode?: number | null
+  selectedDongCode?: number | null
+  selectedGuName?: string | null
+  selectedDongName?: string | null
+}
+
+export function MonthlySalesChart({
+  selectedBusinessType,
+  selectedGuCode,
+  selectedDongCode,
+  selectedGuName,
+  selectedDongName
+}: MonthlySalesChartProps) {
+  // 외부에서 전달된 업종 또는 기본값 '전체' 사용
+  const activeCategory = selectedBusinessType || '전체'
+  
+  // 지역 선택 모드 확인
+  const isDongMode = selectedDongCode !== null && selectedDongCode !== undefined
+  const isGuMode = selectedGuCode !== null && selectedGuCode !== undefined && !isDongMode
   
   // Get weather events for reference lines
   const weatherEvents = useMemo(() => getWeatherEventsForChart(), [])
   
-  // CSV 데이터 로드
-  useEffect(() => {
-    loadMonthlySalesData().then((data) => {
-      setSalesData(data)
-      setIsLoading(false)
-      console.log('[MonthlySalesChart] Loaded CSV data:', data)
-    }).catch((error) => {
-      console.error('[MonthlySalesChart] Failed to load data:', error)
-      setIsLoading(false)
-    })
-  }, [])
+  // 필터링된 월별 데이터 로드 (구/동 선택에 따라)
+  const { monthlyData: salesData, isLoading } = useFilteredMonthlySales(
+    selectedGuCode,
+    selectedDongCode
+  )
   
   // 선택된 카테고리에 따른 차트 데이터 생성
   const chartData = useMemo(() => {
@@ -72,10 +79,10 @@ export function MonthlySalesChart() {
     return salesData.map((dataPoint, index) => {
       let salesValue: number
       
-      if (selectedCategory === '전체') {
+      if (activeCategory === '전체') {
         salesValue = dataPoint.total
       } else {
-        salesValue = dataPoint.categories[selectedCategory] || 0
+        salesValue = dataPoint.categories[activeCategory] || 0
       }
       
       return {
@@ -85,7 +92,7 @@ export function MonthlySalesChart() {
         formattedSales: salesValue / 100000000 // 억원 단위로 변환
       }
     })
-  }, [salesData, selectedCategory])
+  }, [salesData, activeCategory])
 
   // Y축 도메인 계산
   const yDomain = useMemo(() => {
@@ -101,7 +108,17 @@ export function MonthlySalesChart() {
     ]
   }, [chartData])
 
-  console.log('[MonthlySalesChart] Rendering with category:', selectedCategory, 'data:', chartData)
+  // 선택된 지역 표시용 텍스트
+  const locationText = useMemo(() => {
+    if (selectedDongCode) {
+      return `(선택 지역 데이터)`
+    } else if (selectedGuCode) {
+      return `(선택 구 데이터)`
+    }
+    return `(서울시 전체)`
+  }, [selectedGuCode, selectedDongCode])
+
+  console.log('[MonthlySalesChart] Rendering with category:', activeCategory, 'data:', chartData)
 
   // 로딩 중일 때
   if (isLoading) {
@@ -114,29 +131,36 @@ export function MonthlySalesChart() {
 
   return (
     <div className="w-full h-full relative">
-      {/* 업종 선택 드롭다운 */}
-      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-        <SelectTrigger className="absolute top-0 right-2 z-10 w-[120px] h-8 text-xs bg-white/10 border-white/20 text-white">
-          <SelectValue placeholder="업종 선택" />
-        </SelectTrigger>
-        <SelectContent className="max-h-[300px] overflow-y-auto bg-black/90 border-white/20">
-          {SALES_CATEGORIES.map((category) => (
-            <SelectItem 
-              key={category} 
-              value={category} 
-              className="text-xs text-white hover:bg-white/10"
-            >
-              {category}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* 선택된 업종 또는 행정동/자치구 표시 (레이어 컨트롤에서 선택) */}
+      <div className="absolute top-0 right-2 z-10 flex flex-col items-end gap-1">
+        {isDongMode && selectedDongName && activeCategory !== '전체' ? (
+          <div className="text-xs text-blue-400">
+            {selectedGuName} {selectedDongName} - {activeCategory}
+          </div>
+        ) : isDongMode && selectedDongName ? (
+          <div className="text-xs text-blue-400">
+            {selectedGuName} {selectedDongName} (전체 업종)
+          </div>
+        ) : isGuMode && selectedGuName && activeCategory !== '전체' ? (
+          <div className="text-xs text-blue-400">
+            {selectedGuName} - {activeCategory}
+          </div>
+        ) : isGuMode && selectedGuName ? (
+          <div className="text-xs text-blue-400">
+            {selectedGuName} (전체 업종)
+          </div>
+        ) : activeCategory !== '전체' ? (
+          <div className="text-xs text-blue-400">
+            {activeCategory}
+          </div>
+        ) : null}
+      </div>
 
       {/* 차트 제목 */}
       <div className="mb-2">
         <h3 className="text-lg font-bold text-white mb-1">월별 매출액</h3>
         <p className="text-sm text-gray-400">
-          2024년 서울시 카드매출 월별 추이 ({selectedCategory})
+          2024년 카드매출 월별 추이 {locationText}
         </p>
       </div>
       
@@ -196,10 +220,11 @@ export function MonthlySalesChart() {
               type="monotone"
               dataKey="formattedSales"
               name="매출액"
-              stroke="#3B82F6"
-              strokeWidth={3}
-              dot={{ fill: '#3B82F6', strokeWidth: 2, r: 4 }}
-              activeDot={{ r: 6, stroke: '#3B82F6', strokeWidth: 2 }}
+              stroke="#DBDEE3"
+              strokeOpacity={0.9}
+              strokeWidth={2}
+              dot={{ fill: '#DBDEE3', fillOpacity: 0.9, strokeWidth: 1.5, r: 3 }}
+              activeDot={{ r: 5, stroke: '#DBDEE3', strokeWidth: 2 }}
             />
           </LineChart>
         </ResponsiveContainer>
