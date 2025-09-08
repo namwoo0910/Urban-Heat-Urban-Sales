@@ -6,10 +6,7 @@ import { ChevronDown } from "lucide-react"
 import { 
   MapPin, 
   RefreshCw,
-  Loader2,
-  Play,
-  Pause,
-  Calendar
+  Loader2
 } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Label } from "@/src/shared/components/ui/label"
@@ -20,43 +17,15 @@ import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
 import { COLOR_PALETTE_INFO, getColorPreviewStyle, type ColorScheme } from "@/src/features/card-sales/utils/premiumColors"
 import { Switch } from "@/src/shared/components/ui/switch"
-import { setDistrictTheme, getAvailableThemes, getCurrentTheme, setUseIndividualDistrictColors, getUseIndividualDistrictColors } from "@/src/shared/utils/districtUtils"
+import { setDistrictTheme, getAvailableThemes, getCurrentTheme } from "@/src/shared/utils/districtUtils"
 import { COLOR_THEMES } from "@/src/shared/utils/districtColorThemes"
 
-// 지도 레이어 정의 (Mapbox 스타일)
-const mapLayers = [
-  // 검정색 배경 (맵박스 없음)
-  { id: "black", name: "🌑 검정 배경", description: "순수 검정색 배경" },
-  { id: "very-dark", name: "⚫ 매우 어두운", description: "거의 검정에 가까운 어두운 배경" },
-  
-  // 기본 스타일
-  { id: "mapbox://styles/mapbox/streets-v12", name: "거리 지도", description: "기본 거리 지도" },
-  { id: "mapbox://styles/mapbox/outdoors-v12", name: "야외 지도", description: "등고선과 자연 지형" },
-  { id: "mapbox://styles/mapbox/light-v11", name: "밝은 지도", description: "밝은 테마" },
-  { id: "mapbox://styles/mapbox/dark-v11", name: "어두운 지도", description: "어두운 테마" },
-  { id: "mapbox://styles/mapbox/satellite-v9", name: "위성 지도", description: "위성 이미지" },
-  { id: "mapbox://styles/mapbox/satellite-streets-v12", name: "위성+거리", description: "위성 이미지와 라벨" },
-  { id: "mapbox://styles/mapbox/navigation-day-v1", name: "내비게이션(주간)", description: "운전용 내비게이션" },
-  { id: "mapbox://styles/mapbox/navigation-night-v1", name: "내비게이션(야간)", description: "야간 운전용" },
-  
-  // 특수 스타일
-  { id: "mapbox://styles/mapbox/standard", name: "표준 지도", description: "Mapbox 표준 스타일" },
-  { id: "mapbox://styles/mapbox/standard-satellite", name: "표준 위성", description: "표준 위성 스타일" },
-  
-  // 추가 커스텀 스타일 (실제 사용 가능한 스타일)
-  { id: "mapbox://styles/mapbox/twilight-v2", name: "황혼", description: "황혼 테마" },
-  { id: "mapbox://styles/mapbox/blueprint-v1", name: "블루프린트", description: "청사진 스타일" },
-  { id: "mapbox://styles/mapbox/decimal-v1", name: "데시멀", description: "미니멀 스타일" },
-  { id: "mapbox://styles/mapbox/minimo-v1", name: "미니모", description: "최소한의 디자인" },
-  { id: "mapbox://styles/mapbox/frank-v1", name: "프랭크", description: "대비가 높은 스타일" },
-]
+// Map layers removed - using fixed map style
 
 
 interface UnifiedControlsProps {
   // MapControls props
-  onLayerChange: (layer: string) => void
   onTimeChange: (time: number) => void
-  currentLayer: string
   currentTime: number
   showBoundary?: boolean
   showSeoulBase?: boolean
@@ -67,19 +36,13 @@ interface UnifiedControlsProps {
   onDistrictLabelsToggle?: (show: boolean) => void
   onDongLabelsToggle?: (show: boolean) => void
   
-  // District visibility props
-  sggVisible?: boolean
-  dongVisible?: boolean
-  onSggVisibleChange?: (visible: boolean) => void
-  onDongVisibleChange?: (visible: boolean) => void
+  // District visibility removed - always visible
   
   // 3D mode props
   is3DMode?: boolean
   onIs3DModeChange?: (enabled: boolean) => void
   
-  // Height scale props (for 3D mode sales visualization)
-  heightScale?: number
-  onHeightScaleChange?: (scale: number) => void
+  // Height scale removed - using fixed scale
   
   // LayerControls props
   visible: boolean
@@ -120,24 +83,13 @@ interface UnifiedControlsProps {
   onRotationDirectionChange?: (direction: 'clockwise' | 'counterclockwise') => void
   onToggleRotation?: () => void
   
-  // Timeline animation props
-  timelineAnimationEnabled?: boolean
-  isTimelinePlaying?: boolean
-  timelineSpeed?: number
-  currentMonthIndex?: number
-  monthlyDates?: string[]
-  onTimelineAnimationEnabledChange?: (enabled: boolean) => void
-  onIsTimelinePlayingChange?: (playing: boolean) => void
-  onTimelineSpeedChange?: (speed: number) => void
-  onToggleTimelineAnimation?: () => void
+  // Timeline animation removed - not needed
   
   // Mesh layer props
   showMeshLayer?: boolean
   onShowMeshLayerChange?: (show: boolean) => void
-  meshWireframe?: boolean
-  onMeshWireframeChange?: (wireframe: boolean) => void
-  meshResolution?: number
-  onMeshResolutionChange?: (resolution: number) => void
+  // Wireframe removed - always true
+  // Mesh resolution removed - using fixed value
   meshColor?: string
   onMeshColorChange?: (color: string) => void
 }
@@ -151,20 +103,14 @@ interface ThemeAdjustments {
 }
 
 export default function UnifiedControls({
-  // MapControls props
-  onLayerChange,
-  currentLayer,
+  // MapControls props removed
   
   // LayerControls props
   isDataLoading,
   dataError,
   onReset,
   
-  // District visibility props
-  sggVisible = true,
-  dongVisible = true,
-  onSggVisibleChange,
-  onDongVisibleChange,
+  // District visibility removed - always visible
   
   // Text labels props
   showDistrictLabels = true,
@@ -176,34 +122,21 @@ export default function UnifiedControls({
   is3DMode = false,
   onIs3DModeChange,
   
-  // Height scale props
-  heightScale = 500000000, // 5억원 단위로 기본값 설정
-  onHeightScaleChange,
+  // Height scale removed - using fixed scale
   
-  // Timeline animation props
-  timelineAnimationEnabled = false,
-  isTimelinePlaying = false,
-  timelineSpeed = 2000,
-  currentMonthIndex = 0,
-  monthlyDates = [],
-  onTimelineAnimationEnabledChange,
-  onIsTimelinePlayingChange,
-  onTimelineSpeedChange,
-  onToggleTimelineAnimation,
+  // Timeline animation removed
   
   // Mesh layer props
   showMeshLayer = false,
   onShowMeshLayerChange,
-  meshWireframe = true,
-  onMeshWireframeChange,
-  meshResolution = 120,  // Set default to 120x120
-  onMeshResolutionChange,
+  // Wireframe always true
+  // Mesh resolution fixed at 120
   meshColor = '#00FFE1',
   onMeshColorChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('modern')
-  const [useIndividualColors, setUseIndividualColors] = useState(getUseIndividualDistrictColors())
+  // Removed: useIndividualColors state - always use theme colors
   
   // Theme adjustment states
   const [themeAdjustments, setThemeAdjustments] = useState<ThemeAdjustments>({
@@ -283,32 +216,87 @@ export default function UnifiedControls({
               )}
 
               <div className="p-2 space-y-3 max-h-96 overflow-y-auto">
-            {/* 맵박스 레이어 선택 */}
+
+            {/* 3D Polygon Layer 토글 - moved to top */}
             <div className="space-y-2">
-              <Label className="text-gray-200 text-xs font-semibold">지도 스타일</Label>
-              <Select
-                value={currentLayer}
-                onValueChange={onLayerChange}
-                disabled={isDataLoading}
-              >
-                <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
-                  {mapLayers.map((layer) => (
-                    <SelectItem 
-                      key={layer.id} 
-                      value={layer.id} 
-                      className="text-gray-200 hover:bg-gray-900/50"
-                    >
-                      <div className="flex flex-col">
-                        <span className="font-medium">{layer.name}</span>
-                        <span className="text-xs text-white/60">{layer.description}</span>
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-200 text-xs font-semibold">3D Polygon Layer</Label>
+                <Switch
+                  checked={is3DMode}
+                  onCheckedChange={onIs3DModeChange}
+                  className="scale-75"
+                  disabled={isDataLoading}
+                />
+              </div>
+              <p className="text-xs text-gray-400">
+                {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
+              </p>
+            </div>
+
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 3D Mesh Layer 토글 - moved to top */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-200 text-xs font-semibold">3D Mesh Layer</Label>
+                <Switch
+                  checked={showMeshLayer}
+                  onCheckedChange={onShowMeshLayerChange}
+                  className="scale-75"
+                  disabled={isDataLoading}
+                />
+              </div>
+              {showMeshLayer && (
+                <div className="space-y-3 pl-2">
+                  {/* Wireframe always enabled - removed toggle */}
+                  {/* Mesh Color Picker */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-200 text-xs">Mesh Color</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={meshColor || '#00FFE1'}
+                        onChange={(e) => onMeshColorChange?.(e.target.value)}
+                        className="w-8 h-8 border border-gray-600 rounded cursor-pointer"
+                        title="Choose mesh color"
+                      />
+                      <span className="text-xs text-gray-400">
+                        {meshColor || '#00FFE1'}
+                      </span>
+                      <button
+                        onClick={() => onMeshColorChange?.('#00FFE1')}
+                        className="text-xs text-gray-400 hover:text-gray-200 ml-auto"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    {/* Preset colors */}
+                    <div className="flex gap-1">
+                      {[
+                        { color: '#00FFE1', name: 'Cyan' },
+                        { color: '#00FF94', name: 'Mint' },
+                        { color: '#FF00FF', name: 'Magenta' },
+                        { color: '#FFE100', name: 'Yellow' },
+                        { color: '#FF6B00', name: 'Orange' },
+                        { color: '#B100FF', name: 'Purple' },
+                      ].map(({ color, name }) => (
+                        <button
+                          key={color}
+                          onClick={() => onMeshColorChange?.(color)}
+                          className="w-6 h-6 rounded border border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title={name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-gray-400">
+                {showMeshLayer ? 
+                  '서울시 전체를 덮는 메쉬 레이어가 표시됩니다' : 
+                  '3D 메쉬 레이어를 활성화합니다'}
+              </p>
             </div>
 
             <Separator className="bg-gray-800/50" />
@@ -517,54 +505,7 @@ export default function UnifiedControls({
 
             <Separator className="bg-gray-800/50" />
 
-            {/* 자치구 색상 모드 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-gray-200 text-xs font-semibold">자치구별 색상</Label>
-                <Switch
-                  checked={useIndividualColors}
-                  onCheckedChange={(checked) => {
-                    setUseIndividualColors(checked)
-                    setUseIndividualDistrictColors(checked)
-                  }}
-                  className="scale-75"
-                />
-              </div>
-              <p className="text-xs text-gray-400">
-                {useIndividualColors ? '각 자치구마다 다른 색상 적용' : '모든 자치구에 동일한 테마 색상 적용'}
-              </p>
-            </div>
 
-            <Separator className="bg-gray-800/50" />
-
-            {/* 행정구역 표시 토글 */}
-            <div className="space-y-2">
-              <Label className="text-gray-200 text-xs font-semibold">행정구역 표시</Label>
-              <div className="space-y-2">
-                {/* 자치구 표시 */}
-                <div className="flex items-center justify-between">
-                  <Label className="text-gray-300 text-xs">자치구 경계</Label>
-                  <Switch
-                    checked={sggVisible}
-                    onCheckedChange={onSggVisibleChange}
-                    className="scale-75"
-                    disabled={isDataLoading}
-                  />
-                </div>
-                {/* 행정동 표시 */}
-                <div className="flex items-center justify-between">
-                  <Label className="text-gray-300 text-xs">행정동 경계</Label>
-                  <Switch
-                    checked={dongVisible}
-                    onCheckedChange={onDongVisibleChange}
-                    className="scale-75"
-                    disabled={isDataLoading}
-                  />
-                </div>
-              </div>
-            </div>
-
-            <Separator className="bg-gray-800/50" />
             
             {/* 텍스트 라벨 표시 토글 */}
             <div className="space-y-2">
@@ -595,265 +536,7 @@ export default function UnifiedControls({
 
             <Separator className="bg-gray-800/50" />
             
-            {/* 3D 모드 토글 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-gray-200 text-xs font-semibold">3D 지도 모드</Label>
-                <Switch
-                  checked={is3DMode}
-                  onCheckedChange={onIs3DModeChange}
-                  className="scale-75"
-                  disabled={isDataLoading}
-                />
-              </div>
-              <p className="text-xs text-gray-400">
-                {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
-              </p>
-            </div>
-
-            <Separator className="bg-gray-800/50" />
-            
-            {/* Seoul Mesh Layer 토글 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-gray-200 text-xs font-semibold">Seoul Mesh Layer</Label>
-                <Switch
-                  checked={showMeshLayer}
-                  onCheckedChange={onShowMeshLayerChange}
-                  className="scale-75"
-                  disabled={isDataLoading}
-                />
-              </div>
-              {showMeshLayer && (
-                <div className="space-y-3 pl-2">
-                  {/* Wireframe 모드 토글 */}
-                  <div className="flex items-center justify-between">
-                    <Label className="text-gray-200 text-xs">Wireframe</Label>
-                    <Switch
-                      checked={meshWireframe}
-                      onCheckedChange={onMeshWireframeChange}
-                      className="scale-75"
-                    />
-                  </div>
-                  
-                  {/* Mesh Color Picker */}
-                  <div className="space-y-2">
-                    <Label className="text-gray-200 text-xs">Mesh Color</Label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={meshColor || '#00FFE1'}
-                        onChange={(e) => onMeshColorChange?.(e.target.value)}
-                        className="w-8 h-8 border border-gray-600 rounded cursor-pointer"
-                        title="Choose mesh color"
-                      />
-                      <span className="text-xs text-gray-400">
-                        {meshColor || '#00FFE1'}
-                      </span>
-                      <button
-                        onClick={() => onMeshColorChange?.('#00FFE1')}
-                        className="text-xs text-gray-400 hover:text-gray-200 ml-auto"
-                      >
-                        Reset
-                      </button>
-                    </div>
-                    {/* Preset colors */}
-                    <div className="flex gap-1">
-                      {[
-                        { color: '#00FFE1', name: 'Cyan' },
-                        { color: '#00FF94', name: 'Mint' },
-                        { color: '#94FF00', name: 'Lime' },
-                        { color: '#FFE500', name: 'Yellow' },
-                        { color: '#FF8C00', name: 'Orange' },
-                        { color: '#FF00FF', name: 'Magenta' },
-                        { color: '#FFFFFF', name: 'White' }
-                      ].map(({ color, name }) => (
-                        <button
-                          key={color}
-                          onClick={() => onMeshColorChange?.(color)}
-                          className="w-6 h-6 rounded border border-gray-600 hover:border-gray-400 transition-colors"
-                          style={{ backgroundColor: color }}
-                          title={name}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                  
-                  {/* Mesh Resolution 슬라이더 */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <Label className="text-gray-200 text-xs">
-                        Resolution: {meshResolution}x{meshResolution}
-                        {meshResolution > 80 && (
-                          <span className="text-orange-400 ml-1">(slow)</span>
-                        )}
-                      </Label>
-                    </div>
-                    <Slider
-                      value={[meshResolution]}
-                      onValueChange={(value) => onMeshResolutionChange?.(value[0])}
-                      min={30}
-                      max={120}
-                      step={10}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>30 (Fast)</span>
-                      <span>120 (Detailed)</span>
-                    </div>
-                    {meshResolution > 80 && (
-                      <p className="text-xs text-orange-400 mt-1">
-                        ⚠️ High resolution may cause slow loading
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-              <p className="text-xs text-gray-400">
-                {showMeshLayer ? 'Triangulated mesh surface visualization' : 'Enable to show mesh terrain'}
-              </p>
-            </div>
-
-            <Separator className="bg-gray-800/50" />
-            
-            {/* 시계열 애니메이션 토글 */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-gray-200 text-xs font-semibold">
-                  <Calendar className="inline w-3 h-3 mr-1" />
-                  시계열 애니메이션
-                </Label>
-                <Switch
-                  checked={timelineAnimationEnabled}
-                  onCheckedChange={onTimelineAnimationEnabledChange}
-                  className="scale-75"
-                  disabled={isDataLoading}
-                />
-              </div>
-              {timelineAnimationEnabled && (
-                <div className="space-y-2 pl-2">
-                  {/* 재생/일시정지 버튼과 현재 월 표시 */}
-                  <div className="flex items-center justify-between">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={onToggleTimelineAnimation}
-                      className="text-gray-200 hover:bg-gray-900/50 h-6 px-2"
-                    >
-                      {isTimelinePlaying ? (
-                        <><Pause className="w-3 h-3 mr-1" /> 일시정지</>
-                      ) : (
-                        <><Play className="w-3 h-3 mr-1" /> 재생</>
-                      )}
-                    </Button>
-                    <span className="text-xs text-gray-400">
-                      {monthlyDates && monthlyDates[currentMonthIndex] ? 
-                        new Date(monthlyDates[currentMonthIndex]).toLocaleDateString('ko-KR', { 
-                          year: 'numeric', 
-                          month: 'long' 
-                        }) : 
-                        '2024년 1월'}
-                    </span>
-                  </div>
-                  
-                  {/* 속도 조절 */}
-                  <div className="space-y-1">
-                    <div className="flex justify-between items-center">
-                      <Label className="text-gray-300 text-xs">속도</Label>
-                      <span className="text-xs text-gray-400">{(timelineSpeed / 1000).toFixed(1)}초</span>
-                    </div>
-                    <Slider
-                      value={[timelineSpeed]}
-                      onValueChange={(value) => onTimelineSpeedChange?.(value[0])}
-                      min={500}
-                      max={5000}
-                      step={500}
-                      disabled={isDataLoading}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>빠름</span>
-                      <span>느림</span>
-                    </div>
-                  </div>
-                  
-                  {/* Animation Quality Control */}
-                  <div className="space-y-1 mt-3 pt-3 border-t border-gray-800/30">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-gray-300 text-xs">애니메이션 품질</Label>
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="px-2 py-0.5 text-xs rounded bg-gray-800/50 hover:bg-gray-700/50 text-gray-300"
-                          onClick={() => onTimelineSpeedChange?.(500)}
-                        >
-                          빠름
-                        </button>
-                        <button
-                          className="px-2 py-0.5 text-xs rounded bg-gray-800/50 hover:bg-gray-700/50 text-gray-300"
-                          onClick={() => onTimelineSpeedChange?.(1200)}
-                        >
-                          부드러움
-                        </button>
-                        <button
-                          className="px-2 py-0.5 text-xs rounded bg-gray-800/50 hover:bg-gray-700/50 text-gray-300"
-                          onClick={() => onTimelineSpeedChange?.(2000)}
-                        >
-                          매우 부드러움
-                        </button>
-                      </div>
-                    </div>
-                    <p className="text-xs text-gray-500">
-                      높이 변화 전환 효과를 조절합니다
-                    </p>
-                  </div>
-                </div>
-              )}
-              <p className="text-xs text-gray-400">
-                {timelineAnimationEnabled ? 
-                  '매월 1일 데이터를 자동으로 순환합니다' : 
-                  '시계열 데이터를 월별로 재생합니다'}
-              </p>
-            </div>
-
-            <Separator className="bg-gray-800/50" />
-            
-            {/* 3D 높이 스케일 조정 (3D 모드일 때만 표시) */}
-            {is3DMode && (
-              <div className="space-y-2">
-                <div className="space-y-1">
-                  <div className="flex justify-between items-center">
-                    <Label className="text-gray-200 text-xs font-semibold">3D 높이 스케일</Label>
-                  </div>
-                  <div className="space-y-2">
-                    <Slider
-                      value={[Math.log10(heightScale)]}
-                      onValueChange={(value) => {
-                        const newScale = Math.pow(10, value[0])
-                        onHeightScaleChange?.(newScale)
-                      }}
-                      min={6}  // 10^6 = 백만원
-                      max={8}  // 10^8 = 1억원
-                      step={0.1}
-                      disabled={isDataLoading}
-                      className="w-full"
-                    />
-                    <div className="flex justify-between text-xs text-gray-500">
-                      <span>낮음</span>
-                      <span className="text-gray-300">
-                        {heightScale < 10000000 ? '5백만원 = 600 높이' : 
-                         heightScale === 10000000 ? '1천만원 = 300 높이' : 
-                         heightScale < 50000000 ? '2천만원 = 150 높이' :
-                         heightScale < 100000000 ? '5천만원 = 60 높이' : '1억원 = 30 높이'}
-                      </span>
-                      <span>높음</span>
-                    </div>
-                  </div>
-                  <p className="text-xs text-gray-400">
-                    매출액을 높이로 변환하는 비율을 조정합니다 (3배 강화된 스케일)
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* 3D mode and mesh layer sections moved to top */}
 
 
 
