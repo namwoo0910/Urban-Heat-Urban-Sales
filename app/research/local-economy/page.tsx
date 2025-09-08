@@ -1,6 +1,7 @@
 "use client"
 
 import { lazy, Suspense } from "react"
+import dynamic from "next/dynamic"
 import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
 import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
 import ResearchNavigation from "@/src/features/data-portal/components/PortalNavigation"
@@ -10,7 +11,18 @@ import { Badge } from "@/src/shared/components/ui/badge"
 import { Map, Layers, Zap } from "lucide-react"
 
 // Dynamic imports for better performance
-const HexagonScene = lazy(() => import("@/src/features/card-sales/components/HexagonLayer3D"))
+const CardSalesDistrictMap = lazy(() => import("@/src/features/card-sales/components/CardSalesDistrictMap"))
+
+// Dynamic import for animated mesh background
+const AnimatedMeshBackground = dynamic(
+  () => import("@/src/features/card-sales/components/AnimatedMeshBackground"),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-teal-950 to-cyan-950" />
+    )
+  }
+)
 
 const features = [
   {
@@ -51,34 +63,26 @@ const LocalEconomyPage = () => {
   return (
     <div>
       {!showVisualization ? (
-        // Landing page with gradient background
-        <div className="relative h-screen bg-gradient-to-br from-emerald-950 via-teal-950 to-cyan-950">
-          {/* Background Pattern */}
-          <div className="absolute inset-0 opacity-30">
-            <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
-              <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-                <div className="grid grid-cols-10 gap-3 opacity-20">
-                  {[...Array(80)].map((_, i) => {
-                    // Use predetermined pattern for consistent server/client rendering
-                    const scalePattern = [0.7, 0.5, 0.9, 0.6, 0.8, 0.55, 0.75, 0.65, 0.85, 0.7, 
-                                        0.52, 0.88, 0.63, 0.77, 0.58, 0.92, 0.68, 0.73, 0.82, 0.56];
-                    const scaleValue = scalePattern[i % scalePattern.length];
-                    
-                    return (
-                      <div 
-                        key={i} 
-                        className="w-4 h-4 bg-white rounded-full animate-pulse"
-                        style={{ 
-                          animationDelay: `${i * 0.05}s`,
-                          transform: `scale(${scaleValue})`
-                        }}
-                      />
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
+        // Landing page with animated mesh background
+        <div className="relative h-screen overflow-hidden">
+          {/* Animated Mesh Background */}
+          <div className="absolute inset-0">
+            <AnimatedMeshBackground
+              waveSpeed={0.3}
+              waveAmplitude={25}
+              waveFrequency={1.5}
+              breathingSpeed={0.2}
+              breathingScale={0.15}
+              wireframe={true}
+              opacity={0.25}
+              color="#00FFE1"
+              targetFPS={60}
+              resolution={30}
+            />
           </div>
+          
+          {/* Gradient overlay for better text readability */}
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/70 via-teal-950/70 to-cyan-950/70" />
 
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center space-y-8">
@@ -109,7 +113,7 @@ const LocalEconomyPage = () => {
               <div className="text-white">시각화 로딩 중...</div>
             </div>
           }>
-            <HexagonScene />
+            <CardSalesDistrictMap />
           </Suspense>
         </div>
       )}

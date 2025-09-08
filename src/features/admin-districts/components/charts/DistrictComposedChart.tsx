@@ -12,11 +12,12 @@ export function DistrictComposedChart() {
       </div>
       <ComposedChart
         data={populationDensityData}
-        xDataKey="name"
-        barDataKey="population"
-        lineDataKey="density"
-        barColor="#6366f1"
-        lineColor="#10b981"
+        bars={[
+          { dataKey: "population", fill: "#6366f1", name: "인구" }
+        ]}
+        lines={[
+          { dataKey: "density", stroke: "#10b981", name: "인구밀도" }
+        ]}
         height={280}
         showGrid={true}
         showTooltip={true}

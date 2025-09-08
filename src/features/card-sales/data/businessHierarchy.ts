@@ -1,38 +1,29 @@
 /**
  * Business Category Data - Based on Actual Data Structure
- * 실제 데이터에 있는 중분류와 소분류 그대로 사용
+ * 실제 데이터에 있는 업종 그대로 사용
  */
 
-// 실제 데이터의 모든 중분류 (27개)
-export const actualMiddleCategories = [
-  "가전/가구",
-  "기타요식",
-  "기타유통",
+// 실제 데이터의 모든 업종 (15개)
+export const actualBusinessTypes = [
+  "레저/문화용품",
   "마트/생활잡화",
-  "미용서비스",
   "백화점",
   "병원",
-  "사무기기/컴퓨터",
-  "상품권/복권",
-  "생활서비스",
   "숙박",
-  "스포츠/문화/레저",
-  "스포츠/문화/레저용품",
+  "스포츠/헬스시설",
   "약국",
   "여행",
-  "유흥",
+  "오락/공연/서점",
   "음/식료품",
   "일식/양식/중식",
-  "자동차서비스/용품",
-  "자동차판매",
   "제과/커피/패스트푸드",
-  "주유",
   "패션/잡화",
   "편의점",
-  "학습",
   "한식",
-  "화장품",
 ];
+
+// 기존 이름 호환성을 위한 별칭 (deprecated)
+export const actualMiddleCategories = actualBusinessTypes;
 
 // 실제 데이터의 모든 소분류 (80개)
 export const actualSubCategories = [
@@ -119,9 +110,12 @@ export const actualSubCategories = [
 ];
 
 // Helper functions
-export const getAllMiddleCategories = (): string[] => {
-  return actualMiddleCategories;
+export const getAllBusinessTypes = (): string[] => {
+  return actualBusinessTypes;
 }
+
+// 기존 이름 호환성을 위한 별칭 (deprecated)
+export const getAllMiddleCategories = getAllBusinessTypes;
 
 export const getAllSubCategories = (): string[] => {
   return actualSubCategories;
@@ -129,14 +123,13 @@ export const getAllSubCategories = (): string[] => {
 
 // 기존 코드 호환성을 위한 함수들 (deprecated - 추후 제거 예정)
 export const getSubCategoriesByMiddle = (middleCategory: string): string[] => {
-  // 실제 데이터는 중분류-소분류 매핑이 1:1이 아니므로
-  // 필터링 로직에서 직접 처리하도록 변경
-  console.warn('getSubCategoriesByMiddle is deprecated. Use actualSubCategories directly.');
-  return actualSubCategories;
+  // 업종 구조로 변경되어 더 이상 사용하지 않음
+  console.warn('getSubCategoriesByMiddle is deprecated. Use actualBusinessTypes directly.');
+  return [];
 }
 
 export const findMiddleCategoryBySubCategory = (subCategory: string): string | null => {
-  // 실제 데이터에서는 중분류-소분류 관계가 명확하지 않음
+  // 업종 구조로 변경되어 더 이상 사용하지 않음
   console.warn('findMiddleCategoryBySubCategory is deprecated.');
   return null;
 }

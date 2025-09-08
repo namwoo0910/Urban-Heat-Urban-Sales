@@ -4,6 +4,7 @@
  */
 
 import { CoordinateMapper } from './coordinateMapper'
+import { calculateTotalSales } from './salesCalculator'
 import type { 
   ClimateCardSalesData, 
   RawClimateCardSalesData, 
@@ -23,6 +24,9 @@ export class ClimateDataLoader {
   private static instance: ClimateDataLoader
   private coordinateMapper: CoordinateMapper
   private cachedData: Map<string, ClimateCardSalesData[]> = new Map()
+  private consolidatedData: RawClimateCardSalesData[] | null = null
+  private monthlyDataCache: Map<string, RawClimateCardSalesData[]> = new Map() // 월별 데이터 캐시
+  private currentMonth: string | null = null // 현재 로드된 월
 
   private constructor() {
     this.coordinateMapper = CoordinateMapper.getInstance()
@@ -36,7 +40,63 @@ export class ClimateDataLoader {
   }
 
   /**
-   * 모든 구의 데이터를 로드하고 좌표 매칭
+   * 월별 통합 데이터 로드 (개선된 캐싱)
+   */
+  private async loadMonthlyData(yearMonth: string): Promise<RawClimateCardSalesData[]> {
+    // 이미 캐시된 월 데이터가 있으면 재사용
+    if (this.monthlyDataCache.has(yearMonth)) {
+      console.log(`[ClimateDataLoader] 캐시된 월별 데이터 사용: ${yearMonth}`)
+      this.currentMonth = yearMonth
+      this.consolidatedData = this.monthlyDataCache.get(yearMonth)!
+      return this.consolidatedData
+    }
+
+    try {
+      console.log(`[ClimateDataLoader] 새로운 월 데이터 로드: ${yearMonth}`)
+      
+      // 월별 데이터 파일 로드 (예: 2024-01.json)
+      const response = await fetch(`/data/local_economy/monthly/${yearMonth}.json`)
+      
+      if (!response.ok) {
+        // 월별 파일이 없으면 기존 통합 파일 시도
+        console.log(`[ClimateDataLoader] 월별 파일 없음, 통합 파일 로드 시도`)
+        const fallbackResponse = await fetch('/data/local_economy/seoul_all_districts.json')
+        
+        if (!fallbackResponse.ok) {
+          throw new Error('데이터 파일을 찾을 수 없습니다')
+        }
+        
+        const allData = await fallbackResponse.json()
+        // 해당 월 데이터만 필터링
+        this.consolidatedData = allData.filter((item: any) => 
+          item.기준일자?.startsWith(yearMonth)
+        )
+      } else {
+        this.consolidatedData = await response.json()
+      }
+      
+      // 캐시에 저장 (메모리 관리를 위해 최대 3개월까지만 캐시)
+      if (this.monthlyDataCache.size >= 3) {
+        // 가장 오래된 캐시 삭제
+        const firstKey = this.monthlyDataCache.keys().next().value
+        this.monthlyDataCache.delete(firstKey)
+        console.log(`[ClimateDataLoader] 오래된 캐시 삭제: ${firstKey}`)
+      }
+      
+      this.monthlyDataCache.set(yearMonth, this.consolidatedData)
+      this.currentMonth = yearMonth
+      
+      console.log(`[ClimateDataLoader] ${yearMonth} 데이터 로드 완료: ${this.consolidatedData.length}개 레코드`)
+      return this.consolidatedData
+      
+    } catch (error) {
+      console.error(`[ClimateDataLoader] 데이터 로드 실패:`, error)
+      return []
+    }
+  }
+
+  /**
+   * 모든 구의 데이터를 로드하고 좌표 매칭 (개선된 버전)
    */
   async loadAllData(options?: ClimateFilterOptions): Promise<ClimateCardSalesData[]> {
     // 좌표 데이터 먼저 로드
@@ -44,37 +104,74 @@ export class ClimateDataLoader {
       await this.coordinateMapper.loadCoordinates()
     }
 
+    // 날짜에서 년월 추출 (기본값: 2024-01)
+    const date = options?.date || '2024-01-01'
+    const yearMonth = date.substring(0, 7)
+    
+    console.log(`[ClimateDataLoader] ${yearMonth} 데이터 로딩 중...`)
+    
+    // 월별 통합 데이터 로드
+    const monthlyData = await this.loadMonthlyData(yearMonth)
+    
+    // 데이터 변환 및 좌표 매칭
     const allData: ClimateCardSalesData[] = []
     
-    // 모든 구 데이터 병렬 로드
-    const promises = SEOUL_DISTRICTS.map(district => 
-      this.loadDistrictData(district, options)
-    )
-    
-    const results = await Promise.all(promises)
-    results.forEach(data => allData.push(...data))
+    for (const rawItem of monthlyData) {
+      const transformedItem = this.transformData(rawItem, rawItem.자치구)
+      if (transformedItem) {
+        allData.push(transformedItem)
+      }
+    }
     
     console.log(`[ClimateDataLoader] 총 ${allData.length}개 데이터 포인트 로드 완료`)
+    
+    // 디버깅: 로드된 구별 데이터 개수 확인
+    const districtCounts: Record<string, number> = {}
+    allData.forEach(item => {
+      const gu = item.guName || '알수없음'
+      districtCounts[gu] = (districtCounts[gu] || 0) + 1
+    })
+    console.log(`[ClimateDataLoader] 구별 데이터 개수:`, districtCounts)
+    
+    // 특정 날짜로 필터링 (options에 date가 있는 경우)
+    if (options) {
+      const filteredData = this.filterData(allData, options)
+      console.log(`[ClimateDataLoader] 날짜 필터 적용 후: ${allData.length}개 → ${filteredData.length}개`)
+      return filteredData
+    }
     
     return allData
   }
 
   /**
-   * 특정 구의 데이터 로드
+   * 특정 구의 데이터 로드 (새로운 통합 데이터에서 필터링)
    */
   async loadDistrictData(
     districtName: string, 
     options?: ClimateFilterOptions
   ): Promise<ClimateCardSalesData[]> {
     try {
-      const response = await fetch(`/data/local_economy/${districtName}.json`)
-      const rawData: RawClimateCardSalesData[] = await response.json()
+      // 통합 데이터가 없으면 먼저 로드
+      if (!this.consolidatedData) {
+        const date = options?.date || '2024-01-01'
+        const yearMonth = date.substring(0, 7)
+        await this.loadMonthlyData(yearMonth)
+      }
       
+      // 해당 구의 데이터만 필터링
+      const districtData = this.consolidatedData?.filter(
+        item => item.자치구 === districtName
+      ) || []
       
-      // 좌표 매칭 및 변환 - 구 정보 전달
-      const transformedData = rawData
+      // 좌표 매칭 및 변환
+      const transformedData = districtData
         .map(item => this.transformData(item, districtName))
         .filter((item): item is ClimateCardSalesData => item !== null)
+      
+      const skippedCount = districtData.length - transformedData.length
+      if (skippedCount > 0) {
+        console.log(`[ClimateDataLoader] ${districtName}: ${skippedCount}개 데이터 스킵 (좌표 없음)`)
+      }
       
       // 필터링 적용
       if (options) {
@@ -108,7 +205,7 @@ export class ClimateDataLoader {
     
     if (!coordinate) {
       // 정말 못 찾은 경우만 에러 로그
-      console.error(`[ClimateDataLoader] ⚠️ ${raw.행정동}의 좌표를 찾을 수 없습니다. CSV 파일 확인 필요.`)
+      console.error(`[ClimateDataLoader] ⚠️ ${districtName} ${raw.행정동}의 좌표를 찾을 수 없습니다. CSV 파일 확인 필요.`)
       return null
     }
 
@@ -122,27 +219,17 @@ export class ClimateDataLoader {
     // 업종별 매출 추출 (새로운 구조 지원)
     const salesByCategory: Record<string, number> = {}
     
-    // 새로운 구조: 총매출액_중분류와 총매출액_소분류에서 추출
-    if (raw.총매출액_중분류) {
-      Object.entries(raw.총매출액_중분류).forEach(([category, amount]) => {
+    // 새로운 구조: 총매출액_업종에서 추출
+    if (raw.총매출액_업종) {
+      Object.entries(raw.총매출액_업종).forEach(([category, amount]) => {
         if (amount && amount > 0) {
           salesByCategory[category] = amount
         }
       })
     }
     
-    // 소분류도 포함 (선택적)
-    if (raw.총매출액_소분류) {
-      Object.entries(raw.총매출액_소분류).forEach(([category, amount]) => {
-        if (amount && amount > 0) {
-          // 소분류는 'sub_' 접두사를 붙여 구분
-          salesByCategory[`sub_${category}`] = amount
-        }
-      })
-    }
-    
     // 이전 구조 호환성 유지 (fallback)
-    if (!raw.총매출액_중분류 && !raw.총매출액_소분류) {
+    if (!raw.총매출액_업종) {
       Object.keys(raw).forEach(key => {
         if (key.includes('_총매출액') && key !== '총매출액') {
           const category = key.replace('_총매출액', '')
@@ -151,10 +238,13 @@ export class ClimateDataLoader {
       })
     }
 
+    // 총 매출액 계산 - 통합 함수 사용
+    const totalSales = raw.총매출액 || calculateTotalSales(salesByCategory)
+
     return {
       // HexagonLayer 필수
       coordinates: [coordinate.x, coordinate.y],
-      weight: raw.총매출액,
+      weight: totalSales,
       
       // 기후 데이터
       temperature: raw.일평균기온,
@@ -169,27 +259,27 @@ export class ClimateDataLoader {
       precipitation: raw.일총강수량,
       temperatureGroup: raw.기온그룹,
       
-      // 기후 경보
-      heatWarning: raw.폭염주의보 as 0 | 1,
-      heatAlert: raw.폭염경보 as 0 | 1,
-      rainWarning: raw.호우주의보 as 0 | 1,
-      rainAlert: raw.호우경보 as 0 | 1,
+      // 기후 경보 (옵셔널 필드 처리)
+      heatWarning: (raw.폭염주의보 || 0) as 0 | 1,
+      heatAlert: (raw.폭염경보 || 0) as 0 | 1,
+      rainWarning: (raw.호우주의보 || 0) as 0 | 1,
+      rainAlert: (raw.호우경보 || 0) as 0 | 1,
       
       // 생활인구
-      population: raw.일일_총생활인구수,
+      population: raw.일일_총생활인구수 || 0,
       populationByHour,
       
       // 매출
-      totalSales: raw.총매출액,
-      totalTransactions: raw.총매출건수,
+      totalSales: totalSales,
+      totalTransactions: raw.총매출건수 || 0,
       salesByCategory,
       
-      // 메타 정보
+      // 메타 정보 - 이제 JSON에 포함된 코드 사용
       date: raw.기준일자,
       dongName: raw.행정동,
-      dongCode: raw.행정동코드,
-      guName: raw.자치구,
-      guCode: raw.자치구코드,
+      dongCode: raw.행정동코드 || 0,
+      guName: raw.자치구 || districtName || '',
+      guCode: String(raw.자치구코드 || ''),
     }
   }
 
@@ -202,9 +292,12 @@ export class ClimateDataLoader {
   ): ClimateCardSalesData[] {
     let filtered = [...data]
     
-    // 날짜 필터
-    if (options.date) {
+    // 날짜 필터 - "전체" 또는 빈 값인 경우 필터링하지 않음
+    if (options.date && options.date !== '전체' && options.date !== '') {
       filtered = filtered.filter(item => item.date === options.date)
+      console.log(`[ClimateDataLoader] 날짜 필터 적용: ${options.date}, 결과: ${filtered.length}개`)
+    } else {
+      console.log(`[ClimateDataLoader] 전체 기간 데이터 사용: ${filtered.length}개`)
     }
     
     // 날짜 범위 필터
@@ -289,6 +382,17 @@ export class ClimateDataLoader {
    */
   clearCache(): void {
     this.cachedData.clear()
+    this.consolidatedData = null
+    this.monthlyDataCache.clear()
+    this.currentMonth = null
+    console.log('[ClimateDataLoader] 모든 캐시 클리어됨')
+  }
+  
+  /**
+   * 현재 로드된 월 반환
+   */
+  getCurrentMonth(): string | null {
+    return this.currentMonth
   }
 }
 

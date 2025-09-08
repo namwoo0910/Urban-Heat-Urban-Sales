@@ -1,84 +1,59 @@
 "use client"
 
-import React, { useState } from "react"
+import React, { useState, useEffect } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { ChevronDown } from "lucide-react"
 import { 
-  Layers, 
-  Calendar, 
   MapPin, 
-  Map, 
-  Eye, 
-  EyeOff,
-  Settings,
-  Palette,
   RefreshCw,
   Loader2,
-  Minimize2,
-  Maximize2,
-  RotateCw,
-  RotateCcw,
-  Compass,
-  Flame
+  BarChart3
 } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Label } from "@/src/shared/components/ui/label"
-import { Switch } from "@/src/shared/components/ui/switch"
 import { Slider } from "@/src/shared/components/ui/slider"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/components/ui/select"
 import { Button } from "@/src/shared/components/ui/button"
 import { Badge } from "@/src/shared/components/ui/badge"
 import { Separator } from "@/src/shared/components/ui/separator"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/src/shared/components/ui/tabs"
 import { COLOR_PALETTE_INFO, getColorPreviewStyle, type ColorScheme } from "@/src/features/card-sales/utils/premiumColors"
+import { Switch } from "@/src/shared/components/ui/switch"
+import { setDistrictTheme, getAvailableThemes, getCurrentTheme } from "@/src/shared/utils/districtUtils"
+import { COLOR_THEMES } from "@/src/shared/utils/districtColorThemes"
 
-// 지도 레이어 정의
-const mapLayers = [
-  { id: "earth", name: "위성 지도", description: "서울의 위성 이미지" },
-  { id: "night", name: "야간 모드", description: "어두운 테마의 지도" },
-  { id: "temperature", name: "지형 지도", description: "서울의 지형과 공원" },
-  { id: "precipitation", name: "밝은 지도", description: "밝은 테마의 기본 지도" },
-  { id: "population", name: "도로 지도", description: "상세한 도로와 건물 정보" },
-  { id: "elevation", name: "야외 지도", description: "등고선과 자연 지형" },
-]
+// Map layers removed - using fixed map style
 
-// 시계열 범위 정의
-const timeRanges = [
-  { value: 0, label: "2020" },
-  { value: 25, label: "2021" },
-  { value: 50, label: "2022" },
-  { value: 75, label: "2023" },
-  { value: 100, label: "2024" },
-]
 
 interface UnifiedControlsProps {
   // MapControls props
-  onLayerChange: (layer: string) => void
   onTimeChange: (time: number) => void
-  currentLayer: string
   currentTime: number
   showBoundary?: boolean
   showSeoulBase?: boolean
   showDistrictLabels?: boolean
+  showDongLabels?: boolean
   onBoundaryToggle?: (show: boolean) => void
   onSeoulBaseToggle?: (show: boolean) => void
   onDistrictLabelsToggle?: (show: boolean) => void
+  onDongLabelsToggle?: (show: boolean) => void
+  
+  // District visibility removed - always visible
+  
+  // 3D mode props
+  is3DMode?: boolean
+  onIs3DModeChange?: (enabled: boolean) => void
+  
+  // Height scale removed - using fixed scale
   
   // LayerControls props
   visible: boolean
-  radius: number
-  elevationScale: number
   coverage: number
   upperPercentile: number
-  colorScheme: ColorScheme
   isDataLoading: boolean
   dataError: string | null
   onVisibleChange: (visible: boolean) => void
-  onRadiusChange: (radius: number) => void
-  onElevationScaleChange: (scale: number) => void
   onCoverageChange: (coverage: number) => void
   onUpperPercentileChange: (percentile: number) => void
-  onColorSchemeChange: (scheme: ColorScheme) => void
   onReset: () => void
   
   // Color mode props
@@ -108,101 +83,180 @@ interface UnifiedControlsProps {
   onRotationSpeedChange?: (speed: number) => void
   onRotationDirectionChange?: (direction: 'clockwise' | 'counterclockwise') => void
   onToggleRotation?: () => void
+  
+  // Timeline animation removed - not needed
+  
+  // Mesh layer props
+  showMeshLayer?: boolean
+  onShowMeshLayerChange?: (show: boolean) => void
+  // Wireframe removed - always true
+  // Mesh resolution removed - using fixed value
+  meshColor?: string
+  onMeshColorChange?: (color: string) => void
+}
+
+// Theme adjustment state interface
+interface ThemeAdjustments {
+  opacity: number      // 0-100
+  brightness: number   // -50 to 50
+  saturation: number   // -50 to 50
+  contrast: number     // -50 to 50
 }
 
 export default function UnifiedControls({
-  // MapControls props
-  onLayerChange,
-  onTimeChange,
-  currentLayer,
-  currentTime,
-  showBoundary = true,
-  showSeoulBase = false,
-  showDistrictLabels = true,
-  onBoundaryToggle,
-  onSeoulBaseToggle,
-  onDistrictLabelsToggle,
+  // MapControls props removed
   
   // LayerControls props
-  visible,
-  radius,
-  elevationScale,
-  coverage,
-  upperPercentile,
-  colorScheme,
   isDataLoading,
   dataError,
-  onVisibleChange,
-  onRadiusChange,
-  onElevationScaleChange,
-  onCoverageChange,
-  onUpperPercentileChange,
-  onColorSchemeChange,
   onReset,
   
-  // Color mode props
-  colorMode = 'sales',
-  onColorModeChange,
-  selectedHour = 12,
-  onSelectedHourChange,
+  // District visibility removed - always visible
   
-  // Animation props
-  animationEnabled = false,
-  animationSpeed = 1.0,
-  waveAmplitude = 2.0,
-  isAnimating = false,
-  onAnimationEnabledChange,
-  onAnimationSpeedChange,
-  onWaveAmplitudeChange,
-  onToggleAnimation,
+  // Text labels props
+  showDistrictLabels = true,
+  showDongLabels = false,
+  onDistrictLabelsToggle,
+  onDongLabelsToggle,
   
-  // Rotation props
-  rotationEnabled = false,
-  rotationSpeed = 1.0,
-  rotationDirection = 'clockwise',
-  isRotating = false,
-  rotationDirectionText = '시계방향',
-  bearingDisplay = '0°',
-  onRotationEnabledChange,
-  onRotationSpeedChange,
-  onRotationDirectionChange,
-  onToggleRotation,
+  // 3D mode props
+  is3DMode = false,
+  onIs3DModeChange,
+  
+  // Height scale removed - using fixed scale
+  
+  // Timeline animation removed
+  
+  // Mesh layer props
+  showMeshLayer = false,
+  onShowMeshLayerChange,
+  // Wireframe always true
+  // Mesh resolution fixed at 120
+  meshColor = '#00FFE1',
+  onMeshColorChange,
 }: UnifiedControlsProps) {
-  const [isMinimized, setIsMinimized] = useState(false)
-  const [activeTab, setActiveTab] = useState("map")
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
+  const [showDetailView, setShowDetailView] = useState(false)
+  const [isDetailAnimating, setIsDetailAnimating] = useState(false)
+  const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('modern')
+  // Removed: useIndividualColors state - always use theme colors
+  
+  // Theme adjustment states
+  const [themeAdjustments, setThemeAdjustments] = useState<ThemeAdjustments>({
+    opacity: 100,
+    brightness: 0,
+    saturation: 0,
+    contrast: 0
+  })
+  
+  // Apply theme adjustments to global state
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      // Store adjustments in window for access by color functions
+      (window as any).__themeAdjustments = themeAdjustments
+      // Trigger re-render of map layers
+      window.dispatchEvent(new CustomEvent('themeAdjustmentsChanged', { detail: themeAdjustments }))
+    }
+  }, [themeAdjustments])
 
-  const currentLayerInfo = mapLayers.find((layer) => layer.id === currentLayer)
-
-  // 최소화 토글
-  const toggleMinimize = () => {
-    setIsMinimized(!isMinimized)
+  // Handle detail view transition (toggle between Polygon and Mesh)
+  const handleDetailViewClick = () => {
+    setIsDetailAnimating(true)
+    
+    if (!showDetailView) {
+      // Switch to Polygon Layer (Detail View)
+      setShowDetailView(true)
+      
+      setTimeout(() => {
+        // Activate 3D Polygon Layer
+        onIs3DModeChange?.(true)
+        // Deactivate Mesh Layer
+        if (showMeshLayer) {
+          onShowMeshLayerChange?.(false)
+        }
+      }, 200)
+    } else {
+      // Switch back to Mesh Layer
+      setShowDetailView(false)
+      
+      setTimeout(() => {
+        // Deactivate 3D Polygon Layer
+        onIs3DModeChange?.(false)
+        // Activate Mesh Layer
+        onShowMeshLayerChange?.(true)
+      }, 200)
+    }
+    
+    // Complete animation
+    setTimeout(() => {
+      setIsDetailAnimating(false)
+    }, 700)
   }
 
   return (
-    <div className="fixed top-[76px] left-4 z-50">
-      <Card className="bg-black/80 backdrop-blur-md border-white/20 text-white overflow-hidden">
-        {/* Clickable Header to expand/collapse */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-4 hover:bg-white/5 transition-colors group"
-        >
-          <div className="flex items-center space-x-2">
-            <MapPin size={18} className="text-blue-400" />
-            <span className="font-bold">서울특별시</span>
-            <span className="text-xs bg-blue-500/30 px-2 py-1 rounded">LIVE</span>
-            {visible && <span className="text-xs bg-green-500/30 px-2 py-1 rounded">HexagonLayer</span>}
-          </div>
-          <div className="flex items-center space-x-2">
-            {isDataLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-            <motion.div
-              animate={{ rotate: isExpanded ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
+    <div className={`fixed bottom-[380px] z-50 transition-all duration-300 left-4`}>
+      <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[280px]' : 'w-auto'}`}>
+        {/* Header with expand/collapse and detail view button */}
+        <div className="flex items-center">
+          {/* Expand/Collapse Button */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex-1 flex items-center justify-between p-2 hover:bg-gray-900/50 transition-colors group"
+          >
+            <div className="flex items-center space-x-2">
+              <MapPin size={14} className="text-blue-400" />
+              <span className="font-bold text-sm text-gray-200">레이어 컨트롤</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              {isDataLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              <motion.div
+                animate={{ rotate: isExpanded ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-gray-300 transition-colors" />
+              </motion.div>
+            </div>
+          </button>
+          
+          {/* Detail View Toggle Button */}
+          <div className="relative group">
+            <motion.button
+              onClick={handleDetailViewClick}
+              className={`relative p-2 mx-1 rounded-lg transition-all duration-300 ${
+                showDetailView 
+                  ? 'bg-blue-500/30 border border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
+                  : 'bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              animate={isDetailAnimating ? {
+                boxShadow: [
+                  '0 0 20px rgba(59,130,246,0.5)',
+                  '0 0 40px rgba(59,130,246,0.8)',
+                  '0 0 20px rgba(59,130,246,0.5)',
+                ],
+              } : {}}
+              transition={{ duration: 0.5, repeat: isDetailAnimating ? Infinity : 0 }}
             >
-              <ChevronDown className="w-4 h-4 text-white/70 group-hover:text-white/90 transition-colors" />
-            </motion.div>
+              <BarChart3 size={16} className="text-blue-400" />
+              <span className="sr-only">{showDetailView ? '메쉬 뷰로 전환' : '데이터 상세보기'}</span>
+              {showDetailView && (
+                <motion.div
+                  className="absolute inset-0 rounded-lg bg-blue-500/20"
+                  initial={{ scale: 1 }}
+                  animate={{ scale: 1.5, opacity: 0 }}
+                  transition={{ duration: 0.5, repeat: Infinity }}
+                />
+              )}
+            </motion.button>
+            
+            {/* Tooltip */}
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+              {showDetailView ? '메쉬 뷰로 전환' : '데이터 상세보기'}
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-700" />
+            </div>
           </div>
-        </button>
+        </div>
 
         {/* Collapsible Content */}
         <AnimatePresence initial={false}>
@@ -218,372 +272,397 @@ export default function UnifiedControls({
               style={{ overflow: "hidden" }}
             >
               {/* Reset Button */}
-              <div className="px-4 pt-2 pb-3 border-b border-white/20">
+              <div className="px-2 pt-1 pb-2 border-b border-gray-800/50">
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={onReset}
-                  className="text-white hover:bg-white/10 w-full justify-center"
+                  className="text-gray-200 hover:bg-gray-900/50 w-full justify-center h-7 text-xs"
                   title="설정 초기화"
                 >
-                  <RefreshCw className="w-4 h-4 mr-2" />
+                  <RefreshCw className="w-3 h-3 mr-1" />
                   설정 초기화
                 </Button>
               </div>
 
               {/* 오류 표시 */}
               {dataError && (
-                <div className="mx-4 mt-4 p-3 bg-red-500/20 border border-red-500/30 rounded-lg">
-                  <div className="text-sm text-red-200">
+                <div className="mx-2 mt-2 p-2 bg-red-500/20 border border-red-500/30 rounded-lg">
+                  <div className="text-xs text-red-200">
                     <strong>오류:</strong> {dataError}
                   </div>
                 </div>
               )}
 
-              <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
-            {/* 레이어 활성화 토글 */}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2">
-                <Label htmlFor="layer-visible" className="text-white">
-                  헥사곤 레이어 표시
-                </Label>
-                <Badge variant={visible ? "default" : "secondary"} className="text-xs">
-                  {visible ? "ON" : "OFF"}
-                </Badge>
+              <div className="p-2 space-y-3 max-h-96 overflow-y-auto">
+
+            {/* 3D Polygon Layer 토글 - with slide up animation */}
+            <AnimatePresence>
+              {(showDetailView || is3DMode) && (
+                <motion.div
+                  className="space-y-2"
+                  initial={showDetailView ? { y: 20, opacity: 0, scale: 0.95 } : false}
+                  animate={{ 
+                    y: 0, 
+                    opacity: 1, 
+                    scale: 1,
+                    transition: {
+                      type: "spring",
+                      damping: 20,
+                      stiffness: 300,
+                      delay: showDetailView ? 0.2 : 0
+                    }
+                  }}
+                  exit={{ y: 20, opacity: 0, scale: 0.95 }}
+                >
+                  <motion.div 
+                    className={`rounded-lg p-2 ${showDetailView && isDetailAnimating ? 'bg-blue-500/10 border border-blue-500/30' : ''}`}
+                    animate={showDetailView && isDetailAnimating ? {
+                      borderColor: ['rgba(59, 130, 246, 0.3)', 'rgba(59, 130, 246, 0.6)', 'rgba(59, 130, 246, 0.3)'],
+                    } : {}}
+                    transition={{ duration: 1, repeat: showDetailView && isDetailAnimating ? 2 : 0 }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <Label className="text-gray-200 text-xs font-semibold">3D Polygon Layer</Label>
+                      <Switch
+                        checked={is3DMode}
+                        onCheckedChange={(checked) => {
+                          onIs3DModeChange?.(checked)
+                          // Turn off mesh layer when polygon layer is turned on
+                          if (checked && showMeshLayer) {
+                            onShowMeshLayerChange?.(false)
+                          }
+                          // Reset detail view if turning off
+                          if (!checked && showDetailView) {
+                            setShowDetailView(false)
+                          }
+                        }}
+                        className="scale-75"
+                        disabled={isDataLoading}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
+                    </p>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 3D Mesh Layer 토글 - moved to top */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-gray-200 text-xs font-semibold">3D Mesh Layer</Label>
+                <Switch
+                  checked={showMeshLayer}
+                  onCheckedChange={(checked) => {
+                    onShowMeshLayerChange?.(checked)
+                    // Turn off polygon layer when mesh layer is turned on
+                    if (checked && is3DMode) {
+                      onIs3DModeChange?.(false)
+                    }
+                  }}
+                  className="scale-75"
+                  disabled={isDataLoading}
+                />
               </div>
-              <Switch
-                id="layer-visible"
-                checked={visible}
-                onCheckedChange={onVisibleChange}
-                disabled={isDataLoading}
-              />
+              {showMeshLayer && (
+                <div className="space-y-3 pl-2">
+                  {/* Wireframe always enabled - removed toggle */}
+                  {/* Mesh Color Picker */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-200 text-xs">Mesh Color</Label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={meshColor || '#00FFE1'}
+                        onChange={(e) => onMeshColorChange?.(e.target.value)}
+                        className="w-8 h-8 border border-gray-600 rounded cursor-pointer"
+                        title="Choose mesh color"
+                      />
+                      <span className="text-xs text-gray-400">
+                        {meshColor || '#00FFE1'}
+                      </span>
+                      <button
+                        onClick={() => onMeshColorChange?.('#00FFE1')}
+                        className="text-xs text-gray-400 hover:text-gray-200 ml-auto"
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    {/* Preset colors */}
+                    <div className="flex gap-1">
+                      {[
+                        { color: '#00FFE1', name: 'Cyan' },
+                        { color: '#00FF94', name: 'Mint' },
+                        { color: '#FF00FF', name: 'Magenta' },
+                        { color: '#FFE100', name: 'Yellow' },
+                        { color: '#FF6B00', name: 'Orange' },
+                        { color: '#B100FF', name: 'Purple' },
+                      ].map(({ color, name }) => (
+                        <button
+                          key={color}
+                          onClick={() => onMeshColorChange?.(color)}
+                          className="w-6 h-6 rounded border border-gray-600 hover:scale-110 transition-transform"
+                          style={{ backgroundColor: color }}
+                          title={name}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-gray-400">
+                {showMeshLayer ? 
+                  '서울시 전체를 덮는 메쉬 레이어가 표시됩니다' : 
+                  '3D 메쉬 레이어를 활성화합니다'}
+              </p>
             </div>
 
-            <Separator className="bg-white/20" />
+            <Separator className="bg-gray-800/50" />
 
-            {/* 형태 설정 */}
-            <div className="space-y-4">
-              <Label className="text-white text-sm flex items-center space-x-2">
-                <Settings size={16} />
-                <span>형태 설정</span>
-              </Label>
-
-              {/* 반지름 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">반지름</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {radius}m
-                  </Badge>
-                </div>
-                <Slider
-                  value={[radius]}
-                  onValueChange={(value) => onRadiusChange(value[0])}
-                  min={100}
-                  max={3000}
-                  step={100}
-                  disabled={!visible || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>100m</span>
-                  <span>3000m</span>
-                </div>
-              </div>
-
-              {/* 높이 스케일 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">높이 스케일</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {elevationScale}x
-                  </Badge>
-                </div>
-                <Slider
-                  value={[elevationScale]}
-                  onValueChange={(value) => onElevationScaleChange(value[0])}
-                  min={0.1}
-                  max={5}
-                  step={0.1}
-                  disabled={!visible || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>0.1x</span>
-                  <span>5x</span>
-                </div>
-              </div>
-
-              {/* 커버리지 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">커버리지</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {Math.round(coverage * 100)}%
-                  </Badge>
-                </div>
-                <Slider
-                  value={[coverage]}
-                  onValueChange={(value) => onCoverageChange(value[0])}
-                  min={0.1}
-                  max={1.0}
-                  step={0.1}
-                  disabled={!visible || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>10%</span>
-                  <span>100%</span>
-                </div>
-              </div>
+            {/* 자치구 테마 선택 */}
+            <div className="space-y-2">
+              <Label className="text-gray-200 text-xs font-semibold">자치구 테마</Label>
+              <Select
+                value={currentTheme}
+                onValueChange={(value: keyof typeof COLOR_THEMES) => {
+                  setCurrentTheme(value)
+                  setDistrictTheme(value)
+                }}
+              >
+                <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-8">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-black/95 border-gray-800/50 max-h-96 overflow-y-auto">
+                  {/* Modern Themes */}
+                  <div className="px-2 py-1">
+                    <div className="text-xs font-semibold text-gray-400 mb-1">현대적 테마</div>
+                  </div>
+                  <SelectItem value="modern" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🎨 Modern</span>
+                      <span className="text-xs text-white/60">구별 그라디언트 테마</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-dark" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🌙 Modern Dark</span>
+                      <span className="text-xs text-white/60">어두운 현대적 테마</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-light" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">☀️ Modern Light</span>
+                      <span className="text-xs text-white/60">밝은 파스텔 테마</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-neon" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">💡 Modern Neon</span>
+                      <span className="text-xs text-white/60">사이버펌크 네온</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-earth" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🌍 Modern Earth</span>
+                      <span className="text-xs text-white/60">자연스러운 흙 색상</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="modern-ocean" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🌊 Modern Ocean</span>
+                      <span className="text-xs text-white/60">바다 영감 테마</span>
+                    </div>
+                  </SelectItem>
+                  
+                  {/* Special Theme */}
+                  <div className="px-2 py-1 mt-2">
+                    <div className="text-xs font-semibold text-gray-400 mb-1">특별 테마</div>
+                  </div>
+                  <SelectItem value="adjacent" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">🎨 Adjacent Districts</span>
+                      <span className="text-xs text-white/60">인접구 차별화 (4색)</span>
+                    </div>
+                  </SelectItem>
+                  
+                  {/* Classic Themes */}
+                  <div className="px-2 py-1 mt-2">
+                    <div className="text-xs font-semibold text-gray-400 mb-1">클래식 테마</div>
+                  </div>
+                  <SelectItem value="blue" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Ocean Blue</span>
+                      <span className="text-xs text-white/60">파란색 계열</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="green" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Forest Green</span>
+                      <span className="text-xs text-white/60">초록색 계열</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="purple" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Royal Purple</span>
+                      <span className="text-xs text-white/60">보라색 계열</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="orange" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Sunset Orange</span>
+                      <span className="text-xs text-white/60">주황색 계열</span>
+                    </div>
+                  </SelectItem>
+                  <SelectItem value="mono" className="text-gray-200 hover:bg-gray-900/50">
+                    <div className="flex flex-col">
+                      <span className="font-medium">Monochrome</span>
+                      <span className="text-xs text-white/60">회색 계열</span>
+                    </div>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
-            <Separator className="bg-white/20" />
-
-            {/* 시각 설정 */}
-            <div className="space-y-4">
-              <Label className="text-white text-sm flex items-center space-x-2">
-                <Palette size={16} />
-                <span>시각 설정</span>
-              </Label>
-
-              {/* 색상 스킴 */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">색상 스킴</Label>
-                <Select
-                  value={colorScheme}
-                  onValueChange={(value: ColorScheme) => onColorSchemeChange(value)}
-                  disabled={!visible || isDataLoading}
-                >
-                  <SelectTrigger className="bg-white/10 border-white/20 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-black/90 border-white/20 max-h-96">
-                    {Object.entries(COLOR_PALETTE_INFO).map(([key, info]) => (
-                      <SelectItem key={key} value={key} className="text-white hover:bg-white/10">
-                        <div className="flex items-center space-x-2">
-                          <div 
-                            className="w-4 h-4 rounded"
-                            style={getColorPreviewStyle(key as ColorScheme)}
-                          ></div>
-                          <span>{info.name}</span>
-                          {info.category === 'premium' && (
-                            <Badge variant="secondary" className="text-xs ml-1">Premium</Badge>
-                          )}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 색상 모드 선택 */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">색상 데이터 기준</Label>
-                <Select
-                  value={colorMode}
-                  onValueChange={onColorModeChange}
-                  disabled={!visible || isDataLoading}
-                >
-                  <SelectTrigger className="bg-white/10 border-white/20 text-white">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="bg-gray-900 border-white/20">
-                    <SelectItem value="sales" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>💳</span>
-                        <span>매출액</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="temperature" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>🌡️</span>
-                        <span>기온</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="temperatureGroup" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>🌡️</span>
-                        <span>기온 그룹</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="discomfort" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>😓</span>
-                        <span>불쾌지수</span>
-                      </div>
-                    </SelectItem>
-                    <SelectItem value="humidity" className="text-white hover:bg-white/10">
-                      <div className="flex items-center space-x-2">
-                        <span>💧</span>
-                        <span>습도</span>
-                      </div>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="text-xs text-white/60">
-                  {colorMode === 'sales' && '카드 매출액을 기준으로 색상을 표시합니다'}
-                  {colorMode === 'temperature' && '일평균 기온 (-11.5°C ~ 31.9°C)을 기준으로 표시합니다'}
-                  {colorMode === 'temperatureGroup' && '한파/일반/온화/폭염 그룹별로 표시합니다'}
-                  {colorMode === 'discomfort' && '불쾌지수 (24 ~ 80+)를 기준으로 표시합니다'}
-                  {colorMode === 'humidity' && '일평균 습도 (0 ~ 100%)를 기준으로 표시합니다'}
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 테마 시각 조정 컨트롤 */}
+            <div className="space-y-3">
+              <Label className="text-gray-200 text-xs font-semibold">테마 시각 조정</Label>
+              
+              {/* 투명도 조절 */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-300 text-xs">투명도</Label>
+                  <span className="text-xs text-gray-400">{themeAdjustments.opacity}%</span>
+                </div>
+                <Slider
+                  value={[themeAdjustments.opacity]}
+                  onValueChange={(value) => setThemeAdjustments(prev => ({ ...prev, opacity: value[0] }))}
+                  min={20}
+                  max={100}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>투명</span>
+                  <span>불투명</span>
                 </div>
               </div>
-
-              {/* 색상 미리보기 */}
-              <div className="space-y-2">
-                <Label className="text-white text-sm">색상 미리보기</Label>
-                <div 
-                  className="h-6 rounded-lg"
-                  style={getColorPreviewStyle(colorScheme)}
-                ></div>
-                <div className="flex justify-between text-xs text-white/60">
+              
+              {/* 밝기 조절 */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-300 text-xs">밝기</Label>
+                  <span className="text-xs text-gray-400">{themeAdjustments.brightness > 0 ? '+' : ''}{themeAdjustments.brightness}</span>
+                </div>
+                <Slider
+                  value={[themeAdjustments.brightness]}
+                  onValueChange={(value) => setThemeAdjustments(prev => ({ ...prev, brightness: value[0] }))}
+                  min={-50}
+                  max={50}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>어둡게</span>
+                  <span>밝게</span>
+                </div>
+              </div>
+              
+              {/* 채도 조절 */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-300 text-xs">채도</Label>
+                  <span className="text-xs text-gray-400">{themeAdjustments.saturation > 0 ? '+' : ''}{themeAdjustments.saturation}</span>
+                </div>
+                <Slider
+                  value={[themeAdjustments.saturation]}
+                  onValueChange={(value) => setThemeAdjustments(prev => ({ ...prev, saturation: value[0] }))}
+                  min={-50}
+                  max={50}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>흑백</span>
+                  <span>선명</span>
+                </div>
+              </div>
+              
+              {/* 대비 조절 */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-300 text-xs">대비</Label>
+                  <span className="text-xs text-gray-400">{themeAdjustments.contrast > 0 ? '+' : ''}{themeAdjustments.contrast}</span>
+                </div>
+                <Slider
+                  value={[themeAdjustments.contrast]}
+                  onValueChange={(value) => setThemeAdjustments(prev => ({ ...prev, contrast: value[0] }))}
+                  min={-50}
+                  max={50}
+                  step={5}
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
                   <span>낮음</span>
                   <span>높음</span>
                 </div>
-                <div className="text-xs text-white/50">
-                  {COLOR_PALETTE_INFO[colorScheme]?.description}
-                </div>
               </div>
-
-              {/* 상위 백분위수 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">상위 백분위수</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {upperPercentile}%
-                  </Badge>
-                </div>
-                <Slider
-                  value={[upperPercentile]}
-                  onValueChange={(value) => onUpperPercentileChange(value[0])}
-                  min={50}
-                  max={100}
-                  step={5}
-                  disabled={!visible || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>50%</span>
-                  <span>100%</span>
-                </div>
-                <div className="text-xs text-white/60">
-                  높은 값의 {100 - upperPercentile}%를 필터링합니다
-                </div>
-              </div>
+              
+              {/* 조정값 초기화 버튼 */}
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setThemeAdjustments({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })}
+                className="text-gray-400 hover:bg-gray-900/50 w-full justify-center h-6 text-xs"
+              >
+                <RefreshCw className="w-3 h-3 mr-1" />
+                시각 조정 초기화
+              </Button>
             </div>
 
-            <Separator className="bg-white/20" />
+            <Separator className="bg-gray-800/50" />
+
+
             
-            {/* 애니메이션 설정 */}
-            <div className="space-y-4">
-              <Label className="text-white text-sm flex items-center space-x-2">
-                <RefreshCw size={16} />
-                <span>파도 애니메이션</span>
-              </Label>
-
-              {/* 애니메이션 활성화 토글 */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Label htmlFor="animation-enabled" className="text-white text-sm">
-                    자동 애니메이션
-                  </Label>
-                  <Badge variant={animationEnabled ? "default" : "secondary"} className="text-xs">
-                    {animationEnabled ? "ON" : "OFF"}
-                  </Badge>
-                  {isAnimating && (
-                    <Badge variant="outline" className="text-xs animate-pulse">
-                      실행중
-                    </Badge>
-                  )}
-                </div>
-                <Switch
-                  id="animation-enabled"
-                  checked={animationEnabled}
-                  onCheckedChange={onAnimationEnabledChange}
-                  disabled={!visible || isDataLoading}
-                />
-              </div>
-
-              {/* 애니메이션 속도 */}
+            {/* 텍스트 라벨 표시 토글 */}
+            <div className="space-y-2">
+              <Label className="text-gray-200 text-xs font-semibold">텍스트 라벨</Label>
               <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">애니메이션 속도</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {animationSpeed}x
-                  </Badge>
+                {/* 자치구 라벨 표시 */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-gray-300 text-xs">자치구 이름</Label>
+                  <Switch
+                    checked={showDistrictLabels}
+                    onCheckedChange={onDistrictLabelsToggle}
+                    className="scale-75"
+                    disabled={isDataLoading}
+                  />
                 </div>
-                <Slider
-                  value={[animationSpeed]}
-                  onValueChange={(value) => onAnimationSpeedChange?.(value[0])}
-                  min={0.5}
-                  max={2.0}
-                  step={0.1}
-                  disabled={!visible || !animationEnabled || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>0.5x (느림)</span>
-                  <span>2.0x (빠름)</span>
-                </div>
-              </div>
-
-              {/* 파도 진폭 */}
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <Label className="text-white text-sm">파도 강도</Label>
-                  <Badge variant="outline" className="text-xs">
-                    {waveAmplitude}x
-                  </Badge>
-                </div>
-                <Slider
-                  value={[waveAmplitude]}
-                  onValueChange={(value) => onWaveAmplitudeChange?.(value[0])}
-                  min={1.0}
-                  max={4.0}
-                  step={0.1}
-                  disabled={!visible || !animationEnabled || isDataLoading}
-                  className="w-full"
-                />
-                <div className="flex justify-between text-xs text-white/60">
-                  <span>1.0x (작음)</span>
-                  <span>4.0x (큼)</span>
+                {/* 행정동 라벨 표시 */}
+                <div className="flex items-center justify-between">
+                  <Label className="text-gray-300 text-xs">행정동 이름</Label>
+                  <Switch
+                    checked={showDongLabels}
+                    onCheckedChange={onDongLabelsToggle}
+                    className="scale-75"
+                    disabled={isDataLoading}
+                  />
                 </div>
               </div>
-
-              {/* 애니메이션 제어 버튼 */}
-              {animationEnabled && (
-                <div className="flex items-center space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={onToggleAnimation}
-                    disabled={!visible || isDataLoading}
-                    className="text-white border-white/20 hover:bg-white/10 flex-1"
-                  >
-                    {isAnimating ? (
-                      <>
-                        <EyeOff className="w-4 h-4 mr-1" />
-                        일시정지
-                      </>
-                    ) : (
-                      <>
-                        <Eye className="w-4 h-4 mr-1" />
-                        재생
-                      </>
-                    )}
-                  </Button>
-                </div>
-              )}
             </div>
 
-                {/* 정보 패널 */}
-                <div className="bg-white/5 rounded-lg p-3 text-xs text-white/60 space-y-1">
-                  <div>💡 팁: 반지름과 높이를 조정하여 3D 효과를 변경하세요</div>
-                  <div>🎨 색상: 프리미엄 팔레트로 세련된 시각화를 경험하세요</div>
-                  <div>📏 높이: 데이터 밀도를 3D로 표현합니다</div>
-                  <div>🌊 애니메이션: 파도 효과로 생동감 있는 데이터 시각화</div>
-                </div>
+            <Separator className="bg-gray-800/50" />
+            
+            {/* 3D mode and mesh layer sections moved to top */}
+
+
+
+
               </div>
             </motion.div>
           )}

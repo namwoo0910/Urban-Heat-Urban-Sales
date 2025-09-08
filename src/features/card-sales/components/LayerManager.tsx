@@ -2,11 +2,13 @@
 
 import { useMemo, useState, useEffect, useRef, useCallback } from 'react'
 import { HexagonLayer } from '@deck.gl/aggregation-layers'
-import { ScatterplotLayer, ColumnLayer } from '@deck.gl/layers'
+import { ScatterplotLayer } from '@deck.gl/layers'
+import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
-import { MIDDLE_CATEGORY_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/middleCategoryColors'
+import { BUSINESS_TYPE_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/businessTypeColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
+import { createSeoulMeshLayers, createStaticSeoulMeshLayer, useStaticSeoulMeshLayer, type SeoulMeshLayerProps } from './SeoulMeshLayer'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
 export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'
@@ -15,7 +17,8 @@ export interface HexagonLayerData {
   coordinates: [number, number]
   weight: number
   category?: string
-  middleCategory?: string // 중분류 카테고리 추가
+  businessType?: string // 업종 카테고리 추가
+  middleCategory?: string // 중분류 카테고리
   originalData?: any // 원본 ClimateCardSalesData 저장
 }
 
@@ -32,13 +35,19 @@ export interface LayerConfig {
   waveAmplitude: number
   // 색상 모드 설정
   colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity' | 'category'
-  // 선택된 중분류 카테고리
-  selectedMiddleCategory?: string | null
-  // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
-  displayMode?: 'simple' | 'detailed'
+  // 선택된 업종 카테고리
+  selectedBusinessType?: string | null
   // 선택된 지역 필터
   selectedGu?: string | null
+  selectedGuCode?: number | null
   selectedDong?: string | null
+  selectedDongCode?: number | null
+  // WebGL 렌더링 설정
+  webglEnabled?: boolean
+  webglRadiusPixels?: number
+  webglIntensity?: number
+  webglThreshold?: number
+  useCustomWebGL?: boolean // Use custom WebGL layer
 }
 
 interface LayerManagerProps {
@@ -48,6 +57,7 @@ interface LayerManagerProps {
   onClick?: (info: any) => void
   onAnimationInteractionStart?: () => void
   onAnimationInteractionEnd?: () => void
+  // WebGL gradient data (optional)
 }
 
 // Seoul 중심점 (경위도)
@@ -62,49 +72,50 @@ function getHeatmapColor(value: number): [number, number, number, number] {
   // Clamp value between 0 and 1
   const v = Math.max(0, Math.min(1, value))
   
-  // Smooth heatmap gradient: blue -> cyan -> green -> yellow -> orange -> red
+  // Soft gradient spectrum matching screenshot: blue -> cyan -> green -> yellow -> orange -> red
+  // More subtle and smooth transitions
   let r, g, b: number
   
   if (v < 0.167) {
     // Blue to cyan
     const t = v / 0.167
     r = 0
-    g = Math.floor(100 + 155 * t)
-    b = 255
+    g = Math.floor(100 + 100 * t)  // 100 -> 200
+    b = Math.floor(200 + 55 * t)   // 200 -> 255
   } else if (v < 0.333) {
     // Cyan to green
-    const t = (v - 0.167) / 0.167
+    const t = (v - 0.167) / 0.166
     r = 0
-    g = 255
-    b = Math.floor(255 - 155 * t)
+    g = Math.floor(200 + 55 * t)   // 200 -> 255
+    b = Math.floor(255 - 155 * t)  // 255 -> 100
   } else if (v < 0.5) {
     // Green to yellow-green
     const t = (v - 0.333) / 0.167
-    r = Math.floor(128 * t)
+    r = Math.floor(150 * t)        // 0 -> 150
     g = 255
-    b = Math.floor(100 - 100 * t)
+    b = Math.floor(100 - 100 * t)  // 100 -> 0
   } else if (v < 0.667) {
     // Yellow-green to yellow
     const t = (v - 0.5) / 0.167
-    r = Math.floor(128 + 127 * t)
+    r = Math.floor(150 + 105 * t)  // 150 -> 255
     g = 255
     b = 0
   } else if (v < 0.833) {
     // Yellow to orange
-    const t = (v - 0.667) / 0.167
+    const t = (v - 0.667) / 0.166
     r = 255
-    g = Math.floor(255 - 115 * t)
+    g = Math.floor(255 - 105 * t)  // 255 -> 150
     b = 0
   } else {
     // Orange to red
     const t = (v - 0.833) / 0.167
     r = 255
-    g = Math.floor(140 - 140 * t)
+    g = Math.floor(150 - 150 * t)  // 150 -> 0
     b = 0
   }
   
-  // Calculate alpha based on value (higher values = more opaque)
-  const alpha = 160 + Math.floor(95 * v)  // Range: 160-255
+  // Higher opacity for grid interpolation to match screenshot (150-200)
+  const alpha = 150 + Math.floor(50 * v)  // Range: 150-200 for better visibility
   
   return [r, g, b, alpha]
 }
@@ -201,7 +212,7 @@ export function LayerManager({
   onHover,
   onClick,
   onAnimationInteractionStart,
-  onAnimationInteractionEnd
+  onAnimationInteractionEnd,
 }: LayerManagerProps) {
   // 애니메이션 시간 추적 (throttled updates)
   const [animationTime, setAnimationTime] = useState(0)
@@ -250,148 +261,123 @@ export function LayerManager({
 
   // Create layers with proper dependency management
   const layers = useMemo<Layer[]>(() => {
-    // Creating layers with data
-
-    if (!data || !config.visible) {
-      // No layers created
-      return []
-    }
-
-    // 애니메이션이 활성화된 경우 다중 레이어 생성
-    if (config.animationEnabled && groupedData) {
-      // Creating wave layers
+    // Creating layers array to support multiple layers
+    const layerArray: Layer[] = []
+    
+    // LAYER 1: HexagonLayer for 3D bars (main visualization)
+    if (data && config.visible && data.length > 0) {
       
-      return groupedData.map((groupData, index) => {
-        // 각 레이어의 위상차 계산 (0 ~ 2π)
-        const phaseOffset = (index / WAVE_LAYERS) * Math.PI * 2
-        
-        // 시간에 따른 사인파 계산 (throttled animationTime)
-        const waveValue = Math.sin(animationTime * config.animationSpeed + phaseOffset)
-        const waveScale = config.elevationScale * (1 + waveValue * (config.waveAmplitude - 1) * 0.5)
-        
-        return new HexagonLayer<HexagonLayerData>({
-          id: `hexagon-wave-layer-${index}`,
-          data: groupData,
+      // 애니메이션이 활성화된 경우 다중 레이어 생성
+      if (config.animationEnabled && groupedData) {
+        // Creating wave layers for animation
+        groupedData.forEach((groupData, index) => {
+          const phaseOffset = (index / WAVE_LAYERS) * Math.PI * 2
+          const waveValue = Math.sin(animationTime * config.animationSpeed + phaseOffset)
+          const waveScale = (1 / config.elevationScale) * (1 + waveValue * (config.waveAmplitude - 1) * 0.5)
           
-          // 위치 접근자
+          layerArray.push(new HexagonLayer<HexagonLayerData>({
+            id: `hexagon-wave-layer-${index}`,
+            data: groupData,
+            getPosition: (d: HexagonLayerData) => d.coordinates,
+            getColorWeight: (d: HexagonLayerData) => getColorWeightByMode(d, config.colorMode),
+            getElevationWeight: (d: HexagonLayerData) => d.weight,
+            radius: config.radius,
+            elevationScale: waveScale,
+            coverage: config.coverage,
+            extruded: true, // IMPORTANT: Enable 3D bars
+            pickable: true,
+            // GPU Optimization Parameters
+            parameters: {
+              depthTest: true,
+              blend: true,
+              blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
+              cullFace: 0x0405, // GL.BACK
+              cullFaceMode: true
+            },
+            colorRange: COLOR_RANGES[config.colorScheme],
+            upperPercentile: config.upperPercentile,
+            onHover: (info, event) => {
+              if (onHover) onHover(info)
+              if (onAnimationInteractionStart && info.object) {
+                onAnimationInteractionStart()
+              }
+              return true
+            },
+            onClick: (info, event) => {
+              if (onClick) onClick(info)
+              return true
+            },
+            onDragStart: onAnimationInteractionStart,
+            onDragEnd: onAnimationInteractionEnd,
+            gpuAggregation: true, // FORCE GPU aggregation
+            updateTriggers: {
+              getColorWeight: [config.colorScheme, config.colorMode],
+              getElevationWeight: [waveScale]
+            }
+          }))
+        })
+      } else {
+        // 애니메이션이 비활성화된 경우 단일 HexagonLayer
+        const filteredData = useMemo(() => {
+          if (!data) return data
+          
+          // 구나 동이 선택된 경우 실제 필터링
+          if (config.selectedGuCode || config.selectedDongCode) {
+            return data.filter(point => {
+              const matchesGu = !config.selectedGuCode || 
+                point.originalData?.guCode === String(config.selectedGuCode)
+              const matchesDong = !config.selectedDongCode || 
+                point.originalData?.dongCode === config.selectedDongCode
+              
+              return matchesGu && matchesDong
+            })
+          }
+          
+          // 선택된 것이 없으면 전체 데이터 반환
+          return data
+        }, [data, config.selectedGuCode, config.selectedDongCode])
+        
+        layerArray.push(new HexagonLayer<HexagonLayerData>({
+          id: 'hexagon-layer',
+          data: filteredData || data,
           getPosition: (d: HexagonLayerData) => d.coordinates,
-          
-          // 가중치 설정 - 이중 인코딩
-          getColorWeight: (d: HexagonLayerData) => getColorWeightByMode(d, config.colorMode),
-          getElevationWeight: (d: HexagonLayerData) => d.weight, // 높이는 항상 매출액
-          
-          // 시각적 속성
+          getColorWeight: (d: HexagonLayerData) => d.weight,
+          getElevationWeight: (d: HexagonLayerData) => d.weight,
           radius: config.radius,
-          elevationScale: waveScale,  // 파도 효과 적용
+          elevationScale: 1 / config.elevationScale,  // 나누기 스케일링: 낮은 값 = 더 극명한 차이
           coverage: config.coverage,
-          extruded: true,
+          extruded: true, // IMPORTANT: Enable 3D bars
           pickable: true,
-          
-          // 색상 설정
+          // GPU Optimization Parameters
+          parameters: {
+            depthTest: true,
+            blend: true,
+            blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
+            cullFace: 0x0405, // GL.BACK
+            cullFaceMode: true
+          },
           colorRange: COLOR_RANGES[config.colorScheme],
           upperPercentile: config.upperPercentile,
-          
-          // 상호작용
           onHover: (info, event) => {
             if (onHover) onHover(info)
-            if (onAnimationInteractionStart && info.object) {
-              onAnimationInteractionStart()
-            }
             return true
           },
           onClick: (info, event) => {
             if (onClick) onClick(info)
             return true
           },
-          
-          // 애니메이션 중 상호작용 처리
-          onDragStart: onAnimationInteractionStart,
-          onDragEnd: onAnimationInteractionEnd,
-          
-          // 성능 최적화
-          gpuAggregation: true,
-          
-          // 업데이트 트리거 (throttled animationTime)
+          gpuAggregation: true, // FORCE GPU aggregation
           updateTriggers: {
-            getColorWeight: [config.colorScheme, config.colorMode],
-            getElevationWeight: [waveScale]
+            getColorWeight: [config.colorScheme, config.colorMode, config.selectedGuCode, config.selectedDongCode],
+            getElevationWeight: [config.elevationScale, config.selectedGuCode, config.selectedDongCode],
+            data: [config.selectedGuCode, config.selectedDongCode]
           }
-        })
-      })
+        }))
+      }
     }
-
-    // 애니메이션이 비활성화된 경우 단일 HexagonLayer
-    // Creating single static hexagon layer
     
-    // 선택된 지역이 있을 때 필터링된 데이터 생성
-    const filteredData = useMemo(() => {
-      if (!data || (!config.selectedGu && !config.selectedDong)) {
-        return data
-      }
-      
-      // 선택된 지역의 데이터만 강조
-      return data.map(point => {
-        if (point.originalData) {
-          const matchesGu = !config.selectedGu || point.originalData.guName === config.selectedGu
-          const matchesDong = !config.selectedDong || point.originalData.dongName === config.selectedDong
-          
-          if (!matchesGu || !matchesDong) {
-            // 선택되지 않은 지역은 가중치를 줄여서 투명하게 표시
-            return {
-              ...point,
-              weight: point.weight * 0.2 // 20% 투명도
-            }
-          }
-        }
-        return point
-      })
-    }, [data, config.selectedGu, config.selectedDong])
     
-    const hexagonLayer = new HexagonLayer<HexagonLayerData>({
-      id: 'hexagon-layer',
-      data: filteredData || data,
-      
-      // 위치 접근자
-      getPosition: (d: HexagonLayerData) => d.coordinates,
-      
-      // 가중치 설정
-      getColorWeight: (d: HexagonLayerData) => d.weight,
-      getElevationWeight: (d: HexagonLayerData) => d.weight,
-      
-      // 시각적 속성
-      radius: config.radius,
-      elevationScale: config.elevationScale,
-      coverage: config.coverage,
-      extruded: true,
-      pickable: true,
-      
-      // 색상 설정
-      colorRange: COLOR_RANGES[config.colorScheme],
-      upperPercentile: config.upperPercentile,
-      
-      // 상호작용
-      onHover: (info, event) => {
-        if (onHover) onHover(info)
-        return true
-      },
-      onClick: (info, event) => {
-        if (onClick) onClick(info)
-        return true
-      },
-      
-      // 성능 최적화
-      gpuAggregation: true,
-      
-      // 업데이트 트리거
-      updateTriggers: {
-        getColorWeight: [config.colorScheme, config.colorMode, config.selectedGu, config.selectedDong],
-        getElevationWeight: [config.elevationScale, config.selectedGu, config.selectedDong],
-        data: [config.selectedGu, config.selectedDong]
-      }
-    })
-
-    // Single layer created
-    return [hexagonLayer]
+    return layerArray
   }, [
     data, 
     config,
@@ -536,270 +522,6 @@ export function formatScatterplotTooltip(info: any): string {
   }
 }
 
-// 툴팁 포매터 - ColumnLayer용
-function formatColumnTooltip(object: any): string {
-  if (!object || !object.originalData) return ''
-  
-  const { originalData } = object
-  const date = originalData.date || '날짜 정보 없음'
-  const guName = originalData.guName || '정보 없음'
-  const dongName = originalData.dongName || '정보 없음'
-  const middleCategory = originalData.middleCategory || object.middleCategory || '업종 정보 없음'
-  const sales = originalData.categorySales || object.weight || 0
-  const displayMode = originalData.displayMode
-  
-  // Simple 모드에서는 총 매출액만 표시
-  if (displayMode === 'simple') {
-    return `
-📅 날짜: ${date}
-📍 지역: ${guName} ${dongName}
-💰 총 매출액: ${sales.toLocaleString()}원
-    `.trim()
-  }
-  
-  // Detailed 모드에서는 카테고리별 정보 표시
-  return `
-📅 날짜: ${date}
-📍 지역: ${guName} ${dongName}
-💼 업종: ${middleCategory}
-💰 매출액: ${sales.toLocaleString()}원
-  `.trim()
-}
-
-// ColumnLayer로 3D 바 표시 (구 이름도 표시 가능) - OPTIMIZED with memoization
-export function createColumnLayer(data: HexagonLayerData[] | null, config: LayerConfig & { 
-  onHover?: (info: any) => void, 
-  onClick?: (info: any) => void,
-  hoveredDistrict?: string | null 
-}): Layer[] {
-  if (!data || !config.visible) return []
-  
-  // Creating column layer
-  console.log('[LayerManager] Creating ColumnLayer with:', {
-    dataCount: data?.length,
-    elevationScale: config.elevationScale,
-    displayMode: config.displayMode,
-    firstItem: data?.[0] ? {
-      coordinates: data[0].coordinates,
-      weight: data[0].weight,
-      hasOriginalData: !!data[0].originalData
-    } : null
-  })
-  
-  const layer = new ColumnLayer<HexagonLayerData>({
-    id: 'column-layer',
-    data,
-    
-    // 위치 - simple 모드에서는 오프셋 없이 원래 좌표 사용
-    getPosition: (d: HexagonLayerData) => {
-      // Simple 모드에서는 오프셋 없이 중앙에 하나의 바만 표시
-      if (config.displayMode === 'simple') {
-        return d.originalData?.coordinates || d.coordinates
-      }
-      // Detailed 모드에서는 카테고리별 오프셋 적용
-      return d.coordinates
-    },
-    
-    // 3D 바 설정 - 더 부드러운 원형을 위해 해상도 증가
-    diskResolution: 12,  // 더 부드러운 원형 (기존 6에서 12로 증가)
-    radius: config.displayMode === 'simple' ? 180 : 120,  // 셀 간 오버랩 증가로 부드러운 연결
-    extruded: true,  // 3D 활성화
-    wireframe: false,
-    filled: true,
-    
-    // 높이 (colorMode에 따라 변경) - 공통 상수 사용
-    getElevation: (d: HexagonLayerData) => {
-      const mode = config.colorMode || 'sales'
-      
-      switch(mode) {
-        case 'temperature':
-          const temp = d.originalData?.temperature || 20
-          return calculateDataElevation(temp, 'temperature', config.elevationScale)
-          
-        case 'discomfort':
-          const discomfort = d.originalData?.discomfortIndex || 50
-          return calculateDataElevation(discomfort, 'discomfort', config.elevationScale)
-          
-        case 'humidity':
-          const humidity = d.originalData?.humidity || 50
-          return calculateDataElevation(humidity, 'humidity', config.elevationScale)
-          
-        case 'sales':
-        default:
-          // 매출액은 데이터 포인트가 아닌 카테고리별 합계 사용
-          const salesValue = d.originalData?.categorySales || d.weight || 0
-          return calculateDataElevation(salesValue, 'sales', config.elevationScale)
-      }
-    },
-    elevationScale: config.elevationScale,
-    
-    // 색상 (colorMode와 displayMode에 따라 변경)
-    getFillColor: (d: HexagonLayerData) => {
-      // 호버된 구역(동)과 같은 구역이면 전체 색상 변경
-      const isHoveredDistrict = config.hoveredDistrict && d.originalData?.dongName === config.hoveredDistrict
-      
-      // Heatmap 색상 스킴 - 부드러운 그라데이션
-      if (config.displayMode === 'simple' || config.colorMode === 'heatmap') {
-        const value = d.weight
-        const maxValue = 500000000  // 5억원 기준 (더 선명한 색상 변화)
-        const normalizedValue = Math.min(1, value / maxValue)
-        
-        // 히트맵 색상 그라데이션 함수 사용
-        let baseColor = getHeatmapColor(normalizedValue)
-        
-        // 호버된 구역이면 밝기와 채도 증가
-        if (isHoveredDistrict) {
-          return [
-            Math.min(255, baseColor[0] * 1.3),
-            Math.min(255, baseColor[1] * 1.3), 
-            Math.min(255, baseColor[2] * 1.3),
-            240  // 불투명도 증가
-          ]
-        }
-        
-        return baseColor
-      }
-      
-      // Detailed 모드에서는 카테고리별 색상 (실제 중분류 데이터 사용)
-      if (config.displayMode === 'detailed') {
-        // 카테고리 확인 (category, middleCategory, originalData 순서로)
-        const category = d.category || d.middleCategory || d.originalData?.middleCategory || '전체'
-        let baseColor: [number, number, number, number]
-        
-        // 선택된 카테고리가 있을 때만 필터링
-        if (config.selectedMiddleCategory) {
-          // 선택된 카테고리와 일치하면 색상 표시, 아니면 회색
-          if (category === config.selectedMiddleCategory) {
-            baseColor = MIDDLE_CATEGORY_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
-          } else {
-            baseColor = [128, 128, 128, 100]  // 선택되지 않은 카테고리는 회색
-          }
-        } else {
-          // 선택된 카테고리가 없으면 모든 카테고리 색상 표시
-          baseColor = MIDDLE_CATEGORY_COLOR_MAP[category] || DEFAULT_CATEGORY_COLOR
-        }
-        
-        // 호버된 구역이면 색상 강화
-        if (isHoveredDistrict) {
-          return [
-            Math.min(255, baseColor[0] * 1.4),
-            Math.min(255, baseColor[1] * 1.4), 
-            Math.min(255, baseColor[2] * 1.4),
-            Math.min(255, baseColor[3] * 1.2)
-          ]
-        }
-        
-        return baseColor
-      }
-      
-      // 중분류 카테고리 색상 모드인 경우 (기존 코드 유지)
-      if (config.colorMode === 'category' && config.selectedMiddleCategory) {
-        // 데이터에 중분류가 있으면 해당 색상 사용
-        if (d.middleCategory) {
-          // 선택된 카테고리와 일치하면 해당 색상, 아니면 회색
-          if (d.middleCategory === config.selectedMiddleCategory) {
-            return MIDDLE_CATEGORY_COLOR_MAP[d.middleCategory] || DEFAULT_CATEGORY_COLOR
-          } else {
-            // 선택되지 않은 카테고리는 반투명 회색
-            return [128, 128, 128, 100]
-          }
-        }
-        // originalData에서 중분류 정보 확인
-        if (d.originalData?.middleCategory) {
-          const middleCategory = d.originalData.middleCategory
-          if (middleCategory === config.selectedMiddleCategory) {
-            return MIDDLE_CATEGORY_COLOR_MAP[middleCategory] || DEFAULT_CATEGORY_COLOR
-          } else {
-            return [128, 128, 128, 100]
-          }
-        }
-      }
-      
-      const mode = config.colorMode || 'sales'
-      
-      switch(mode) {
-        case 'temperature':
-          const temp = d.originalData?.temperature || 20
-          // 온도별 색상: 파란색(추움) -> 빨간색(더움)
-          if (temp < 0) return [0, 100, 255, 200]
-          if (temp < 10) return [0, 200, 255, 200]
-          if (temp < 20) return [0, 255, 100, 200]
-          if (temp < 30) return [255, 200, 0, 200]
-          return [255, 50, 0, 200]
-          
-        case 'discomfort':
-          const discomfort = d.originalData?.discomfortIndex || 50
-          // 불쾌지수별 색상: 낮음(파랑) -> 높음(빨강)
-          if (discomfort < 40) return [0, 200, 255, 200]
-          if (discomfort < 60) return [0, 255, 100, 200]
-          if (discomfort < 70) return [255, 200, 0, 200]
-          return [255, 50, 0, 200]
-          
-        case 'humidity':
-          const humidity = d.originalData?.humidity || 50
-          // 습도별 색상: 건조(노랑) -> 습함(파랑)
-          if (humidity < 30) return [255, 200, 0, 200]
-          if (humidity < 50) return [200, 255, 0, 200]
-          if (humidity < 70) return [0, 200, 255, 200]
-          return [0, 100, 255, 200]
-          
-        case 'sales':
-        default:
-          // 매출액별 색상
-          const sales = d.weight
-          if (sales < 10000000) return [0, 100, 255, 200]  // 1천만원 미만: 파랑
-          if (sales < 50000000) return [0, 255, 100, 200]  // 5천만원 미만: 초록
-          if (sales < 100000000) return [255, 200, 0, 200] // 1억원 미만: 노랑
-          return [255, 50, 0, 200]  // 1억원 이상: 빨강
-      }
-    },
-    
-    // 선 색상
-    getLineColor: [255, 255, 255, 80],
-    lineWidthMinPixels: 1,
-    
-    // 상호작용
-    pickable: true,
-    autoHighlight: true,
-    highlightColor: (info: any) => {
-      // 호버된 구역(동)과 같은 구역이면 특별한 색상으로 하이라이트
-      if (config.hoveredDistrict && info.object?.originalData?.dongName === config.hoveredDistrict) {
-        return [0, 255, 255, 180]  // 청록색 하이라이트
-      }
-      return [255, 255, 255, 100]  // 기본 하이라이트
-    },
-    
-    // 이벤트 핸들러
-    onHover: config.onHover,
-    onClick: config.onClick,
-    
-    // 성능
-    material: {
-      ambient: 0.35,
-      diffuse: 1,
-      shininess: 32,
-      specularColor: [30, 30, 30]
-    },
-    
-    // 애니메이션
-    transitions: {
-      getElevation: 600,
-      getFillColor: 600
-    },
-    
-    // 업데이트 트리거
-    updateTriggers: {
-      getElevation: [config.elevationScale, config.colorMode],  // colorMode 추가
-      elevationScale: [config.elevationScale],  // elevationScale 자체도 추가
-      getFillColor: [config.colorScheme, config.colorMode, config.selectedMiddleCategory, config.displayMode, config.hoveredDistrict],
-      highlightColor: [config.hoveredDistrict],  // 호버 상태 업데이트
-      radius: [config.radius, config.coverage]  // radius와 coverage 추가
-    }
-  })
-  
-  return [layer]
-}
-
 // ScatterplotLayer로 개별 포인트 표시 (구 이름 표시 가능)
 export function createScatterplotLayer(data: HexagonLayerData[] | null, config: LayerConfig): Layer[] {
   if (!data || !config.visible) return []
@@ -812,21 +534,20 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
     // 위치
     getPosition: (d: HexagonLayerData) => d.coordinates,
     
-    // 크기 (매출액 기반)
-    getRadius: (d: HexagonLayerData) => Math.sqrt(d.weight / 1000000) * 10, // 매출액에 비례한 반지름
+    // 반지름 (매출액 기반)
+    getRadius: (d: HexagonLayerData) => {
+      const salesRatio = d.weight / 1000000  // 백만원 단위
+      return Math.min(config.radius / 2, Math.max(10, salesRatio))
+    },
     radiusScale: 1,
-    radiusMinPixels: 2,
-    radiusMaxPixels: 50,
+    radiusMinPixels: 3,
+    radiusMaxPixels: 30,
     
-    // 색상 (온도 기반)
+    // 색상 (매출액 기반 그라데이션)
     getFillColor: (d: HexagonLayerData) => {
-      const temp = d.originalData?.temperature || 20
-      // 온도에 따른 색상: 파란색(추움) -> 빨간색(더움)
-      if (temp < 0) return [0, 100, 255, 200] // 파란색
-      if (temp < 10) return [0, 200, 255, 200] // 하늘색
-      if (temp < 20) return [0, 255, 100, 200] // 초록색
-      if (temp < 30) return [255, 200, 0, 200] // 노란색
-      return [255, 50, 0, 200] // 빨간색
+      const maxSales = 100000000  // 1억원 기준
+      const ratio = Math.min(1, d.weight / maxSales)
+      return getHeatmapColor(ratio)
     },
     
     // 테두리
@@ -836,35 +557,53 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
     
     // 상호작용
     pickable: true,
-    autoHighlight: true,
-    highlightColor: [255, 255, 255, 100],
+    onHover,
+    onClick,
     
-    // 애니메이션
-    transitions: {
-      getRadius: 600,
-      getFillColor: 600
-    },
+    // 툴팁
+    getTooltip: formatScatterplotTooltip,
     
-    // 업데이트 트리거
+    // 성능
     updateTriggers: {
-      getRadius: [config.elevationScale],
-      getFillColor: [config.colorScheme, config.colorMode]
+      getFillColor: [config.colorScheme],
+      getRadius: [config.radius]
     }
   })
   
   return [layer]
 }
 
+// Mesh Layer creation
+export function createMeshLayer(
+  meshData: any,
+  config: LayerConfig & { hoveredDistrict?: string | null }
+): SimpleMeshLayer[] | null {
+  // Use the pre-generated static mesh layer from SeoulMeshLayer
+  return createStaticSeoulMeshLayer(meshData, config)
+}
+
+// Re-export for backward compatibility
+export { useStaticSeoulMeshLayer }
+
 export const DEFAULT_LAYER_CONFIG: LayerConfig = {
   visible: true,
-  radius: 300,  // 반지름 300m로 조정 (바가 겹치지 않도록)
-  elevationScale: 2,  // 높이 스케일 2x로 조정 (서울 경계선과 균형 맞추기)
-  coverage: 1,
+  radius: 100,
+  elevationScale: 10,
+  coverage: 0.8,
   upperPercentile: 100,
-  colorScheme: 'oceanic', // oceanic으로 변경 (sales는 COLOR_RANGES에 없음)
-  animationEnabled: false, // 임시로 애니메이션 OFF (툴팁 테스트용)
-  animationSpeed: 1.0,
-  waveAmplitude: 2.0,
-  colorMode: 'category', // 색상을 카테고리별로 설정
-  selectedMiddleCategory: null // 기본적으로 모든 카테고리 표시
+  colorScheme: 'sunset',
+  animationEnabled: false,
+  animationSpeed: 1,
+  waveAmplitude: 1,
+  colorMode: 'sales',
+  selectedBusinessType: null,
+  selectedGu: null,
+  selectedGuCode: null,
+  selectedDong: null,
+  selectedDongCode: null,
+  webglEnabled: false,
+  webglRadiusPixels: 20,
+  webglIntensity: 1,
+  webglThreshold: 0.05,
+  useCustomWebGL: false,
 }

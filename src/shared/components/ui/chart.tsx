@@ -58,6 +58,9 @@ export const ChartTooltipContent = React.forwardRef<
     return null
   }
 
+  // 추가 정보 추출 (날짜, 업종 등)
+  const additionalInfo = payload[0]?.payload
+
   return (
     <div
       ref={ref}
@@ -72,6 +75,24 @@ export const ChartTooltipContent = React.forwardRef<
             {label}
           </span>
         )}
+        
+        {/* 날짜 정보가 있으면 표시 */}
+        {additionalInfo?.date && (
+          <div className="text-[0.70rem] text-muted-foreground border-b pb-1">
+            📅 {additionalInfo.date}
+          </div>
+        )}
+        
+        {/* 업종 정보가 있으면 표시 */}
+        {additionalInfo?.category && (
+          <div className="text-[0.70rem] text-muted-foreground">
+            🏪 {additionalInfo.category}
+            {additionalInfo.subcategory && (
+              <span className="ml-1 text-[0.65rem]">({additionalInfo.subcategory})</span>
+            )}
+          </div>
+        )}
+        
         {payload.map((entry, index) => (
           <div key={index} className="flex items-center gap-2">
             <div 
@@ -79,7 +100,7 @@ export const ChartTooltipContent = React.forwardRef<
               style={{ backgroundColor: entry.color || '#8884d8' }} 
             />
             <span className="text-xs font-medium">
-              {entry.name || entry.dataKey}: {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}
+              {entry.name || entry.dataKey}: {typeof entry.value === 'number' ? entry.value.toLocaleString() : entry.value}원
             </span>
           </div>
         ))}

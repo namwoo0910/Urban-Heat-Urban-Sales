@@ -51,7 +51,9 @@ export interface ClimateCardSalesData {
 export interface RawClimateCardSalesData {
   기준일자: string
   행정동: string
-  행정동코드: number
+  행정동코드?: number // 스크립트로 추가된 필드
+  자치구?: string // 스크립트로 추가된 필드
+  자치구코드?: number // 스크립트로 추가된 필드
   일평균기온: number
   일최고기온: number
   일최저기온: number
@@ -64,19 +66,16 @@ export interface RawClimateCardSalesData {
   일평균불쾌지수: number
   일최고불쾌지수: number
   일최저불쾌지수: number
-  일일_총생활인구수: number
+  일일_총생활인구수?: number
   [key: string]: any // 시간대별 인구, 성별/연령대별 인구, 업종별 매출 등
-  자치구: string
-  자치구코드: string | number
-  총매출액: number
-  총매출건수: number
-  폭염주의보: number
-  폭염경보: number
-  호우주의보: number
-  호우경보: number
+  총매출액?: number
+  총매출건수?: number
+  폭염주의보?: number
+  폭염경보?: number
+  호우주의보?: number
+  호우경보?: number
   기온그룹: TemperatureGroup
-  총매출액_중분류?: Record<string, number> // 중분류별 매출액 (새로운 구조)
-  총매출액_소분류?: Record<string, number> // 소분류별 매출액 (새로운 구조)
+  총매출액_업종?: Record<string, number> // 업종별 매출액 (새로운 구조)
 }
 
 // 필터링 옵션

@@ -1,0 +1,182 @@
+/* 자치구 경계선 글로우 및 애니메이션 효과 */
+
+/* 네온 글로우 효과 */
+.mapboxgl-map {
+  background: #000000 !important;
+}
+
+/* 자치구 경계선 글로우 */
+.district-boundary-glow {
+  filter: drop-shadow(0 0 10px rgba(0, 255, 255, 0.6))
+          drop-shadow(0 0 20px rgba(0, 255, 255, 0.4))
+          drop-shadow(0 0 30px rgba(0, 255, 255, 0.2));
+}
+
+/* 행정동 경계선 글로우 */
+.dong-boundary-glow {
+  filter: drop-shadow(0 0 6px rgba(255, 0, 255, 0.4))
+          drop-shadow(0 0 12px rgba(255, 0, 255, 0.2));
+}
+
+/* 펄스 애니메이션 */
+@keyframes neon-pulse {
+  0%, 100% {
+    opacity: 0.8;
+    filter: drop-shadow(0 0 8px currentColor);
+  }
+  50% {
+    opacity: 1;
+    filter: drop-shadow(0 0 16px currentColor)
+            drop-shadow(0 0 24px currentColor);
+  }
+}
+
+/* 글로우 애니메이션 */
+@keyframes neon-glow {
+  0% {
+    filter: drop-shadow(0 0 4px rgba(0, 255, 255, 0.6));
+  }
+  50% {
+    filter: drop-shadow(0 0 12px rgba(0, 255, 255, 0.8))
+            drop-shadow(0 0 20px rgba(0, 255, 255, 0.6));
+  }
+  100% {
+    filter: drop-shadow(0 0 4px rgba(0, 255, 255, 0.6));
+  }
+}
+
+/* 쉬머 효과 */
+@keyframes shimmer {
+  0% {
+    opacity: 0.6;
+    transform: translateX(-100%);
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.6;
+    transform: translateX(100%);
+  }
+}
+
+/* 웨이브 효과 */
+@keyframes wave-glow {
+  0% {
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.8),
+                0 0 20px rgba(0, 255, 255, 0.6),
+                0 0 30px rgba(0, 255, 255, 0.4);
+  }
+  33% {
+    box-shadow: 0 0 15px rgba(255, 0, 255, 0.8),
+                0 0 25px rgba(255, 0, 255, 0.6),
+                0 0 35px rgba(255, 0, 255, 0.4);
+  }
+  66% {
+    box-shadow: 0 0 15px rgba(124, 252, 0, 0.8),
+                0 0 25px rgba(124, 252, 0, 0.6),
+                0 0 35px rgba(124, 252, 0, 0.4);
+  }
+  100% {
+    box-shadow: 0 0 10px rgba(0, 255, 255, 0.8),
+                0 0 20px rgba(0, 255, 255, 0.6),
+                0 0 30px rgba(0, 255, 255, 0.4);
+  }
+}
+
+/* 선택된 자치구 강조 효과 */
+.district-selected {
+  animation: neon-pulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 20px rgba(0, 255, 255, 0.8))
+          drop-shadow(0 0 40px rgba(0, 255, 255, 0.6));
+}
+
+/* 호버 효과 */
+.district-hover {
+  filter: drop-shadow(0 0 15px rgba(255, 255, 0, 0.8))
+          drop-shadow(0 0 25px rgba(255, 255, 0, 0.5));
+  transition: all 0.3s ease;
+}
+
+/* 그라데이션 오버레이 효과 */
+.gradient-overlay {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 255, 255, 0.1) 0%,
+    rgba(255, 0, 255, 0.1) 50%,
+    rgba(124, 252, 0, 0.1) 100%
+  );
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+/* 다크 테마 강화 */
+.dark-theme-enhance {
+  background: radial-gradient(
+    circle at center,
+    rgba(0, 0, 0, 0.7) 0%,
+    rgba(0, 0, 0, 0.9) 50%,
+    rgba(0, 0, 0, 1) 100%
+  );
+}
+
+/* 경계선 스타일 변형 */
+.boundary-style-solid {
+  stroke-dasharray: none;
+}
+
+.boundary-style-dashed {
+  stroke-dasharray: 10, 5;
+  animation: dash-animation 20s linear infinite;
+}
+
+.boundary-style-dotted {
+  stroke-dasharray: 2, 4;
+  animation: dash-animation 15s linear infinite;
+}
+
+@keyframes dash-animation {
+  to {
+    stroke-dashoffset: -100%;
+  }
+}
+
+/* 깊이감을 위한 그림자 효과 */
+.district-shadow {
+  filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.8))
+          drop-shadow(-1px -1px 2px rgba(0, 0, 0, 0.4));
+}
+
+/* 레이어 블렌딩 모드 */
+.blend-overlay {
+  mix-blend-mode: overlay;
+}
+
+.blend-multiply {
+  mix-blend-mode: multiply;
+}
+
+.blend-screen {
+  mix-blend-mode: screen;
+}
+
+.blend-color-dodge {
+  mix-blend-mode: color-dodge;
+}
+
+/* 반응형 효과 */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* 고성능 GPU 가속 */
+.gpu-accelerate {
+  transform: translateZ(0);
+  will-change: transform, opacity, filter;
+  backface-visibility: hidden;
+  perspective: 1000px;
+}

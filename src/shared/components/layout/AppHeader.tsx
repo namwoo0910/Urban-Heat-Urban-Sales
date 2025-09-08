@@ -30,7 +30,7 @@ export function Header() {
 
   return (
     <motion.header ref={headerRef} className="fixed left-0 right-0 z-50 py-2 px-6" style={{ top: '10px' }}>
-      <div className="w-full flex justify-between items-center">
+      <div className="w-full flex justify-between items-center relative">
         {/* Left: KAIST AI Logo */}
         <TransitionLink href="/" className="flex items-center" onMouseEnter={handleHomeHover}>
           <div 
@@ -55,30 +55,34 @@ export function Header() {
           </div>
         </TransitionLink>
         
-        {/* Center: 데이터로 보는 서울 Button - Hide on main page and research-section page */}
+        {/* Center: 데이터로 보는 서울 Button - Always centered */}
         {pathname !== '/' && pathname !== '/research-section' && (
-          <TransitionLink href="/research-section">
+          <div className="absolute left-1/2 transform -translate-x-1/2">
+            <TransitionLink href="/research-section">
+              <motion.button
+                className="font-['Montserrat'] font-semibold text-white text-sm py-1.5 px-4 transition-all duration-300 hover:text-gray-300 uppercase tracking-wider"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
+                데이터로 보는 서울
+              </motion.button>
+            </TransitionLink>
+          </div>
+        )}
+        
+        {/* Right: Contact Us Button - Hide on local-economy page */}
+        {pathname !== '/research/local-economy' && (
+          <TransitionLink href="/contact">
             <motion.button
               className="font-['Montserrat'] font-semibold text-white text-sm py-1.5 px-4 transition-all duration-300 hover:text-gray-300 uppercase tracking-wider"
+              style={{ marginRight: '0px' }}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              데이터로 보는 서울
+              Contact Us
             </motion.button>
           </TransitionLink>
         )}
-        
-        {/* Right: Contact Us Button */}
-        <TransitionLink href="/contact">
-          <motion.button
-            className="font-['Montserrat'] font-semibold text-white text-sm py-1.5 px-4 transition-all duration-300 hover:text-gray-300 uppercase tracking-wider"
-            style={{ marginRight: '0px' }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-          >
-            Contact Us
-          </motion.button>
-        </TransitionLink>
       </div>
       
       {/* Gradient Animation Styles */}

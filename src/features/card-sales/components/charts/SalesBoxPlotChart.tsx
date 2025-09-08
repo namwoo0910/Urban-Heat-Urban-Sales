@@ -16,7 +16,7 @@ import {
 } from '@/src/shared/components/ui/chart'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/shared/components/ui/select'
 import { 
-  loadMediumCategoryData, 
+  loadNormalizedBoxPlotData, 
   type BoxPlotDataPoint
 } from '../../data/boxplotData'
 import { 
@@ -153,30 +153,6 @@ const CustomBoxPlot = (props: any) => {
         stroke={color}
         strokeWidth={2}
       />
-      
-      {/* 이상치 - 아래 */}
-      {data.min < data.lowerWhisker && (
-        <circle 
-          cx={centerX} 
-          cy={yMin} 
-          r={3}
-          fill="none"
-          stroke={color}
-          strokeWidth={1.5}
-        />
-      )}
-      
-      {/* 이상치 - 위 */}
-      {data.max > data.upperWhisker && (
-        <circle 
-          cx={centerX} 
-          cy={yMax} 
-          r={3}
-          fill="none"
-          stroke={color}
-          strokeWidth={1.5}
-        />
-      )}
     </g>
   )
 }
@@ -205,15 +181,15 @@ const CustomWeatherTooltip = ({ active, payload, label }: any) => {
       </p>
       
       <div className="text-xs text-muted-foreground space-y-1">
-        <div>최소값: {formatSalesAmount(data.min)}</div>
-        <div>Q1: {formatSalesAmount(data.Q1)}</div>
-        <div className="font-semibold">중앙값: {formatSalesAmount(data.median)}</div>
-        <div>Q3: {formatSalesAmount(data.Q3)}</div>
-        <div>최대값: {formatSalesAmount(data.max)}</div>
+        <div>최소값: {data.min.toFixed(1)}%</div>
+        <div>Q1: {data.Q1.toFixed(1)}%</div>
+        <div className="font-semibold">중앙값: {data.median.toFixed(1)}%</div>
+        <div>Q3: {data.Q3.toFixed(1)}%</div>
+        <div>최대값: {data.max.toFixed(1)}%</div>
         <div className="border-t pt-1 mt-1">
-          <div>평균: {formatSalesAmount(data.mean)}</div>
-          <div>하한 (1.5*IQR): {formatSalesAmount(data.lowerWhisker)}</div>
-          <div>상한 (1.5*IQR): {formatSalesAmount(data.upperWhisker)}</div>
+          <div>평균: {data.mean.toFixed(1)}%</div>
+          <div>하한 (1.5*IQR): {data.lowerWhisker.toFixed(1)}%</div>
+          <div>상한 (1.5*IQR): {data.upperWhisker.toFixed(1)}%</div>
         </div>
       </div>
     </div>
@@ -226,20 +202,20 @@ export function SalesBoxPlotChart() {
   const [selectedCategory, setSelectedCategory] = useState<string>('전체')
   const [categoryList, setCategoryList] = useState<string[]>([])
   
-  // 데이터 로드 (중분류 데이터 사용)
+  // 데이터 로드 (정규화된 데이터 사용)
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
       try {
-        const loadedData = await loadMediumCategoryData()
-        console.log('[BoxPlot] Raw data loaded:', loadedData.length, 'categories')
+        const loadedData = await loadNormalizedBoxPlotData()
+        console.log('[BoxPlot] Normalized data loaded:', loadedData.length, 'categories')
         setRawData(loadedData)
         
         // 업종 리스트 생성
         const categories = getAllCategoryNames(loadedData)
         setCategoryList(['전체', ...categories])
       } catch (error) {
-        console.error('[BoxPlot] Failed to load data:', error)
+        console.error('[BoxPlot] Failed to load normalized data:', error)
         setRawData([])
       } finally {
         setLoading(false)
@@ -269,28 +245,29 @@ export function SalesBoxPlotChart() {
     }
   }, [rawData, selectedCategory])
   
-  // Y축 도메인 계산 (선택된 데이터에 맞게 조정)
+  // Y축 도메인 계산 (선택된 업종의 whisker 범위에 맞게 조정)
   const yDomain = useMemo(() => {
-    if (!processedData.length) return [0, 100000000]
+    if (!processedData.length) return [70, 130]
     
-    if (selectedCategory === '전체') {
-      // 전체 선택시: Q3 값 기준으로 설정
-      const q3Values = processedData.map(item => item.Q3)
-      const maxQ3 = Math.max(...q3Values)
-      return [0, maxQ3 * 1.5]
-    } else {
-      // 특정 업종 선택시: upperWhisker 기준
-      const allValues = processedData.flatMap(item => [
-        item.lowerWhisker,
-        item.upperWhisker
-      ])
-      
-      const maxValue = Math.max(...allValues)
-      const minValue = Math.min(...allValues, 0)
-      
-      return [minValue * 0.9, maxValue * 1.1]
-    }
-  }, [processedData, selectedCategory])
+    // whisker 값만 사용하여 범위 설정
+    const allValues = processedData.flatMap(item => [
+      item.lowerWhisker,
+      item.upperWhisker
+    ])
+    
+    const maxValue = Math.max(...allValues)
+    const minValue = Math.min(...allValues)
+    
+    // 범위 계산 (여백 추가)
+    const range = maxValue - minValue
+    const padding = range * 0.1 // 10% 여백
+    
+    // 0을 포함하지 않고 실제 데이터 범위에 맞게 설정
+    const domainMin = Math.floor(minValue - padding)
+    const domainMax = Math.ceil(maxValue + padding)
+    
+    return [domainMin, domainMax]
+  }, [processedData])
   
   if (loading) {
     return (
@@ -309,62 +286,52 @@ export function SalesBoxPlotChart() {
   }
   
   return (
-    <div className="w-full h-full flex flex-col">
-      {/* 컨트롤 패널 */}
-      <div className="flex items-center gap-4 mb-4">
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className="w-[200px] bg-white/10 border-white/20 text-white">
-            <SelectValue placeholder="업종 선택" />
-          </SelectTrigger>
-          <SelectContent className="max-h-[300px] overflow-y-auto bg-black/90 border-white/20">
-            {categoryList.map(category => (
-              <SelectItem key={category} value={category} className="text-white hover:bg-white/10">
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        
-        <div className="text-sm text-muted-foreground">
-          {selectedCategory === '전체' 
-            ? '모든 업종의 평균 매출 분포' 
-            : `${selectedCategory} 업종의 날씨별 매출 분포`}
-        </div>
-      </div>
+    <div className="w-full h-full relative">
+      {/* 업종 선택 - 우측 상단 */}
+      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+        <SelectTrigger className="absolute -top-[55px] right-2 z-10 w-[120px] h-8 text-xs bg-white/10 border-white/20 text-white">
+          <SelectValue placeholder="업종 선택" />
+        </SelectTrigger>
+        <SelectContent className="max-h-[300px] overflow-y-auto bg-black/90 border-white/20">
+          {categoryList.map(category => (
+            <SelectItem key={category} value={category} className="text-xs text-white hover:bg-white/10">
+              {category}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
       
-      {/* 차트 */}
-      <div className="flex-1">
-        <ResponsiveContainer width="100%" height="100%">
+      {/* 차트 - 전체 영역 사용 */}
+      <ResponsiveContainer width="100%" height="100%">
           <ComposedChart 
             data={processedData}
-            margin={{ top: 20, right: 30, bottom: 60, left: 100 }}
+            margin={{ top: 10, right: 20, bottom: 10, left: 20 }}
           >
             <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
             
             <XAxis 
               dataKey="temperatureGroup" 
-              tick={{ fontSize: 14, fontWeight: 'bold' }}
+              tick={(props) => {
+                const { x, y, payload } = props
+                const color = payload.value === '한파' ? '#3B82F6' : 
+                             payload.value === '온화' ? '#10B981' : 
+                             payload.value === '폭염' ? '#EF4444' : '#9CA3AF'
+                return (
+                  <text x={x} y={y} dy={16} textAnchor="middle" fill={color} fontSize={14} fontWeight="bold">
+                    {payload.value}
+                  </text>
+                )
+              }}
               interval={0}
             />
             
             <YAxis 
               domain={yDomain}
-              tickFormatter={formatSalesAmount}
+              tickFormatter={(value) => `${value.toFixed(0)}%`}
               tick={{ fontSize: 11 }}
-              label={{ 
-                value: '매출액 (원)', 
-                angle: -90, 
-                position: 'insideLeft',
-                style: { textAnchor: 'middle' }
-              }}
             />
             
             <Tooltip content={<CustomWeatherTooltip />} />
-            
-            <Legend 
-              wrapperStyle={{ paddingTop: '20px' }}
-              iconType="rect"
-            />
             
             {/* 커스텀 박스플롯 렌더링 */}
             <Bar 
@@ -375,32 +342,6 @@ export function SalesBoxPlotChart() {
             />
           </ComposedChart>
         </ResponsiveContainer>
-      </div>
-      
-      {/* 범례 설명 */}
-      <div className="mt-4 text-xs text-muted-foreground border-t pt-3">
-        <div className="flex items-center gap-6">
-          <span>□ 박스: Q1-Q3 (IQR)</span>
-          <span>─ 중앙선: 중앙값 (Q2)</span>
-          <span>┬┴ 수염: 1.5*IQR 범위</span>
-          <span>◆ 다이아몬드: 평균값</span>
-          <span>○ 원: 이상치</span>
-        </div>
-        <div className="flex items-center gap-4 mt-2">
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{backgroundColor: WEATHER_COLORS['한파']}}></span>
-            한파
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{backgroundColor: WEATHER_COLORS['온화']}}></span>
-            온화
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="w-3 h-3 rounded" style={{backgroundColor: WEATHER_COLORS['폭염']}}></span>
-            폭염
-          </span>
-        </div>
-      </div>
     </div>
   )
 }

@@ -8,19 +8,8 @@ import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
 import { climateDataLoader } from '../utils/climateDataLoader'
 import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
 import { getCategoryOffset } from '../constants/categoryOffsets'
-import { useGridInterpolation } from './useGridInterpolation'
-import { useDongBoundaryGradient } from './useDongBoundaryGradient'
-import { useCentroidGradient } from './useCentroidGradient'
-import type { DistributionMethod } from '../types/grid.types'
 
 interface UseLayerStateReturn {
-  // Grid interpolation detailed controls
-  gridDistributionRadius?: number
-  setGridDistributionRadius?: (radius: number) => void
-  gridSmoothingSigma?: number
-  setGridSmoothingSigma?: (sigma: number) => void
-  reprocessGridData?: () => Promise<void>
-  isGridProcessing?: boolean
   
   // 레이어 설정 상태
   layerConfig: LayerConfig
@@ -31,24 +20,7 @@ interface UseLayerStateReturn {
   isDataLoading: boolean
   dataError: string | null
   
-  // Grid 보간 상태
-  gridInterpolationEnabled: boolean
-  setGridInterpolationEnabled: (enabled: boolean) => void
-  gridDistributionMethod: DistributionMethod
-  setGridDistributionMethod: (method: DistributionMethod) => void
   
-  // Dong Boundary Gradient 상태
-  dongBoundaryGradientEnabled: boolean
-  setDongBoundaryGradientEnabled: (enabled: boolean) => void
-  dongBoundaryHeight: number
-  setDongBoundaryHeight: (height: number) => void
-  dongInterpolationType: 'linear' | 'exponential' | 'logarithmic' | 'smooth'
-  setDongInterpolationType: (type: 'linear' | 'exponential' | 'logarithmic') => void
-  
-  // 표시 모드 (simple: 행정동별 총합, detailed: 카테고리별 상세)
-  displayMode: 'simple' | 'detailed'
-  setDisplayMode: (mode: 'simple' | 'detailed') => void
-  toggleDisplayMode: () => void
   
   // 필터 상태
   filterOptions: ClimateFilterOptions
@@ -58,17 +30,16 @@ interface UseLayerStateReturn {
   
   // Hierarchical filter states
   selectedGu: string | null
+  selectedGuCode: number | null
   selectedDong: string | null
-  selectedMiddleCategory: string | null
+  selectedDongCode: number | null
+  selectedBusinessType: string | null
   selectedSubCategory: string | null
   
   // 설정 업데이트 함수들
   setVisible: (visible: boolean) => void
-  setRadius: (radius: number) => void
-  setElevationScale: (scale: number) => void
   setCoverage: (coverage: number) => void
   setUpperPercentile: (percentile: number) => void
-  setColorScheme: (scheme: ColorScheme) => void
   
   // 애니메이션 설정 함수들
   setAnimationEnabled: (enabled: boolean) => void
@@ -90,8 +61,10 @@ interface UseLayerStateReturn {
   
   // Hierarchical filter functions
   setSelectedGu: (gu: string | null) => void
+  setSelectedGuCode: (guCode: number | null) => void
   setSelectedDong: (dong: string | null) => void
-  setSelectedMiddleCategory: (category: string | null) => void
+  setSelectedDongCode: (dongCode: number | null) => void
+  setSelectedBusinessType: (category: string | null) => void
   setSelectedSubCategory: (category: string | null) => void
   
   // 상호작용 상태
@@ -126,6 +99,19 @@ interface UseLayerStateReturn {
   updateBearing: (bearing: number) => void
   onRotationInteractionStart: () => void
   onRotationInteractionEnd: () => void
+  
+  // 시계열 애니메이션 상태
+  timelineAnimationEnabled: boolean
+  isTimelinePlaying: boolean
+  timelineSpeed: number
+  currentMonthIndex: number
+  monthlyDates: string[]
+  
+  // 시계열 애니메이션 설정 함수들
+  setTimelineAnimationEnabled: (enabled: boolean) => void
+  setIsTimelinePlaying: (playing: boolean) => void
+  setTimelineSpeed: (speed: number) => void
+  toggleTimelineAnimation: () => void
 }
 
 export function useLayerState(): UseLayerStateReturn {
@@ -138,8 +124,6 @@ export function useLayerState(): UseLayerStateReturn {
   const [isDataLoading, setIsDataLoading] = useState(false)
   const [dataError, setDataError] = useState<string | null>(null)
   
-  // 표시 모드 상태 (simple: 행정동별 총합, detailed: 카테고리별 상세)
-  const [displayMode, setDisplayMode] = useState<'simple' | 'detailed'>('simple')
   
   // 필터 상태
   const [filterOptions, setFilterOptions] = useState<ClimateFilterOptions>({
@@ -151,21 +135,12 @@ export function useLayerState(): UseLayerStateReturn {
   
   // Hierarchical filter states
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
+  const [selectedGuCode, setSelectedGuCode] = useState<number | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
-  const [selectedMiddleCategory, setSelectedMiddleCategory] = useState<string | null>(null)
+  const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
   const [selectedSubCategory, setSelectedSubCategory] = useState<string | null>(null)
   
-  // Dong Boundary Gradient states
-  const [dongBoundaryGradientEnabled, setDongBoundaryGradientEnabled] = useState(false)
-  const [dongBoundaryHeight, setDongBoundaryHeight] = useState(1000000)  // Changed to 1M for better gradient
-  const [dongInterpolationType, setDongInterpolationType] = useState<'linear' | 'exponential' | 'logarithmic' | 'smooth'>('smooth')
-  const [useCentroidMethod, setUseCentroidMethod] = useState(true)  // Use memory-efficient centroid method by default
-  
-  // Grid 보간 상태 - Hook 사용 전에 선언
-  const [gridInterpolationEnabled, setGridEnabled] = useState(true) // Default to true
-  const [gridDistributionMethod, setGridMethod] = useState<DistributionMethod>('gaussian')
-  const [gridDistributionRadius, setGridRadius] = useState(2500)
-  const [gridSmoothingSigma, setGridSigma] = useState(1000)
   
   // 상호작용 상태
   const [hoveredObject, setHoveredObject] = useState<any>(null)
@@ -177,6 +152,19 @@ export function useLayerState(): UseLayerStateReturn {
   const [rotationDirection, setRotationDirectionState] = useState<'clockwise' | 'counterclockwise'>('clockwise')
   const [currentBearing, setCurrentBearing] = useState(0)
   const [isRotating, setIsRotating] = useState(false)
+  
+  // 시계열 애니메이션 상태
+  const [timelineAnimationEnabled, setTimelineAnimationEnabled] = useState(false)
+  const [isTimelinePlaying, setIsTimelinePlaying] = useState(false)
+  const [timelineSpeed, setTimelineSpeed] = useState(2000) // 2초 기본값
+  const [currentMonthIndex, setCurrentMonthIndex] = useState(0)
+  
+  // 매월 1일 날짜 배열
+  const monthlyDates = useMemo(() => [
+    '2024-01-01', '2024-02-01', '2024-03-01', '2024-04-01',
+    '2024-05-01', '2024-06-01', '2024-07-01', '2024-08-01',
+    '2024-09-01', '2024-10-01', '2024-11-01', '2024-12-01'
+  ], [])
   
   // 파도 애니메이션 설정 (memoized for performance)
   const waveAnimationConfig = useMemo(() => ({
@@ -198,15 +186,8 @@ export function useLayerState(): UseLayerStateReturn {
   
   // 개별 설정 업데이트 함수들
   const setVisible = useCallback((visible: boolean) => {
-    setLayerConfig(prev => ({ ...prev, visible }))
-  }, [])
-  
-  const setRadius = useCallback((radius: number) => {
-    setLayerConfig(prev => ({ ...prev, radius }))
-  }, [])
-  
-  const setElevationScale = useCallback((elevationScale: number) => {
-    setLayerConfig(prev => ({ ...prev, elevationScale }))
+    // 항상 true로 고정 - 레이어는 항상 표시됨
+    setLayerConfig(prev => ({ ...prev, visible: true }))
   }, [])
   
   const setCoverage = useCallback((coverage: number) => {
@@ -215,10 +196,6 @@ export function useLayerState(): UseLayerStateReturn {
   
   const setUpperPercentile = useCallback((upperPercentile: number) => {
     setLayerConfig(prev => ({ ...prev, upperPercentile }))
-  }, [])
-  
-  const setColorScheme = useCallback((colorScheme: ColorScheme) => {
-    setLayerConfig(prev => ({ ...prev, colorScheme }))
   }, [])
   
   // 애니메이션 설정 업데이트 함수들
@@ -274,6 +251,37 @@ export function useLayerState(): UseLayerStateReturn {
     }
   }, [rotationEnabled])
   
+  // 시계열 애니메이션 토글 함수
+  const toggleTimelineAnimation = useCallback(() => {
+    setIsTimelinePlaying(prev => !prev)
+  }, [])
+  
+  // 시계열 애니메이션 자동 순환 로직
+  useEffect(() => {
+    if (timelineAnimationEnabled && isTimelinePlaying) {
+      const interval = setInterval(() => {
+        setCurrentMonthIndex(prevIndex => {
+          const nextIndex = (prevIndex + 1) % 12
+          // 날짜 변경
+          const nextDate = monthlyDates[nextIndex]
+          setSelectedDate(nextDate)
+          console.log('[Timeline Animation] Changed to:', nextDate)
+          return nextIndex
+        })
+      }, timelineSpeed)
+      
+      return () => clearInterval(interval)
+    }
+  }, [timelineAnimationEnabled, isTimelinePlaying, timelineSpeed, monthlyDates])
+  
+  // 시계열 애니메이션 활성화 시 현재 날짜를 첫 번째 월로 설정
+  useEffect(() => {
+    if (timelineAnimationEnabled && !selectedDate) {
+      setSelectedDate(monthlyDates[0])
+      setCurrentMonthIndex(0)
+    }
+  }, [timelineAnimationEnabled, monthlyDates, selectedDate])
+  
   // 계산된 값들 (memoized for performance)
   const rotationDirectionText = useMemo(() => 
     rotationDirection === 'clockwise' ? '시계방향' : '반시계방향', 
@@ -297,27 +305,47 @@ export function useLayerState(): UseLayerStateReturn {
   
   const resetConfig = useCallback(() => {
     setLayerConfig(DEFAULT_LAYER_CONFIG)
+    // Reset all district selections
+    setSelectedGu(null)
+    setSelectedGuCode(null)
+    setSelectedDong(null)
+    setSelectedDongCode(null)
+    setSelectedBusinessType(null)
+    setSelectedSubCategory(null)
   }, [])
   
   // Apply hierarchical filters to data
   const applyHierarchicalFilters = useCallback((data: ClimateCardSalesData[]) => {
     let filteredData = [...data]
     
-    // Filter by district (자치구)
-    if (selectedGu) {
-      filteredData = filteredData.filter(item => item.guName === selectedGu)
+    // Filter by district code (자치구코드) - 코드로 필터링
+    if (selectedGuCode) {
+      filteredData = filteredData.filter(item => {
+        // guCode is string, selectedGuCode is number
+        return item.guCode === String(selectedGuCode)
+      })
     }
     
-    // Filter by dong (행정동)
-    if (selectedDong) {
-      filteredData = filteredData.filter(item => item.dongName === selectedDong)
+    // 동 선택시에도 구 단위로 필터링 (해당 구의 모든 동 표시)
+    // 행정동은 하이라이트용으로만 사용, 데이터는 구 전체 표시
+    if (selectedDongCode && selectedGuCode) {
+      // 동이 선택되어도 구 코드로만 필터링 (구 전체 데이터 표시)
+      // 이미 위에서 구 필터링이 적용되었으므로 추가 필터링 불필요
+      console.log('[Filter] Dong selected but showing all dongs in gu:', selectedGu, selectedDong)
+    } else if (selectedDongCode && !selectedGuCode) {
+      // 구 코드 없이 동만 선택된 경우 (fallback - 일반적으로 발생하지 않음)
+      filteredData = filteredData.filter(item => {
+        // dongCode is number
+        return item.dongCode === selectedDongCode
+      })
     }
+    
     
     // Note: Business category filtering would be applied at visualization level
     // since the raw data may not have category-specific location data
     
     return filteredData
-  }, [selectedGu, selectedDong])
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode])
 
   // Create data points with middle category information - OPTIMIZED for memory and viewport
   const createCategoryDataPoints = useCallback((data: ClimateCardSalesData[], viewportBounds?: { 
@@ -348,11 +376,11 @@ export function useLayerState(): UseLayerStateReturn {
       }
       
       // If a specific middle category is selected, create points only for that category
-      if (selectedMiddleCategory) {
-        const categorySales = item.salesByCategory[selectedMiddleCategory] || 0
+      if (selectedBusinessType) {
+        const categorySales = item.salesByCategory[selectedBusinessType] || 0
         
         if (categorySales > 0) {
-          const offset = getCategoryOffset(selectedMiddleCategory)
+          const offset = getCategoryOffset(selectedBusinessType)
           
           categoryPoints.push({
             coordinates: [
@@ -360,19 +388,15 @@ export function useLayerState(): UseLayerStateReturn {
               item.coordinates[1] + offset.dy
             ],
             weight: categorySales,
-            middleCategory: selectedMiddleCategory,
-            category: selectedMiddleCategory,
-            // Minimize originalData to only essential fields
+            businessType: selectedBusinessType,
+            category: selectedBusinessType,
+            // Include full original data for tooltip
             originalData: {
-              guName: item.guName,
-              dongName: item.dongName,
-              dongCode: item.dongCode, // 행정동코드 추가
-              categorySales: categorySales,
-              middleCategory: selectedMiddleCategory,
-              coordinates: item.coordinates,
-              temperature: item.temperature,
-              discomfortIndex: item.discomfortIndex,
-              humidity: item.humidity
+              ...item, // 전체 원본 데이터 포함
+              총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+              businessType: selectedBusinessType, // 업종명 추가
+              middleCategory: selectedBusinessType,
+              displayMode: 'detailed'
             }
           })
         }
@@ -402,84 +426,124 @@ export function useLayerState(): UseLayerStateReturn {
           weight: sales,
           middleCategory: category,
           category: category,
-          // Minimize originalData
+          // Include full original data for tooltip
           originalData: {
-            guName: item.guName,
-            dongName: item.dongName,
-            dongCode: item.dongCode, // 행정동코드 추가
-            categorySales: sales,
+            ...item, // 전체 원본 데이터 포함
+            총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+            businessType: category, // 업종명 추가
             middleCategory: category,
-            coordinates: item.coordinates,
-            temperature: item.temperature,
-            discomfortIndex: item.discomfortIndex,
-            humidity: item.humidity
+            displayMode: 'detailed'
           }
         })
       })
     })
     
     return categoryPoints
-  }, [selectedMiddleCategory, selectedGu, selectedDong])
+  }, [selectedBusinessType, selectedGu, selectedDong])
 
   // Create simple data points with total sales per dong (행정동별 총 매출액) - OPTIMIZED
   const createSimpleDataPoints = useCallback((data: ClimateCardSalesData[]): HexagonLayerData[] => {
     const simplePoints: HexagonLayerData[] = []
     
-    // Group data by dong (행정동)
-    const dongGroups = new Map<string, { totalSales: number, item: ClimateCardSalesData }>()
+    console.log(`[createSimpleDataPoints] 입력 데이터: ${data.length}개`)
     
-    data.forEach(item => {
-      if (!item.salesByCategory) return
-      
-      const dongKey = `${item.guName}_${item.dongName}`
-      
-      // Calculate total sales for this dong
-      let totalSales = 0
-      Object.entries(item.salesByCategory).forEach(([category, sales]) => {
-        if (sales && sales > 0 && !category.startsWith('sub_')) {
-          totalSales += sales
-        }
-      })
-      
-      if (totalSales > 0) {
-        const existing = dongGroups.get(dongKey)
-        if (existing) {
-          existing.totalSales += totalSales
+    // Check if we're showing all Seoul data (no specific area selected)
+    const showAllSeoul = !selectedGu && !selectedDong
+    
+    if (showAllSeoul) {
+      // For all Seoul, create individual points for each dong without grouping
+      // This preserves all data points for accurate total calculation
+      data.forEach(item => {
+        if (!item.salesByCategory) return
+        
+        // Calculate sales based on selected business type
+        let totalSales = 0
+        
+        if (selectedBusinessType) {
+          // If business type is selected, use only that category's sales
+          const categorySales = item.salesByCategory[selectedBusinessType] || 0
+          totalSales = categorySales
         } else {
-          dongGroups.set(dongKey, { totalSales, item })
+          // If no business type selected, calculate total sales across all categories
+          Object.entries(item.salesByCategory).forEach(([category, sales]) => {
+            if (sales && sales > 0 && !category.startsWith('sub_')) {
+              totalSales += sales
+            }
+          })
         }
-      }
-    })
-    
-    // Create one point per dong with total sales
-    dongGroups.forEach(({ totalSales, item }) => {
-      simplePoints.push({
-        coordinates: item.coordinates,
-        weight: totalSales,
-        category: '전체',
-        // Minimize originalData to only essential fields
-        originalData: {
-          guName: item.guName,
-          dongName: item.dongName,
-          dongCode: item.dongCode, // 행정동코듍 추가
-          categorySales: totalSales,
-          displayMode: 'simple',
-          coordinates: item.coordinates,
-          temperature: item.temperature,
-          discomfortIndex: item.discomfortIndex,
-          humidity: item.humidity,
-          salesByCategory: item.salesByCategory // Keep for detailed mode switching
+        
+        if (totalSales > 0) {
+          simplePoints.push({
+            coordinates: item.coordinates,
+            weight: totalSales,
+            category: selectedBusinessType || '전체',
+            originalData: {
+              ...item, // 전체 원본 데이터 포함
+              총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+              displayMode: 'simple',
+              selectedBusinessType: selectedBusinessType // Add selected business type for reference
+            }
+          })
         }
       })
-    })
+    } else {
+      // For specific area selection, group by dong (existing logic)
+      const dongGroups = new Map<string, { totalSales: number, item: ClimateCardSalesData }>()
+      
+      data.forEach(item => {
+        if (!item.salesByCategory) return
+        
+        const dongKey = `${item.guName}_${item.dongName}`
+        
+        // Calculate sales based on selected business type
+        let totalSales = 0
+        
+        if (selectedBusinessType) {
+          // If business type is selected, use only that category's sales
+          const categorySales = item.salesByCategory[selectedBusinessType] || 0
+          totalSales = categorySales
+        } else {
+          // If no business type selected, calculate total sales across all categories
+          Object.entries(item.salesByCategory).forEach(([category, sales]) => {
+            if (sales && sales > 0 && !category.startsWith('sub_')) {
+              totalSales += sales
+            }
+          })
+        }
+        
+        if (totalSales > 0) {
+          const existing = dongGroups.get(dongKey)
+          if (existing) {
+            existing.totalSales += totalSales
+          } else {
+            dongGroups.set(dongKey, { totalSales, item })
+          }
+        }
+      })
+      
+      // Create one point per dong with sales data
+      dongGroups.forEach(({ totalSales, item }) => {
+        simplePoints.push({
+          coordinates: item.coordinates,
+          weight: totalSales,
+          category: selectedBusinessType || '전체',
+          originalData: {
+            ...item, // 전체 원본 데이터 포함
+            총매출액_업종: item.salesByCategory, // 업종별 매출 데이터 추가
+            displayMode: 'simple',
+            selectedBusinessType: selectedBusinessType // Add selected business type for reference
+          }
+        })
+      })
+    }
+    
+    console.log(`[createSimpleDataPoints] 생성된 포인트: ${simplePoints.length}개`)
+    const totalWeight = simplePoints.reduce((sum, p) => sum + p.weight, 0)
+    console.log(`[createSimpleDataPoints] 총 weight 합계: ${(totalWeight/100000000).toFixed(1)}억원`)
     
     return simplePoints
-  }, [])
+  }, [selectedBusinessType, selectedGu, selectedDong])
   
-  // Toggle display mode function
-  const toggleDisplayMode = useCallback(() => {
-    setDisplayMode(prev => prev === 'simple' ? 'detailed' : 'simple')
-  }, [])
 
   // 전체 데이터 로딩 함수
   const loadData = useCallback(async () => {
@@ -492,20 +556,49 @@ export function useLayerState(): UseLayerStateReturn {
       const data = await climateDataLoader.loadAllData(filterOptions)
       
       console.log(`[ClimateDataLoader] 데이터 로딩 완료: ${data.length}개 포인트`)
+      console.log(`[ClimateDataLoader] 현재 필터 - 날짜: ${filterOptions.date || '전체'}`)
+      
+      // 로드된 원본 데이터의 총 매출 확인
+      let rawTotalSales = 0
+      data.forEach(item => {
+        if (item.salesByCategory) {
+          Object.values(item.salesByCategory).forEach(sales => {
+            if (typeof sales === 'number' && sales > 0) {
+              rawTotalSales += sales
+            }
+          })
+        }
+      })
+      console.log(`[ClimateDataLoader] 원본 데이터 총 매출: ${(rawTotalSales/100000000).toFixed(1)}억원`)
       
       // Apply hierarchical filters
       const filteredData = applyHierarchicalFilters(data)
       
-      // Create data points based on display mode
-      const hexData = displayMode === 'simple' 
-        ? createSimpleDataPoints(filteredData)
-        : createCategoryDataPoints(filteredData)
+      // 필터링 후 데이터 검증
+      let filteredTotalSales = 0
+      filteredData.forEach(item => {
+        if (item.salesByCategory) {
+          Object.values(item.salesByCategory).forEach(sales => {
+            if (typeof sales === 'number' && sales > 0) {
+              filteredTotalSales += sales
+            }
+          })
+        }
+      })
+      console.log(`[ClimateDataLoader] 필터링 후 총 매출: ${(filteredTotalSales/100000000).toFixed(1)}억원`)
+      
+      // Create data points (always use simple mode now)
+      const hexData = createSimpleDataPoints(filteredData)
       
       setClimateData(data) // Keep original data
       setHexagonData(hexData) // Set filtered hexagon data
       
-      if (filteredData.length > 0) {
-        console.log(`[ClimateDataLoader] 필터링 후 데이터: ${filteredData.length}개 포인트`)
+      console.log(`[ClimateDataLoader] 필터링 후: climate=${filteredData.length}개, hexagon=${hexData.length}개`)
+      
+      // 샘플 데이터 확인
+      if (hexData.length > 0 && hexData[0].originalData) {
+        const sample = hexData[0].originalData
+        console.log(`[ClimateDataLoader] 샘플 데이터 - 날짜: ${sample.date || sample.기준일자}, 지역: ${sample.guName} ${sample.dongName}`)
       }
       
     } catch (error) {
@@ -516,12 +609,15 @@ export function useLayerState(): UseLayerStateReturn {
     } finally {
       setIsDataLoading(false)
     }
-  }, [filterOptions, applyHierarchicalFilters, displayMode, createSimpleDataPoints, createCategoryDataPoints])
+  }, [filterOptions, applyHierarchicalFilters, createSimpleDataPoints, createCategoryDataPoints])
   
   // 필터 업데이트 함수들
   const setSelectedDate = useCallback((date: string) => {
+    console.log(`[useCardSalesData] Date changed to: ${date}`)
     setSelectedDateState(date)
-    setFilterOptions(prev => ({ ...prev, date }))
+    // "전체"를 선택한 경우 빈 문자열로 처리하여 필터링 안함
+    const filterDate = date === '전체' ? '' : date
+    setFilterOptions(prev => ({ ...prev, date: filterDate }))
   }, [])
   
   const setSelectedHour = useCallback((hour: number) => {
@@ -531,106 +627,29 @@ export function useLayerState(): UseLayerStateReturn {
   
   const setColorMode = useCallback((mode: ColorMode) => {
     setColorModeState(mode)
-    // 색상 모드에 따라 colorScheme과 colorMode 업데이트
-    const schemeMap: Record<ColorMode, ColorScheme> = {
-      temperature: 'temperature' as ColorScheme,
-      temperatureGroup: 'temperature' as ColorScheme,
-      discomfort: 'discomfort' as ColorScheme,
-      alert: 'alert' as ColorScheme,
-      sales: 'oceanic' as ColorScheme,
-      humidity: 'oceanic' as ColorScheme // 습도는 oceanic 색상 사용
-    }
-    setColorScheme(schemeMap[mode])
-    // LayerConfig의 colorMode도 업데이트
+    // LayerConfig의 colorMode 업데이트
     setLayerConfig(prev => ({ ...prev, colorMode: mode as any }))
-  }, [setColorScheme])
+  }, [])
   
-  // Single useEffect for data loading and filtering - OPTIMIZED to prevent duplicate processing
+  // Load data when filter options change
   useEffect(() => {
-    // Initial load only when filterOptions change
-    if (!climateData) {
-      loadData()
-      return
-    }
+    loadData()
+  }, [filterOptions])
+  
+  // Re-filter and recreate hex data when selection or display mode changes
+  useEffect(() => {
+    if (!climateData) return
     
-    // Re-filter existing data when filters or display mode change
     const filteredData = applyHierarchicalFilters(climateData)
-    const hexData = displayMode === 'simple' 
-      ? createSimpleDataPoints(filteredData)
-      : createCategoryDataPoints(filteredData)
+    const hexData = createSimpleDataPoints(filteredData)
+    
     setHexagonData(hexData)
-  }, [selectedGu, selectedDong, selectedMiddleCategory, displayMode, filterOptions, climateData, applyHierarchicalFilters, createCategoryDataPoints, createSimpleDataPoints, loadData])
+    console.log(`[useCardSalesData] Hex data updated: ${hexData.length} points`)
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, climateData, applyHierarchicalFilters, createSimpleDataPoints])
   
-  // Grid Interpolation Hook
-  const {
-    gridData,
-    isProcessing: isGridProcessing,
-    error: gridError,
-    setEnabled: setGridInterpolationEnabled,
-    setDistributionMethod: setGridDistributionMethod,
-    setDistributionRadius: setGridDistributionRadius,
-    setSmoothing: setGridSmoothing,
-    reprocessData: reprocessGridData
-  } = useGridInterpolation(hexagonData, climateData, {
-    enabled: gridInterpolationEnabled && !dongBoundaryGradientEnabled, // Dong gradient와 상호 배타적
-    gridSize: 80,
-    distributionMethod: 'gaussian',
-    distributionRadius: 2500,  // Increased from 1000m to 2500m
-    enableSmoothing: true,
-    smoothingSigma: 1000      // Increased from 500m to 1000m
-  })
   
-  // Centroid Gradient Hook (NEW - Memory Efficient)
-  const {
-    gradientData: centroidGradientData,
-    isProcessing: isCentroidProcessing,
-    error: centroidGradientError,
-    setEnabled: setCentroidGradientEnabled,
-    setBoundaryHeight: setCentroidBoundaryHeight,
-    setInterpolationType: setCentroidInterpolationType,
-    reprocessData: reprocessCentroidGradient
-  } = useCentroidGradient(hexagonData, climateData, {
-    enabled: dongBoundaryGradientEnabled && useCentroidMethod,
-    boundaryHeight: dongBoundaryHeight,
-    interpolationType: dongInterpolationType as any,
-    gridSize: 80
-  })
-  
-  // Original Dong Boundary Gradient Hook (OLD - Memory Heavy)
-  const {
-    gradientData: dongGradientData,
-    isProcessing: isDongGradientProcessing,
-    error: dongGradientError,
-    setEnabled: setDongGradientEnabled,
-    setBoundaryHeight: setDongBoundaryHeightHook,
-    setInterpolationType: setDongInterpolationTypeHook,
-    reprocessData: reprocessDongGradient
-  } = useDongBoundaryGradient(hexagonData, climateData, {
-    enabled: dongBoundaryGradientEnabled && !useCentroidMethod,
-    boundaryHeight: dongBoundaryHeight,
-    interpolationType: dongInterpolationType,
-    gridSize: 80  // Optimized grid size for performance and quality balance
-  })
-  
-  // 데이터 우선순위: Centroid/Dong Gradient > Grid Interpolation > Original
-  const finalHexagonData = useMemo(() => {
-    // Use centroid method if enabled (memory efficient)
-    if (dongBoundaryGradientEnabled && useCentroidMethod && centroidGradientData) {
-      console.log('[CardSalesData] Using Centroid Gradient data (memory efficient):', centroidGradientData?.length, 'cells')
-      return centroidGradientData
-    }
-    // Fallback to original dong gradient
-    if (dongBoundaryGradientEnabled && !useCentroidMethod && dongGradientData) {
-      console.log('[CardSalesData] Using Dong Gradient data:', dongGradientData?.length, 'cells')
-      return dongGradientData
-    }
-    if (gridInterpolationEnabled && gridData) {
-      console.log('[CardSalesData] Using Grid Interpolation data:', gridData?.length, 'cells')
-      return gridData
-    }
-    console.log('[CardSalesData] Using original hexagon data:', hexagonData?.length, 'cells')
-    return hexagonData
-  }, [dongBoundaryGradientEnabled, useCentroidMethod, centroidGradientData, dongGradientData, gridInterpolationEnabled, gridData, hexagonData])
+  // Return hexagon data directly
+  const finalHexagonData = hexagonData
   
   return {
     // 레이어 설정 상태
@@ -639,64 +658,10 @@ export function useLayerState(): UseLayerStateReturn {
     // 데이터 상태
     hexagonData: finalHexagonData,
     climateData,
-    isDataLoading: isDataLoading || isGridProcessing || (useCentroidMethod ? isCentroidProcessing : isDongGradientProcessing),
-    dataError: dataError || gridError || (useCentroidMethod ? centroidGradientError : dongGradientError),
+    isDataLoading,
+    dataError,
     
-    // Grid 보간 상태
-    gridInterpolationEnabled,
-    setGridInterpolationEnabled: (enabled: boolean) => {
-      setGridEnabled(enabled)
-      setGridInterpolationEnabled(enabled)
-    },
-    gridDistributionMethod,
-    setGridDistributionMethod: (method: DistributionMethod) => {
-      setGridMethod(method)
-      setGridDistributionMethod(method)
-    },
-    gridDistributionRadius,
-    setGridDistributionRadius: (radius: number) => {
-      setGridRadius(radius)
-      setGridDistributionRadius(radius)
-    },
-    gridSmoothingSigma,
-    setGridSmoothingSigma: (sigma: number) => {
-      setGridSigma(sigma)
-      setGridSmoothing(true, sigma)
-    },
-    reprocessGridData,
-    isGridProcessing,
     
-    // Dong Boundary Gradient 상태
-    dongBoundaryGradientEnabled,
-    setDongBoundaryGradientEnabled: (enabled: boolean) => {
-      console.log('[CardSalesData] Setting Dong Boundary Gradient:', enabled)
-      setDongBoundaryGradientEnabled(enabled)
-      setDongGradientEnabled(enabled)
-      // Grid와 상호 배타적
-      if (enabled) {
-        console.log('[CardSalesData] Disabling Grid Interpolation (mutually exclusive)')
-        setGridEnabled(false)
-        setGridInterpolationEnabled(false)
-      }
-    },
-    dongBoundaryHeight,
-    setDongBoundaryHeight: (height: number) => {
-      setDongBoundaryHeight(height)
-      setDongBoundaryHeightHook(height)
-    },
-    dongInterpolationType,
-    setDongInterpolationType: (type: 'linear' | 'exponential' | 'logarithmic') => {
-      setDongInterpolationType(type)
-      setDongInterpolationTypeHook(type)
-    },
-    reprocessDongGradient: useCentroidMethod ? reprocessCentroidGradient : reprocessDongGradient,
-    isDongGradientProcessing: useCentroidMethod ? isCentroidProcessing : isDongGradientProcessing,
-    dongGradientError: useCentroidMethod ? centroidGradientError : dongGradientError,
-    
-    // 표시 모드
-    displayMode,
-    setDisplayMode,
-    toggleDisplayMode,
     
     // 필터 상태
     filterOptions,
@@ -706,17 +671,16 @@ export function useLayerState(): UseLayerStateReturn {
     
     // Hierarchical filter states
     selectedGu,
+    selectedGuCode,
     selectedDong,
-    selectedMiddleCategory,
+    selectedDongCode,
+    selectedBusinessType,
     selectedSubCategory,
     
     // 설정 업데이트 함수들
     setVisible,
-    setRadius,
-    setElevationScale,
     setCoverage,
     setUpperPercentile,
-    setColorScheme,
     
     // 애니메이션 설정 함수들
     setAnimationEnabled,
@@ -738,8 +702,10 @@ export function useLayerState(): UseLayerStateReturn {
     
     // Hierarchical filter functions
     setSelectedGu,
+    setSelectedGuCode,
     setSelectedDong,
-    setSelectedMiddleCategory,
+    setSelectedDongCode,
+    setSelectedBusinessType,
     setSelectedSubCategory,
     
     // 상호작용 상태
@@ -773,6 +739,19 @@ export function useLayerState(): UseLayerStateReturn {
     toggleRotation,
     updateBearing,
     onRotationInteractionStart,
-    onRotationInteractionEnd
+    onRotationInteractionEnd,
+    
+    // 시계열 애니메이션 상태
+    timelineAnimationEnabled,
+    isTimelinePlaying,
+    timelineSpeed,
+    currentMonthIndex,
+    monthlyDates,
+    
+    // 시계열 애니메이션 설정 함수들
+    setTimelineAnimationEnabled,
+    setIsTimelinePlaying,
+    setTimelineSpeed,
+    toggleTimelineAnimation,
   }
 }

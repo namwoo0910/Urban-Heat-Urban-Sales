@@ -20,7 +20,7 @@ const features = [
   {
     icon: "Infinity",
     title: "행정동",
-    description: "424개 행정동이 그려내는 서울의 진짜 모습은?",
+    description: "426개 행정동이 그려내는 서울의 진짜 모습은?",
   },
 ]
 
