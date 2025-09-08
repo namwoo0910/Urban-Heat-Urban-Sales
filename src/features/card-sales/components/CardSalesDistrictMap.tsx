@@ -1010,15 +1010,18 @@ export default function CardSalesDistrictMap() {
     // onHover and onClick removed - mesh layer is purely visual
   }, dongData3D?.features)
   
-  // 초기 카메라 애니메이션 효과 - 메쉬 로딩 완료 시 실행 (최소화된 버전)
+  // 초기 카메라 애니메이션 효과 - 페이지 로드 시 실행
   useEffect(() => {
-    if (!isMeshLoading && showMeshLayer && !hasPlayedInitialAnimation) {
+    // 페이지 로드 시 한 번만 실행 (메쉬 로딩 상태와 무관하게)
+    if (!hasPlayedInitialAnimation) {
       setHasPlayedInitialAnimation(true)
       
-      // 로딩 오버레이의 exit 애니메이션 완료 대기
+      // 약간의 지연 후 애니메이션 시작 (초기 렌더링 완료 대기)
       setTimeout(() => {
-        // 메쉬 opacity 바로 설정 (페이드인 없음)
-        setMeshOpacity(0.8)
+        // 메쉬가 활성화되어 있으면 opacity 설정
+        if (showMeshLayer) {
+          setMeshOpacity(0.8)
+        }
         
         // 초기 뷰 설정 - 한국 전역이 보이는 뷰
         setViewState({
@@ -1041,9 +1044,9 @@ export default function CardSalesDistrictMap() {
             transitionDuration: 3000  // 3초 동안 부드럽게 전환
           })
         }, 100)  // 한국 뷰를 잠시 보여준 후 이동
-      }, 600)  // 로딩 오버레이 exit 애니메이션 완료 대기
+      }, 800)  // 페이지 로드 후 애니메이션 시작까지 대기
     }
-  }, [isMeshLoading, showMeshLayer, hasPlayedInitialAnimation])
+  }, [hasPlayedInitialAnimation, showMeshLayer, setViewState])
   
   // 자동 회전 기능 제거 - 성능 최적화를 위해 비활성화
   

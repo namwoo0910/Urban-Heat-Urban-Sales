@@ -6,7 +6,8 @@ import { ChevronDown } from "lucide-react"
 import { 
   MapPin, 
   RefreshCw,
-  Loader2
+  Loader2,
+  BarChart3
 } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Label } from "@/src/shared/components/ui/label"
@@ -135,6 +136,8 @@ export default function UnifiedControls({
   onMeshColorChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
+  const [showDetailView, setShowDetailView] = useState(false)
+  const [isDetailAnimating, setIsDetailAnimating] = useState(false)
   const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('modern')
   // Removed: useIndividualColors state - always use theme colors
   
@@ -156,28 +159,104 @@ export default function UnifiedControls({
     }
   }, [themeAdjustments])
 
+  // Handle detail view transition (toggle between Polygon and Mesh)
+  const handleDetailViewClick = () => {
+    setIsDetailAnimating(true)
+    
+    if (!showDetailView) {
+      // Switch to Polygon Layer (Detail View)
+      setShowDetailView(true)
+      
+      setTimeout(() => {
+        // Activate 3D Polygon Layer
+        onIs3DModeChange?.(true)
+        // Deactivate Mesh Layer
+        if (showMeshLayer) {
+          onShowMeshLayerChange?.(false)
+        }
+      }, 200)
+    } else {
+      // Switch back to Mesh Layer
+      setShowDetailView(false)
+      
+      setTimeout(() => {
+        // Deactivate 3D Polygon Layer
+        onIs3DModeChange?.(false)
+        // Activate Mesh Layer
+        onShowMeshLayerChange?.(true)
+      }, 200)
+    }
+    
+    // Complete animation
+    setTimeout(() => {
+      setIsDetailAnimating(false)
+    }, 700)
+  }
+
   return (
     <div className={`fixed bottom-[380px] z-50 transition-all duration-300 left-4`}>
       <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[280px]' : 'w-auto'}`}>
-        {/* Clickable Header to expand/collapse */}
-        <button
-          onClick={() => setIsExpanded(!isExpanded)}
-          className="w-full flex items-center justify-between p-2 hover:bg-gray-900/50 transition-colors group"
-        >
-          <div className="flex items-center space-x-2">
-            <MapPin size={14} className="text-blue-400" />
-            <span className="font-bold text-sm text-gray-200">레이어 컨트롤</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            {isDataLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-            <motion.div
-              animate={{ rotate: isExpanded ? 180 : 0 }}
-              transition={{ duration: 0.2 }}
+        {/* Header with expand/collapse and detail view button */}
+        <div className="flex items-center">
+          {/* Expand/Collapse Button */}
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex-1 flex items-center justify-between p-2 hover:bg-gray-900/50 transition-colors group"
+          >
+            <div className="flex items-center space-x-2">
+              <MapPin size={14} className="text-blue-400" />
+              <span className="font-bold text-sm text-gray-200">레이어 컨트롤</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              {isDataLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+              <motion.div
+                animate={{ rotate: isExpanded ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+              >
+                <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-gray-300 transition-colors" />
+              </motion.div>
+            </div>
+          </button>
+          
+          {/* Detail View Toggle Button */}
+          <div className="relative group">
+            <motion.button
+              onClick={handleDetailViewClick}
+              className={`relative p-2 mx-1 rounded-lg transition-all duration-300 ${
+                showDetailView 
+                  ? 'bg-blue-500/30 border border-blue-500/50 shadow-[0_0_20px_rgba(59,130,246,0.5)]' 
+                  : 'bg-blue-500/20 hover:bg-blue-500/30 border border-blue-500/30'
+              }`}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              animate={isDetailAnimating ? {
+                boxShadow: [
+                  '0 0 20px rgba(59,130,246,0.5)',
+                  '0 0 40px rgba(59,130,246,0.8)',
+                  '0 0 20px rgba(59,130,246,0.5)',
+                ],
+              } : {}}
+              transition={{ duration: 0.5, repeat: isDetailAnimating ? Infinity : 0 }}
             >
-              <ChevronDown className="w-4 h-4 text-gray-500 group-hover:text-gray-300 transition-colors" />
-            </motion.div>
+              <BarChart3 size={16} className="text-blue-400" />
+              <span className="sr-only">{showDetailView ? '메쉬 뷰로 전환' : '데이터 상세보기'}</span>
+              {showDetailView && (
+                <motion.div
+                  className="absolute inset-0 rounded-lg bg-blue-500/20"
+                  initial={{ scale: 1 }}
+                  animate={{ scale: 1.5, opacity: 0 }}
+                  transition={{ duration: 0.5, repeat: Infinity }}
+                />
+              )}
+            </motion.button>
+            
+            {/* Tooltip */}
+            <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2 px-2 py-1 bg-gray-900 border border-gray-700 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10">
+              {showDetailView ? '메쉬 뷰로 전환' : '데이터 상세보기'}
+              <div className="absolute left-1/2 -translate-x-1/2 bottom-full w-0 h-0 border-l-4 border-r-4 border-b-4 border-transparent border-b-gray-700" />
+            </div>
           </div>
-        </button>
+        </div>
 
         {/* Collapsible Content */}
         <AnimatePresence initial={false}>
@@ -217,27 +296,58 @@ export default function UnifiedControls({
 
               <div className="p-2 space-y-3 max-h-96 overflow-y-auto">
 
-            {/* 3D Polygon Layer 토글 - moved to top */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label className="text-gray-200 text-xs font-semibold">3D Polygon Layer</Label>
-                <Switch
-                  checked={is3DMode}
-                  onCheckedChange={(checked) => {
-                    onIs3DModeChange?.(checked)
-                    // Turn off mesh layer when polygon layer is turned on
-                    if (checked && showMeshLayer) {
-                      onShowMeshLayerChange?.(false)
+            {/* 3D Polygon Layer 토글 - with slide up animation */}
+            <AnimatePresence>
+              {(showDetailView || is3DMode) && (
+                <motion.div
+                  className="space-y-2"
+                  initial={showDetailView ? { y: 20, opacity: 0, scale: 0.95 } : false}
+                  animate={{ 
+                    y: 0, 
+                    opacity: 1, 
+                    scale: 1,
+                    transition: {
+                      type: "spring",
+                      damping: 20,
+                      stiffness: 300,
+                      delay: showDetailView ? 0.2 : 0
                     }
                   }}
-                  className="scale-75"
-                  disabled={isDataLoading}
-                />
-              </div>
-              <p className="text-xs text-gray-400">
-                {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
-              </p>
-            </div>
+                  exit={{ y: 20, opacity: 0, scale: 0.95 }}
+                >
+                  <motion.div 
+                    className={`rounded-lg p-2 ${showDetailView && isDetailAnimating ? 'bg-blue-500/10 border border-blue-500/30' : ''}`}
+                    animate={showDetailView && isDetailAnimating ? {
+                      borderColor: ['rgba(59, 130, 246, 0.3)', 'rgba(59, 130, 246, 0.6)', 'rgba(59, 130, 246, 0.3)'],
+                    } : {}}
+                    transition={{ duration: 1, repeat: showDetailView && isDetailAnimating ? 2 : 0 }}
+                  >
+                    <div className="flex items-center justify-between">
+                      <Label className="text-gray-200 text-xs font-semibold">3D Polygon Layer</Label>
+                      <Switch
+                        checked={is3DMode}
+                        onCheckedChange={(checked) => {
+                          onIs3DModeChange?.(checked)
+                          // Turn off mesh layer when polygon layer is turned on
+                          if (checked && showMeshLayer) {
+                            onShowMeshLayerChange?.(false)
+                          }
+                          // Reset detail view if turning off
+                          if (!checked && showDetailView) {
+                            setShowDetailView(false)
+                          }
+                        }}
+                        className="scale-75"
+                        disabled={isDataLoading}
+                      />
+                    </div>
+                    <p className="text-xs text-gray-400">
+                      {is3DMode ? '행정구역이 입체적으로 표현됩니다' : '평면 지도로 표시됩니다'}
+                    </p>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             <Separator className="bg-gray-800/50" />
             
