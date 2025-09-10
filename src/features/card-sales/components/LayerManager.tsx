@@ -8,7 +8,7 @@ import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import { BUSINESS_TYPE_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/businessTypeColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
-import { createSeoulMeshLayers, createStaticSeoulMeshLayer, useStaticSeoulMeshLayer, type SeoulMeshLayerProps } from './SeoulMeshLayer'
+import { createStaticSeoulMeshLayer, useStaticSeoulMeshLayer, type SeoulMeshLayerProps } from './SeoulMeshLayer'
 
 // 기존 COLOR_RANGES를 premium-colors.ts로 이동했으므로 re-export
 export { COLOR_RANGES } from '@/src/features/card-sales/utils/premiumColors'

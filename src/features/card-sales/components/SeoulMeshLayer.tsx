@@ -5,6 +5,7 @@
 
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SolidPolygonLayer } from '@deck.gl/layers'
+import { COORDINATE_SYSTEM } from '@deck.gl/core'
 import { MaskExtension } from '@deck.gl/extensions'
 import { useMemo, useEffect, useState } from 'react'
 import { generateGridMesh, getHeightColor, type MeshGeometry, getUnifiedSeoulBoundary } from '../utils/meshGenerator'
@@ -91,18 +92,32 @@ export function createStaticSeoulMeshLayer(
     pickable = true,
     onHover,
     onClick,
-    color = '#00FFE1'  // Default cyan
+    color = '#00FFE1',  // Default cyan
+    salesHeightScale = 100000000  // Default to 100M (1억원) for normal height
   } = props
 
+  console.log(`[createStaticSeoulMeshLayer] Creating layer with salesHeightScale=${salesHeightScale}, visible=${visible}, wireframe=${wireframe}, color=${color}`)
+  
   if (!visible || !meshGeometry) {
+    console.log(`[createStaticSeoulMeshLayer] Not creating layer: visible=${visible}, meshGeometry=${!!meshGeometry}`)
     return null
   }
 
+  // Apply height scale to Z coordinates only
+  const scaledPositions = new Float32Array(meshGeometry.positions.length)
+  const heightScaleFactor = 100000000 / (salesHeightScale || 100000000)
+  
+  for (let i = 0; i < meshGeometry.positions.length; i += 3) {
+    scaledPositions[i] = meshGeometry.positions[i]       // X coordinate unchanged
+    scaledPositions[i + 1] = meshGeometry.positions[i + 1] // Y coordinate unchanged
+    scaledPositions[i + 2] = meshGeometry.positions[i + 2] * heightScaleFactor // Scale Z only
+  }
+  
   // Create mesh object with proper deck.gl format
   const meshObject: any = {
     attributes: {
       POSITION: {
-        value: meshGeometry.positions,
+        value: scaledPositions,  // Use scaled positions
         size: 3
       },
       NORMAL: {
@@ -129,14 +144,14 @@ export function createStaticSeoulMeshLayer(
   const centerX = meshGeometry.metadata?.center?.x || 126.974139
   const centerY = meshGeometry.metadata?.center?.y || 37.564876
   
-  // Create SimpleMeshLayer with static data
   const layerProps: any = {
     id: 'seoul-mesh-layer-static',
     data: [{ 
       position: [centerX, centerY, 0]  // Center position from mesh metadata
     }],
     mesh: meshObject,
-    sizeScale: 1,
+    sizeScale: 1,  // Keep original XY size, height is already scaled in positions
+    coordinateSystem: COORDINATE_SYSTEM.LNGLAT,  // Use geographic coordinates
     wireframe,
     getPosition: (d: any) => d.position,
     // GPU Optimization Parameters
@@ -183,6 +198,7 @@ export function createStaticSeoulMeshLayer(
     }
   }
 
+  console.log(`[createStaticSeoulMeshLayer] Layer created with heightScaleFactor=${heightScaleFactor}, mesh vertices=${meshGeometry.positions?.length / 3}, indices=${meshGeometry.indices?.length / 3}`)
   return new SimpleMeshLayer(layerProps)
 }
 
@@ -197,7 +213,7 @@ export async function createSeoulMeshLayerAsync(
   const {
     visible = true,
     wireframe = false,
-    resolution = 60,  // Increased default for better boundary accuracy
+    resolution = 120,  // Increased default for better boundary accuracy
     heightScale = 1,
     opacity = 0.8,
     pickable = true,
@@ -376,167 +392,23 @@ export async function createSeoulMeshLayerAsync(
   return new SimpleMeshLayer(layerProps)
 }
 
-/**
- * Synchronous version that uses dynamic generation only
- * For backward compatibility
- */
-export function createSeoulMeshLayer(
-  data: any[],
-  props: SeoulMeshLayerProps = {}
-): SimpleMeshLayer | null {
-  const {
-    visible = true,
-    wireframe = false,
-    resolution = 60,
-    heightScale = 1,
-    opacity = 0.8,
-    pickable = true,
-    onHover,
-    onClick,
-    useMask = false,
-    dongBoundaries,
-    dongSalesMap,
-    salesHeightScale
-  } = props
 
-  if (!visible || !data || data.length === 0) {
-    return null
-  }
 
-  // For synchronous version, always use dynamic generation
-  const meshGeometry = generateGridMesh(data, {
-    resolution,
-    heightScale,
-    wireframe,
-    smoothing: true,
-    dongBoundaries,
-    dongSalesMap,
-    salesHeightScale
-  })
 
-  if (!meshGeometry || 
-      !meshGeometry.positions || 
-      meshGeometry.positions.length === 0 ||
-      !meshGeometry.normals ||
-      !meshGeometry.texCoords) {
-    console.error('[SeoulMeshLayer] Invalid mesh geometry:', meshGeometry)
-    return null
-  }
-  
-  // Calculate center from data bounds
-  let centerX = 126.974139
-  let centerY = 37.564876
-  
-  if (data && data.length > 0) {
-    let minX = Infinity, minY = Infinity
-    let maxX = -Infinity, maxY = -Infinity
-    
-    data.forEach(feature => {
-      const bbox = turf.bbox(feature)
-      minX = Math.min(minX, bbox[0])
-      minY = Math.min(minY, bbox[1])
-      maxX = Math.max(maxX, bbox[2])
-      maxY = Math.max(maxY, bbox[3])
-    })
-    
-    centerX = (minX + maxX) / 2
-    centerY = (minY + maxY) / 2
-  }
-
-  const meshObject: any = {
-    attributes: {
-      POSITION: {
-        value: meshGeometry.positions,
-        size: 3
-      },
-      NORMAL: {
-        value: meshGeometry.normals,
-        size: 3
-      },
-      TEXCOORD_0: {
-        value: meshGeometry.texCoords,
-        size: 2
-      }
-    },
-    indices: meshGeometry.indices
-  }
-  
-  if (meshGeometry.colors) {
-    meshObject.attributes.COLOR_0 = {
-      value: meshGeometry.colors,
-      size: 4
-    }
-  }
-
-  const layerProps: any = {
-    id: 'seoul-mesh-layer',
-    data: [{ 
-      position: [centerX, centerY, 0]
-    }],
-    mesh: meshObject,
-    sizeScale: 1,
-    wireframe,
-    // GPU Optimization Parameters
-    parameters: {
-      depthTest: true,
-      depthFunc: 0x0203, // GL.LEQUAL
-      blend: wireframe,
-      blendFunc: wireframe ? [0x0302, 0x0303] : undefined,
-      cullFace: 0x0405, // GL.BACK
-      cullFaceMode: !wireframe,
-      polygonOffsetFill: true
-    },
-    getPosition: (d: any) => d.position,
-    // Always use getColor to allow custom colors
-    getColor: (() => {
-      // Parse hex color to RGB
-      const hexToRgb = (hex: string) => {
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-        return result ? [
-          parseInt(result[1], 16),
-          parseInt(result[2], 16),
-          parseInt(result[3], 16),
-          255
-        ] : [0, 255, 200, 255]  // Fallback to default cyan
-      }
-      const customColor = props.color || '#00FFE1'
-      return hexToRgb(customColor)
-    }),
-    // Disable vertex colors to allow getColor to work
-    vertexColors: false,
-    material: {
-      ambient: wireframe ? 0.6 : 0.8,
-      diffuse: wireframe ? 0.9 : 1.0,
-      shininess: wireframe ? 80 : 48,
-      specularColor: wireframe ? [0, 255, 200] : [100, 200, 255]
-    },
-    pickable,
-    autoHighlight: true,
-    highlightColor: [255, 255, 255, 100],
-    onHover,
-    onClick,
-    opacity: wireframe ? opacity : 1.0,
-    updateTriggers: {
-      getColor: [props.color, wireframe],
-      mesh: [resolution, heightScale, wireframe]
-    }
-  }
-
-  if (useMask) {
-    layerProps.extensions = [new MaskExtension()]
-    layerProps.maskId = 'seoul-boundary-mask'
-  }
-
-  return new SimpleMeshLayer(layerProps)
-}
 
 /**
- * Create both mesh and mask layers for Seoul visualization
+ * React hook for Seoul mesh layers with mask support
+ * DEPRECATED - Use usePreGeneratedSeoulMeshLayer instead
  */
-export function createSeoulMeshLayers(
+export function useSeoulMeshLayers(
   data: any[],
   props: SeoulMeshLayerProps = {}
 ): Array<SimpleMeshLayer | SolidPolygonLayer> {
+  console.warn('[useSeoulMeshLayers] DEPRECATED: Use usePreGeneratedSeoulMeshLayer instead')
+  
+  // Fallback implementation using the new hook
+  const { layer } = usePreGeneratedSeoulMeshLayer(props, data)
+  
   const layers: Array<SimpleMeshLayer | SolidPolygonLayer> = []
   
   // Create mask layer if masking is explicitly enabled
@@ -547,66 +419,12 @@ export function createSeoulMeshLayers(
     }
   }
   
-  // Create mesh layer
-  const meshLayer = createSeoulMeshLayer(data, props)
-  if (meshLayer) {
-    layers.push(meshLayer)
+  // Add the mesh layer if available
+  if (layer) {
+    layers.push(layer)
   }
+  
   return layers
-}
-
-/**
- * React hook for Seoul mesh layer with optimized memoization
- */
-export function useSeoulMeshLayer(
-  data: any[],
-  props: SeoulMeshLayerProps = {}
-): SimpleMeshLayer | null {
-  // Memoize the data signature to avoid unnecessary regeneration
-  const dataSignature = useMemo(() => {
-    if (!data || data.length === 0) return null
-    return `${data.length}_${data[0]?.properties?.ADM_DR_CD || ''}`
-  }, [data])
-  
-  return useMemo(() => {
-    return createSeoulMeshLayer(data, props)
-  }, [
-    dataSignature,  // Use signature instead of full data array
-    props.visible,
-    props.wireframe,
-    props.resolution,
-    props.heightScale,
-    props.opacity,
-    props.pickable,
-    props.useMask
-  ])
-}
-
-/**
- * React hook for Seoul mesh layers with mask support
- */
-export function useSeoulMeshLayers(
-  data: any[],
-  props: SeoulMeshLayerProps = {}
-): Array<SimpleMeshLayer | SolidPolygonLayer> {
-  // Memoize the data signature to avoid unnecessary regeneration
-  const dataSignature = useMemo(() => {
-    if (!data || data.length === 0) return null
-    return `${data.length}_${data[0]?.properties?.ADM_DR_CD || ''}`
-  }, [data])
-  
-  return useMemo(() => {
-    return createSeoulMeshLayers(data, props)
-  }, [
-    dataSignature,  // Use signature instead of full data array
-    props.visible,
-    props.wireframe,
-    props.resolution,
-    props.heightScale,
-    props.opacity,
-    props.pickable,
-    props.useMask
-  ])
 }
 
 /**
@@ -620,7 +438,7 @@ export function usePreGeneratedSeoulMeshLayer(
   districtData?: any[]
 ): { layer: SimpleMeshLayer | null; isLoading: boolean } {
   const {
-    resolution = 60,
+    resolution = 120,
     visible = true,
     wireframe = false,
     opacity = 0.8,
@@ -634,22 +452,10 @@ export function usePreGeneratedSeoulMeshLayer(
     animatedOpacity
   } = props
 
-  // Import optimized loader components
-  const { getBinaryMeshLoader, MESH_RESOLUTIONS } = require('../utils/binaryMeshLoader')
-  
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [loadedResolution, setLoadedResolution] = useState<number | null>(null)
-
-  // Map resolution to MESH_RESOLUTIONS
-  const getMeshResolution = (res: number) => {
-    if (res <= 30) return MESH_RESOLUTIONS.ULTRA_LOW
-    if (res <= 60) return MESH_RESOLUTIONS.LOW
-    if (res <= 90) return MESH_RESOLUTIONS.MEDIUM
-    if (res <= 120) return MESH_RESOLUTIONS.HIGH
-    return MESH_RESOLUTIONS.ULTRA_HIGH
-  }
 
   // Load pre-generated mesh data when resolution changes
   useEffect(() => {
@@ -659,73 +465,22 @@ export function usePreGeneratedSeoulMeshLayer(
       try {
         setLoading(true)
         
-        // If sales data is provided, always use dynamic generation for accurate heights
-        if (dongSalesMap && dongSalesMap.size > 0) {
-          console.log(`[usePreGeneratedSeoulMeshLayer] Using dynamic generation with sales data (${dongSalesMap.size} dongs)`)
-          if (districtData && districtData.length > 0) {
-            // Add artificial delay to show loading animation
-            // This ensures users see the beautiful loading screen
-            await new Promise(resolve => setTimeout(resolve, 1500))
-            
-            const dynamicMesh = generateGridMesh(districtData, {
-              resolution,
-              heightScale: 1,
-              wireframe,
-              smoothing: true,
-              dongBoundaries: dongBoundaries || districtData,
-              dongSalesMap,
-              salesHeightScale
-            })
-            if (!cancelled) {
-              setMeshData(dynamicMesh)
-              setLoadedResolution(resolution)
-              setError(null)
-            }
-            return
-          }
-        }
+        // Always use binary file loading - no dynamic generation
+        const nearestResolution = getNearestAvailableResolution(resolution)
+        console.log(`[usePreGeneratedSeoulMeshLayer] Loading binary mesh for resolution ${nearestResolution}`)
         
-        // Use optimized binary loader for pre-generated meshes
-        const loader = getBinaryMeshLoader({
-          useBinary: true,
-          useCompression: true,
-          useWorker: true,
-          progressiveLoading: true,
-          cacheEnabled: true
-        })
-        
-        const targetResolution = getMeshResolution(resolution)
-        console.log(`[usePreGeneratedSeoulMeshLayer] Using optimized loader for resolution ${targetResolution}`)
-        
-        // Load with progressive LOD for instant display
-        const data = await loader.loadProgressive(targetResolution)
+        const data = await loadStaticSeoulMesh(nearestResolution)
         
         if (!cancelled) {
           setMeshData(data)
-          setLoadedResolution(resolution)
+          setLoadedResolution(nearestResolution)
           setError(null)
         }
         
       } catch (err) {
         if (!cancelled) {
-          console.error('[usePreGeneratedSeoulMeshLayer] Failed to load mesh:', err)
+          console.error('[usePreGeneratedSeoulMeshLayer] Failed to load binary mesh:', err)
           setError(err as Error)
-          // Fall back to dynamic generation if district data is available
-          if (districtData && districtData.length > 0) {
-            console.log('[usePreGeneratedSeoulMeshLayer] Falling back to dynamic generation')
-            const dynamicMesh = generateGridMesh(districtData, {
-              resolution,
-              heightScale: 1,
-              wireframe,
-              smoothing: true,
-              dongBoundaries: dongBoundaries || districtData,
-              dongSalesMap,
-              salesHeightScale
-            })
-            setMeshData(dynamicMesh)
-            setLoadedResolution(resolution)
-            setError(null)
-          }
         }
       } finally {
         if (!cancelled) {
@@ -739,14 +494,16 @@ export function usePreGeneratedSeoulMeshLayer(
     return () => {
       cancelled = true
     }
-  }, [resolution, wireframe, districtData, dongBoundaries, dongSalesMap, salesHeightScale])
+  }, [resolution]) // Only resolution matters for binary loading
 
   // Create layer from loaded data
   const layer = useMemo(() => {
     if (!meshData || loading || !visible) {
+      console.log(`[usePreGeneratedSeoulMeshLayer] Not creating layer: meshData=${!!meshData}, loading=${loading}, visible=${visible}`)
       return null
     }
 
+    console.log(`[usePreGeneratedSeoulMeshLayer] Creating layer with resolution ${loadedResolution}, visible=${visible}, wireframe=${wireframe}`)
     return createStaticSeoulMeshLayer(meshData, {
       visible,
       wireframe,
@@ -754,9 +511,10 @@ export function usePreGeneratedSeoulMeshLayer(
       pickable,
       onHover,
       onClick,
-      color
+      color,
+      salesHeightScale  // Pass the height scale parameter
     })
-  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color])
+  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color, salesHeightScale])
   
   // Return both layer and loading state
   return { layer, isLoading: loading }
@@ -767,23 +525,12 @@ export function usePreGeneratedSeoulMeshLayer(
  * Used by AnimatedMeshLayer for GPU-based vertex animations
  */
 export function useMeshGeometry(
-  resolution: number = 30,
+  resolution: number = 120,
   districtData?: any[]
 ): { meshData: MeshGeometry | null; loading: boolean; error: Error | null } {
-  const { getBinaryMeshLoader, MESH_RESOLUTIONS } = require('../utils/binaryMeshLoader')
-  
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-
-  // Map resolution to MESH_RESOLUTIONS
-  const getMeshResolution = (res: number) => {
-    if (res <= 30) return MESH_RESOLUTIONS.ULTRA_LOW
-    if (res <= 60) return MESH_RESOLUTIONS.LOW
-    if (res <= 90) return MESH_RESOLUTIONS.MEDIUM
-    if (res <= 120) return MESH_RESOLUTIONS.HIGH
-    return MESH_RESOLUTIONS.ULTRA_HIGH
-  }
 
   useEffect(() => {
     let cancelled = false
@@ -792,19 +539,11 @@ export function useMeshGeometry(
       try {
         setLoading(true)
         
-        // Try to load pre-generated mesh first
-        const loader = getBinaryMeshLoader({
-          useBinary: true,
-          useCompression: true,
-          useWorker: true,
-          progressiveLoading: true,
-          cacheEnabled: true
-        })
+        // Always use binary file loading
+        const nearestResolution = getNearestAvailableResolution(resolution)
+        console.log(`[useMeshGeometry] Loading binary mesh at resolution ${nearestResolution}`)
         
-        const targetResolution = getMeshResolution(resolution)
-        console.log(`[useMeshGeometry] Loading mesh at resolution ${targetResolution}`)
-        
-        const data = await loader.loadProgressive(targetResolution)
+        const data = await loadStaticSeoulMesh(nearestResolution)
         
         if (!cancelled) {
           setMeshData(data)
@@ -813,22 +552,8 @@ export function useMeshGeometry(
         
       } catch (err) {
         if (!cancelled) {
-          console.error('[useMeshGeometry] Failed to load mesh:', err)
+          console.error('[useMeshGeometry] Failed to load binary mesh:', err)
           setError(err as Error)
-          
-          // Fall back to dynamic generation if district data is available
-          if (districtData && districtData.length > 0) {
-            console.log('[useMeshGeometry] Falling back to dynamic generation')
-            const dynamicMesh = generateGridMesh(districtData, {
-              resolution,
-              heightScale: 1,
-              wireframe: false,
-              smoothing: true,
-              dongBoundaries: districtData
-            })
-            setMeshData(dynamicMesh)
-            setError(null)
-          }
         }
       } finally {
         if (!cancelled) {
@@ -842,7 +567,7 @@ export function useMeshGeometry(
     return () => {
       cancelled = true
     }
-  }, [resolution, districtData])
+  }, [resolution]) // Only resolution matters for binary loading
 
   return { meshData, loading, error }
 }

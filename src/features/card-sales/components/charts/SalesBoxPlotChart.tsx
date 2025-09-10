@@ -7,17 +7,20 @@ import {
   XAxis, 
   YAxis, 
   CartesianGrid, 
-  Tooltip, 
   Legend, 
   ResponsiveContainer,
   ErrorBar,
   Scatter,
-  Cell
+  Cell,
+  Line,
+  Tooltip
 } from '@/src/shared/components/ui/chart'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/src/shared/components/ui/select'
 import { 
   loadNormalizedBoxPlotData, 
-  type BoxPlotDataPoint
+  loadDongBoxPlotData,
+  type BoxPlotDataPoint,
+  type DongBoxPlotDataPoint,
+  type BoxPlotStats
 } from '../../data/boxplotData'
 import { 
   formatSalesAmount,
@@ -157,56 +160,175 @@ const CustomBoxPlot = (props: any) => {
   )
 }
 
-// 커스텀 툴팁 컴포넌트
-const CustomWeatherTooltip = ({ active, payload, label }: any) => {
-  if (!active || !payload || !payload[0]) return null
-  
-  const data = payload[0].payload as WeatherGroupBoxPlotData
-  
-  // 온도 그룹별 아이콘
-  const getIcon = (group: string) => {
-    switch(group) {
-      case '한파': return '❄️'
-      case '온화': return '🌤️'
-      case '폭염': return '🔥'
-      default: return '🌡️'
+// 박스플롯 바 전용 동적 툴팁 컴포넌트
+const createBoxPlotTooltip = (processedData: any[]) => {
+  return ({ active, payload, label }: any) => {
+    if (!active || !payload || payload.length === 0) return null
+    
+    // 모든 날씨의 중앙값 가져오기
+    const 한파Data = processedData.find(d => d.temperatureGroup === '한파')
+    const 온화Data = processedData.find(d => d.temperatureGroup === '온화')
+    const 폭염Data = processedData.find(d => d.temperatureGroup === '폭염')
+    
+    const 한파 = 한파Data?.median || 0
+    const 온화 = 온화Data?.median || 100
+    const 폭염 = 폭염Data?.median || 0
+    
+    // 호버된 그룹에 따라 다른 비교 기준 적용
+    let title = ''
+    let comparisons = []
+    
+    if (label === '한파') {
+      title = '한파 기준'
+      const 온화차이 = 한파 !== 0 ? ((한파 - 온화) / 한파 * 100).toFixed(1) : '0'
+      const 폭염차이 = 한파 !== 0 ? ((한파 - 폭염) / 한파 * 100).toFixed(1) : '0'
+      comparisons = [
+        { icon: '🌡️', name: '온화', diff: 온화차이 },
+        { icon: '🔥', name: '폭염', diff: 폭염차이 }
+      ]
+    } else if (label === '온화') {
+      title = '온화 기준'
+      const 한파차이 = 온화 !== 0 ? ((온화 - 한파) / 온화 * 100).toFixed(1) : '0'
+      const 폭염차이 = 온화 !== 0 ? ((온화 - 폭염) / 온화 * 100).toFixed(1) : '0'
+      comparisons = [
+        { icon: '❄️', name: '한파', diff: 한파차이 },
+        { icon: '🔥', name: '폭염', diff: 폭염차이 }
+      ]
+    } else if (label === '폭염') {
+      title = '폭염 기준'
+      const 한파차이 = 폭염 !== 0 ? ((폭염 - 한파) / 폭염 * 100).toFixed(1) : '0'
+      const 온화차이 = 폭염 !== 0 ? ((폭염 - 온화) / 폭염 * 100).toFixed(1) : '0'
+      comparisons = [
+        { icon: '❄️', name: '한파', diff: 한파차이 },
+        { icon: '🌡️', name: '온화', diff: 온화차이 }
+      ]
+    } else {
+      return null
+    }
+    
+    return (
+      <div className="rounded-lg border border-gray-800/50 bg-black/90 backdrop-blur-md p-2 shadow-lg">
+        <div className="text-xs text-gray-400 font-semibold">{title}</div>
+        <div className="text-xs text-gray-400 space-y-0.5 mt-1">
+          {comparisons.map((comp, idx) => (
+            <div key={idx} className="flex items-center gap-2">
+              <span>{comp.icon} {comp.name}:</span>
+              <span className={parseFloat(comp.diff) > 0 ? 'text-green-500' : 'text-red-500'}>
+                {parseFloat(comp.diff) > 0 ? '+' : ''}{comp.diff}%
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
+}
+
+// 중앙값 연결선 전용 툴팁 컴포넌트 (processedData를 props로 받음)
+const createMedianLineTooltip = (processedData: any[]) => {
+  return ({ active, payload }: any) => {
+    if (!active || !payload || payload.length === 0) return null
+    
+    // 모든 날씨의 중앙값 가져오기
+    const 한파Data = processedData.find(d => d.temperatureGroup === '한파')
+    const 온화Data = processedData.find(d => d.temperatureGroup === '온화')
+    const 폭염Data = processedData.find(d => d.temperatureGroup === '폭염')
+    
+    if (!온화Data) return null
+    
+    const 한파 = 한파Data?.median || 0
+    const 온화 = 온화Data.median || 100
+    const 폭염 = 폭염Data?.median || 0
+    
+    // 온화 대비 차이 계산
+    const 한파차이 = ((한파 - 온화) / 온화 * 100).toFixed(1)
+    const 폭염차이 = ((폭염 - 온화) / 온화 * 100).toFixed(1)
+    
+    return (
+      <div className="rounded-lg border border-gray-800/50 bg-black/90 backdrop-blur-md p-2 shadow-lg">
+        <div className="text-xs text-gray-400 font-semibold">온화 대비 차이</div>
+        <div className="text-xs text-gray-400 space-y-0.5 mt-1">
+          <div className="flex items-center gap-2">
+            <span>❄️ 한파:</span>
+            <span className={parseFloat(한파차이) > 0 ? 'text-green-500' : 'text-red-500'}>
+              {parseFloat(한파차이) > 0 ? '+' : ''}{한파차이}%
+            </span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span>🔥 폭염:</span>
+            <span className={parseFloat(폭염차이) > 0 ? 'text-green-500' : 'text-red-500'}>
+              {parseFloat(폭염차이) > 0 ? '+' : ''}{폭염차이}%
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+}
+
+interface SalesBoxPlotChartProps {
+  selectedBusinessType?: string | null
+  selectedGuCode?: number | null
+  selectedDongCode?: number | null
+}
+
+// Helper function to properly aggregate boxplot statistics
+function aggregateBoxPlotStats(statsArray: BoxPlotStats[]): BoxPlotStats {
+  if (statsArray.length === 0) {
+    return {
+      min: 0, Q1: 0, median: 0, Q3: 0, max: 0, 
+      mean: 0, lowerWhisker: 0, upperWhisker: 0
     }
   }
   
-  return (
-    <div className="rounded-lg border bg-background p-3 shadow-lg">
-      <p className="font-semibold mb-2 flex items-center gap-2">
-        <span>{getIcon(label)}</span>
-        <span>{label}</span>
-      </p>
-      
-      <div className="text-xs text-muted-foreground space-y-1">
-        <div>최소값: {data.min.toFixed(1)}%</div>
-        <div>Q1: {data.Q1.toFixed(1)}%</div>
-        <div className="font-semibold">중앙값: {data.median.toFixed(1)}%</div>
-        <div>Q3: {data.Q3.toFixed(1)}%</div>
-        <div>최대값: {data.max.toFixed(1)}%</div>
-        <div className="border-t pt-1 mt-1">
-          <div>평균: {data.mean.toFixed(1)}%</div>
-          <div>하한 (1.5*IQR): {data.lowerWhisker.toFixed(1)}%</div>
-          <div>상한 (1.5*IQR): {data.upperWhisker.toFixed(1)}%</div>
-        </div>
-      </div>
-    </div>
-  )
+  // Calculate weighted averages for each statistic
+  const avgMedian = statsArray.reduce((sum, s) => sum + s.median, 0) / statsArray.length
+  const avgMean = statsArray.reduce((sum, s) => sum + s.mean, 0) / statsArray.length
+  const avgQ1 = statsArray.reduce((sum, s) => sum + s.Q1, 0) / statsArray.length
+  const avgQ3 = statsArray.reduce((sum, s) => sum + s.Q3, 0) / statsArray.length
+  
+  // For min/max, take the actual extremes
+  const actualMin = Math.min(...statsArray.map(s => s.min))
+  const actualMax = Math.max(...statsArray.map(s => s.max))
+  
+  // Average the whiskers (they're already calculated properly in the source data)
+  const avgLowerWhisker = statsArray.reduce((sum, s) => sum + s.lowerWhisker, 0) / statsArray.length
+  const avgUpperWhisker = statsArray.reduce((sum, s) => sum + s.upperWhisker, 0) / statsArray.length
+  
+  return {
+    min: actualMin,
+    Q1: avgQ1,
+    median: avgMedian,
+    Q3: avgQ3,
+    max: actualMax,
+    mean: avgMean,
+    lowerWhisker: avgLowerWhisker,
+    upperWhisker: avgUpperWhisker
+  }
 }
 
-export function SalesBoxPlotChart() {
+export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, selectedDongCode }: SalesBoxPlotChartProps) {
   const [rawData, setRawData] = useState<BoxPlotDataPoint[]>([])
+  const [dongData, setDongData] = useState<DongBoxPlotDataPoint[]>([])
   const [loading, setLoading] = useState(true)
-  const [selectedCategory, setSelectedCategory] = useState<string>('전체')
   const [categoryList, setCategoryList] = useState<string[]>([])
+  const [hoveredGroup, setHoveredGroup] = useState<string | null>(null)
+  
+  // 행정동이 선택되었는지 확인
+  const isDongMode = selectedDongCode !== null && selectedDongCode !== undefined
+  
+  // 자치구만 선택되었는지 확인 (행정동은 선택 안됨)
+  const isGuMode = selectedGuCode !== null && selectedGuCode !== undefined && !isDongMode
+  
+  // 외부에서 전달된 업종 또는 기본값 '전체' 사용
+  const activeCategory = selectedBusinessType || '전체'
   
   // 데이터 로드 (정규화된 데이터 사용)
   useEffect(() => {
     const loadData = async () => {
       setLoading(true)
       try {
+        // 업종별 데이터 로드
         const loadedData = await loadNormalizedBoxPlotData()
         console.log('[BoxPlot] Normalized data loaded:', loadedData.length, 'categories')
         setRawData(loadedData)
@@ -214,9 +336,15 @@ export function SalesBoxPlotChart() {
         // 업종 리스트 생성
         const categories = getAllCategoryNames(loadedData)
         setCategoryList(['전체', ...categories])
+        
+        // 행정동별 데이터 로드
+        const loadedDongData = await loadDongBoxPlotData()
+        console.log('[BoxPlot] Dong data loaded:', loadedDongData.length, 'dongs')
+        setDongData(loadedDongData)
       } catch (error) {
-        console.error('[BoxPlot] Failed to load normalized data:', error)
+        console.error('[BoxPlot] Failed to load data:', error)
         setRawData([])
+        setDongData([])
       } finally {
         setLoading(false)
       }
@@ -225,25 +353,198 @@ export function SalesBoxPlotChart() {
     loadData()
   }, [])
   
-  // 선택된 업종에 따라 데이터 처리
+  // 선택된 업종 또는 행정동에 따라 데이터 처리
   const processedData = useMemo(() => {
+    // 행정동과 업종이 모두 선택된 경우
+    if (isDongMode && dongData.length > 0 && activeCategory !== '전체') {
+      const selectedDongBusiness = dongData.find(
+        d => d.dongCode === selectedDongCode && d.businessType === activeCategory
+      )
+      if (selectedDongBusiness) {
+        console.log('[BoxPlot] Selected dong-business data:', selectedDongBusiness.dongName, selectedDongBusiness.businessType)
+        // 특정 동-업종 조합 데이터를 WeatherGroupBoxPlotData 형식으로 변환
+        return [
+          {
+            temperatureGroup: '한파',
+            ...selectedDongBusiness.cold,
+            error: [
+              selectedDongBusiness.cold.median - selectedDongBusiness.cold.lowerWhisker,
+              selectedDongBusiness.cold.upperWhisker - selectedDongBusiness.cold.median
+            ]
+          },
+          {
+            temperatureGroup: '온화',
+            ...selectedDongBusiness.mild,
+            error: [
+              selectedDongBusiness.mild.median - selectedDongBusiness.mild.lowerWhisker,
+              selectedDongBusiness.mild.upperWhisker - selectedDongBusiness.mild.median
+            ]
+          },
+          {
+            temperatureGroup: '폭염',
+            ...selectedDongBusiness.hot,
+            error: [
+              selectedDongBusiness.hot.median - selectedDongBusiness.hot.lowerWhisker,
+              selectedDongBusiness.hot.upperWhisker - selectedDongBusiness.hot.median
+            ]
+          }
+        ]
+      }
+    }
+    
+    // 행정동만 선택된 경우 (업종 전체)
+    if (isDongMode && dongData.length > 0 && activeCategory === '전체') {
+      // 해당 동의 모든 업종 데이터를 집계
+      const dongBusinessData = dongData.filter(d => d.dongCode === selectedDongCode)
+      if (dongBusinessData.length > 0) {
+        console.log('[BoxPlot] Aggregating dong data for all business types:', dongBusinessData.length, 'business types')
+        
+        // 각 날씨별로 모든 업종의 전체 통계 데이터를 집계
+        const coldStats = dongBusinessData.map(d => d.cold)
+        const mildStats = dongBusinessData.map(d => d.mild)
+        const hotStats = dongBusinessData.map(d => d.hot)
+        
+        const aggregatedCold = aggregateBoxPlotStats(coldStats)
+        const aggregatedMild = aggregateBoxPlotStats(mildStats)
+        const aggregatedHot = aggregateBoxPlotStats(hotStats)
+        
+        return [
+          {
+            temperatureGroup: '한파',
+            ...aggregatedCold,
+            error: [
+              aggregatedCold.median - aggregatedCold.lowerWhisker,
+              aggregatedCold.upperWhisker - aggregatedCold.median
+            ]
+          },
+          {
+            temperatureGroup: '온화',
+            ...aggregatedMild,
+            error: [
+              aggregatedMild.median - aggregatedMild.lowerWhisker,
+              aggregatedMild.upperWhisker - aggregatedMild.median
+            ]
+          },
+          {
+            temperatureGroup: '폭염',
+            ...aggregatedHot,
+            error: [
+              aggregatedHot.median - aggregatedHot.lowerWhisker,
+              aggregatedHot.upperWhisker - aggregatedHot.median
+            ]
+          }
+        ]
+      }
+    }
+    
+    // 자치구와 업종이 모두 선택된 경우
+    if (isGuMode && dongData.length > 0 && activeCategory !== '전체') {
+      const guDongBusinessData = dongData.filter(
+        d => d.guCode === selectedGuCode && d.businessType === activeCategory
+      )
+      if (guDongBusinessData.length > 0) {
+        console.log('[BoxPlot] Aggregating gu-business data:', guDongBusinessData.length, 'dongs')
+        
+        // 해당 구의 모든 동에서 특정 업종의 전체 통계 데이터를 집계
+        const coldStats = guDongBusinessData.map(d => d.cold)
+        const mildStats = guDongBusinessData.map(d => d.mild)
+        const hotStats = guDongBusinessData.map(d => d.hot)
+        
+        const aggregatedCold = aggregateBoxPlotStats(coldStats)
+        const aggregatedMild = aggregateBoxPlotStats(mildStats)
+        const aggregatedHot = aggregateBoxPlotStats(hotStats)
+        
+        return [
+          {
+            temperatureGroup: '한파',
+            ...aggregatedCold,
+            error: [
+              aggregatedCold.median - aggregatedCold.lowerWhisker,
+              aggregatedCold.upperWhisker - aggregatedCold.median
+            ]
+          },
+          {
+            temperatureGroup: '온화',
+            ...aggregatedMild,
+            error: [
+              aggregatedMild.median - aggregatedMild.lowerWhisker,
+              aggregatedMild.upperWhisker - aggregatedMild.median
+            ]
+          },
+          {
+            temperatureGroup: '폭염',
+            ...aggregatedHot,
+            error: [
+              aggregatedHot.median - aggregatedHot.lowerWhisker,
+              aggregatedHot.upperWhisker - aggregatedHot.median
+            ]
+          }
+        ]
+      }
+    }
+    
+    // 자치구만 선택된 경우 (업종 전체)
+    if (isGuMode && dongData.length > 0 && activeCategory === '전체') {
+      const guAllData = dongData.filter(d => d.guCode === selectedGuCode)
+      if (guAllData.length > 0) {
+        console.log('[BoxPlot] Aggregating all gu data:', guAllData.length, 'dong-business combinations')
+        
+        // 해당 구의 모든 동-업종 조합의 전체 통계 데이터를 집계
+        const coldStats = guAllData.map(d => d.cold)
+        const mildStats = guAllData.map(d => d.mild)
+        const hotStats = guAllData.map(d => d.hot)
+        
+        const aggregatedCold = aggregateBoxPlotStats(coldStats)
+        const aggregatedMild = aggregateBoxPlotStats(mildStats)
+        const aggregatedHot = aggregateBoxPlotStats(hotStats)
+        
+        return [
+          {
+            temperatureGroup: '한파',
+            ...aggregatedCold,
+            error: [
+              aggregatedCold.median - aggregatedCold.lowerWhisker,
+              aggregatedCold.upperWhisker - aggregatedCold.median
+            ]
+          },
+          {
+            temperatureGroup: '온화',
+            ...aggregatedMild,
+            error: [
+              aggregatedMild.median - aggregatedMild.lowerWhisker,
+              aggregatedMild.upperWhisker - aggregatedMild.median
+            ]
+          },
+          {
+            temperatureGroup: '폭염',
+            ...aggregatedHot,
+            error: [
+              aggregatedHot.median - aggregatedHot.lowerWhisker,
+              aggregatedHot.upperWhisker - aggregatedHot.median
+            ]
+          }
+        ]
+      }
+    }
+    
+    // 업종 모드인 경우
     if (!rawData.length) {
       console.log('[BoxPlot] No data to process')
       return []
     }
     
-    if (selectedCategory === '전체') {
+    if (activeCategory === '전체') {
       // 모든 업종 데이터를 날씨 그룹별로 집계
       const aggregatedData = aggregateByWeatherGroup(rawData)
       console.log('[BoxPlot] Aggregated weather data:', aggregatedData)
       return aggregatedData
     } else {
       // 특정 업종의 박스플롯 데이터
-      const categoryData = getBoxPlotByCategory(rawData, selectedCategory)
-      console.log('[BoxPlot] Category data for', selectedCategory, ':', categoryData)
+      const categoryData = getBoxPlotByCategory(rawData, activeCategory)
+      console.log('[BoxPlot] Category data for', activeCategory, ':', categoryData)
       return categoryData || []
     }
-  }, [rawData, selectedCategory])
+  }, [rawData, dongData, activeCategory, isDongMode, isGuMode, selectedDongCode, selectedGuCode])
   
   // Y축 도메인 계산 (선택된 업종의 whisker 범위에 맞게 조정)
   const yDomain = useMemo(() => {
@@ -269,6 +570,33 @@ export function SalesBoxPlotChart() {
     return [domainMin, domainMax]
   }, [processedData])
   
+  // 선택된 행정동 이름과 구 이름 가져오기
+  const selectedDongName = useMemo(() => {
+    if (isDongMode && dongData.length > 0) {
+      const dong = dongData.find(d => d.dongCode === selectedDongCode)
+      return dong ? dong.dongName : null
+    }
+    return null
+  }, [isDongMode, dongData, selectedDongCode])
+  
+  // 행정동이 선택된 경우 해당 구 이름도 가져오기
+  const dongGuName = useMemo(() => {
+    if (isDongMode && dongData.length > 0) {
+      const dong = dongData.find(d => d.dongCode === selectedDongCode)
+      return dong ? dong.guName : null
+    }
+    return null
+  }, [isDongMode, dongData, selectedDongCode])
+  
+  // 선택된 자치구 이름 가져오기
+  const selectedGuName = useMemo(() => {
+    if (isGuMode && dongData.length > 0) {
+      const guDong = dongData.find(d => d.guCode === selectedGuCode)
+      return guDong ? guDong.guName : null
+    }
+    return null
+  }, [isGuMode, dongData, selectedGuCode])
+  
   if (loading) {
     return (
       <div className="flex items-center justify-center h-full">
@@ -284,22 +612,33 @@ export function SalesBoxPlotChart() {
       </div>
     )
   }
-  
+
   return (
     <div className="w-full h-full relative">
-      {/* 업종 선택 - 우측 상단 */}
-      <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-        <SelectTrigger className="absolute -top-[55px] right-2 z-10 w-[120px] h-8 text-xs bg-white/10 border-white/20 text-white">
-          <SelectValue placeholder="업종 선택" />
-        </SelectTrigger>
-        <SelectContent className="max-h-[300px] overflow-y-auto bg-black/90 border-white/20">
-          {categoryList.map(category => (
-            <SelectItem key={category} value={category} className="text-xs text-white hover:bg-white/10">
-              {category}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {/* 선택된 업종 또는 행정동/자치구 표시 (레이어 컨트롤에서 선택) */}
+      <div className="absolute -top-[55px] right-2 z-10 flex flex-col items-end gap-1">
+        {isDongMode && selectedDongName && activeCategory !== '전체' ? (
+          <div className="text-xs text-blue-400">
+            {dongGuName} {selectedDongName} - {activeCategory}
+          </div>
+        ) : isDongMode && selectedDongName ? (
+          <div className="text-xs text-blue-400">
+            {dongGuName} {selectedDongName} (전체 업종)
+          </div>
+        ) : isGuMode && selectedGuName && activeCategory !== '전체' ? (
+          <div className="text-xs text-blue-400">
+            {selectedGuName} - {activeCategory}
+          </div>
+        ) : isGuMode && selectedGuName ? (
+          <div className="text-xs text-blue-400">
+            {selectedGuName} (전체 업종)
+          </div>
+        ) : activeCategory !== '전체' ? (
+          <div className="text-xs text-blue-400">
+            {activeCategory}
+          </div>
+        ) : null}
+      </div>
       
       {/* 차트 - 전체 영역 사용 */}
       <ResponsiveContainer width="100%" height="100%">
@@ -331,7 +670,8 @@ export function SalesBoxPlotChart() {
               tick={{ fontSize: 11 }}
             />
             
-            <Tooltip content={<CustomWeatherTooltip />} />
+            
+            <Tooltip content={createBoxPlotTooltip(processedData)} />
             
             {/* 커스텀 박스플롯 렌더링 */}
             <Bar 
@@ -339,6 +679,38 @@ export function SalesBoxPlotChart() {
               name="박스플롯"
               barSize={80}
               shape={(props: any) => <CustomBoxPlot {...props} yDomain={yDomain} />}
+              onMouseEnter={(data: any) => {
+                if (data && data.temperatureGroup) {
+                  setHoveredGroup(data.temperatureGroup)
+                }
+              }}
+              onMouseLeave={() => {
+                setHoveredGroup(null)
+              }}
+            />
+            
+            {/* 중앙값 연결선 */}
+            <Line 
+              type="monotone" 
+              dataKey="median" 
+              stroke={
+                hoveredGroup === '한파' ? '#3B82F6' :
+                hoveredGroup === '온화' ? '#10B981' :
+                hoveredGroup === '폭염' ? '#EF4444' :
+                '#DBDEE3'
+              }
+              strokeWidth={hoveredGroup ? 2.5 : 2}
+              strokeOpacity={0.9}
+              strokeDasharray="5 5"
+              dot={{ 
+                fill: hoveredGroup === '한파' ? '#3B82F6' :
+                      hoveredGroup === '온화' ? '#10B981' :
+                      hoveredGroup === '폭염' ? '#EF4444' :
+                      '#DBDEE3',
+                r: hoveredGroup ? 5 : 4 
+              }}
+              connectNulls
+              name="중앙값 연결선"
             />
           </ComposedChart>
         </ResponsiveContainer>

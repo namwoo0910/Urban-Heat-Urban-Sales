@@ -1,0 +1,215 @@
+/**
+ * Manager for mesh generation Web Worker
+ * Provides async interface for mesh generation with progress tracking
+ */
+
+import { MeshGeometry, MeshGeneratorOptions } from './meshGenerator'
+
+export interface MeshWorkerResult {
+  geometry: MeshGeometry
+  generationTime: number
+}
+
+export interface MeshWorkerProgress {
+  progress: number
+  message?: string
+}
+
+export class MeshWorkerManager {
+  private worker: Worker | null = null
+  private pendingRequests = new Map<string, {
+    resolve: (result: MeshWorkerResult) => void
+    reject: (error: Error) => void
+    onProgress?: (progress: MeshWorkerProgress) => void
+    startTime: number
+  }>()
+  private requestCounter = 0
+
+  constructor() {
+    this.initWorker()
+  }
+
+  private initWorker() {
+    try {
+      // Create worker with proper webpack syntax
+      this.worker = new Worker(
+        new URL('@/workers/meshGeneratorWorker.ts', import.meta.url),
+        { type: 'module' }
+      )
+
+      // Handle messages from worker
+      this.worker.addEventListener('message', (event) => {
+        const { type, id, data, progress, error } = event.data
+        const pending = this.pendingRequests.get(id)
+        
+        if (!pending) {
+          console.warn('[MeshWorkerManager] Received message for unknown request:', id)
+          return
+        }
+
+        switch (type) {
+          case 'complete':
+            if (data) {
+              // Reconstruct typed arrays from transferred buffers
+              const geometry: MeshGeometry = {
+                positions: new Float32Array(data.positions),
+                normals: new Float32Array(data.normals),
+                texCoords: new Float32Array(data.texCoords),
+                indices: data.indices.byteLength > 0 ? new Uint32Array(data.indices) : undefined,
+                colors: data.colors.byteLength > 0 ? new Float32Array(data.colors) : undefined
+              }
+              
+              const generationTime = performance.now() - pending.startTime
+              pending.resolve({ geometry, generationTime })
+              this.pendingRequests.delete(id)
+              
+              console.log(`[MeshWorkerManager] Mesh generation completed in ${generationTime.toFixed(0)}ms`)
+            }
+            break
+            
+          case 'progress':
+            if (pending.onProgress && typeof progress === 'number') {
+              pending.onProgress({ 
+                progress,
+                message: progress < 30 ? 'Initializing...' :
+                        progress < 60 ? 'Processing boundaries...' :
+                        progress < 90 ? 'Generating mesh...' :
+                        'Finalizing...'
+              })
+            }
+            break
+            
+          case 'error':
+            pending.reject(new Error(error || 'Unknown worker error'))
+            this.pendingRequests.delete(id)
+            break
+        }
+      })
+
+      // Handle worker errors
+      this.worker.addEventListener('error', (error) => {
+        console.error('[MeshWorkerManager] Worker error:', error)
+        // Reject all pending requests
+        this.pendingRequests.forEach((pending) => {
+          pending.reject(new Error('Worker crashed'))
+        })
+        this.pendingRequests.clear()
+        
+        // Try to restart worker
+        this.restartWorker()
+      })
+      
+      console.log('[MeshWorkerManager] Worker initialized successfully')
+    } catch (error) {
+      console.error('[MeshWorkerManager] Failed to create worker:', error)
+      throw error
+    }
+  }
+
+  private restartWorker() {
+    console.log('[MeshWorkerManager] Attempting to restart worker...')
+    this.terminate()
+    setTimeout(() => {
+      try {
+        this.initWorker()
+      } catch (error) {
+        console.error('[MeshWorkerManager] Failed to restart worker:', error)
+      }
+    }, 100)
+  }
+
+  /**
+   * Generate mesh using Web Worker
+   * @param features GeoJSON features
+   * @param options Mesh generation options
+   * @param onProgress Optional progress callback
+   * @returns Promise with mesh geometry and generation time
+   */
+  async generateMesh(
+    features: any[],
+    options: MeshGeneratorOptions,
+    onProgress?: (progress: MeshWorkerProgress) => void
+  ): Promise<MeshWorkerResult> {
+    if (!this.worker) {
+      throw new Error('Worker not initialized')
+    }
+
+    const id = `mesh-${++this.requestCounter}`
+    const startTime = performance.now()
+
+    return new Promise((resolve, reject) => {
+      // Store pending request
+      this.pendingRequests.set(id, {
+        resolve,
+        reject,
+        onProgress,
+        startTime
+      })
+
+      // Send message to worker
+      this.worker!.postMessage({
+        type: 'generate',
+        features,
+        options,
+        id
+      })
+
+      // Set timeout for long-running operations
+      setTimeout(() => {
+        if (this.pendingRequests.has(id)) {
+          this.pendingRequests.delete(id)
+          reject(new Error('Mesh generation timeout (30s)'))
+        }
+      }, 30000)
+    })
+  }
+
+  /**
+   * Check if worker is available
+   */
+  isAvailable(): boolean {
+    return this.worker !== null
+  }
+
+  /**
+   * Terminate the worker
+   */
+  terminate() {
+    if (this.worker) {
+      // Reject all pending requests
+      this.pendingRequests.forEach((pending) => {
+        pending.reject(new Error('Worker terminated'))
+      })
+      this.pendingRequests.clear()
+      
+      // Terminate worker
+      this.worker.terminate()
+      this.worker = null
+      
+      console.log('[MeshWorkerManager] Worker terminated')
+    }
+  }
+}
+
+// Create singleton instance
+let workerManagerInstance: MeshWorkerManager | null = null
+
+/**
+ * Get or create the mesh worker manager instance
+ */
+export function getMeshWorkerManager(): MeshWorkerManager {
+  if (!workerManagerInstance) {
+    workerManagerInstance = new MeshWorkerManager()
+  }
+  return workerManagerInstance
+}
+
+/**
+ * Cleanup function to terminate worker when needed
+ */
+export function cleanupMeshWorker() {
+  if (workerManagerInstance) {
+    workerManagerInstance.terminate()
+    workerManagerInstance = null
+  }
+}

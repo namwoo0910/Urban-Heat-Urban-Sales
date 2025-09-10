@@ -56,6 +56,12 @@ export function SelectedAreaSalesInfo({
       // 입력 데이터의 weight 합계 확인
       const inputWeightSum = hexagonData.reduce((sum, point) => sum + (point.weight || 0), 0)
       console.log('[SelectedAreaSalesInfo] 입력 weight 합계:', (inputWeightSum/100000000).toFixed(1), '억원')
+      
+      // Debug: Check field names in originalData
+      if (hexagonData[0].originalData) {
+        console.log('[SelectedAreaSalesInfo] originalData fields:', Object.keys(hexagonData[0].originalData).filter(key => key.includes('Name') || key.includes('구') || key.includes('동')))
+        console.log('[SelectedAreaSalesInfo] guName:', hexagonData[0].originalData.guName, 'dongName:', hexagonData[0].originalData.dongName)
+      }
     }
 
     // 원본 hexagon 데이터에서 집계
@@ -64,17 +70,15 @@ export function SelectedAreaSalesInfo({
         const originalData = point.originalData
         // 선택된 지역이 없으면 모든 데이터 포함
         const includeAll = !selectedGu && !selectedDong
-        const matchesGu = includeAll || 
-          originalData.guName === selectedGu || 
-          originalData.자치구 === selectedGu
-        const matchesDong = includeAll || !selectedDong || 
-          originalData.dongName === selectedDong ||
-          originalData.행정동 === selectedDong
+        // English field names only (자치구 -> guName, 행정동 -> dongName during transformation)
+        const matchesGu = includeAll || originalData.guName === selectedGu
+        const matchesDong = includeAll || !selectedDong || originalData.dongName === selectedDong
         
         if (matchesGu && matchesDong) {
           // 디버깅: 첫 번째 매칭되는 데이터 상세 로그
           if (dataPoints === 0) {
             console.log('[SelectedAreaSalesInfo] 첫 번째 매칭 데이터:', originalData)
+            console.log('[SelectedAreaSalesInfo] 매칭 조건 - guName:', originalData.guName, '=?', selectedGu, ', dongName:', originalData.dongName, '=?', selectedDong)
             console.log('[SelectedAreaSalesInfo] 총매출액_업종 존재:', !!originalData.총매출액_업종)
             console.log('[SelectedAreaSalesInfo] 총매출액_업종 내용:', originalData.총매출액_업종)
           }
@@ -128,6 +132,9 @@ export function SelectedAreaSalesInfo({
     console.log('[SelectedAreaSalesInfo] 총 매출액 계산:', totalSales.toLocaleString(), '원', `(${(totalSales/100000000).toFixed(1)}억원)`)
     console.log('[SelectedAreaSalesInfo] 카테고리 수:', Object.keys(categorySalesMap).length)
     console.log('[SelectedAreaSalesInfo] 처리된 데이터 포인트:', dataPoints)
+    if (selectedDong) {
+      console.log('[SelectedAreaSalesInfo] 동 선택 모드 - 매칭된 데이터:', dataPoints, '개 (동:', selectedDong, ')')
+    }
     
     // 가장 많은 기온그룹 찾기
     let dominantTempGroup = '일반'
