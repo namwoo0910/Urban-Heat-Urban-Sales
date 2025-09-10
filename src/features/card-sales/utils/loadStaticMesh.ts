@@ -105,31 +105,17 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
 
       const header: BinaryMeshHeader = await headerResponse.json()
       
-      // Load the binary data (try compressed first)
-      const binaryUrl = `/data/binary/seoul-mesh-${resolution}.bin.gz`
-      console.log(`[LoadStaticMesh] Loading binary data from ${binaryUrl}...`)
+      // Load the binary data (use uncompressed directly to avoid decompression issues)
+      const binaryUrl = `/data/binary/seoul-mesh-${resolution}.bin`
+      console.log(`[LoadStaticMesh] Loading uncompressed binary data from ${binaryUrl}...`)
       const binaryResponse = await fetch(binaryUrl)
       
       if (!binaryResponse.ok) {
         throw new Error(`Failed to load binary data: ${binaryResponse.status}`)
       }
       
-      // Decompress if supported
-      let arrayBuffer: ArrayBuffer
-      if ('DecompressionStream' in window) {
-        console.log(`[LoadStaticMesh] Decompressing binary data...`)
-        const stream = binaryResponse.body!.pipeThrough(new (window as any).DecompressionStream('gzip'))
-        arrayBuffer = await new Response(stream).arrayBuffer()
-      } else {
-        // Fallback to uncompressed if DecompressionStream not supported
-        console.log(`[LoadStaticMesh] DecompressionStream not supported, loading uncompressed...`)
-        const uncompressedUrl = `/data/binary/seoul-mesh-${resolution}.bin`
-        const uncompressedResponse = await fetch(uncompressedUrl)
-        if (!uncompressedResponse.ok) {
-          throw new Error(`Failed to load uncompressed binary: ${uncompressedResponse.status}`)
-        }
-        arrayBuffer = await uncompressedResponse.arrayBuffer()
-      }
+      const arrayBuffer = await binaryResponse.arrayBuffer()
+      console.log(`[LoadStaticMesh] ArrayBuffer loaded - size: ${arrayBuffer.byteLength} bytes, expected: ${header.totalSize} bytes`)
       
       console.log(`[LoadStaticMesh] Parsing binary data for resolution ${resolution}...`)
       
@@ -173,8 +159,17 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
       
       // Extract indices
       if (header.offsets.indices) {
-        const { offset, count, itemSize } = header.offsets.indices
-        const view = new Uint32Array(arrayBuffer, offset, count * itemSize)
+        const { offset, length } = header.offsets.indices
+        const elementCount = length / 4 // Uint32 is 4 bytes per element
+        
+        console.log(`[LoadStaticMesh] Indices - offset: ${offset}, length: ${length}, elementCount: ${elementCount}`)
+        console.log(`[LoadStaticMesh] Buffer size check: ${offset + length} <= ${arrayBuffer.byteLength} = ${offset + length <= arrayBuffer.byteLength}`)
+        
+        if (offset + length > arrayBuffer.byteLength) {
+          throw new Error(`Invalid indices range: offset ${offset} + length ${length} = ${offset + length} exceeds buffer size ${arrayBuffer.byteLength}`)
+        }
+        
+        const view = new Uint32Array(arrayBuffer, offset, elementCount)
         meshGeometry.indices = new Uint32Array(view) // Create a copy
       }
 
