@@ -1,9 +1,25 @@
 "use client"
-import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+
+import { lazy, Suspense } from "react"
+import dynamic from "next/dynamic"
 import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
 import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
 import ResearchNavigation from "@/src/features/data-portal/components/PortalNavigation"
+import { useState, useEffect } from "react"
+
+// Dynamic import for floating population map
+const FloatingPopDistrictMap = lazy(() => import("@/src/features/floating-pop/components/FloatingPopDistrictMap"))
+
+// Dynamic import for animated mesh background
+const AnimatedMeshBackground = dynamic(
+  () => import("@/src/features/floating-pop/components/AnimatedMeshBackground"),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-purple-950 to-pink-950" />
+    )
+  }
+)
 
 const features = [
   {
@@ -21,73 +37,55 @@ const features = [
     title: "3D 경관",
     description: "인구 밀도가 데이터 산맥처럼 솟아오르며, 시간대별 부드러운 보간으로 웨이브 같은 전환을 만들어냅니다.",
   },
+  {
+    icon: "Activity",
+    title: "실시간 분석",
+    description: "유동인구 데이터를 실시간으로 분석하여 지역별 인구 이동 패턴을 파악합니다.",
+  },
 ]
 
 const FloatingPopulationPage = () => {
-  const router = useRouter()
-  const [barHeights, setBarHeights] = useState<number[]>([])
-
-  const handleEnterVisualization = () => {
-    router.push('/urbanmountain')
-  }
+  const [showVisualization, setShowVisualization] = useState(false)
 
   // Scroll to top when page loads
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [])
 
-  // Generate random heights client-side only to prevent hydration mismatch
-  useEffect(() => {
-    const heights = Array.from({ length: 144 }, () => Math.random() * 40 + 10)
-    setBarHeights(heights)
-  }, [])
+  const handleEnterVisualization = () => {
+    setShowVisualization(true)
+  }
 
   return (
     <div>
-      {/* Hero Section with Integrated Features */}
-      <div className="relative min-h-screen bg-gradient-to-br from-black via-indigo-950 to-purple-950">
-        {/* Background Preview */}
-        <div className="absolute inset-0 opacity-30">
-          <div className="w-full h-full bg-gradient-to-t from-black/50 to-transparent">
-            <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2">
-              <div className="grid grid-cols-12 gap-2 opacity-20">
-                {[...Array(144)].map((_, i) => (
-                  <div 
-                    key={i} 
-                    className="w-3 h-8 bg-white rounded-sm animate-pulse"
-                    style={{ 
-                      animationDelay: `${i * 0.1}s`,
-                      height: barHeights[i] ? `${barHeights[i]}px` : '20px'
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div className="relative z-10 flex flex-col items-center justify-center min-h-screen px-4 py-20">
-          <div className="text-center space-y-8 max-w-6xl mx-auto">
-            <ResearchHeader
-              title="유동인구"
-              description="서울시 유동인구 실시간 분석을 통한 도시 동선 패턴 연구 및 시공간 시각화"
+      {!showVisualization ? (
+        // Landing page with animated mesh background
+        <div className="relative h-screen overflow-hidden">
+          {/* Animated Mesh Background */}
+          <div className="absolute inset-0">
+            <AnimatedMeshBackground
+              waveSpeed={0.3}
+              waveAmplitude={25}
+              waveFrequency={1.5}
+              breathingSpeed={0.2}
+              breathingScale={0.15}
+              wireframe={true}
+              opacity={0.25}
+              color="#9F7AEA"
+              targetFPS={60}
+              resolution={30}
             />
-            
-            {/* Integrated Feature Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-12 mb-12">
-              {features.map((feature, index) => (
-                <div 
-                  key={feature.title}
-                  className="bg-white/10 backdrop-blur-sm border border-white/20 rounded-xl p-6 transform hover:scale-105 transition-all duration-300"
-                  style={{ animationDelay: `${index * 0.1}s` }}
-                >
-                  <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
-                  <p className="text-gray-300 text-sm leading-relaxed">{feature.description}</p>
-                </div>
-              ))}
-            </div>
-            
-            <div className="mt-[50px]">
+          </div>
+          
+          {/* Gradient overlay for better text readability */}
+          <div className="absolute inset-0 bg-gradient-to-br from-indigo-950/70 via-purple-950/70 to-pink-950/70" />
+
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="text-center space-y-8">
+              <ResearchHeader
+                title="유동인구"
+                description="서울시 유동인구 실시간 분석을 통한 도시 동선 패턴 연구 및 시공간 시각화"
+              />
               <button
                 onClick={handleEnterVisualization}
                 className="group relative px-8 py-4 bg-gradient-to-r from-indigo-800 to-purple-800 hover:from-indigo-900 hover:to-purple-900 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
@@ -102,7 +100,19 @@ const FloatingPopulationPage = () => {
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        // Visualization page
+        <div className="relative h-screen">
+          {/* Visualization Layer with Suspense */}
+          <Suspense fallback={
+            <div className="absolute inset-0 bg-black flex items-center justify-center">
+              <div className="text-white">시각화 로딩 중...</div>
+            </div>
+          }>
+            <FloatingPopDistrictMap />
+          </Suspense>
+        </div>
+      )}
 
       <ResearchNavigation href="/research/eda" projectName="행정구역 데이터" />
     </div>

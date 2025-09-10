@@ -1,23 +1,23 @@
 "use client"
 
 import { RadarChart } from '@/src/shared/components/charts'
-import { activityPatternData } from '../../data/populationChartData'
+import { weeklyPatternData } from '../../data/salesChartData'
 
 export function PopulationRadarChart() {
   return (
     <div className="w-full h-full">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-white">시간대별 활동 패턴</h3>
-        <p className="text-sm text-gray-400">하루 중 활동 강도 분석</p>
+        <h3 className="text-lg font-semibold text-white">요일별 매출 패턴</h3>
+        <p className="text-sm text-gray-400">주간 매출 분포 분석</p>
       </div>
       <RadarChart
-        data={activityPatternData}
+        data={weeklyPatternData}
         dataKey="value"
-        categoryKey="name"
-        fillColor="#ec4899"
-        strokeColor="#ec4899"
         height={280}
         showTooltip={true}
+        fillColor="#8b5cf6"
+        strokeColor="#8b5cf6"
+        fillOpacity={0.6}
       />
     </div>
   )

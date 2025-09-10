@@ -1,25 +1,27 @@
 "use client"
 
 import { ComposedChart } from '@/src/shared/components/charts'
-import { populationAndDwellData } from '../../data/populationChartData'
+import { salesAndCustomersData } from '../../data/salesChartData'
 
 export function PopulationComposedChart() {
   return (
     <div className="w-full h-full">
       <div className="mb-4">
-        <h3 className="text-lg font-semibold text-white">유동인구 & 체류시간 복합 분석</h3>
-        <p className="text-sm text-gray-400">지역별 유동인구와 평균 체류시간</p>
+        <h3 className="text-lg font-semibold text-white">매출 & 고객 복합 분석</h3>
+        <p className="text-sm text-gray-400">매출과 고객수 상관관계</p>
       </div>
       <ComposedChart
-        data={populationAndDwellData}
-        xDataKey="name"
-        barDataKey="population"
-        lineDataKey="dwellTime"
-        barColor="#3b82f6"
-        lineColor="#ef4444"
+        data={salesAndCustomersData}
         height={280}
         showGrid={true}
         showTooltip={true}
+        showLegend={true}
+        bars={[
+          { dataKey: 'sales', fill: '#3b82f6' }
+        ]}
+        lines={[
+          { dataKey: 'customers', stroke: '#f59e0b', type: 'monotone' }
+        ]}
       />
     </div>
   )
