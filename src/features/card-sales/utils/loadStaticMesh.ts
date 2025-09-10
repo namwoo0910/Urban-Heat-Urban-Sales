@@ -4,12 +4,9 @@
 
 import { MeshGeometry } from './meshGenerator'
 
-interface StaticMeshData {
-  positions: number[]
-  normals: number[]
-  texCoords: number[]
-  colors: number[]
-  indices: number[]
+interface BinaryMeshHeader {
+  format: string
+  version: string
   metadata: {
     resolution: number
     vertices: number
@@ -27,6 +24,15 @@ interface StaticMeshData {
     generated: string
     source: string
   }
+  offsets: {
+    positions: { offset: number; length: number; type: string; itemSize: number; count: number }
+    normals: { offset: number; length: number; type: string; itemSize: number; count: number }
+    texCoords: { offset: number; length: number; type: string; itemSize: number; count: number }
+    colors: { offset: number; length: number; type: string; itemSize: number; count: number }
+    indices: { offset: number; length: number; type: string; itemSize: number; count: number }
+  }
+  totalSize: number
+  compressed: boolean
 }
 
 // Cache for loaded mesh data by resolution
@@ -70,31 +76,109 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
   // Start loading
   const loadingPromise = (async () => {
     try {
-      const filename = `/data/seoul-mesh-${resolution}.json`
-      console.log(`[LoadStaticMesh] Fetching ${filename}...`)
-      const response = await fetch(filename)
+      // First load the header file
+      const headerUrl = `/data/binary/seoul-mesh-${resolution}.header.json`
+      console.log(`[LoadStaticMesh] Loading header from ${headerUrl}...`)
+      const headerResponse = await fetch(headerUrl)
       
-      if (!response.ok) {
-        throw new Error(`Failed to load mesh data: ${response.status}`)
+      if (!headerResponse.ok) {
+        // Fallback to JSON if binary not available
+        console.log(`[LoadStaticMesh] Binary header not found, trying JSON fallback...`)
+        const jsonUrl = `/data/seoul-mesh-${resolution}.json`
+        const jsonResponse = await fetch(jsonUrl)
+        if (!jsonResponse.ok) {
+          throw new Error(`Failed to load mesh data: ${jsonResponse.status}`)
+        }
+        const jsonData = await jsonResponse.json()
+        const meshGeometry: MeshGeometry = {
+          positions: new Float32Array(jsonData.positions),
+          normals: new Float32Array(jsonData.normals),
+          texCoords: new Float32Array(jsonData.texCoords),
+          colors: new Float32Array(jsonData.colors),
+          indices: new Uint32Array(jsonData.indices),
+          metadata: { center: jsonData.metadata.center }
+        }
+        meshCacheByResolution.set(resolution, meshGeometry)
+        loadingPromises.delete(resolution)
+        return meshGeometry
       }
 
-      const data: StaticMeshData = await response.json()
+      const header: BinaryMeshHeader = await headerResponse.json()
       
-      console.log(`[LoadStaticMesh] Converting to TypedArrays for resolution ${resolution}...`)
+      // Load the binary data (try compressed first)
+      const binaryUrl = `/data/binary/seoul-mesh-${resolution}.bin.gz`
+      console.log(`[LoadStaticMesh] Loading binary data from ${binaryUrl}...`)
+      const binaryResponse = await fetch(binaryUrl)
       
-      // Convert arrays to TypedArrays for WebGL
+      if (!binaryResponse.ok) {
+        throw new Error(`Failed to load binary data: ${binaryResponse.status}`)
+      }
+      
+      // Decompress if supported
+      let arrayBuffer: ArrayBuffer
+      if ('DecompressionStream' in window) {
+        console.log(`[LoadStaticMesh] Decompressing binary data...`)
+        const stream = binaryResponse.body!.pipeThrough(new (window as any).DecompressionStream('gzip'))
+        arrayBuffer = await new Response(stream).arrayBuffer()
+      } else {
+        // Fallback to uncompressed if DecompressionStream not supported
+        console.log(`[LoadStaticMesh] DecompressionStream not supported, loading uncompressed...`)
+        const uncompressedUrl = `/data/binary/seoul-mesh-${resolution}.bin`
+        const uncompressedResponse = await fetch(uncompressedUrl)
+        if (!uncompressedResponse.ok) {
+          throw new Error(`Failed to load uncompressed binary: ${uncompressedResponse.status}`)
+        }
+        arrayBuffer = await uncompressedResponse.arrayBuffer()
+      }
+      
+      console.log(`[LoadStaticMesh] Parsing binary data for resolution ${resolution}...`)
+      
+      // Parse binary data according to header offsets
       const meshGeometry: MeshGeometry = {
-        positions: new Float32Array(data.positions),
-        normals: new Float32Array(data.normals),
-        texCoords: new Float32Array(data.texCoords),
-        colors: new Float32Array(data.colors),
-        indices: new Uint32Array(data.indices),
+        positions: new Float32Array(0),
+        normals: new Float32Array(0),
+        texCoords: new Float32Array(0),
         metadata: {
-          center: data.metadata.center
+          center: header.metadata.center
         }
       }
+      
+      // Extract positions
+      if (header.offsets.positions) {
+        const { offset, count, itemSize } = header.offsets.positions
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.positions = new Float32Array(view) // Create a copy
+      }
+      
+      // Extract normals
+      if (header.offsets.normals) {
+        const { offset, count, itemSize } = header.offsets.normals
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.normals = new Float32Array(view) // Create a copy
+      }
+      
+      // Extract texCoords
+      if (header.offsets.texCoords) {
+        const { offset, count, itemSize } = header.offsets.texCoords
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.texCoords = new Float32Array(view) // Create a copy
+      }
+      
+      // Extract colors
+      if (header.offsets.colors) {
+        const { offset, count, itemSize } = header.offsets.colors
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.colors = new Float32Array(view) // Create a copy
+      }
+      
+      // Extract indices
+      if (header.offsets.indices) {
+        const { offset, count, itemSize } = header.offsets.indices
+        const view = new Uint32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.indices = new Uint32Array(view) // Create a copy
+      }
 
-      console.log(`[LoadStaticMesh] Loaded mesh: ${data.metadata.triangles} triangles, ${data.metadata.resolution}x${data.metadata.resolution} grid`)
+      console.log(`[LoadStaticMesh] Loaded binary mesh: ${header.metadata.triangles} triangles, ${header.metadata.resolution}x${header.metadata.resolution} grid`)
       
       // Cache the result
       meshCacheByResolution.set(resolution, meshGeometry)
@@ -133,9 +217,17 @@ export function clearMeshCache(resolution?: number): void {
  */
 export async function checkStaticMeshExists(resolution: number = 60): Promise<boolean> {
   try {
-    const filename = `/data/seoul-mesh-${resolution}.json`
-    const response = await fetch(filename, { method: 'HEAD' })
-    return response.ok
+    // Check for binary header file first
+    const binaryHeader = `/data/binary/seoul-mesh-${resolution}.header.json`
+    const binaryResponse = await fetch(binaryHeader, { method: 'HEAD' })
+    if (binaryResponse.ok) {
+      return true
+    }
+    
+    // Fallback to JSON file
+    const jsonFile = `/data/seoul-mesh-${resolution}.json`
+    const jsonResponse = await fetch(jsonFile, { method: 'HEAD' })
+    return jsonResponse.ok
   } catch {
     return false
   }

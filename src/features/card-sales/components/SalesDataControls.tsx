@@ -43,7 +43,9 @@ interface UnifiedControlsProps {
   is3DMode?: boolean
   onIs3DModeChange?: (enabled: boolean) => void
   
-  // Height scale removed - using fixed scale
+  // Height scale props
+  heightScale?: number
+  onHeightScaleChange?: (scale: number) => void
   
   // LayerControls props
   visible: boolean
@@ -123,7 +125,9 @@ export default function UnifiedControls({
   is3DMode = false,
   onIs3DModeChange,
   
-  // Height scale removed - using fixed scale
+  // Height scale props
+  heightScale = 500000000,
+  onHeightScaleChange,
   
   // Timeline animation removed
   
@@ -350,6 +354,37 @@ export default function UnifiedControls({
             </AnimatePresence>
 
             <Separator className="bg-gray-800/50" />
+            
+            {/* Height Scale Slider - only show when mesh layer is active */}
+            {showMeshLayer && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <Label className="text-gray-200 text-xs font-semibold">메쉬 높이 스케일</Label>
+                  <span className="text-xs text-gray-400">
+                    {heightScale >= 1000000000 ? 
+                      `${(heightScale / 1000000000).toFixed(1)}B` : 
+                      `${(heightScale / 1000000).toFixed(0)}M`}
+                  </span>
+                </div>
+                <Slider
+                  value={[heightScale]}
+                  onValueChange={(value) => onHeightScaleChange?.(value[0])}
+                  min={100000000}  // 100M (1억원)
+                  max={1000000000} // 1B (10억원)
+                  step={50000000}  // 50M (5천만원)
+                  className="w-full"
+                />
+                <div className="flex justify-between text-xs text-gray-500">
+                  <span>높음</span>
+                  <span>낮음</span>
+                </div>
+                <p className="text-xs text-gray-400">
+                  값이 클수록 높이가 낮아집니다 (역비례)
+                </p>
+              </div>
+            )}
+            
+            {showMeshLayer && <Separator className="bg-gray-800/50" />}
             
             {/* 3D Mesh Layer 토글 - moved to top */}
             <div className="space-y-2">

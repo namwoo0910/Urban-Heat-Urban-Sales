@@ -16,10 +16,15 @@
       "x": 126.97413944384971,
       "y": 37.56487637519115
     },
-    "generated": "2025-09-08T03:24:43.932Z",
-    "source": "local_economy_dong.geojson",
+    "generated": "2025-09-10T02:34:56.494Z",
+    "source": "Card sales data 2024-01-01",
+    "salesRange": {
+      "min": 6969492,
+      "max": 4616820001
+    },
+    "dongsWithData": 424,
     "originalFile": "seoul-mesh-120.json",
-    "converted": "2025-09-08T03:25:13.425Z"
+    "converted": "2025-09-10T02:45:33.576Z"
   },
   "offsets": {
     "positions": {
