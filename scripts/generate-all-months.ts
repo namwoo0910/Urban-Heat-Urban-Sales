@@ -1,20 +1,28 @@
+#!/usr/bin/env ts-node
+
 /**
- * TypeScript-based Seoul Mesh Pre-generation Script
- * Uses the exact same logic as meshGenerator.ts for consistency
- * Generates binary mesh files with line-polygon intersection validation
+ * Automated Monthly Seoul Mesh Generator
+ * Generates mesh layers for all months (2024-01 through 2024-12)
+ * Uses the same logic as generate-mesh.ts but with automated month iteration
  */
 
 import * as fs from 'fs'
 import * as path from 'path'
 import { generateGridMesh, type MeshGeometry, type MeshGeneratorOptions } from '../src/features/card-sales/utils/meshGenerator.js'
 
-// Configuration - Only 120 resolution with line-polygon intersection validation
+// Configuration
 const RESOLUTION = 120
 const HEIGHT_SCALE = 1
 const INPUT_FILE = path.join(__dirname, '../public/data/local_economy/local_economy_dong.geojson')
-const SALES_FILE = path.join(__dirname, '../public/data/local_economy/monthly/2024-01.json')
 const OUTPUT_DIR = path.join(__dirname, '../public/data')
 const BINARY_OUTPUT_DIR = path.join(__dirname, '../public/data/binary')
+
+// All months to generate (skip 01 and 02 as they're already generated)
+const MONTHS_TO_GENERATE = [
+  '2024-03', '2024-04', '2024-05', '2024-06',
+  '2024-07', '2024-08', '2024-09', '2024-10', 
+  '2024-11', '2024-12'
+]
 
 interface SalesData {
   기준일자: string
@@ -37,23 +45,27 @@ function getSalesElevation(sales: number, salesHeightScale: number = 100000000):
 }
 
 /**
- * Load and process sales data
+ * Load and process sales data for a specific month
  */
-function loadSalesData(): Map<number, number> {
-  console.log('Loading sales data for 2024-01-01...')
+function loadSalesDataForMonth(month: string): Map<number, number> {
+  const monthFormatted = month.replace('-', '') // '2024-03' -> '202403'
+  const salesFile = path.join(__dirname, `../public/data/local_economy/monthly/${month}.json`)
+  const targetDate = `${month}-01` // e.g., '2024-03-01'
   
-  if (!fs.existsSync(SALES_FILE)) {
-    throw new Error(`Sales file not found: ${SALES_FILE}`)
+  console.log(`Loading sales data for ${targetDate}...`)
+  
+  if (!fs.existsSync(salesFile)) {
+    throw new Error(`Sales file not found: ${salesFile}`)
   }
   
-  const salesData: SalesData[] = JSON.parse(fs.readFileSync(SALES_FILE, 'utf8'))
+  const salesData: SalesData[] = JSON.parse(fs.readFileSync(salesFile, 'utf8'))
   
   const dongSalesMap = new Map<number, number>()
   let maxSales = 0
   let minSales = Infinity
   
   salesData
-    .filter(d => d.기준일자 === '2024-01-01')
+    .filter(d => d.기준일자 === targetDate)
     .forEach(d => {
       const sales = d.총매출액 || 0
       dongSalesMap.set(d.행정동코드, sales)
@@ -91,8 +103,9 @@ function loadDistrictData(): any[] {
 /**
  * Save mesh data as JSON
  */
-function saveMeshAsJSON(meshData: MeshGeometry, resolution: number) {
-  const outputFile = path.join(OUTPUT_DIR, `seoul-mesh-202401.json`)
+function saveMeshAsJSON(meshData: MeshGeometry, month: string) {
+  const monthFormatted = month.replace('-', '') // '2024-03' -> '202403'
+  const outputFile = path.join(OUTPUT_DIR, `seoul-mesh-${monthFormatted}.json`)
   
   // Convert TypedArrays to regular arrays for JSON serialization
   const jsonData = {
@@ -102,11 +115,11 @@ function saveMeshAsJSON(meshData: MeshGeometry, resolution: number) {
     colors: meshData.colors ? Array.from(meshData.colors) : null,
     indices: meshData.indices ? Array.from(meshData.indices) : null,
     metadata: {
-      resolution,
+      resolution: RESOLUTION,
       vertices: meshData.positions.length / 3,
       triangles: meshData.indices ? meshData.indices.length / 3 : 0,
       generated: new Date().toISOString(),
-      source: 'generate-mesh.ts with January 2024 sales data and line-polygon intersection validation',
+      source: `generate-all-months.ts with ${month} sales data and line-polygon intersection validation`,
       center: meshData.metadata?.center
     }
   }
@@ -115,7 +128,7 @@ function saveMeshAsJSON(meshData: MeshGeometry, resolution: number) {
   
   const fileSizeMB = (fs.statSync(outputFile).size / 1024 / 1024).toFixed(2)
   console.log(`✅ Mesh data saved successfully (${fileSizeMB} MB)`)
-  console.log(`   - Resolution: ${resolution}x${resolution}`)
+  console.log(`   - Resolution: ${RESOLUTION}x${RESOLUTION}`)
   console.log(`   - Vertices: ${jsonData.metadata.vertices}`)
   console.log(`   - Triangles: ${jsonData.metadata.triangles}`)
   
@@ -125,8 +138,9 @@ function saveMeshAsJSON(meshData: MeshGeometry, resolution: number) {
 /**
  * Convert JSON mesh to binary format
  */
-function convertToBinary(jsonFile: string, resolution: number) {
+function convertToBinary(jsonFile: string, month: string) {
   const meshData = JSON.parse(fs.readFileSync(jsonFile, 'utf8'))
+  const monthFormatted = month.replace('-', '') // '2024-03' -> '202403'
   
   // Create binary directory if it doesn't exist
   if (!fs.existsSync(BINARY_OUTPUT_DIR)) {
@@ -149,13 +163,13 @@ function convertToBinary(jsonFile: string, resolution: number) {
     format: 'seoul-mesh-binary',
     version: '1.0',
     metadata: {
-      resolution,
+      resolution: RESOLUTION,
       vertices: meshData.positions.length / 3,
       triangles: meshData.indices.length / 3,
       bounds: { minX, maxX, minY, maxY },
       center: meshData.metadata.center || { x: (minX + maxX) / 2, y: (minY + maxY) / 2 },
       generated: new Date().toISOString(),
-      source: 'TypeScript generate-mesh.ts with line-polygon intersection validation'
+      source: `generate-all-months.ts with ${month} sales data and line-polygon intersection validation`
     },
     offsets: {
       positions: { offset: 0, length: 0, type: 'Float32', itemSize: 3, count: 0 },
@@ -206,7 +220,7 @@ function convertToBinary(jsonFile: string, resolution: number) {
   header.totalSize = offset
   
   // Save header
-  const headerFile = path.join(BINARY_OUTPUT_DIR, `seoul-mesh-202401.header.json`)
+  const headerFile = path.join(BINARY_OUTPUT_DIR, `seoul-mesh-${monthFormatted}.header.json`)
   fs.writeFileSync(headerFile, JSON.stringify(header, null, 2))
   
   // Create binary buffer
@@ -229,7 +243,7 @@ function convertToBinary(jsonFile: string, resolution: number) {
   Buffer.from(indicesArray.buffer).copy(buffer, bufferOffset)
   
   // Save binary file
-  const binaryFile = path.join(BINARY_OUTPUT_DIR, `seoul-mesh-202401.bin`)
+  const binaryFile = path.join(BINARY_OUTPUT_DIR, `seoul-mesh-${monthFormatted}.bin`)
   fs.writeFileSync(binaryFile, buffer)
   
   const binarySize = (buffer.length / 1024 / 1024).toFixed(2)
@@ -240,17 +254,17 @@ function convertToBinary(jsonFile: string, resolution: number) {
 }
 
 /**
- * Main execution function
+ * Generate mesh for a specific month
  */
-async function main() {
+async function generateMeshForMonth(month: string): Promise<void> {
+  console.log(`\n========================================`)
+  console.log(`Seoul Mesh Generation for ${month}`)
+  console.log(`Using line-polygon intersection validation`)
+  console.log(`========================================`)
+  
   try {
-    console.log('========================================')
-    console.log('Seoul Mesh Generation with TypeScript')  
-    console.log('Using line-polygon intersection validation')
-    console.log('========================================')
-    
     // Load data
-    const dongSalesMap = loadSalesData()
+    const dongSalesMap = loadSalesDataForMonth(month)
     const districtFeatures = loadDistrictData()
     
     console.log(`\n========================================`)
@@ -280,24 +294,63 @@ async function main() {
     console.log(`  - Triangles: ${meshData.indices ? meshData.indices.length / 3 : 0}`)
     
     // Save as JSON
-    const jsonFile = saveMeshAsJSON(meshData, RESOLUTION)
+    const jsonFile = saveMeshAsJSON(meshData, month)
     
     // Convert to binary
     console.log('\nConverting to binary format...')
-    convertToBinary(jsonFile, RESOLUTION)
+    convertToBinary(jsonFile, month)
     
-    console.log('\n========================================')
-    console.log('✅ Mesh generation completed successfully!')
-    console.log('Line-polygon intersection validation applied')
-    console.log('Wire artifacts should be completely eliminated')
-    console.log('========================================')
+    console.log(`\n✅ Mesh generation completed for ${month}!`)
     
   } catch (error) {
-    console.error('\n❌ Mesh generation failed:')
+    console.error(`\n❌ Mesh generation failed for ${month}:`)
     console.error(error)
-    process.exit(1)
+    throw error
   }
 }
 
+/**
+ * Main execution function
+ */
+async function main() {
+  console.log('========================================')
+  console.log('Seoul Monthly Mesh Generation (Automated)')  
+  console.log('Using line-polygon intersection validation')
+  console.log(`Generating ${MONTHS_TO_GENERATE.length} months: ${MONTHS_TO_GENERATE.join(', ')}`)
+  console.log('========================================')
+  
+  let successCount = 0
+  let failCount = 0
+  
+  for (const month of MONTHS_TO_GENERATE) {
+    try {
+      await generateMeshForMonth(month)
+      successCount++
+    } catch (error) {
+      console.error(`Failed to generate mesh for ${month}:`, error)
+      failCount++
+    }
+  }
+  
+  console.log('\n========================================')
+  console.log('🎉 Batch Generation Summary')
+  console.log('========================================')
+  console.log(`✅ Success: ${successCount}/${MONTHS_TO_GENERATE.length} months`)
+  console.log(`❌ Failed: ${failCount}/${MONTHS_TO_GENERATE.length} months`)
+  
+  if (failCount === 0) {
+    console.log('🎉 All monthly meshes generated successfully!')
+    console.log('Line-polygon intersection validation applied to all')
+    console.log('Wire artifacts should be completely eliminated')
+  } else {
+    console.log('⚠️ Some meshes failed to generate. Check error logs above.')
+  }
+  
+  console.log('========================================')
+}
+
 // Execute main function
-main()
+main().catch(error => {
+  console.error('❌ Batch generation failed:', error)
+  process.exit(1)
+})

@@ -40,6 +40,7 @@ import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimme
 import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
+import { InlineMeshMonthToggle } from "./MeshMonthToggle"
 import type { FeatureCollection } from 'geojson'
 import "../styles/CardSalesDistrictMap.css"
 import "@/src/shared/styles/districtEffects.css"
@@ -302,6 +303,7 @@ export default function CardSalesDistrictMap() {
   // Wireframe always true - removed state
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
   const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
+  const [selectedMeshMonth, setSelectedMeshMonth] = useState<string>('202401')  // Default to January 2024
   
   // Remove progressive rendering states - not needed with optimized loading
   // All layers now load on demand based on visibility settings
@@ -860,6 +862,7 @@ export default function CardSalesDistrictMap() {
     wireframe: true,  // Always wireframe
     opacity: 1,  // Wireframe opacity
     animatedOpacity: 0.8,  // Fixed opacity
+    month: selectedMeshMonth,  // Monthly mesh data
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
     color: meshColor,  // Pass the mesh color
@@ -1876,10 +1879,11 @@ export default function CardSalesDistrictMap() {
         showMeshLayer={showMeshLayer}
         onShowMeshLayerChange={handleMeshLayerToggle}
         // Wireframe always true - props removed
-        meshResolution={meshResolution}
-        onMeshResolutionChange={setMeshResolution}
+        // Mesh resolution fixed at 120 - props removed
         meshColor={meshColor}
         onMeshColorChange={setMeshColor}
+        selectedMeshMonth={selectedMeshMonth}
+        onMeshMonthChange={setSelectedMeshMonth}
         />
 
       {/* 지도 초기화 버튼 */}

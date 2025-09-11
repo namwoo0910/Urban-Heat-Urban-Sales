@@ -13,7 +13,9 @@ import {
   loadStaticSeoulMesh, 
   checkStaticMeshExists, 
   hasPreGeneratedMesh, 
-  getNearestAvailableResolution 
+  getNearestAvailableResolution,
+  loadMonthlySeoulMesh,
+  hasPreGeneratedMonthlyMesh
 } from '../utils/loadStaticMesh'
 import * as turf from '@turf/turf'
 
@@ -33,6 +35,7 @@ export interface SeoulMeshLayerProps {
   dongSalesMap?: Map<number, number>  // Map of dongCode to total sales
   salesHeightScale?: number  // Scale for converting sales to height
   animatedOpacity?: number  // For animated opacity transitions
+  month?: string  // Month identifier for monthly mesh (e.g., '202401', '202402')
 }
 
 /**
@@ -449,15 +452,17 @@ export function usePreGeneratedSeoulMeshLayer(
     dongBoundaries,
     dongSalesMap,
     salesHeightScale,
-    animatedOpacity
+    animatedOpacity,
+    month
   } = props
 
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [loadedResolution, setLoadedResolution] = useState<number | null>(null)
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null)
 
-  // Load pre-generated mesh data when resolution changes
+  // Load pre-generated mesh data when resolution or month changes
   useEffect(() => {
     let cancelled = false
 
@@ -465,15 +470,29 @@ export function usePreGeneratedSeoulMeshLayer(
       try {
         setLoading(true)
         
-        // Always use binary file loading - no dynamic generation
-        const nearestResolution = getNearestAvailableResolution(resolution)
-        console.log(`[usePreGeneratedSeoulMeshLayer] Loading binary mesh for resolution ${nearestResolution}`)
+        let data: MeshGeometry
         
-        const data = await loadStaticSeoulMesh(nearestResolution)
+        if (month && hasPreGeneratedMonthlyMesh(month)) {
+          // Load monthly mesh if month is specified and available
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading monthly mesh for ${month}`)
+          data = await loadMonthlySeoulMesh(month)
+          if (!cancelled) {
+            setLoadedMonth(month)
+            setLoadedResolution(null) // Clear resolution when using monthly mesh
+          }
+        } else {
+          // Always use binary file loading - no dynamic generation
+          const nearestResolution = getNearestAvailableResolution(resolution)
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading binary mesh for resolution ${nearestResolution}`)
+          data = await loadStaticSeoulMesh(nearestResolution)
+          if (!cancelled) {
+            setLoadedResolution(nearestResolution)
+            setLoadedMonth(null) // Clear month when using resolution mesh
+          }
+        }
         
         if (!cancelled) {
           setMeshData(data)
-          setLoadedResolution(nearestResolution)
           setError(null)
         }
         
@@ -494,7 +513,7 @@ export function usePreGeneratedSeoulMeshLayer(
     return () => {
       cancelled = true
     }
-  }, [resolution]) // Only resolution matters for binary loading
+  }, [resolution, month || '']) // Reload when resolution or month changes
 
   // Create layer from loaded data
   const layer = useMemo(() => {
@@ -503,7 +522,7 @@ export function usePreGeneratedSeoulMeshLayer(
       return null
     }
 
-    console.log(`[usePreGeneratedSeoulMeshLayer] Creating layer with resolution ${loadedResolution}, visible=${visible}, wireframe=${wireframe}`)
+    console.log(`[usePreGeneratedSeoulMeshLayer] Creating layer with resolution ${loadedResolution}, month ${loadedMonth}, visible=${visible}, wireframe=${wireframe}`)
     return createStaticSeoulMeshLayer(meshData, {
       visible,
       wireframe,
@@ -526,7 +545,8 @@ export function usePreGeneratedSeoulMeshLayer(
  */
 export function useMeshGeometry(
   resolution: number = 120,
-  districtData?: any[]
+  districtData?: any[],
+  month?: string
 ): { meshData: MeshGeometry | null; loading: boolean; error: Error | null } {
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
   const [loading, setLoading] = useState(true)
@@ -539,11 +559,18 @@ export function useMeshGeometry(
       try {
         setLoading(true)
         
-        // Always use binary file loading
-        const nearestResolution = getNearestAvailableResolution(resolution)
-        console.log(`[useMeshGeometry] Loading binary mesh at resolution ${nearestResolution}`)
+        let data: MeshGeometry
         
-        const data = await loadStaticSeoulMesh(nearestResolution)
+        if (month && hasPreGeneratedMonthlyMesh(month)) {
+          // Load monthly mesh if month is specified and available
+          console.log(`[useMeshGeometry] Loading monthly mesh for ${month}`)
+          data = await loadMonthlySeoulMesh(month)
+        } else {
+          // Always use binary file loading
+          const nearestResolution = getNearestAvailableResolution(resolution)
+          console.log(`[useMeshGeometry] Loading binary mesh at resolution ${nearestResolution}`)
+          data = await loadStaticSeoulMesh(nearestResolution)
+        }
         
         if (!cancelled) {
           setMeshData(data)
@@ -567,7 +594,7 @@ export function useMeshGeometry(
     return () => {
       cancelled = true
     }
-  }, [resolution]) // Only resolution matters for binary loading
+  }, [resolution, month || '']) // Reload when resolution or month changes, use empty string as fallback
 
   return { meshData, loading, error }
 }

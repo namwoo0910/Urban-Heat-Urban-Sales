@@ -42,6 +42,12 @@ const loadingPromises = new Map<number, Promise<MeshGeometry>>()
 // Pre-generated resolutions available
 export const PREGENERATED_RESOLUTIONS = [30, 60, 90, 120, 200]
 
+// Pre-generated monthly meshes available
+export const PREGENERATED_MONTHS = [
+  '202401', '202402', '202403', '202404', '202405', '202406', 
+  '202407', '202408', '202409', '202410', '202411', '202412'
+] // All 12 months of 2024
+
 /**
  * Check if a pre-generated mesh exists for the given resolution
  */
@@ -271,4 +277,160 @@ export async function preloadCommonResolutions(): Promise<void> {
   
   await Promise.all(promises)
   console.log('[LoadStaticMesh] Preloading complete')
+}
+
+// Cache for loaded monthly mesh data
+const monthlyMeshCache = new Map<string, MeshGeometry>()
+const monthlyLoadingPromises = new Map<string, Promise<MeshGeometry>>()
+
+/**
+ * Check if a pre-generated monthly mesh exists
+ */
+export function hasPreGeneratedMonthlyMesh(month: string): boolean {
+  return PREGENERATED_MONTHS.includes(month)
+}
+
+/**
+ * Load pre-generated monthly Seoul mesh data
+ * @param month - The month to load (e.g., '202401', '202402')
+ */
+export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry> {
+  // Return cached data if available
+  if (monthlyMeshCache.has(month)) {
+    console.log(`[LoadStaticMesh] Using cached monthly mesh data for ${month}`)
+    return monthlyMeshCache.get(month)!
+  }
+
+  // If already loading this month, wait for the existing promise
+  if (monthlyLoadingPromises.has(month)) {
+    console.log(`[LoadStaticMesh] Waiting for existing load operation for month ${month}`)
+    return monthlyLoadingPromises.get(month)!
+  }
+
+  // Check if this month is available as pre-generated
+  if (!hasPreGeneratedMonthlyMesh(month)) {
+    throw new Error(`No pre-generated mesh available for month ${month}. Available: ${PREGENERATED_MONTHS.join(', ')}`)
+  }
+
+  // Start loading
+  const loadingPromise = (async () => {
+    try {
+      // First try binary format
+      const headerUrl = `/data/binary/seoul-mesh-${month}.header.json`
+      console.log(`[LoadStaticMesh] Loading monthly header from ${headerUrl}...`)
+      const headerResponse = await fetch(headerUrl)
+      
+      if (!headerResponse.ok) {
+        // Fallback to JSON if binary not available
+        console.log(`[LoadStaticMesh] Binary header not found for ${month}, trying JSON fallback...`)
+        const jsonUrl = `/data/seoul-mesh-${month}.json`
+        const jsonResponse = await fetch(jsonUrl)
+        if (!jsonResponse.ok) {
+          throw new Error(`Failed to load monthly mesh data for ${month}: ${jsonResponse.status}`)
+        }
+        const jsonData = await jsonResponse.json()
+        const meshGeometry: MeshGeometry = {
+          positions: new Float32Array(jsonData.positions),
+          normals: new Float32Array(jsonData.normals),
+          texCoords: new Float32Array(jsonData.texCoords),
+          colors: jsonData.colors ? new Float32Array(jsonData.colors) : undefined,
+          indices: jsonData.indices ? new Uint32Array(jsonData.indices) : undefined,
+          metadata: jsonData.metadata
+        }
+        monthlyMeshCache.set(month, meshGeometry)
+        monthlyLoadingPromises.delete(month)
+        return meshGeometry
+      }
+
+      const header: BinaryMeshHeader = await headerResponse.json()
+      
+      // Load the binary data
+      const binaryUrl = `/data/binary/seoul-mesh-${month}.bin`
+      console.log(`[LoadStaticMesh] Loading monthly binary data from ${binaryUrl}...`)
+      const binaryResponse = await fetch(binaryUrl)
+      
+      if (!binaryResponse.ok) {
+        throw new Error(`Failed to load monthly binary data for ${month}: ${binaryResponse.status}`)
+      }
+      
+      const arrayBuffer = await binaryResponse.arrayBuffer()
+      console.log(`[LoadStaticMesh] Monthly ArrayBuffer loaded - size: ${arrayBuffer.byteLength} bytes`)
+      
+      // Parse binary data according to header offsets (same logic as loadStaticSeoulMesh)
+      const meshGeometry: MeshGeometry = {
+        positions: new Float32Array(0),
+        normals: new Float32Array(0),
+        texCoords: new Float32Array(0),
+        metadata: {
+          center: header.metadata.center
+        }
+      }
+      
+      // Extract positions
+      if (header.offsets.positions) {
+        const { offset, count, itemSize } = header.offsets.positions
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.positions = new Float32Array(view)
+      }
+      
+      // Extract normals
+      if (header.offsets.normals) {
+        const { offset, count, itemSize } = header.offsets.normals
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.normals = new Float32Array(view)
+      }
+      
+      // Extract texCoords
+      if (header.offsets.texCoords) {
+        const { offset, count, itemSize } = header.offsets.texCoords
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.texCoords = new Float32Array(view)
+      }
+      
+      // Extract colors
+      if (header.offsets.colors) {
+        const { offset, count, itemSize } = header.offsets.colors
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.colors = new Float32Array(view)
+      }
+      
+      // Extract indices
+      if (header.offsets.indices) {
+        const { offset, length } = header.offsets.indices
+        const elementCount = length / 4
+        const view = new Uint32Array(arrayBuffer, offset, elementCount)
+        meshGeometry.indices = new Uint32Array(view)
+      }
+
+      console.log(`[LoadStaticMesh] Loaded monthly binary mesh for ${month}: ${header.metadata.triangles} triangles`)
+      
+      // Cache the result
+      monthlyMeshCache.set(month, meshGeometry)
+      monthlyLoadingPromises.delete(month)
+      
+      return meshGeometry
+    } catch (error) {
+      console.error(`[LoadStaticMesh] Failed to load monthly mesh for ${month}:`, error)
+      monthlyLoadingPromises.delete(month)
+      throw error
+    }
+  })()
+
+  monthlyLoadingPromises.set(month, loadingPromise)
+  return loadingPromise
+}
+
+/**
+ * Clear monthly mesh cache
+ */
+export function clearMonthlyMeshCache(month?: string): void {
+  if (month !== undefined) {
+    monthlyMeshCache.delete(month)
+    monthlyLoadingPromises.delete(month)
+    console.log(`[LoadStaticMesh] Monthly cache cleared for ${month}`)
+  } else {
+    monthlyMeshCache.clear()
+    monthlyLoadingPromises.clear()
+    console.log('[LoadStaticMesh] All monthly cache cleared')
+  }
 }

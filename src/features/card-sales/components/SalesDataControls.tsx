@@ -20,6 +20,7 @@ import { COLOR_PALETTE_INFO, getColorPreviewStyle, type ColorScheme } from "@/sr
 import { Switch } from "@/src/shared/components/ui/switch"
 import { setDistrictTheme, getAvailableThemes, getCurrentTheme } from "@/src/shared/utils/districtUtils"
 import { COLOR_THEMES } from "@/src/shared/utils/districtColorThemes"
+import { InlineMeshMonthToggle } from "./MeshMonthToggle"
 
 // Map layers removed - using fixed map style
 
@@ -95,6 +96,8 @@ interface UnifiedControlsProps {
   // Mesh resolution removed - using fixed value
   meshColor?: string
   onMeshColorChange?: (color: string) => void
+  selectedMeshMonth?: string
+  onMeshMonthChange?: (month: string) => void
 }
 
 // Theme adjustment state interface
@@ -138,6 +141,8 @@ export default function UnifiedControls({
   // Mesh resolution fixed at 120
   meshColor = '#00FFE1',
   onMeshColorChange,
+  selectedMeshMonth = '202402',
+  onMeshMonthChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [showDetailView, setShowDetailView] = useState(false)
@@ -446,6 +451,16 @@ export default function UnifiedControls({
                         />
                       ))}
                     </div>
+                  </div>
+                  
+                  {/* Month Toggle */}
+                  <div className="space-y-2">
+                    <Label className="text-gray-200 text-xs">Mesh Data Month</Label>
+                    <InlineMeshMonthToggle
+                      selectedMonth={selectedMeshMonth || '202402'}
+                      onMonthChange={onMeshMonthChange || (() => {})}
+                      className="w-full"
+                    />
                   </div>
                 </div>
               )}
