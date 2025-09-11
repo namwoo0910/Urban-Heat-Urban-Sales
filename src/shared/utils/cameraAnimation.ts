@@ -3,6 +3,8 @@
  * Provides unified easing functions and animation configurations
  */
 
+import { CAMERA_3D_CONFIG, CAMERA_2D_CONFIG } from './district3DUtils'
+
 // Easing Functions for smooth camera movements
 export const easingFunctions = {
   // Linear (no easing)
@@ -154,30 +156,30 @@ export const ZOOM_CONFIGURATIONS = {
   SEOUL_OVERVIEW: {
     zoom: 10.5,
     pitch: 20,
-    bearing: 4
+    bearing: 6
   },
   DISTRICT_VIEW: {
     zoom: 11.5,
     pitch: 30,
-    bearing: 0
+    bearing: 6
   },
   DONG_VIEW: {
     zoom: 13,
     pitch: 45,
-    bearing: 0
+    bearing: 6
   },
   DETAIL_VIEW: {
     zoom: 14.5,
     pitch: 50,
-    bearing: 0
+    bearing: 6
   },
   MODE_2D: {
-    pitch: 0,
-    bearing: 0
+    pitch: CAMERA_2D_CONFIG.pitch,
+    bearing: CAMERA_2D_CONFIG.bearing
   },
   MODE_3D: {
-    pitch: 60,
-    bearing: -15
+    pitch: CAMERA_3D_CONFIG.pitch,
+    bearing: CAMERA_3D_CONFIG.bearing
   }
 }
 

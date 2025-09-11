@@ -213,7 +213,7 @@ export async function createSeoulMeshLayerAsync(
   const {
     visible = true,
     wireframe = false,
-    resolution = 60,  // Increased default for better boundary accuracy
+    resolution = 120,  // Increased default for better boundary accuracy
     heightScale = 1,
     opacity = 0.8,
     pickable = true,
@@ -438,7 +438,7 @@ export function usePreGeneratedSeoulMeshLayer(
   districtData?: any[]
 ): { layer: SimpleMeshLayer | null; isLoading: boolean } {
   const {
-    resolution = 60,
+    resolution = 120,
     visible = true,
     wireframe = false,
     opacity = 0.8,
@@ -525,7 +525,7 @@ export function usePreGeneratedSeoulMeshLayer(
  * Used by AnimatedMeshLayer for GPU-based vertex animations
  */
 export function useMeshGeometry(
-  resolution: number = 30,
+  resolution: number = 120,
   districtData?: any[]
 ): { meshData: MeshGeometry | null; loading: boolean; error: Error | null } {
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)

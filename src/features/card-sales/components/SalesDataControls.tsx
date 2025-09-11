@@ -145,10 +145,10 @@ export default function UnifiedControls({
   const [currentTheme, setCurrentTheme] = useState<keyof typeof COLOR_THEMES>('modern')
   // Removed: useIndividualColors state - always use theme colors
   
-  // Theme adjustment states
+  // Theme adjustment states - brighter initial settings
   const [themeAdjustments, setThemeAdjustments] = useState<ThemeAdjustments>({
     opacity: 100,
-    brightness: 0,
+    brightness: 20,  // Start with +20 brightness for brighter initial view
     saturation: 0,
     contrast: 0
   })

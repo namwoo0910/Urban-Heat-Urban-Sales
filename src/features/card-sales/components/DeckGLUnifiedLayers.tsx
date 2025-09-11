@@ -10,6 +10,7 @@ import { GeoJsonLayer, PathLayer } from '@deck.gl/layers'
 import { PolygonLayer } from '@deck.gl/layers'
 import type { PickingInfo } from '@deck.gl/core'
 import type { Feature, FeatureCollection } from 'geojson'
+import { applyColorAdjustments } from '../utils/modernColorPalette'
 
 interface UnifiedLayersProps {
   // Data
@@ -51,30 +52,33 @@ interface UnifiedLayersProps {
   onClick?: (info: PickingInfo) => void
 }
 
-// 색상 상수 정의
+// 색상 상수 정의 - 조정값이 적용되도록 함수로 변경
+const getColor = (baseColor: [number, number, number, number]) => {
+  return applyColorAdjustments(...baseColor);
+}
+
 const COLORS = {
   // 기본 색상
-  DEFAULT_FILL: [30, 40, 50, 180] as [number, number, number, number],
-  DEFAULT_LINE: [0, 255, 255, 100] as [number, number, number, number],
+  get DEFAULT_FILL() { return getColor([30, 40, 50, 180]) },
+  get DEFAULT_LINE() { return getColor([0, 255, 255, 100]) },
   
   // 구 색상
-  SGG_FILL: [20, 30, 40, 150] as [number, number, number, number],
-  SGG_LINE: [0, 200, 200, 200] as [number, number, number, number],
-  SGG_LINE_HOVER: [0, 255, 255, 255] as [number, number, number, number],
+  get SGG_FILL() { return getColor([20, 30, 40, 150]) },
+  get SGG_LINE() { return getColor([0, 200, 200, 200]) },
+  get SGG_LINE_HOVER() { return getColor([0, 255, 255, 255]) },
   
   // 동 색상
-  DONG_FILL: [25, 35, 45, 120] as [number, number, number, number],
-  DONG_LINE: [100, 150, 200, 150] as [number, number, number, number],
+  get DONG_FILL() { return getColor([25, 35, 45, 120]) },
+  get DONG_LINE() { return getColor([100, 150, 200, 150]) },
   
   // 선택/호버 색상
-  SELECTED_FILL: [255, 200, 0, 200] as [number, number, number, number],
-  HOVER_FILL: [0, 255, 255, 100] as [number, number, number, number],
-  HOVER_LINE: [0, 255, 255, 255] as [number, number, number, number],
+  get SELECTED_FILL() { return getColor([255, 200, 0, 200]) },
+  get HOVER_FILL() { return getColor([0, 255, 255, 100]) },
+  get HOVER_LINE() { return getColor([0, 255, 255, 255]) },
   
   // 글로우 효과
-  GLOW_OUTER: [0, 255, 255, 50] as [number, number, number, number],
-  GLOW_MID: [100, 200, 255, 100] as [number, number, number, number],
-  
+  get GLOW_OUTER() { return getColor([0, 255, 255, 50]) },
+  get GLOW_MID() { return getColor([100, 200, 255, 100]) },
 }
 
 // 동 높이 계산 (3D 모드)
@@ -330,7 +334,7 @@ export function createUnifiedDeckGLLayers({
             return COLORS.SELECTED_FILL
           }
           if (selectedGu === guName) {
-            return [40, 50, 60, 150] // 선택된 구의 동들
+            return getColor([40, 50, 60, 150]) // 선택된 구의 동들
           }
           return COLORS.DONG_FILL
         },
