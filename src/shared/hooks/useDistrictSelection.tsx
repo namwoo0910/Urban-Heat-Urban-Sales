@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from 'react'
 import type { MapRef, MapLayerMouseEvent } from 'react-map-gl'
+import { DEFAULT_SEOUL_VIEW } from '@shared/utils/district3DUtils'
 
 interface UseDistrictSelectionProps {
   mapRef: React.RefObject<MapRef | null>
@@ -102,10 +103,10 @@ export function useDistrictSelection({ mapRef, onDistrictSelect }: UseDistrictSe
     
     if (mapRef.current) {
       mapRef.current.flyTo({
-        center: [126.9780, 37.5665],
-        zoom: 10,
-        pitch: 0,
-        bearing: 0,
+        center: [DEFAULT_SEOUL_VIEW.longitude, DEFAULT_SEOUL_VIEW.latitude],
+        zoom: DEFAULT_SEOUL_VIEW.zoom,
+        pitch: DEFAULT_SEOUL_VIEW.pitch,
+        bearing: DEFAULT_SEOUL_VIEW.bearing,
         duration: 1000,  // Faster reset animation
         essential: true
       })

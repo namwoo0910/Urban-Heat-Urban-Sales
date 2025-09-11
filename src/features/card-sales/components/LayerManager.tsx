@@ -492,8 +492,18 @@ export function formatScatterplotTooltip(info: any): string {
   const { object } = info
   const originalData = object.originalData
   
+  // originalData가 없으면 object에서 직접 정보 추출 시도
   if (!originalData) {
-    return '데이터 로드 중...'
+    console.log('[formatScatterplotTooltip] No originalData, object keys:', Object.keys(object))
+    
+    // 기본 정보만 표시
+    return `
+📍 위치 정보
+━━━━━━━━━━━━━━━━━━━
+좌표: ${object.coordinates ? `${object.coordinates[1].toFixed(4)}, ${object.coordinates[0].toFixed(4)}` : '정보 없음'}
+━━━━━━━━━━━━━━━━━━━
+⚠️ 상세 데이터 로딩 중...
+    `.trim()
   }
   
   try {

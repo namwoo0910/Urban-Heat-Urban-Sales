@@ -6,7 +6,7 @@ import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL } from 'react-map-gl'
 import type { MapRef } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
-import { LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
+import { LightingEffect, AmbientLight, DirectionalLight, FlyToInterpolator, LinearInterpolator } from '@deck.gl/core'
 import { PolygonLayer } from '@deck.gl/layers'
 // Removed createDong3DPolygonLayers import - using local optimized versions instead
 import UnifiedControls from "./SalesDataControls"
@@ -32,10 +32,11 @@ import {
   getDongHeight,
   getDongHeightBySales,
   CAMERA_3D_CONFIG, 
-  CAMERA_2D_CONFIG
+  CAMERA_2D_CONFIG,
+  DEFAULT_SEOUL_VIEW
 } from "@/src/shared/utils/district3DUtils"
 // RotateCcw removed - replay button removed for performance
-import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getSimpleSalesColor } from "../utils/modernColorPalette"
+import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getSimpleSalesColor, applyColorAdjustments } from "../utils/modernColorPalette"
 import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
@@ -72,42 +73,33 @@ const convertColorExpressionToRGB = (
   // Use simple sales-based color if sales data is available
   if (totalSales !== undefined && totalSales >= 0) {
     const color = getSimpleSalesColor(totalSales, themeKey);
-    // Temporarily bypass applyColorAdjustments to test raw colors
-    return color; // Direct return without adjustments
-    // return applyColorAdjustments(...color);
+    // Color adjustments are now applied inside getSimpleSalesColor
+    return color;
   }
   
   // Fallback to simple height-based color
   const h = height || 0;
   const baseAlpha = 242;
   
-  // Simple height-based colors for fallback
-  if (h >= 600) return [0, 0, 139, baseAlpha];      // Very high
-  if (h >= 500) return [0, 71, 171, baseAlpha];     // High
-  if (h >= 400) return [30, 144, 255, baseAlpha];   // Medium-high
-  if (h >= 300) return [100, 180, 255, baseAlpha];  // Medium
-  if (h >= 200) return [135, 206, 250, baseAlpha];  // Low-medium
-  if (h >= 100) return [173, 216, 230, baseAlpha];  // Low
-  return [200, 230, 255, baseAlpha];                // Very low
+  // Simple height-based colors for fallback with adjustments
+  let [r, g, b] = [200, 230, 255]; // Default very low
+  if (h >= 600) [r, g, b] = [0, 0, 139];       // Very high
+  else if (h >= 500) [r, g, b] = [0, 71, 171];      // High
+  else if (h >= 400) [r, g, b] = [30, 144, 255];    // Medium-high
+  else if (h >= 300) [r, g, b] = [100, 180, 255];   // Medium
+  else if (h >= 200) [r, g, b] = [135, 206, 250];   // Low-medium
+  else if (h >= 100) [r, g, b] = [173, 216, 230];   // Low
+  
+  // Apply theme adjustments to fallback colors
+  return applyColorAdjustments(r, g, b, baseAlpha);
 }
-
-// 기본 서울 뷰 설정 상수 (3D 모드 기본)
-const DEFAULT_SEOUL_VIEW = {
-  longitude: 126.978,
-  latitude: 37.5765,
-  zoom: 10.8,
-  pitch: 40,  // 옆에서 본 각도로 설정 (side view angle)
-  bearing: 6,  // 3D 방향으로 설정
-  minZoom: 5,
-  maxZoom: 13
-} as const
 
 // 줌 설정 통합 관리
 const ZOOM_SETTINGS = {
-  DONG: 13,              // 동 선택시 줌 레벨
-  GU: 13,                  // 구 선택시 줌 레벨
-  PITCH_DONG: 40,          // 동 선택시 카메라 각도
-  PITCH_GU: 30,            // 구 선택시 카메라 각도
+  DONG: 12.5,              // 동 선택시 줌 레벨 (한 단계 멀리)
+  GU: 12,                  // 구 선택시 줌 레벨
+  PITCH_DONG: 50,          // 동 선택시 카메라 각도 (match initial)
+  PITCH_GU: 50,            // 구 선택시 카메라 각도 (match initial)
   TRANSITION_DURATION: 1500,
   TRANSITION_SPEED: 1.2
 } as const
@@ -205,8 +197,10 @@ export default function CardSalesDistrictMap() {
   // 기본 뷰로 리셋하는 재사용 함수
   const resetToDefaultView = useCallback(() => {
     setViewState({
-      ...DEFAULT_SEOUL_VIEW
-    })
+      ...DEFAULT_SEOUL_VIEW,
+      transitionInterpolator: new FlyToInterpolator({speed: 2}),
+      transitionDuration: 1000
+    } as MapViewState)
     
   }, [])
   
@@ -224,7 +218,9 @@ export default function CardSalesDistrictMap() {
         zoom: dongCenter ? ZOOM_SETTINGS.DONG : ZOOM_SETTINGS.GU,
         pitch: dongCenter ? ZOOM_SETTINGS.PITCH_DONG : ZOOM_SETTINGS.PITCH_GU,
         bearing: prev.bearing || 0,
-      }))
+        transitionInterpolator: new FlyToInterpolator({speed: 1.5}),
+        transitionDuration: 'auto'
+      } as MapViewState))
       
     }
   }, [setViewState])
@@ -390,26 +386,8 @@ export default function CardSalesDistrictMap() {
   const handle3DModeToggle = useCallback((enabled: boolean) => {
     setIs3DMode(enabled)
     
-    // 카메라 각도 조정
-    if (enabled) {
-      // 3D 모드: pitch와 bearing 설정
-        setViewState(prev => ({
-        ...prev,
-        pitch: 60,
-        bearing: -15,
-      }))
-      setTimeout(() => {
-      }, 1300)
-    } else {
-      // 2D 모드로 복귀
-        setViewState(prev => ({
-        ...prev,
-        pitch: 0,
-        bearing: 0,
-      }))
-      setTimeout(() => {
-      }, 1100)
-    }
+    // View state is not changed when toggling between mesh and polygon layers
+    // Both layers use the same camera angle for consistency
   }, [])
 
   
@@ -620,7 +598,7 @@ export default function CardSalesDistrictMap() {
     
     return [
       new PolygonLayer({
-        id: 'dong-3d-polygon',
+        id: `dong-3d-polygon-${JSON.stringify(themeAdjustments)}`,  // Unique ID to force recreation
         data: dongData3D.features,
         pickable: true,
         extruded: true,
@@ -711,7 +689,7 @@ export default function CardSalesDistrictMap() {
             // Special strong highlighting when gu is hovered
             if (hoveredDistrict === guName) {
               // Use bright yellow-gold highlight for entire gu
-              return [255, 230, 100, 255]
+              return applyColorAdjustments(255, 230, 100, 255)
             }
             
             // Dimmed color for non-selected areas when something is selected
@@ -736,13 +714,13 @@ export default function CardSalesDistrictMap() {
           // Strong highlight if gu is hovered (show district boundary effect)
           if (hoveredDistrict === guName) {
             // Use bright golden highlight for entire gu
-            return [255, 215, 0, 255]  // Gold color with full opacity
+            return applyColorAdjustments(255, 215, 0, 255)  // Gold color with full opacity
           }
           if (selectedGu && guName === selectedGu) {
             return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
           }
           if (selectedGu || selectedDong) {
-            return [51, 51, 51, 200]
+            return applyColorAdjustments(51, 51, 51, 200)
           }
           return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
         },
@@ -761,11 +739,11 @@ export default function CardSalesDistrictMap() {
           
           // Strong highlight edges when gu is hovered
           if (hoveredDistrict === guName) {
-            return [255, 255, 0, 255]  // Bright pure yellow edges with full opacity for hovered gu
+            return applyColorAdjustments(255, 255, 0, 255)  // Bright pure yellow edges with full opacity for hovered gu
           }
           
           // Fallback to simple white edges
-          return [255, 255, 255, 30]
+          return applyColorAdjustments(255, 255, 255, 30)
         },
         // Dynamic line width based on hover state
         getLineWidth: (d: any) => {
@@ -778,14 +756,14 @@ export default function CardSalesDistrictMap() {
         lineWidthMinPixels: 1.5,
         lineWidthMaxPixels: 4,
         
-        // Modern material properties for sophisticated 3D effect
+        // Modern material properties for sophisticated 3D effect - brighter settings
         material: (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') 
           ? getModernMaterial(currentThemeKey)
           : {
-              ambient: 0.35,
-              diffuse: 0.6,
-              shininess: 32,
-              specularColor: [60, 64, 70]
+              ambient: 0.6,   // Increased from 0.35
+              diffuse: 0.9,   // Increased from 0.6
+              shininess: 48,  // Increased from 32
+              specularColor: [100, 110, 120]  // Brighter specular
             },
         
         // Events
@@ -829,8 +807,8 @@ export default function CardSalesDistrictMap() {
         // Update triggers for reactive updates - optimized based on layer visibility
         updateTriggers: layerConfig.visible ? {
           getElevation: [dongSalesMap, heightScale],  // Only essential dependencies
-          getFillColor: [selectedGu, selectedDong, currentThemeKey],  // Only visual changes
-          getLineColor: [selectedGu, selectedDong, currentThemeKey]
+          getFillColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments, hoveredDistrict],  // Include theme adjustments and hover
+          getLineColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments, hoveredDistrict]  // Include theme adjustments
         } : {}
       })
     ]
@@ -849,22 +827,23 @@ export default function CardSalesDistrictMap() {
     setHoveredDistrict,
     setViewState,
     hoveredDistrict,
-    themeAdjustments
+    themeAdjustments,
+    layerConfig  // Added to ensure recreation when layer config changes
   ])
   
   // Create lighting configuration for 3D mesh rendering
   const lightingEffect = useMemo(() => {
-    // Ambient light for base illumination
+    // Ambient light for base illumination - increased for brighter scene
     const ambientLight = new AmbientLight({
       color: [255, 255, 255],
-      intensity: 0.5
+      intensity: 0.8  // Increased from 0.5
     })
     
-    // Directional light for main illumination (simulating sunlight)
+    // Directional light for main illumination (simulating sunlight) - increased intensity
     const directionalLight = new DirectionalLight({
       direction: [-1, -3, -1],  // Light coming from upper right
       color: [255, 255, 255],
-      intensity: 1.0
+      intensity: 1.5  // Increased from 1.0
     })
     
     // Create lighting effect with both lights
@@ -1052,7 +1031,7 @@ export default function CardSalesDistrictMap() {
     return layers
   }, [is3DMode, dongData3D, showDistrictLabels, showDongLabels, viewState.zoom, 
       selectedGu, selectedDong, hoveredDistrict, showMeshLayer, preGeneratedMeshLayer, 
-      unifiedLayers])  // Optimized: removed function dependencies and loading states
+      unifiedLayers, createDong3DPolygonLayersOptimized, layerConfig])  // Added function and layerConfig dependencies
   
   // 기존 HexagonLayer 코드 (주석 처리)
   // 툴팁 핸들러 (Context7 권장 패턴)
@@ -1062,8 +1041,12 @@ export default function CardSalesDistrictMap() {
     }
     
     try {
+      // 디버깅: 실제 레이어 ID 확인
+      console.log('[Tooltip Debug] Layer ID:', info.layer?.id, 'Object keys:', Object.keys(info.object))
+      
       // dong-3d-polygon 레이어 처리 (3D 행정동 폴리곤)
-      if (info.layer?.id === 'dong-3d-polygon' && info.object) {
+      // 실제로는 다양한 레이어 ID가 올 수 있으므로 properties 존재 여부로 판단
+      if (info.object && (info.layer?.id === 'dong-3d-polygon' || info.object.properties)) {
         const properties = info.object.properties
         
         // 한글과 영문 속성명 모두 체크
@@ -1163,7 +1146,39 @@ export default function CardSalesDistrictMap() {
       }
       
       
-      // 기존 HexagonLayer의 경우 (폴백)
+      // 기존 HexagonLayer의 경우 (폴백) - dongSalesMap 사용하도록 개선
+      console.log('[Tooltip Debug] Using fallback logic, dongSalesMap size:', dongSalesMap.size)
+      
+      // dongSalesMap에서 데이터가 있으면 기본 툴팁 생성
+      if (dongSalesMap.size > 0 && info.object.coordinates) {
+        // 좌표 기반으로 가장 가까운 동 찾기 (임시 해결책)
+        const position = info.object.coordinates || info.object.position
+        if (position) {
+          const tooltipHtml = `
+📍 위치: ${position[1].toFixed(4)}, ${position[0].toFixed(4)}
+💰 데이터: ${dongSalesMap.size}개 동 로딩됨
+📅 날짜: ${selectedDate || '정보 없음'}
+          `.trim()
+          
+          return {
+            html: tooltipHtml,
+            style: {
+              backgroundColor: 'rgba(0, 0, 0, 0.95)',
+              color: 'white',
+              fontSize: '13px',
+              padding: '14px',
+              borderRadius: '8px',
+              whiteSpace: 'pre-line',
+              maxWidth: '320px',
+              lineHeight: '1.6',
+              boxShadow: '0 8px 16px rgba(0, 0, 0, 0.4)',
+              border: '1px solid rgba(255, 255, 255, 0.15)',
+              backdropFilter: 'blur(8px)'
+            }
+          }
+        }
+      }
+      
       const enhancedInfo = {
         ...info,
         layer: {
@@ -1263,6 +1278,17 @@ export default function CardSalesDistrictMap() {
     error: optimizedError 
   } = jsonDataResult // Only use JSON data now
   
+  // 추가 디버깅: useOptimizedMonthlyData 상태 모니터링
+  console.log('[DEBUG] useOptimizedMonthlyData Result:', {
+    formatSelectedDate,
+    hasFeatures: !!optimizedFeatures,
+    featuresLength: optimizedFeatures?.length,
+    hasDongMap: !!optimizedDongMap,
+    dongMapSize: optimizedDongMap?.size,
+    isLoading: isOptimizedLoading,
+    error: optimizedError
+  })
+  
   // 성능 로깅 - 주석 처리 (binary data removed)
   useEffect(() => {
     if (false) { // Disabled since binary data is removed
@@ -1271,6 +1297,14 @@ export default function CardSalesDistrictMap() {
 
   // Load sales data from optimized data
   useEffect(() => {
+    console.log('[DEBUG] Data loading status:', {
+      features: optimizedFeatures?.length,
+      dongMap: optimizedDongMap?.size,
+      isLoading: isOptimizedLoading,
+      error: optimizedError,
+      selectedDate: formatSelectedDate
+    })
+    
     if (!optimizedFeatures || !optimizedDongMap) {
       return
     }
@@ -1278,6 +1312,7 @@ export default function CardSalesDistrictMap() {
     // 디버깅: optimizedDongMap 확인
     const firstThree = Array.from(optimizedDongMap.entries()).slice(0, 3)
     firstThree.forEach(([dongCode, feature]) => {
+      console.log(`[DEBUG] DongCode ${dongCode}: sales=${feature.totalSales}`)
     })
 
     
@@ -1307,6 +1342,11 @@ export default function CardSalesDistrictMap() {
     
     setDongSalesMap(salesByDong)
     setDongSalesByTypeMap(salesByDongAndType)
+    
+    console.log('[DEBUG] Maps created:', {
+      dongSalesMap: salesByDong.size,
+      dongSalesByTypeMap: salesByDongAndType.size
+    })
   }, [optimizedFeatures, optimizedDongMap])
   
   // Memoize dong colors for performance

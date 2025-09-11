@@ -249,8 +249,8 @@ export function getModernDistrictColor(
   if (isSelected) alpha = 255;
   if (isHovered) alpha = 255; // Full opacity for maximum visibility when hovered
   
-  // Return color directly without adjustments
-  return [r, g, b, alpha];
+  // Apply theme adjustments (brightness, saturation, contrast)
+  return applyColorAdjustments(r, g, b, alpha);
 }
 
 // Get edge color based on district color
@@ -277,13 +277,13 @@ export function getModernEdgeColor(
   ];
 }
 
-// Modern material properties for different themes
+// Modern material properties for different themes - brighter settings
 export function getModernMaterial(themeKey: string = 'modern') {
   const baseMaterial = {
-    ambient: 0.4,
-    diffuse: 0.7,
-    shininess: 64,
-    specularColor: [90, 95, 100] as [number, number, number]
+    ambient: 0.65,  // Increased from 0.4
+    diffuse: 0.95,  // Increased from 0.7
+    shininess: 80,  // Increased from 64
+    specularColor: [120, 130, 140] as [number, number, number]  // Brighter specular
   };
   
   if (themeKey === 'modern-dark') {
@@ -372,31 +372,31 @@ export function getSimpleSalesColor(
 ): [number, number, number, number] {
   const alpha = 242; // Fixed alpha for consistency
   
-  // Define color ranges for each theme (dark to light)
+  // Define color ranges for each theme (dark to light) - Brightened for better visibility
   const themeColors = {
     blue: {
-      dark: [0, 0, 80] as [number, number, number],       // Very dark navy
-      light: [200, 230, 255] as [number, number, number]  // Very light blue
+      dark: [40, 80, 140] as [number, number, number],      // Brighter navy
+      light: [220, 240, 255] as [number, number, number]    // Bright light blue
     },
     green: {
-      dark: [0, 40, 0] as [number, number, number],       // Very dark green
-      light: [220, 255, 220] as [number, number, number]  // Very light mint
+      dark: [40, 90, 40] as [number, number, number],       // Brighter green
+      light: [230, 255, 230] as [number, number, number]    // Bright mint
     },
     purple: {
-      dark: [40, 0, 60] as [number, number, number],      // Very dark purple
-      light: [250, 230, 255] as [number, number, number]  // Very light lavender
+      dark: [90, 50, 120] as [number, number, number],      // Brighter purple
+      light: [250, 235, 255] as [number, number, number]    // Bright lavender
     },
     orange: {
-      dark: [100, 40, 0] as [number, number, number],     // Very dark brown
-      light: [255, 250, 230] as [number, number, number]  // Very light cream
+      dark: [140, 80, 30] as [number, number, number],      // Brighter brown-orange
+      light: [255, 250, 235] as [number, number, number]    // Bright cream
     },
     mint: {
-      dark: [0, 60, 60] as [number, number, number],      // Very dark teal
-      light: [230, 255, 255] as [number, number, number]  // Very light cyan
+      dark: [30, 100, 100] as [number, number, number],     // Brighter teal
+      light: [235, 255, 255] as [number, number, number]    // Bright cyan
     },
     bright: {
-      dark: [0, 0, 120] as [number, number, number],      // Bright blue
-      light: [180, 220, 255] as [number, number, number]  // Light sky blue
+      dark: [50, 100, 180] as [number, number, number],     // Bright blue
+      light: [200, 230, 255] as [number, number, number]    // Very light sky blue
     }
   };
   
@@ -409,8 +409,10 @@ export function getSimpleSalesColor(
   const colorIndex = Math.min(Math.floor(totalSales / step), 39);
   
   // Return the appropriate color from the gradient
-  const [r, g, b] = gradientColors[39 - colorIndex]; // Reverse so high sales = dark color
-  return [r, g, b, alpha];
+  const [r, g, b] = gradientColors[colorIndex]; // High sales = bright color
+  
+  // Apply theme adjustments (brightness, saturation, contrast)
+  return applyColorAdjustments(r, g, b, alpha);
 }
 
 // Get sales-based color using simple 20-step gradient

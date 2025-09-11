@@ -9,7 +9,7 @@ import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import { PolygonLayer } from '@deck.gl/layers'
 // Adapted imports for floating population
-import { usePreGeneratedSeoulMeshLayer } from "@/src/features/floating-pop/components/SeoulMeshLayer"
+import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useFloatingPopData } from "../hooks/useFloatingPopData"
 import { DefaultChartsPanel } from "@/src/features/floating-pop/components/charts/DefaultChartsPanel"
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
@@ -225,9 +225,9 @@ export default function FloatingPopDistrictMapFull() {
   const [heightScale, setHeightScale] = useState<number>(10000) // Scale for population height
   
   // Mesh layer states
-  const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)
+  const [showMeshLayer, setShowMeshLayer] = useState<boolean>(false)
   const [meshResolution, setMeshResolution] = useState<number>(120)
-  const [meshColor, setMeshColor] = useState<string>('#FFFFFF')
+  const [meshColor, setMeshColor] = useState<string>('#00FFE1')
   
   // Layer toggle handlers
   const handlePolygonLayerToggle = useCallback((visible: boolean) => {
@@ -654,11 +654,10 @@ export default function FloatingPopDistrictMapFull() {
   const { layer: preGeneratedMeshLayer, isLoading: isMeshLoading } = usePreGeneratedSeoulMeshLayer({
     resolution: meshResolution,
     visible: showMeshLayer,
-    wireframe: true,
-    opacity: 1,
-    animatedOpacity: 0.8,
+    wireframe: false,
+    opacity: 0.8,
+    animatedOpacity: 0.6,
     pickable: false,
-    useMask: true,
     color: meshColor,
     dongBoundaries: dongData3D?.features,
     dongSalesMap: dongPopulationMap, // Use population data instead of sales

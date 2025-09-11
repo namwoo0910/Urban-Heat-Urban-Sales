@@ -528,11 +528,24 @@ export function get3DSideColorExpression() {
 }
 
 /**
+ * 기본 서울 뷰 설정 - 모든 컴포넌트에서 사용
+ */
+export const DEFAULT_SEOUL_VIEW = {
+  longitude: 126.978,
+  latitude: 37.5765,
+  zoom: 10.8,
+  pitch: 50,  // 3D 뷰 각도
+  bearing: 6,  // 3D 방향
+  minZoom: 5,
+  maxZoom: 13
+} as const
+
+/**
  * 3D 모드 카메라 설정
  */
 export const CAMERA_3D_CONFIG = {
-  pitch: 60,
-  bearing: -15,
+  pitch: DEFAULT_SEOUL_VIEW.pitch,  // Use default
+  bearing: DEFAULT_SEOUL_VIEW.bearing,  // Use default
   duration: 1200,
   essential: true
 }

@@ -163,14 +163,18 @@ export function useOptimizedMonthlyData({
   const targetMonth = useMemo(() => {
     if (!selectedDate) return null
     // "2024-01-15" -> "2024-01"
-    return selectedDate.substring(0, 7)
+    const month = selectedDate.substring(0, 7)
+    console.log('[useOptimizedMonthlyData] Target month:', month, 'from selectedDate:', selectedDate)
+    return month
   }, [selectedDate])
   
   // 날짜에서 일 추출
   const targetDay = useMemo(() => {
     if (!selectedDate) return null
     // "2024-01-15" -> "15"
-    return selectedDate.substring(8, 10)
+    const day = selectedDate.substring(8, 10)
+    console.log('[useOptimizedMonthlyData] Target day:', day, 'from selectedDate:', selectedDate)
+    return day
   }, [selectedDate])
 
   // 1. 정적 지오메트리 로드 (한 번만)
@@ -208,7 +212,16 @@ export function useOptimizedMonthlyData({
 
   // 2. 월별 데이터 로드
   useEffect(() => {
-    if (!enabled || !targetMonth) return
+    console.log('[useOptimizedMonthlyData] Monthly data loading effect triggered:', {
+      enabled,
+      targetMonth,
+      hasTargetMonth: !!targetMonth
+    })
+    
+    if (!enabled || !targetMonth) {
+      console.log('[useOptimizedMonthlyData] Monthly data loading skipped:', { enabled, targetMonth })
+      return
+    }
     
     async function loadMonthlyData() {
       // 캐시 확인
@@ -222,10 +235,12 @@ export function useOptimizedMonthlyData({
         setIsLoading(true)
         setError(null)
         
-        const response = await fetch(`/data/optimized/monthly/sales-${targetMonth}.json`)
+        const url = `/data/optimized/monthly/sales-${targetMonth}.json`
+        console.log(`[MonthlyData] Fetching URL: ${url}`)
+        const response = await fetch(url)
         
         if (!response.ok) {
-          throw new Error(`월별 데이터 로드 실패: ${response.status}`)
+          throw new Error(`월별 데이터 로드 실패: ${response.status} - ${url}`)
         }
         
         const data: MonthlyOptimizedData = await response.json()
@@ -252,13 +267,26 @@ export function useOptimizedMonthlyData({
 
   // 3. 지오메트리 + 월별 데이터 합성하여 최종 features 생성
   const features = useMemo(() => {
+    console.log('[useOptimizedMonthlyData] Features composition triggered:', {
+      hasStaticGeometry: !!staticGeometry,
+      staticGeometryLength: staticGeometry?.length,
+      hasMonthlyData: !!monthlyData,
+      targetDay,
+      monthlyDataDays: monthlyData ? Object.keys(monthlyData.days) : []
+    })
+    
     if (!staticGeometry || !monthlyData || !targetDay) {
+      console.log('[useOptimizedMonthlyData] Features composition skipped:', {
+        staticGeometry: !!staticGeometry,
+        monthlyData: !!monthlyData,
+        targetDay
+      })
       return null
     }
     
     const dayData = monthlyData.days[targetDay]
     if (!dayData) {
-      console.warn(`[DataComposition] ${targetDay}일 데이터 없음`)
+      console.warn(`[DataComposition] ${targetDay}일 데이터 없음, 사용 가능한 날짜:`, Object.keys(monthlyData.days))
       return null
     }
     
