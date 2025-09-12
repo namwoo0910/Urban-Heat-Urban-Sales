@@ -96,8 +96,8 @@ interface UnifiedControlsProps {
   // Mesh resolution removed - using fixed value
   meshColor?: string
   onMeshColorChange?: (color: string) => void
-  selectedMeshMonth?: string
-  onMeshMonthChange?: (month: string) => void
+  selectedMeshMonth?: number  // 1-12
+  onMeshMonthChange?: (month: number) => void
 }
 
 // Theme adjustment state interface
@@ -141,7 +141,7 @@ export default function UnifiedControls({
   // Mesh resolution fixed at 120
   meshColor = '#00FFE1',
   onMeshColorChange,
-  selectedMeshMonth = '202402',
+  selectedMeshMonth = 2,  // Default to February
   onMeshMonthChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
@@ -457,7 +457,7 @@ export default function UnifiedControls({
                   <div className="space-y-2">
                     <Label className="text-gray-200 text-xs">Mesh Data Month</Label>
                     <InlineMeshMonthToggle
-                      selectedMonth={selectedMeshMonth || '202402'}
+                      selectedMonth={selectedMeshMonth || 2}
                       onMonthChange={onMeshMonthChange || (() => {})}
                       className="w-full"
                     />

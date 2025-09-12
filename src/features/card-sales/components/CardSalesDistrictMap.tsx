@@ -303,7 +303,7 @@ export default function CardSalesDistrictMap() {
   // Wireframe always true - removed state
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
   const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
-  const [selectedMeshMonth, setSelectedMeshMonth] = useState<string>('202401')  // Default to January 2024
+  const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(1)  // Default to January (1-12)
   
   // Remove progressive rendering states - not needed with optimized loading
   // All layers now load on demand based on visibility settings
@@ -862,7 +862,7 @@ export default function CardSalesDistrictMap() {
     wireframe: true,  // Always wireframe
     opacity: 1,  // Wireframe opacity
     animatedOpacity: 0.8,  // Fixed opacity
-    month: selectedMeshMonth,  // Monthly mesh data
+    month: selectedMeshMonth < 10 ? `20240${selectedMeshMonth}` : `2024${selectedMeshMonth}`,  // Convert 1-12 to '202401'-'202412' format
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
     color: meshColor,  // Pass the mesh color

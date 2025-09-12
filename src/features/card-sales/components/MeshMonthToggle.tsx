@@ -1,32 +1,22 @@
 /**
- * Month Toggle Component for Mesh Layer Switching
- * Switches between all 12 months (January - December 2024) mesh data
+ * Month Selector with Animation Controls for Mesh Layer
+ * Direct selection of months 1-12 with auto-play animation
  */
 
 "use client"
 
-import { useState } from 'react'
-import { Calendar, ChevronDown } from 'lucide-react'
+import { useState, useEffect, useRef } from 'react'
+import { Calendar, Play, Pause, RotateCcw, Gauge, Repeat } from 'lucide-react'
 
 export interface MeshMonthToggleProps {
-  selectedMonth: string
-  onMonthChange: (month: string) => void
+  selectedMonth: number // 1-12
+  onMonthChange: (month: number) => void
   className?: string
 }
 
-const MONTH_OPTIONS = [
-  { value: '202401', label: '1월 2024', description: '2024년 1월 1일 매출 데이터' },
-  { value: '202402', label: '2월 2024', description: '2024년 2월 1일 매출 데이터' },
-  { value: '202403', label: '3월 2024', description: '2024년 3월 1일 매출 데이터' },
-  { value: '202404', label: '4월 2024', description: '2024년 4월 1일 매출 데이터' },
-  { value: '202405', label: '5월 2024', description: '2024년 5월 1일 매출 데이터' },
-  { value: '202406', label: '6월 2024', description: '2024년 6월 1일 매출 데이터' },
-  { value: '202407', label: '7월 2024', description: '2024년 7월 1일 매출 데이터' },
-  { value: '202408', label: '8월 2024', description: '2024년 8월 1일 매출 데이터' },
-  { value: '202409', label: '9월 2024', description: '2024년 9월 1일 매출 데이터' },
-  { value: '202410', label: '10월 2024', description: '2024년 10월 1일 매출 데이터' },
-  { value: '202411', label: '11월 2024', description: '2024년 11월 1일 매출 데이터' },
-  { value: '202412', label: '12월 2024', description: '2024년 12월 1일 매출 데이터' }
+const MONTHS = [
+  '1월', '2월', '3월', '4월', '5월', '6월',
+  '7월', '8월', '9월', '10월', '11월', '12월'
 ]
 
 export function MeshMonthToggle({
@@ -34,122 +24,266 @@ export function MeshMonthToggle({
   onMonthChange,
   className = ''
 }: MeshMonthToggleProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  
-  const selectedOption = MONTH_OPTIONS.find(option => option.value === selectedMonth) || MONTH_OPTIONS[0]
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [playSpeed, setPlaySpeed] = useState(1000) // milliseconds per month
+  const [loop, setLoop] = useState(true) // Loop by default
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Auto-play logic
+  useEffect(() => {
+    if (isPlaying) {
+      intervalRef.current = setInterval(() => {
+        if (selectedMonth >= 12) {
+          if (loop) {
+            onMonthChange(1) // Loop back to January
+          } else {
+            setIsPlaying(false) // Stop at December
+          }
+        } else {
+          onMonthChange(selectedMonth + 1)
+        }
+      }, playSpeed)
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [isPlaying, playSpeed, selectedMonth, loop, onMonthChange])
+
+  const handlePlayPause = () => {
+    setIsPlaying(!isPlaying)
+  }
+
+  const handleReset = () => {
+    setIsPlaying(false)
+    onMonthChange(1)
+  }
+
+  const handleSpeedChange = (speed: number) => {
+    setPlaySpeed(speed)
+  }
 
   return (
-    <div className={`relative ${className}`}>
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-600 transition-colors duration-200 min-w-[160px]"
-      >
-        <Calendar size={16} className="text-cyan-400" />
-        <span className="text-sm font-medium">{selectedOption.label}</span>
-        <ChevronDown 
-          size={16} 
-          className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-        />
-      </button>
-
-      {/* Dropdown Menu */}
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-full bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden">
-          {MONTH_OPTIONS.map((option) => (
+    <div className={`${className}`}>
+      {/* Header with Animation Controls */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          <Calendar size={16} className="text-cyan-400" />
+          <span className="text-sm font-medium text-gray-300">월별 메쉬 데이터</span>
+        </div>
+        
+        {/* Animation Control Buttons */}
+        <div className="flex items-center gap-1">
+          {/* Play/Pause Button */}
+          <button
+            onClick={handlePlayPause}
+            className={`p-1.5 rounded transition-colors duration-150 ${
+              isPlaying
+                ? 'bg-orange-500 text-white hover:bg-orange-600'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+            }`}
+            title={isPlaying ? '일시정지' : '재생'}
+          >
+            {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+          </button>
+          
+          {/* Loop Toggle */}
+          <button
+            onClick={() => setLoop(!loop)}
+            className={`p-1.5 rounded transition-colors duration-150 ${
+              loop
+                ? 'bg-blue-500 text-white hover:bg-blue-600'
+                : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
+            }`}
+            title={loop ? '반복 켜짐' : '반복 꺼짐'}
+          >
+            <Repeat size={14} />
+          </button>
+          
+          {/* Reset Button */}
+          <button
+            onClick={handleReset}
+            className="p-1.5 bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white rounded transition-colors duration-150"
+            title="처음으로"
+          >
+            <RotateCcw size={14} />
+          </button>
+          
+          {/* Speed Control */}
+          <div className="relative group">
             <button
-              key={option.value}
-              onClick={() => {
-                onMonthChange(option.value)
-                setIsOpen(false)
-              }}
-              className={`w-full px-4 py-3 text-left hover:bg-gray-700 transition-colors duration-150 border-b border-gray-700 last:border-b-0 ${
-                selectedMonth === option.value 
-                  ? 'bg-cyan-900 text-cyan-200' 
-                  : 'text-white'
+              className="p-1.5 bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white rounded transition-colors duration-150"
+              title="재생 속도"
+            >
+              <Gauge size={14} />
+            </button>
+            
+            {/* Speed Dropdown */}
+            <div className="absolute right-0 top-full mt-1 bg-gray-800 border border-gray-600 rounded shadow-lg opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity z-10">
+              <button
+                onClick={() => handleSpeedChange(2000)}
+                className={`block w-full px-3 py-1 text-xs text-left hover:bg-gray-700 ${
+                  playSpeed === 2000 ? 'text-cyan-400' : 'text-gray-300'
+                }`}
+              >
+                0.5x (느림)
+              </button>
+              <button
+                onClick={() => handleSpeedChange(1000)}
+                className={`block w-full px-3 py-1 text-xs text-left hover:bg-gray-700 ${
+                  playSpeed === 1000 ? 'text-cyan-400' : 'text-gray-300'
+                }`}
+              >
+                1x (보통)
+              </button>
+              <button
+                onClick={() => handleSpeedChange(500)}
+                className={`block w-full px-3 py-1 text-xs text-left hover:bg-gray-700 ${
+                  playSpeed === 500 ? 'text-cyan-400' : 'text-gray-300'
+                }`}
+              >
+                2x (빠름)
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Progress Bar with Month Indicators */}
+      <div className="relative mb-3">
+        <div className="relative h-2 bg-gray-700 rounded-full overflow-hidden">
+          <div
+            className="absolute left-0 top-0 h-full bg-gradient-to-r from-cyan-500 to-blue-500 transition-all duration-300"
+            style={{ width: `${(selectedMonth / 12) * 100}%` }}
+          />
+          {isPlaying && (
+            <div className="absolute inset-0 bg-white/10 animate-pulse" />
+          )}
+        </div>
+        
+        {/* Month markers */}
+        <div className="flex justify-between mt-1">
+          {[1, 3, 6, 9, 12].map(month => (
+            <span
+              key={month}
+              className={`text-xs ${
+                selectedMonth === month ? 'text-cyan-400' : 'text-gray-500'
               }`}
             >
-              <div className="flex flex-col gap-1">
-                <span className="text-sm font-medium">{option.label}</span>
-                <span className="text-xs text-gray-400">{option.description}</span>
-              </div>
-            </button>
+              {month}월
+            </span>
           ))}
         </div>
-      )}
-
-      {/* Click Outside to Close */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 z-40"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+      </div>
+      
+      {/* Simple Month Buttons Grid */}
+      <div className="grid grid-cols-6 gap-1">
+        {MONTHS.map((month, index) => {
+          const monthNumber = index + 1
+          return (
+            <button
+              key={monthNumber}
+              onClick={() => {
+                setIsPlaying(false)
+                onMonthChange(monthNumber)
+              }}
+              className={`px-3 py-2 text-xs font-medium rounded transition-all duration-150 ${
+                selectedMonth === monthNumber
+                  ? 'bg-cyan-500 text-white shadow-lg scale-105'
+                  : 'bg-gray-800 text-gray-300 hover:bg-gray-700 hover:text-white border border-gray-600'
+              }`}
+              disabled={isPlaying}
+            >
+              {month}
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
 
 /**
- * Simple inline toggle variant (less space-consuming)
- * Uses scrollable layout for 12 months
+ * Inline variant - horizontal button strip
  */
 export function InlineMeshMonthToggle({
   selectedMonth,
   onMonthChange,
   className = ''
 }: MeshMonthToggleProps) {
-  const [isOpen, setIsOpen] = useState(false)
-  const selectedOption = MONTH_OPTIONS.find(option => option.value === selectedMonth) || MONTH_OPTIONS[0]
+  const [isPlaying, setIsPlaying] = useState(false)
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    if (isPlaying) {
+      intervalRef.current = setInterval(() => {
+        if (selectedMonth >= 12) {
+          setIsPlaying(false)
+          onMonthChange(1)
+        } else {
+          onMonthChange(selectedMonth + 1)
+        }
+      }, 800) // Faster for inline version
+    } else {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+        intervalRef.current = null
+      }
+    }
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+    }
+  }, [isPlaying, selectedMonth, onMonthChange])
 
   return (
-    <div className={`relative ${className}`}>
-      {/* Compact Toggle Button */}
+    <div className={`flex items-center gap-2 ${className}`}>
+      <Calendar size={14} className="text-cyan-400" />
+      
+      {/* Play Button */}
       <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-white rounded-lg border border-gray-600 transition-colors duration-200"
+        onClick={() => setIsPlaying(!isPlaying)}
+        className={`p-1 rounded transition-colors duration-150 ${
+          isPlaying
+            ? 'bg-orange-500 text-white'
+            : 'bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-white'
+        }`}
+        title={isPlaying ? '정지' : '자동재생'}
       >
-        <Calendar size={14} className="text-cyan-400" />
-        <span className="text-xs font-medium">{selectedOption.label}</span>
-        <ChevronDown 
-          size={14} 
-          className={`text-gray-400 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
-        />
+        {isPlaying ? <Pause size={12} /> : <Play size={12} />}
       </button>
-
-      {/* Dropdown Menu with Scrollable Grid */}
-      {isOpen && (
-        <div className="absolute top-full left-0 mt-2 w-80 bg-gray-800 border border-gray-600 rounded-lg shadow-xl z-50 overflow-hidden">
-          <div className="p-2">
-            <div className="text-xs text-gray-400 mb-2 font-medium">월별 매출 데이터 선택</div>
-            <div className="grid grid-cols-3 gap-1 max-h-48 overflow-y-auto">
-              {MONTH_OPTIONS.map((option) => (
-                <button
-                  key={option.value}
-                  onClick={() => {
-                    onMonthChange(option.value)
-                    setIsOpen(false)
-                  }}
-                  className={`px-2 py-2 text-xs font-medium rounded transition-colors duration-150 ${
-                    selectedMonth === option.value 
-                      ? 'bg-cyan-500 text-white' 
-                      : 'text-gray-300 hover:text-white hover:bg-gray-700'
-                  }`}
-                >
-                  {option.label.replace(' 2024', '')}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Click Outside to Close */}
-      {isOpen && (
-        <div 
-          className="fixed inset-0 z-40"
-          onClick={() => setIsOpen(false)}
-        />
-      )}
+      
+      <div className="flex gap-1">
+        {MONTHS.map((month, index) => {
+          const monthNumber = index + 1
+          return (
+            <button
+              key={monthNumber}
+              onClick={() => {
+                setIsPlaying(false)
+                onMonthChange(monthNumber)
+              }}
+              className={`px-2 py-1 text-xs font-medium rounded transition-all duration-150 ${
+                selectedMonth === monthNumber
+                  ? 'bg-cyan-500 text-white scale-110'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+              }`}
+              disabled={isPlaying}
+            >
+              {monthNumber}월
+            </button>
+          )
+        })}
+      </div>
     </div>
   )
 }
