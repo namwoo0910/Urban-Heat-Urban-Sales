@@ -62,6 +62,8 @@ export function OptimizedTimeSeriesMeshLayer({
   const [isPlaying, setIsPlaying] = useState(autoPlay)
   const [currentMesh, setCurrentMesh] = useState<MeshGeometry | null>(null)
   const [currentResolution, setCurrentResolution] = useState(initialResolution)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [animationProgress, setAnimationProgress] = useState(0)
   const [loadingState, setLoadingState] = useState<LoadingState>({
     isLoading: false,
     progress: 0,
@@ -78,6 +80,11 @@ export function OptimizedTimeSeriesMeshLayer({
   const dataLoader = useRef(getOptimizedLoader())
   const meshCache = useRef<Map<string, MeshGeometry>>(new Map())
   const playIntervalRef = useRef<NodeJS.Timeout>()
+  const animationRef = useRef<number>()
+  const transitionStartRef = useRef<number>(0)
+  const prevMeshRef = useRef<MeshGeometry | null>(null)
+  const targetMeshRef = useRef<MeshGeometry | null>(null)
+  // Refs for previous/target meshes during transition
   const availableMonths = useMemo(() => 
     months || dataLoader.current.getAvailableMonths(),
     [months]
@@ -87,6 +94,11 @@ export function OptimizedTimeSeriesMeshLayer({
   const loadMonthData = useCallback(async (monthIndex: number) => {
     const month = availableMonths[monthIndex]
     if (!month) return
+
+    // Notify parent about target month
+    if (onMonthChange) {
+      onMonthChange(month)
+    }
     
     const startTime = performance.now()
     setLoadingState({
@@ -112,86 +124,72 @@ export function OptimizedTimeSeriesMeshLayer({
       // Convert binary data back to Map for mesh generation
       const dongSalesMap = binaryToMap(binaryData)
       
-      // Check mesh cache first
-      const cacheKey = `${month}_${targetResolution}`
-      let mesh = meshCache.current.get(cacheKey)
-      
-      if (!mesh) {
+      // Ensure target meshes exist at both current and target resolutions
+      const currentResKey = `${month}_${currentResolution}`
+      const targetResKey = `${month}_${targetResolution}`
+
+      // Generate or reuse mesh at the CURRENT resolution for smooth transition
+      let nextMeshAtCurrentRes = meshCache.current.get(currentResKey)
+      if (!nextMeshAtCurrentRes) {
         setLoadingState(prev => ({
           ...prev,
           progress: 50,
-          currentAction: enableProgressive ? 'Generating low-res mesh...' : 'Generating mesh...'
+          currentAction: 'Generating mesh (match resolution)...'
         }))
-        
-        // Generate mesh with progressive loading
-        if (enableProgressive && initialResolution < targetResolution) {
-          // First generate low-res for immediate display
-          const lowResCacheKey = `${month}_${initialResolution}`
-          let lowResMesh = meshCache.current.get(lowResCacheKey)
-          
-          if (!lowResMesh) {
-            lowResMesh = generateGridMesh(districtData, {
-              resolution: initialResolution,
-              heightScale: 1,
-              smoothing: true,
-              dongBoundaries,
-              dongSalesMap,
-              salesHeightScale
-            })
-            // Cache low-res mesh
-            meshCache.current.set(lowResCacheKey, lowResMesh)
-          }
-          
-          setCurrentMesh(lowResMesh)
-          setCurrentResolution(initialResolution)
-          
-          setLoadingState(prev => ({
-            ...prev,
-            progress: 70,
-            currentAction: 'Enhancing quality...'
-          }))
-          
-          // Then generate high-res
-          mesh = generateGridMesh(districtData, {
-            resolution: targetResolution,
-            heightScale: 1,
-            smoothing: true,
-            dongBoundaries,
-            dongSalesMap,
-            salesHeightScale
-          })
-          
-          // Cache high-res mesh
-          meshCache.current.set(cacheKey, mesh)
-          setCurrentMesh(mesh)
-          setCurrentResolution(targetResolution)
-        } else {
-          // Direct generation at target resolution
-          mesh = generateGridMesh(districtData, {
-            resolution: targetResolution,
-            heightScale: 1,
-            smoothing: true,
-            dongBoundaries,
-            dongSalesMap,
-            salesHeightScale
-          })
-          
-          // Cache the mesh
-          meshCache.current.set(cacheKey, mesh)
-          setCurrentMesh(mesh)
-          setCurrentResolution(targetResolution)
-        }
-        
-        // Limit cache size to prevent memory issues
-        if (meshCache.current.size > 10) {
-          // Remove oldest entries
-          const firstKey = meshCache.current.keys().next().value
-          meshCache.current.delete(firstKey)
-        }
+        nextMeshAtCurrentRes = generateGridMesh(districtData, {
+          resolution: currentResolution,
+          heightScale: 1,
+          smoothing: true,
+          dongBoundaries,
+          dongSalesMap,
+          salesHeightScale
+        })
+        meshCache.current.set(currentResKey, nextMeshAtCurrentRes)
+      }
+
+      // Begin smooth transition if possible (matching vertex layout)
+      if (currentMesh && nextMeshAtCurrentRes && currentMesh.positions.length === nextMeshAtCurrentRes.positions.length) {
+        prevMeshRef.current = currentMesh
+        targetMeshRef.current = nextMeshAtCurrentRes
+        startTransition()
       } else {
-        // Use cached mesh
-        setCurrentMesh(mesh)
-        setCurrentResolution(targetResolution)
+        // Fallback: direct swap
+        setCurrentMesh(nextMeshAtCurrentRes)
+      }
+
+      // Optionally prepare high-res for the same month and promote after transition
+      if (enableProgressive && targetResolution !== currentResolution) {
+        setLoadingState(prev => ({
+          ...prev,
+          progress: 70,
+          currentAction: 'Enhancing quality...'
+        }))
+        let highRes = meshCache.current.get(targetResKey)
+        if (!highRes) {
+          highRes = generateGridMesh(districtData, {
+            resolution: targetResolution,
+            heightScale: 1,
+            smoothing: true,
+            dongBoundaries,
+            dongSalesMap,
+            salesHeightScale
+          })
+          meshCache.current.set(targetResKey, highRes)
+        }
+        // Promote to high-res shortly after transition completes
+        setTimeout(() => {
+          setCurrentMesh(highRes!)
+          setCurrentResolution(targetResolution)
+        }, Math.max(transitionDuration - 100, 0))
+      } else {
+        // No progressive upgrade needed
+        setCurrentResolution(currentResolution)
+      }
+
+      // Limit cache size to prevent memory issues
+      if (meshCache.current.size > 10) {
+        const firstKey = meshCache.current.keys().next().value
+        meshCache.current.delete(firstKey)
       }
       
       // Update performance metrics
@@ -239,8 +237,51 @@ export function OptimizedTimeSeriesMeshLayer({
     targetResolution,
     enableProgressive,
     enablePreloading,
-    onMonthChange
+    onMonthChange,
+    currentMesh,
+    currentResolution,
+    transitionDuration
   ])
+
+  // Smooth easing for height interpolation
+  const easeInOutCubic = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2)
+
+  // Start transition between prevMeshRef and targetMeshRef using in-place interpolation
+  const startTransition = useCallback(() => {
+    if (!prevMeshRef.current || !targetMeshRef.current) return
+    if (isTransitioning) return
+
+    const from = prevMeshRef.current.positions
+    const to = targetMeshRef.current.positions
+    if (from.length !== to.length) {
+      setCurrentMesh(targetMeshRef.current)
+      return
+    }
+
+    setIsTransitioning(true)
+    setAnimationProgress(0)
+    transitionStartRef.current = performance.now()
+
+    const step = () => {
+      const elapsed = performance.now() - transitionStartRef.current
+      const p = Math.min(elapsed / transitionDuration, 1)
+      const e = easeInOutCubic(p)
+
+      setAnimationProgress(e)
+
+      if (p < 1) {
+        animationRef.current = requestAnimationFrame(step)
+      } else {
+        setCurrentMesh(targetMeshRef.current)
+        setIsTransitioning(false)
+        setAnimationProgress(0)
+        prevMeshRef.current = null
+        targetMeshRef.current = null
+      }
+    }
+
+    animationRef.current = requestAnimationFrame(step)
+  }, [isTransitioning, transitionDuration])
   
   // Load initial month
   useEffect(() => {
@@ -294,10 +335,32 @@ export function OptimizedTimeSeriesMeshLayer({
     }
     
     // Create mesh object for deck.gl
+    // Helper to compute interpolated positions per frame
+    const computeInterpolatedPositions = () => {
+      if (
+        isTransitioning &&
+        prevMeshRef.current &&
+        targetMeshRef.current &&
+        prevMeshRef.current.positions.length === currentMesh.positions.length &&
+        targetMeshRef.current.positions.length === currentMesh.positions.length
+      ) {
+        const from = prevMeshRef.current.positions
+        const to = targetMeshRef.current.positions
+        const out = new Float32Array(from.length)
+        for (let i = 0; i < from.length; i += 3) {
+          out[i] = from[i]
+          out[i + 1] = from[i + 1]
+          out[i + 2] = from[i + 2] + (to[i + 2] - from[i + 2]) * animationProgress
+        }
+        return out
+      }
+      return currentMesh.positions
+    }
+
     const meshObject = {
       attributes: {
         POSITION: {
-          value: currentMesh.positions,
+          value: computeInterpolatedPositions(),
           size: 3
         },
         NORMAL: {
@@ -355,18 +418,21 @@ export function OptimizedTimeSeriesMeshLayer({
         blend: false,
         cullFace: true
       },
-      // Use updateTriggers for efficient updates
+      // Trigger re-evaluation during animation or resolution change
       updateTriggers: {
-        mesh: [currentMesh, currentResolution]
+        mesh: [animationProgress, currentResolution]
       }
     })
-  }, [visible, currentMesh, currentResolution, districtData])
+  }, [visible, currentMesh, currentResolution, districtData, isTransitioning, animationProgress])
   
   // Cleanup
   useEffect(() => {
     return () => {
       if (playIntervalRef.current) {
         clearInterval(playIntervalRef.current)
+      }
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current)
       }
     }
   }, [])
@@ -379,6 +445,7 @@ export function OptimizedTimeSeriesMeshLayer({
       isLoading: loadingState.isLoading,
       loadingProgress: loadingState.progress,
       currentAction: loadingState.currentAction,
+      isTransitioning,
       currentResolution,
       performanceMetrics,
       handlePlayPause,
