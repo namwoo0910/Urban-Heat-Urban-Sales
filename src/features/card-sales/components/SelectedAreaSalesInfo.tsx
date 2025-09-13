@@ -205,7 +205,7 @@ export function SelectedAreaSalesInfo({
     : (selectedGu || '서울시 전체')
 
   return (
-    <Card className="absolute top-24 left-4 z-10 bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl" style={{ width: '380px' }}>
+    <Card id="selected-area-info-panel" className="absolute top-24 left-4 z-10 bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl" style={{ width: '380px' }}>
       <div className="p-4 space-y-3">
         {/* 지역, 날짜, 매출액을 한 줄에 - 헤더 */}
         <div className="flex items-center justify-between pb-2 border-b border-gray-800/50">

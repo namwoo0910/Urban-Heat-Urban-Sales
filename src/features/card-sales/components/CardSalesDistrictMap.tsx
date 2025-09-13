@@ -42,6 +42,7 @@ import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
 import { InlineMeshMonthToggle } from "./MeshMonthToggle"
 import { getSeasonalMeshHexColor } from "../utils/seasonalMeshColors"
+import { getTemperatureMeshHexColor } from "../utils/temperaturePalette"
 import { getAvailableDailyDates } from "../utils/loadStaticMesh"
 import type { FeatureCollection } from 'geojson'
 import "../styles/CardSalesDistrictMap.css"
@@ -314,6 +315,53 @@ export default function CardSalesDistrictMap() {
   const [transitionMs, setTransitionMs] = useState<number>(1000)
   const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(1)  // Default to January (1-12)
 
+  // Top-center overlay: date + average temperature
+  const [overlayDateLabel, setOverlayDateLabel] = useState<string>('')
+  const [overlayAvgTemp, setOverlayAvgTemp] = useState<number | null>(null)
+  const [overlayLoading, setOverlayLoading] = useState<boolean>(false)
+  const [overlayHeight, setOverlayHeight] = useState<number>(80)
+  const tempBarPercent = useMemo(() => {
+    if (overlayAvgTemp === null || isNaN(overlayAvgTemp)) return 0
+    const min = -15, max = 35
+    const p = Math.max(0, Math.min(1, (overlayAvgTemp - min) / (max - min)))
+    return Math.round(p * 100)
+  }, [overlayAvgTemp])
+  const tempBarColor = useMemo(() => {
+    const t = overlayAvgTemp ?? 0
+    if (t <= 0) return '#60a5fa' // blue
+    if (t <= 15) return '#34d399' // green
+    if (t <= 25) return '#f59e0b' // amber
+    return '#ef4444' // red
+  }, [overlayAvgTemp])
+
+  // Match overlay height to info panel height
+  useEffect(() => {
+    const measure = () => {
+      const el = document.getElementById('selected-area-info-panel')
+      if (el) {
+        setOverlayHeight(el.clientHeight)
+      }
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    // Observe mutations to adjust on content changes (e.g., chart toggle)
+    const el = document.getElementById('selected-area-info-panel')
+    let observer: MutationObserver | null = null
+    if (el && 'MutationObserver' in window) {
+      observer = new MutationObserver(() => {
+        setOverlayHeight(el.clientHeight)
+      })
+      observer.observe(el, { childList: true, subtree: true, attributes: true })
+    }
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+
+  // Re-measure when content likely changes
+  useEffect(() => {
+    const el = document.getElementById('selected-area-info-panel')
+    if (el) setOverlayHeight(el.clientHeight)
+  }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex])
+
   // Load daily index
   useEffect(() => {
     getAvailableDailyDates()
@@ -345,6 +393,71 @@ export default function CardSalesDistrictMap() {
     }, Math.max(200, dailyPlaySpeed * 1000))
     return () => clearInterval(id)
   }, [timelineMode, dailyAutoPlay, dailyPlaySpeed, availableDailyDates])
+
+  // Helper: fetch average temperature for a given month (YYYY-MM)
+  const fetchMonthlyAverageTemp = useCallback(async (yearMonth: string) => {
+    try {
+      setOverlayLoading(true)
+      const res = await fetch(`/data/local_economy/monthly/${yearMonth}.json`)
+      if (!res.ok) throw new Error(`Failed to load ${yearMonth}`)
+      const arr = await res.json()
+      let sum = 0, cnt = 0
+      for (const item of arr) {
+        const t = item['일평균기온']
+        if (typeof t === 'number' && !isNaN(t)) { sum += t; cnt++ }
+      }
+      setOverlayAvgTemp(cnt > 0 ? sum / cnt : null)
+      setOverlayLoading(false)
+    } catch (e) {
+      console.warn('Monthly avg temp load failed', e)
+      setOverlayAvgTemp(null)
+      setOverlayLoading(false)
+    }
+  }, [])
+
+  // Helper: fetch average temperature for a date (YYYY-MM-DD)
+  const fetchDailyAverageTemp = useCallback(async (dateStr: string) => {
+    try {
+      setOverlayLoading(true)
+      const ym = dateStr.slice(0,7)
+      const res = await fetch(`/data/local_economy/monthly/${ym}.json`)
+      if (!res.ok) throw new Error(`Failed to load ${ym}`)
+      const arr = await res.json()
+      let sum = 0, cnt = 0
+      for (const item of arr) {
+        if (item['기준일자'] === dateStr) {
+          const t = item['일평균기온']
+          if (typeof t === 'number' && !isNaN(t)) { sum += t; cnt++ }
+        }
+      }
+      setOverlayAvgTemp(cnt > 0 ? sum / cnt : null)
+      setOverlayLoading(false)
+    } catch (e) {
+      console.warn('Daily avg temp load failed', e)
+      setOverlayAvgTemp(null)
+      setOverlayLoading(false)
+    }
+  }, [])
+
+  // Update overlay (date label + avg temp) when timeline changes
+  useEffect(() => {
+    if (timelineMode === 'monthly') {
+      const mm = selectedMeshMonth.toString().padStart(2, '0')
+      const yearMonth = `2024-${mm}`
+      setOverlayDateLabel(yearMonth)
+      fetchMonthlyAverageTemp(yearMonth)
+    } else if (timelineMode === 'daily' && availableDailyDates.length > 0) {
+      const code = availableDailyDates[selectedDailyIndex]
+      if (code && code.length === 8) {
+        const label = `${code.slice(0,4)}-${code.slice(4,6)}-${code.slice(6,8)}`
+        setOverlayDateLabel(label)
+        fetchDailyAverageTemp(label)
+      }
+    } else {
+      setOverlayDateLabel('')
+      setOverlayAvgTemp(null)
+    }
+  }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex, fetchMonthlyAverageTemp, fetchDailyAverageTemp])
   
   // Remove progressive rendering states - not needed with optimized loading
   // All layers now load on demand based on visibility settings
@@ -897,6 +1010,11 @@ export default function CardSalesDistrictMap() {
   }, [])  // Lighting configuration is constant
   
   // Use pre-generated mesh layer for better performance with real sales data
+  const dynamicMeshColor = useMemo(() => {
+    // Temperature-based dynamic color (fallback to existing meshColor if temp unknown)
+    return overlayAvgTemp !== null ? getTemperatureMeshHexColor(overlayAvgTemp) : meshColor
+  }, [overlayAvgTemp, meshColor])
+
   const { layer: preGeneratedMeshLayer, isLoading: isMeshLoading } = usePreGeneratedSeoulMeshLayer({
     resolution: meshResolution,
     visible: showMeshLayer,
@@ -907,7 +1025,7 @@ export default function CardSalesDistrictMap() {
     date: timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : undefined,
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
-    color: meshColor,  // Pass the (possibly seasonal) mesh color
+    color: dynamicMeshColor,  // Temperature-based sleek color
     transitionMs: transitionMs,
     dongBoundaries: dongData3D?.features,  // Pass dong boundaries for sales mapping
     dongSalesMap: dongSalesMap,  // Pass sales data map
@@ -1847,6 +1965,29 @@ export default function CardSalesDistrictMap() {
         </MapGL>
       </DeckGL>
       
+      {/* Center-top overlay: date + average temperature */}
+      <div className="absolute left-1/2 -translate-x-1/2 z-10" style={{ top: '56px' }}>
+        <div
+          className="bg-black/80 backdrop-blur-sm rounded-md px-2 py-1 border border-gray-800/50 flex items-center gap-2 shadow-lg"
+          style={{ margin: '5px' }}
+        >
+          <div className="text-white text-base font-semibold tracking-wide min-w-[80px] text-center">
+            {overlayDateLabel || '—'}
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="text-cyan-300 text-base font-semibold min-w-[56px] text-center">
+              {overlayLoading ? '…' : (overlayAvgTemp !== null ? `${overlayAvgTemp.toFixed(1)}°C` : '—')}
+            </div>
+            <div className="w-24 h-1 bg-gray-800 rounded overflow-hidden">
+              <div
+                className="h-1"
+                style={{ width: `${tempBarPercent}%`, backgroundColor: tempBarColor }}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
 
       {/* LocalEconomy Filter Panel - Positioned properly above map */}
       <LocalEconomyFilterPanel
