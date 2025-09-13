@@ -39,6 +39,7 @@ export interface SeoulMeshLayerProps {
   animatedOpacity?: number  // For animated opacity transitions
   month?: string  // Month identifier for monthly mesh (e.g., '202401', '202402')
   date?: string   // Daily identifier (e.g., '20240101')
+  transitionMs?: number // Height interpolation duration in ms (for smooth swaps)
   // Optional: override base positions for smooth height interpolation (unscaled)
   overridePositions?: Float32Array
   // Optional: key for triggering updates during animation
@@ -485,7 +486,7 @@ export function usePreGeneratedSeoulMeshLayer(
   const [animProgress, setAnimProgress] = useState(0)
   const animRef = useRef<number | null>(null)
   const transitionStartRef = useRef<number>(0)
-  const TRANSITION_MS = 1000
+  const TRANSITION_MS = props.transitionMs ?? 1000
 
   // Load pre-generated mesh data when resolution or month changes
   useEffect(() => {

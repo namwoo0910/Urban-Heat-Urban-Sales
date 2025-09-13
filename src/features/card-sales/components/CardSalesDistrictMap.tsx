@@ -42,6 +42,7 @@ import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
 import { InlineMeshMonthToggle } from "./MeshMonthToggle"
 import { getSeasonalMeshHexColor } from "../utils/seasonalMeshColors"
+import { getAvailableDailyDates } from "../utils/loadStaticMesh"
 import type { FeatureCollection } from 'geojson'
 import "../styles/CardSalesDistrictMap.css"
 import "@/src/shared/styles/districtEffects.css"
@@ -305,15 +306,45 @@ export default function CardSalesDistrictMap() {
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
   const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
   const [useSeasonalMeshColor, setUseSeasonalMeshColor] = useState<boolean>(false)
+  const [timelineMode, setTimelineMode] = useState<'monthly'|'daily'>('monthly')
+  const [availableDailyDates, setAvailableDailyDates] = useState<string[]>([])
+  const [selectedDailyIndex, setSelectedDailyIndex] = useState<number>(0)
+  const [dailyAutoPlay, setDailyAutoPlay] = useState<boolean>(false)
+  const [dailyPlaySpeed, setDailyPlaySpeed] = useState<number>(1.5)
+  const [transitionMs, setTransitionMs] = useState<number>(1000)
   const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(1)  // Default to January (1-12)
 
-  // Auto-apply seasonal mesh color when enabled or month changes
+  // Load daily index
   useEffect(() => {
-    if (useSeasonalMeshColor) {
-      const seasonalHex = getSeasonalMeshHexColor(selectedMeshMonth)
-      setMeshColor(seasonalHex)
+    getAvailableDailyDates()
+      .then(list => {
+        const sorted = (list || []).sort()
+        setAvailableDailyDates(sorted)
+        setSelectedDailyIndex(0)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Auto-apply seasonal mesh color
+  useEffect(() => {
+    if (!useSeasonalMeshColor) return
+    if (timelineMode === 'monthly') {
+      setMeshColor(getSeasonalMeshHexColor(selectedMeshMonth))
+    } else if (timelineMode === 'daily' && availableDailyDates.length > 0) {
+      const dd = availableDailyDates[selectedDailyIndex]
+      const mm = dd?.slice(0,6)
+      if (mm) setMeshColor(getSeasonalMeshHexColor(mm))
     }
-  }, [useSeasonalMeshColor, selectedMeshMonth])
+  }, [useSeasonalMeshColor, selectedMeshMonth, timelineMode, availableDailyDates, selectedDailyIndex])
+
+  // Daily auto-play
+  useEffect(() => {
+    if (timelineMode !== 'daily' || !dailyAutoPlay || availableDailyDates.length === 0) return
+    const id = setInterval(() => {
+      setSelectedDailyIndex(prev => (prev + 1) % availableDailyDates.length)
+    }, Math.max(200, dailyPlaySpeed * 1000))
+    return () => clearInterval(id)
+  }, [timelineMode, dailyAutoPlay, dailyPlaySpeed, availableDailyDates])
   
   // Remove progressive rendering states - not needed with optimized loading
   // All layers now load on demand based on visibility settings
@@ -872,10 +903,12 @@ export default function CardSalesDistrictMap() {
     wireframe: true,  // Always wireframe
     opacity: 1,  // Wireframe opacity
     animatedOpacity: 0.8,  // Fixed opacity
-    month: selectedMeshMonth < 10 ? `20240${selectedMeshMonth}` : `2024${selectedMeshMonth}`,  // Convert 1-12 to '202401'-'202412' format
+    month: timelineMode === 'monthly' ? (selectedMeshMonth < 10 ? `20240${selectedMeshMonth}` : `2024${selectedMeshMonth}`) : undefined,
+    date: timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : undefined,
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
     color: meshColor,  // Pass the (possibly seasonal) mesh color
+    transitionMs: transitionMs,
     dongBoundaries: dongData3D?.features,  // Pass dong boundaries for sales mapping
     dongSalesMap: dongSalesMap,  // Pass sales data map
     salesHeightScale: heightScale  // Use the same height scale as polygon layer
@@ -1894,6 +1927,17 @@ export default function CardSalesDistrictMap() {
         onMeshColorChange={setMeshColor}
         useSeasonalMeshColor={useSeasonalMeshColor}
         onUseSeasonalMeshColorChange={setUseSeasonalMeshColor}
+        timelineMode={timelineMode}
+        onTimelineModeChange={setTimelineMode}
+        dailyAvailableCount={availableDailyDates.length}
+        selectedDailyIndex={selectedDailyIndex}
+        onSelectedDailyIndexChange={setSelectedDailyIndex}
+        dailyAutoPlay={dailyAutoPlay}
+        onDailyAutoPlayChange={setDailyAutoPlay}
+        dailyPlaySpeed={dailyPlaySpeed}
+        onDailyPlaySpeedChange={setDailyPlaySpeed}
+        transitionMs={transitionMs}
+        onTransitionMsChange={setTransitionMs}
         selectedMeshMonth={selectedMeshMonth}
         onMeshMonthChange={setSelectedMeshMonth}
         />

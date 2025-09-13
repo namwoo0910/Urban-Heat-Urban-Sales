@@ -101,6 +101,18 @@ interface UnifiedControlsProps {
   // Seasonal color option
   useSeasonalMeshColor?: boolean
   onUseSeasonalMeshColorChange?: (enabled: boolean) => void
+  // Timeline mode & daily playback
+  timelineMode?: 'monthly' | 'daily'
+  onTimelineModeChange?: (mode: 'monthly' | 'daily') => void
+  dailyAvailableCount?: number
+  selectedDailyIndex?: number  // 0-based
+  onSelectedDailyIndexChange?: (index: number) => void
+  dailyAutoPlay?: boolean
+  onDailyAutoPlayChange?: (enabled: boolean) => void
+  dailyPlaySpeed?: number  // seconds per step
+  onDailyPlaySpeedChange?: (seconds: number) => void
+  transitionMs?: number
+  onTransitionMsChange?: (ms: number) => void
 }
 
 // Theme adjustment state interface
@@ -148,6 +160,17 @@ export default function UnifiedControls({
   onMeshMonthChange,
   useSeasonalMeshColor = false,
   onUseSeasonalMeshColorChange,
+  timelineMode = 'monthly',
+  onTimelineModeChange,
+  dailyAvailableCount = 0,
+  selectedDailyIndex = 0,
+  onSelectedDailyIndexChange,
+  dailyAutoPlay = false,
+  onDailyAutoPlayChange,
+  dailyPlaySpeed = 1.5,
+  onDailyPlaySpeedChange,
+  transitionMs = 1000,
+  onTransitionMsChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [showDetailView, setShowDetailView] = useState(false)
@@ -416,6 +439,33 @@ export default function UnifiedControls({
               {showMeshLayer && (
                 <div className="space-y-3 pl-2">
                   {/* Wireframe always enabled - removed toggle */}
+                  {/* Timeline Mode */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-200 text-xs">타임라인 모드</Label>
+                    <div className="flex gap-1">
+                      <button
+                        onClick={() => onTimelineModeChange?.('monthly')}
+                        className={`px-2 py-1 text-xs rounded ${timelineMode === 'monthly' ? 'bg-cyan-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                      >월별</button>
+                      <button
+                        onClick={() => onTimelineModeChange?.('daily')}
+                        className={`px-2 py-1 text-xs rounded ${timelineMode === 'daily' ? 'bg-cyan-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                      >일별</button>
+                    </div>
+                  </div>
+                  {/* Transition Duration */}
+                  <div className="space-y-1">
+                    <Label className="text-gray-200 text-xs">전환 시간 (ms): {transitionMs}</Label>
+                    <input
+                      type="range"
+                      min={200}
+                      max={3000}
+                      step={50}
+                      value={transitionMs}
+                      onChange={(e) => onTransitionMsChange?.(parseInt(e.target.value))}
+                      className="w-full"
+                    />
+                  </div>
                   {/* Seasonal auto-color toggle */}
                   <div className="flex items-center justify-between">
                     <Label className="text-gray-200 text-xs">분기 색상 자동</Label>
@@ -470,15 +520,52 @@ export default function UnifiedControls({
                     </div>
                   </div>
                   
-                  {/* Month Toggle */}
-                  <div className="space-y-2">
-                    <Label className="text-gray-200 text-xs">Mesh Data Month</Label>
-                    <InlineMeshMonthToggle
-                      selectedMonth={selectedMeshMonth || 2}
-                      onMonthChange={onMeshMonthChange || (() => {})}
-                      className="w-full"
-                    />
-                  </div>
+                  {/* Timeline Controls */}
+                  {timelineMode === 'monthly' ? (
+                    <div className="space-y-2">
+                      <Label className="text-gray-200 text-xs">Mesh Data Month</Label>
+                      <InlineMeshMonthToggle
+                        selectedMonth={selectedMeshMonth || 2}
+                        onMonthChange={onMeshMonthChange || (() => {})}
+                        className="w-full"
+                      />
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-gray-200 text-xs">일자 재생</Label>
+                        <button
+                          onClick={() => onDailyAutoPlayChange?.(!dailyAutoPlay)}
+                          className={`px-2 py-1 text-xs rounded ${dailyAutoPlay ? 'bg-orange-500 text-white' : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}`}
+                        >{dailyAutoPlay ? '일시정지' : '재생'}</button>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-gray-400">
+                        <span>1</span>
+                        <span>{dailyAvailableCount || 0}</span>
+                      </div>
+                      <input
+                        type="range"
+                        min={0}
+                        max={Math.max(0, (dailyAvailableCount || 1) - 1)}
+                        step={1}
+                        value={selectedDailyIndex}
+                        onChange={(e) => onSelectedDailyIndexChange?.(parseInt(e.target.value))}
+                        className="w-full"
+                      />
+                      <div className="space-y-1">
+                        <Label className="text-gray-200 text-xs">재생 속도: {dailyPlaySpeed}s/일</Label>
+                        <input
+                          type="range"
+                          min={0.2}
+                          max={10}
+                          step={0.1}
+                          value={dailyPlaySpeed}
+                          onChange={(e) => onDailyPlaySpeedChange?.(parseFloat(e.target.value))}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
               <p className="text-xs text-gray-400">
