@@ -311,8 +311,8 @@ export default function CardSalesDistrictMap() {
   const [availableDailyDates, setAvailableDailyDates] = useState<string[]>([])
   const [selectedDailyIndex, setSelectedDailyIndex] = useState<number>(0)
   const [dailyAutoPlay, setDailyAutoPlay] = useState<boolean>(false)
-  const [dailyPlaySpeed, setDailyPlaySpeed] = useState<number>(1.5)
-  const [transitionMs, setTransitionMs] = useState<number>(1000)
+  const [dailyPlaySpeed, setDailyPlaySpeed] = useState<number>(0.8)
+  const [transitionMs, setTransitionMs] = useState<number>(400)
   const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(1)  // Default to January (1-12)
 
   // Top-center overlay: date + average temperature
@@ -362,7 +362,7 @@ export default function CardSalesDistrictMap() {
     if (el) setOverlayHeight(el.clientHeight)
   }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex])
 
-  // Load daily index
+  // Load daily dates index
   useEffect(() => {
     getAvailableDailyDates()
       .then(list => {
@@ -373,28 +373,20 @@ export default function CardSalesDistrictMap() {
       .catch(() => {})
   }, [])
 
-  // Auto-apply seasonal mesh color
+  // Load temperature index (daily + monthly) once
+  const [tempIndex, setTempIndex] = useState<{ daily: Record<string, number>; monthly: Record<string, number> } | null>(null)
   useEffect(() => {
-    if (!useSeasonalMeshColor) return
-    if (timelineMode === 'monthly') {
-      setMeshColor(getSeasonalMeshHexColor(selectedMeshMonth))
-    } else if (timelineMode === 'daily' && availableDailyDates.length > 0) {
-      const dd = availableDailyDates[selectedDailyIndex]
-      const mm = dd?.slice(0,6)
-      if (mm) setMeshColor(getSeasonalMeshHexColor(mm))
-    }
-  }, [useSeasonalMeshColor, selectedMeshMonth, timelineMode, availableDailyDates, selectedDailyIndex])
+    fetch('/data/indices/daily-avg-temp-2024.json')
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => {
+        if (json && json.daily && json.monthly) {
+          setTempIndex({ daily: json.daily, monthly: json.monthly })
+        }
+      })
+      .catch(() => {})
+  }, [])
 
-  // Daily auto-play
-  useEffect(() => {
-    if (timelineMode !== 'daily' || !dailyAutoPlay || availableDailyDates.length === 0) return
-    const id = setInterval(() => {
-      setSelectedDailyIndex(prev => (prev + 1) % availableDailyDates.length)
-    }, Math.max(200, dailyPlaySpeed * 1000))
-    return () => clearInterval(id)
-  }, [timelineMode, dailyAutoPlay, dailyPlaySpeed, availableDailyDates])
-
-  // Helper: fetch average temperature for a given month (YYYY-MM)
+  // Fallback temperature loaders (when index is missing)
   const fetchMonthlyAverageTemp = useCallback(async (yearMonth: string) => {
     try {
       setOverlayLoading(true)
@@ -407,15 +399,14 @@ export default function CardSalesDistrictMap() {
         if (typeof t === 'number' && !isNaN(t)) { sum += t; cnt++ }
       }
       setOverlayAvgTemp(cnt > 0 ? sum / cnt : null)
-      setOverlayLoading(false)
     } catch (e) {
       console.warn('Monthly avg temp load failed', e)
       setOverlayAvgTemp(null)
+    } finally {
       setOverlayLoading(false)
     }
   }, [])
 
-  // Helper: fetch average temperature for a date (YYYY-MM-DD)
   const fetchDailyAverageTemp = useCallback(async (dateStr: string) => {
     try {
       setOverlayLoading(true)
@@ -431,33 +422,102 @@ export default function CardSalesDistrictMap() {
         }
       }
       setOverlayAvgTemp(cnt > 0 ? sum / cnt : null)
-      setOverlayLoading(false)
     } catch (e) {
       console.warn('Daily avg temp load failed', e)
       setOverlayAvgTemp(null)
+    } finally {
       setOverlayLoading(false)
     }
   }, [])
 
-  // Update overlay (date label + avg temp) when timeline changes
+  // Auto-apply seasonal mesh color
+  useEffect(() => {
+    if (!useSeasonalMeshColor) return
+    if (timelineMode === 'monthly') {
+      setMeshColor(getSeasonalMeshHexColor(selectedMeshMonth))
+    } else if (timelineMode === 'daily' && availableDailyDates.length > 0) {
+      const dd = availableDailyDates[selectedDailyIndex]
+      const mm = dd?.slice(0,6)
+      if (mm) setMeshColor(getSeasonalMeshHexColor(mm))
+    }
+  }, [useSeasonalMeshColor, selectedMeshMonth, timelineMode, availableDailyDates, selectedDailyIndex])
+
+  // Chain scheduling for daily autoplay (align transition to tick)
+  const dailyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const clearDailyTimer = useCallback(() => {
+    if (dailyTimeoutRef.current) {
+      clearTimeout(dailyTimeoutRef.current)
+      dailyTimeoutRef.current = null
+    }
+  }, [])
+
+  const scheduleNextDailyTick = useCallback(() => {
+    clearDailyTimer()
+    if (timelineMode !== 'daily' || !dailyAutoPlay || availableDailyDates.length === 0) return
+    const budget = Math.floor(dailyPlaySpeed * 1000 - transitionMs)
+    if (budget <= 0) {
+      // No idle gap: wait one frame to avoid back-to-back frame contention
+      dailyTimeoutRef.current = setTimeout(() => {
+        requestAnimationFrame(() => {
+          setSelectedDailyIndex(prev => (prev + 1) % availableDailyDates.length)
+        })
+      }, 0)
+    } else {
+      const restDelay = Math.max(16, budget) // at least one frame of breathing room
+      dailyTimeoutRef.current = setTimeout(() => {
+        setSelectedDailyIndex(prev => (prev + 1) % availableDailyDates.length)
+      }, restDelay)
+    }
+  }, [timelineMode, dailyAutoPlay, availableDailyDates.length, dailyPlaySpeed, transitionMs, clearDailyTimer])
+
+  // When toggling autoplay or changing params, restart schedule
+  useEffect(() => {
+    scheduleNextDailyTick()
+    return clearDailyTimer
+  }, [timelineMode, dailyAutoPlay, dailyPlaySpeed, transitionMs, availableDailyDates.length, scheduleNextDailyTick, clearDailyTimer])
+
+  // After each index change during autoplay, schedule the next tick
+  useEffect(() => {
+    if (dailyAutoPlay && timelineMode === 'daily') {
+      scheduleNextDailyTick()
+    }
+  }, [selectedDailyIndex, dailyAutoPlay, timelineMode, scheduleNextDailyTick])
+
+  // Update overlay (date label + avg temp) using prebuilt index (fast, no fetch per step)
+
+  // Update overlay (date label + avg temp) when timeline changes (index first, fallback to fetch)
   useEffect(() => {
     if (timelineMode === 'monthly') {
       const mm = selectedMeshMonth.toString().padStart(2, '0')
       const yearMonth = `2024-${mm}`
       setOverlayDateLabel(yearMonth)
-      fetchMonthlyAverageTemp(yearMonth)
+      const key = `2024${mm}`
+      const v = tempIndex?.monthly ? tempIndex.monthly[key] : undefined
+      if (typeof v === 'number') {
+        setOverlayAvgTemp(v)
+        setOverlayLoading(false)
+      } else {
+        fetchMonthlyAverageTemp(yearMonth)
+      }
     } else if (timelineMode === 'daily' && availableDailyDates.length > 0) {
       const code = availableDailyDates[selectedDailyIndex]
       if (code && code.length === 8) {
         const label = `${code.slice(0,4)}-${code.slice(4,6)}-${code.slice(6,8)}`
         setOverlayDateLabel(label)
-        fetchDailyAverageTemp(label)
+        const v = tempIndex?.daily ? tempIndex.daily[code] : undefined
+        if (typeof v === 'number') {
+          setOverlayAvgTemp(v)
+          setOverlayLoading(false)
+        } else {
+          fetchDailyAverageTemp(label)
+        }
       }
     } else {
       setOverlayDateLabel('')
       setOverlayAvgTemp(null)
     }
-  }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex, fetchMonthlyAverageTemp, fetchDailyAverageTemp])
+  }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex, tempIndex, fetchMonthlyAverageTemp, fetchDailyAverageTemp])
   
   // Remove progressive rendering states - not needed with optimized loading
   // All layers now load on demand based on visibility settings
