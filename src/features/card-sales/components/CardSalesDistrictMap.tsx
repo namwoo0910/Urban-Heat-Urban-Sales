@@ -41,6 +41,7 @@ import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
 import { InlineMeshMonthToggle } from "./MeshMonthToggle"
+import { getSeasonalMeshHexColor } from "../utils/seasonalMeshColors"
 import type { FeatureCollection } from 'geojson'
 import "../styles/CardSalesDistrictMap.css"
 import "@/src/shared/styles/districtEffects.css"
@@ -303,7 +304,16 @@ export default function CardSalesDistrictMap() {
   // Wireframe always true - removed state
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
   const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
+  const [useSeasonalMeshColor, setUseSeasonalMeshColor] = useState<boolean>(false)
   const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(1)  // Default to January (1-12)
+
+  // Auto-apply seasonal mesh color when enabled or month changes
+  useEffect(() => {
+    if (useSeasonalMeshColor) {
+      const seasonalHex = getSeasonalMeshHexColor(selectedMeshMonth)
+      setMeshColor(seasonalHex)
+    }
+  }, [useSeasonalMeshColor, selectedMeshMonth])
   
   // Remove progressive rendering states - not needed with optimized loading
   // All layers now load on demand based on visibility settings
@@ -865,7 +875,7 @@ export default function CardSalesDistrictMap() {
     month: selectedMeshMonth < 10 ? `20240${selectedMeshMonth}` : `2024${selectedMeshMonth}`,  // Convert 1-12 to '202401'-'202412' format
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
-    color: meshColor,  // Pass the mesh color
+    color: meshColor,  // Pass the (possibly seasonal) mesh color
     dongBoundaries: dongData3D?.features,  // Pass dong boundaries for sales mapping
     dongSalesMap: dongSalesMap,  // Pass sales data map
     salesHeightScale: heightScale  // Use the same height scale as polygon layer
@@ -1882,6 +1892,8 @@ export default function CardSalesDistrictMap() {
         // Mesh resolution fixed at 120 - props removed
         meshColor={meshColor}
         onMeshColorChange={setMeshColor}
+        useSeasonalMeshColor={useSeasonalMeshColor}
+        onUseSeasonalMeshColorChange={setUseSeasonalMeshColor}
         selectedMeshMonth={selectedMeshMonth}
         onMeshMonthChange={setSelectedMeshMonth}
         />

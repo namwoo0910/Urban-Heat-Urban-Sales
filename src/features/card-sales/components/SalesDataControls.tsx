@@ -98,6 +98,9 @@ interface UnifiedControlsProps {
   onMeshColorChange?: (color: string) => void
   selectedMeshMonth?: number  // 1-12
   onMeshMonthChange?: (month: number) => void
+  // Seasonal color option
+  useSeasonalMeshColor?: boolean
+  onUseSeasonalMeshColorChange?: (enabled: boolean) => void
 }
 
 // Theme adjustment state interface
@@ -143,6 +146,8 @@ export default function UnifiedControls({
   onMeshColorChange,
   selectedMeshMonth = 2,  // Default to February
   onMeshMonthChange,
+  useSeasonalMeshColor = false,
+  onUseSeasonalMeshColorChange,
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(false) // Start collapsed
   const [showDetailView, setShowDetailView] = useState(false)
@@ -411,6 +416,15 @@ export default function UnifiedControls({
               {showMeshLayer && (
                 <div className="space-y-3 pl-2">
                   {/* Wireframe always enabled - removed toggle */}
+                  {/* Seasonal auto-color toggle */}
+                  <div className="flex items-center justify-between">
+                    <Label className="text-gray-200 text-xs">분기 색상 자동</Label>
+                    <Switch
+                      checked={useSeasonalMeshColor}
+                      onCheckedChange={(v) => onUseSeasonalMeshColorChange?.(!!v)}
+                      className="scale-75"
+                    />
+                  </div>
                   {/* Mesh Color Picker */}
                   <div className="space-y-2">
                     <Label className="text-gray-200 text-xs">Mesh Color</Label>
@@ -420,6 +434,7 @@ export default function UnifiedControls({
                         value={meshColor || '#00FFE1'}
                         onChange={(e) => onMeshColorChange?.(e.target.value)}
                         className="w-8 h-8 border border-gray-600 rounded cursor-pointer"
+                        disabled={useSeasonalMeshColor}
                         title="Choose mesh color"
                       />
                       <span className="text-xs text-gray-400">
@@ -428,6 +443,7 @@ export default function UnifiedControls({
                       <button
                         onClick={() => onMeshColorChange?.('#00FFE1')}
                         className="text-xs text-gray-400 hover:text-gray-200 ml-auto"
+                        disabled={useSeasonalMeshColor}
                       >
                         Reset
                       </button>
@@ -447,6 +463,7 @@ export default function UnifiedControls({
                           onClick={() => onMeshColorChange?.(color)}
                           className="w-6 h-6 rounded border border-gray-600 hover:scale-110 transition-transform"
                           style={{ backgroundColor: color }}
+                          disabled={useSeasonalMeshColor}
                           title={name}
                         />
                       ))}

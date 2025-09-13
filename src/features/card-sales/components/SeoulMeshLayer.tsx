@@ -15,7 +15,9 @@ import {
   hasPreGeneratedMesh, 
   getNearestAvailableResolution,
   loadMonthlySeoulMesh,
-  hasPreGeneratedMonthlyMesh
+  hasPreGeneratedMonthlyMesh,
+  hasPreGeneratedDailyMesh,
+  loadDailySeoulMesh
 } from '../utils/loadStaticMesh'
 import * as turf from '@turf/turf'
 
@@ -36,6 +38,7 @@ export interface SeoulMeshLayerProps {
   salesHeightScale?: number  // Scale for converting sales to height
   animatedOpacity?: number  // For animated opacity transitions
   month?: string  // Month identifier for monthly mesh (e.g., '202401', '202402')
+  date?: string   // Daily identifier (e.g., '20240101')
   // Optional: override base positions for smooth height interpolation (unscaled)
   overridePositions?: Float32Array
   // Optional: key for triggering updates during animation
@@ -463,7 +466,8 @@ export function usePreGeneratedSeoulMeshLayer(
     dongSalesMap,
     salesHeightScale,
     animatedOpacity,
-    month
+    month,
+    date
   } = props
 
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
@@ -500,6 +504,14 @@ export function usePreGeneratedSeoulMeshLayer(
           if (!cancelled) {
             setLoadedMonth(month)
             setLoadedResolution(null) // Clear resolution when using monthly mesh
+          }
+        } else if (date && await hasPreGeneratedDailyMesh(date)) {
+          // Load daily mesh if specified and available
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading daily mesh for ${date}`)
+          data = await loadDailySeoulMesh(date)
+          if (!cancelled) {
+            setLoadedMonth(null)
+            setLoadedResolution(null) // Using daily, not resolution
           }
         } else {
           // Always use binary file loading - no dynamic generation
@@ -597,7 +609,7 @@ export function usePreGeneratedSeoulMeshLayer(
       cancelled = true
       if (animRef.current) cancelAnimationFrame(animRef.current)
     }
-  }, [resolution, month || '']) // Reload when resolution or month changes
+  }, [resolution, month || '', date || '']) // Reload when resolution or month/date changes
 
   // Create layer from loaded data
   const layer = useMemo(() => {
@@ -618,9 +630,9 @@ export function usePreGeneratedSeoulMeshLayer(
       color,
       salesHeightScale,  // Pass the height scale parameter
       overridePositions: overridePositions || undefined,
-      updateKey: isTransitioning ? animProgress : (loadedMonth || loadedResolution)
+      updateKey: isTransitioning ? animProgress : (loadedMonth || loadedResolution || date)
     })
-  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color, salesHeightScale, overridePositions, isTransitioning, animProgress, loadedMonth, loadedResolution])
+  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color, salesHeightScale, overridePositions, isTransitioning, animProgress, loadedMonth, loadedResolution, date])
   
   // Return both layer and loading state
   return { layer, isLoading: loading }

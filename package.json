@@ -10,6 +10,8 @@
     "generate-particles": "node scripts/generate-static-particles-optimized.js",
     "generate-mesh": "node scripts/generate-seoul-mesh.js",
     "convert-mesh-binary": "node scripts/convertMeshToBinary.js",
+    "generate-days": "tsx scripts/generate-all-days.ts --year 2024 --binaryOnly true",
+    "generate-days-json": "tsx scripts/generate-all-days.ts --year 2024 --binaryOnly false",
     "optimize-mesh": "npm run generate-mesh && npm run convert-mesh-binary",
     "prebuild": "npm run generate-particles && npm run optimize-mesh"
   },
@@ -55,6 +57,7 @@
     "@types/react-dom": "^19",
     "postcss": "^8.5",
     "tailwindcss": "^3.4.17",
+    "tsx": "^4.20.5",
     "typescript": "^5"
   }
 }

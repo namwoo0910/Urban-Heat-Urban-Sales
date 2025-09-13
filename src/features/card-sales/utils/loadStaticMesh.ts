@@ -420,6 +420,103 @@ export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry>
   return loadingPromise
 }
 
+// =========================
+// Daily mesh support
+// =========================
+
+/** Check if a pre-generated daily mesh exists (YYYYMMDD). Uses HEAD. */
+export async function hasPreGeneratedDailyMesh(dateCode: string): Promise<boolean> {
+  try {
+    const binaryHeader = `/data/binary/seoul-mesh-${dateCode}.header.json`
+    const resp = await fetch(binaryHeader, { method: 'HEAD' })
+    return resp.ok
+  } catch {
+    return false
+  }
+}
+
+/** Load pre-generated daily mesh (YYYYMMDD) */
+export async function loadDailySeoulMesh(dateCode: string): Promise<MeshGeometry> {
+  // Try binary first
+  const headerUrl = `/data/binary/seoul-mesh-${dateCode}.header.json`
+  const headerResponse = await fetch(headerUrl)
+  if (!headerResponse.ok) {
+    // Fallback to JSON
+    const jsonUrl = `/data/seoul-mesh-${dateCode}.json`
+    const jsonResponse = await fetch(jsonUrl)
+    if (!jsonResponse.ok) {
+      throw new Error(`Failed to load daily mesh data for ${dateCode}: ${jsonResponse.status}`)
+    }
+    const jsonData = await jsonResponse.json()
+    const meshGeometry: MeshGeometry = {
+      positions: new Float32Array(jsonData.positions),
+      normals: new Float32Array(jsonData.normals),
+      texCoords: new Float32Array(jsonData.texCoords),
+      colors: jsonData.colors ? new Float32Array(jsonData.colors) : undefined,
+      indices: jsonData.indices ? new Uint32Array(jsonData.indices) : undefined,
+      metadata: jsonData.metadata
+    }
+    return meshGeometry
+  }
+
+  const header: BinaryMeshHeader = await headerResponse.json()
+  const binaryUrl = `/data/binary/seoul-mesh-${dateCode}.bin`
+  const binaryResponse = await fetch(binaryUrl)
+  if (!binaryResponse.ok) {
+    throw new Error(`Failed to load daily binary mesh for ${dateCode}: ${binaryResponse.status}`)
+  }
+  const arrayBuffer = await binaryResponse.arrayBuffer()
+
+  const meshGeometry: MeshGeometry = {
+    positions: new Float32Array(0),
+    normals: new Float32Array(0),
+    texCoords: new Float32Array(0),
+    metadata: { center: header.metadata.center }
+  }
+
+  if (header.offsets.positions) {
+    const { offset, count, itemSize } = header.offsets.positions
+    const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+    meshGeometry.positions = new Float32Array(view)
+  }
+  if (header.offsets.normals) {
+    const { offset, count, itemSize } = header.offsets.normals
+    const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+    meshGeometry.normals = new Float32Array(view)
+  }
+  if (header.offsets.texCoords) {
+    const { offset, count, itemSize } = header.offsets.texCoords
+    const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+    meshGeometry.texCoords = new Float32Array(view)
+  }
+  if (header.offsets.colors) {
+    const { offset, count, itemSize } = header.offsets.colors
+    const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+    meshGeometry.colors = new Float32Array(view)
+  }
+  if (header.offsets.indices) {
+    const { offset, length } = header.offsets.indices
+    const elementCount = length / 4
+    const view = new Uint32Array(arrayBuffer, offset, elementCount)
+    meshGeometry.indices = new Uint32Array(view)
+  }
+
+  return meshGeometry
+}
+
+/** Fetch list of available dates (YYYYMMDD) if index exists */
+export async function getAvailableDailyDates(): Promise<string[]> {
+  try {
+    const url = `/data/binary/available-dates.json`
+    const resp = await fetch(url)
+    if (!resp.ok) return []
+    const json = await resp.json()
+    return Array.isArray(json?.dates) ? json.dates : []
+  } catch {
+    return []
+  }
+}
+
 /**
  * Clear monthly mesh cache
  */

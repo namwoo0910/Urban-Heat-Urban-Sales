@@ -8,6 +8,7 @@ import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { generateGridMesh, type MeshGeometry } from '../utils/meshGenerator'
 import { Play, Pause, SkipForward, SkipBack, Calendar, Loader2, Zap } from 'lucide-react'
 import { getOptimizedLoader, BinaryTimeSeriesData, binaryToMap } from '../utils/optimizedDataLoader'
+import { getSeasonalMeshColor } from '../utils/seasonalMeshColors'
 import { getCachedTimeSeriesData } from '../utils/timeSeriesDataLoader'
 
 interface OptimizedTimeSeriesProps {
@@ -396,6 +397,10 @@ export function OptimizedTimeSeriesMeshLayer({
       centerY = (bounds.minY + bounds.maxY) / 2
     }
     
+    // Compute seasonal color for current month (YYYYMM)
+    const currentMonth = availableMonths[currentIndex]
+    const seasonalColor = getSeasonalMeshColor(currentMonth)
+
     return new SimpleMeshLayer({
       id: 'optimized-time-series-mesh',
       data: [{ position: [centerX, centerY, 0] }],
@@ -404,8 +409,8 @@ export function OptimizedTimeSeriesMeshLayer({
       wireframe: currentResolution <= 30, // Wireframe for low-res
       getPosition: (d: any) => d.position,
       getColor: currentResolution > 30 
-        ? [0, 255, 225, 255]  // Cyan for high-res
-        : [255, 255, 0, 180], // Yellow for low-res (loading indicator)
+        ? seasonalColor         // Seasonal color for high-res frames
+        : [255, 255, 0, 180],   // Yellow for low-res (loading indicator)
       material: {
         ambient: 0.8,
         diffuse: 1.0,
@@ -420,10 +425,12 @@ export function OptimizedTimeSeriesMeshLayer({
       },
       // Trigger re-evaluation during animation or resolution change
       updateTriggers: {
-        mesh: [animationProgress, currentResolution]
+        mesh: [animationProgress, currentResolution],
+        // Ensure color updates when the month index changes
+        getColor: [currentIndex, currentResolution]
       }
     })
-  }, [visible, currentMesh, currentResolution, districtData, isTransitioning, animationProgress])
+  }, [visible, currentMesh, currentResolution, districtData, isTransitioning, animationProgress, currentIndex, availableMonths])
   
   // Cleanup
   useEffect(() => {

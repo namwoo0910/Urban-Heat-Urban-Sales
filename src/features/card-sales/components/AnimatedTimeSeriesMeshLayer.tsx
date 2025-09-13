@@ -7,6 +7,7 @@ import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { useEffect, useState, useRef, useMemo, useCallback } from 'react'
 import { generateGridMesh, type MeshGeometry } from '../utils/meshGenerator'
 import { Play, Pause, SkipForward, SkipBack, Calendar } from 'lucide-react'
+import { getSeasonalMeshColor } from '../utils/seasonalMeshColors'
 
 interface TimeSeriesData {
   month: string // YYYYMM format
@@ -254,6 +255,9 @@ export function AnimatedTimeSeriesMeshLayer({
       centerY = (bounds.minY + bounds.maxY) / 2
     }
     
+    // Determine seasonal color by current month (YYYYMM)
+    const seasonalColor = getSeasonalMeshColor(currentMonth.month)
+
     return new SimpleMeshLayer({
       id: 'animated-time-series-mesh',
       data: [{ position: [centerX, centerY, 0] }],
@@ -261,7 +265,7 @@ export function AnimatedTimeSeriesMeshLayer({
       sizeScale: 1,
       wireframe: false,
       getPosition: (d: any) => d.position,
-      getColor: [0, 255, 225, 255],
+      getColor: seasonalColor,
       material: {
         ambient: 0.8,
         diffuse: 1.0,
@@ -276,7 +280,9 @@ export function AnimatedTimeSeriesMeshLayer({
       },
       // Use updateTriggers to force re-render on animation
       updateTriggers: {
-        mesh: [animationProgress, currentIndex]
+        mesh: [animationProgress, currentIndex],
+        // Re-evaluate color when month index changes
+        getColor: [currentIndex]
       }
     })
   }, [
