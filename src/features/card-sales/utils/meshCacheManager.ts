@@ -106,7 +106,7 @@ export class MeshLRUCache {
     const positionsSize = geometry.positions.byteLength
     const normalsSize = geometry.normals.byteLength
     const texCoordsSize = geometry.texCoords.byteLength
-    const indicesSize = geometry.indices.byteLength
+    const indicesSize = geometry.indices?.byteLength || 0
     
     return positionsSize + normalsSize + texCoordsSize + indicesSize
   }

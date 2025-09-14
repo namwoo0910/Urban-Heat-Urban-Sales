@@ -271,7 +271,7 @@ export function createDongLabelsTextLayer({
     },
     
     // Strong outline for visibility
-    outlineWidth: d => d.isSelected ? 3 : 2,
+    outlineWidth: 2,
     outlineColor: [0, 0, 0, 255],
     
     // No background for clean look
@@ -309,8 +309,7 @@ export function createDongLabelsTextLayer({
     
     updateTriggers: {
       getSize: [selectedDong],
-      getColor: [selectedDong],
-      outlineWidth: [selectedDong]
+      getColor: [selectedDong]
     }
   })
   

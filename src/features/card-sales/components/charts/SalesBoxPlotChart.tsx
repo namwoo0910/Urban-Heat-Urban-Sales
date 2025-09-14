@@ -17,7 +17,7 @@ import {
 } from '@/src/shared/components/ui/chart'
 import {
   loadNormalizedBoxPlotData,
-  // loadDongBoxPlotData,
+  loadDongBoxPlotData,
   type BoxPlotDataPoint,
   type DongBoxPlotDataPoint,
   type BoxPlotStats
@@ -337,10 +337,16 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
         const categories = getAllCategoryNames(loadedData)
         setCategoryList(['전체', ...categories])
 
-        // 행정동별 데이터 로드 - 현재 비활성화
-        // const loadedDongData = await loadDongBoxPlotData()
-        // console.log('[BoxPlot] Dong data loaded:', loadedDongData.length, 'dongs')
-        setDongData([])
+        // 행정동별 데이터 로드
+        const loadedDongData = await loadDongBoxPlotData()
+        console.log('[BoxPlot] Dong data loaded:', loadedDongData.length, 'dong-business combinations')
+        if (loadedDongData.length > 0) {
+          console.log('[BoxPlot] Sample dong data:', loadedDongData[0])
+          const uniqueDongs = new Set(loadedDongData.map(d => d.dongName))
+          const uniqueBusinessTypes = new Set(loadedDongData.map(d => d.businessType))
+          console.log('[BoxPlot] Unique dongs:', uniqueDongs.size, 'Unique business types:', uniqueBusinessTypes.size)
+        }
+        setDongData(loadedDongData)
       } catch (error) {
         console.error('[BoxPlot] Failed to load data:', error)
         setRawData([])
@@ -355,6 +361,8 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
   
   // 선택된 업종 또는 행정동에 따라 데이터 처리
   const processedData = useMemo(() => {
+    console.log('[BoxPlot] Processing data - isDongMode:', isDongMode, 'isGuMode:', isGuMode, 'dongDataLength:', dongData.length, 'activeCategory:', activeCategory)
+    console.log('[BoxPlot] Selection - selectedDongCode:', selectedDongCode, 'selectedGuCode:', selectedGuCode)
     // 행정동과 업종이 모두 선택된 경우
     if (isDongMode && dongData.length > 0 && activeCategory !== '전체') {
       const selectedDongBusiness = dongData.find(

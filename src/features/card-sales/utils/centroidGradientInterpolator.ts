@@ -9,12 +9,35 @@
  * - Web Worker 불필요
  */
 
-import type { 
-  DongBoundary, 
-  GridCell,
-  GridData,
-  HexagonLayerGridData 
-} from '../types/grid.types'
+// Type definitions
+interface DongBoundary {
+  adm_cd: number
+  geometry: any
+  properties?: any
+}
+
+interface GridCell {
+  x?: number
+  y?: number
+  value?: number
+  gaussianWeight?: number
+  grid_id?: number
+  row?: number
+  col?: number
+  center?: [number, number]
+}
+
+interface GridData {
+  cells: GridCell[]
+  bounds: {
+    minX: number
+    maxX: number
+    minY: number
+    maxY: number
+  }
+}
+
+type HexagonLayerGridData = GridCell
 
 export interface CentroidGradientConfig {
   gridSize?: number
@@ -99,8 +122,8 @@ export class CentroidGradientInterpolator {
     for (const boundary of dongBoundaries) {
       const centroid = this.calculateCentroid(boundary.geometry)
       if (centroid) {
-        this.dongCentroids.set(boundary.adm_cd, {
-          admCd: boundary.adm_cd,
+        this.dongCentroids.set(String(boundary.adm_cd), {
+          admCd: String(boundary.adm_cd),
           center: centroid
         })
         successCount++
@@ -179,6 +202,7 @@ export class CentroidGradientInterpolator {
       
       // Find cells within distribution radius
       for (const cell of this.gridCells) {
+        if (!cell.center) continue
         const [cellLon, cellLat] = cell.center
         
         // Calculate distance (using squared distance for efficiency)
@@ -216,7 +240,7 @@ export class CentroidGradientInterpolator {
           }
           
           weights.push({
-            gridId: cell.grid_id,
+            gridId: cell.grid_id || 0,
             distance,
             ratio,
             weight
@@ -231,7 +255,8 @@ export class CentroidGradientInterpolator {
         let nearestCell: GridCell | null = null
         
         for (const cell of this.gridCells) {
-          const [cellLon, cellLat] = cell.center
+          if (!cell.center) continue
+        const [cellLon, cellLat] = cell.center
           const dLon = cellLon - dongLon
           const dLat = cellLat - dongLat
           const dist = Math.sqrt(dLon * dLon + dLat * dLat)
@@ -244,7 +269,7 @@ export class CentroidGradientInterpolator {
         
         if (nearestCell) {
           weights.push({
-            gridId: nearestCell.grid_id,
+            gridId: nearestCell.grid_id || 0,
             distance: minDist,
             ratio: 1,
             weight: 0.1  // Small weight for cells outside radius
@@ -274,12 +299,12 @@ export class CentroidGradientInterpolator {
     console.log('🎨 [CentroidGradient] Applying gradient with pre-computed weights...')
     const startTime = performance.now()
     
-    const gridData: GridData = {}
+    const gridData: any = {}
     gridData[timeKey] = {}
     
     // Initialize all cells to 0
     for (const cell of this.gridCells) {
-      gridData[timeKey][cell.grid_id.toString()] = 0
+      gridData[timeKey][(cell.grid_id || 0).toString()] = 0
     }
     
     // Apply weighted distribution for each dong
@@ -332,9 +357,9 @@ export class CentroidGradientInterpolator {
     const smoothed: { [key: string]: number } = {}
     
     for (const cell of this.gridCells) {
-      const value = gridData[cell.grid_id.toString()] || 0
+      const value = gridData[(cell.grid_id || 0).toString()] || 0
       if (value === 0) {
-        smoothed[cell.grid_id.toString()] = 0
+        smoothed[(cell.grid_id || 0).toString()] = 0
         continue
       }
       
@@ -348,15 +373,15 @@ export class CentroidGradientInterpolator {
       ]
       
       for (const [dr, dc] of neighbors) {
-        const neighborCell = cellMap.get(`${cell.row + dr}_${cell.col + dc}`)
+        const neighborCell = cellMap.get(`${(cell.row || 0) + dr}_${(cell.col || 0) + dc}`)
         if (neighborCell) {
-          const neighborValue = gridData[neighborCell.grid_id.toString()] || 0
+          const neighborValue = gridData[(neighborCell.grid_id || 0).toString()] || 0
           sum += neighborValue
           count++
         }
       }
       
-      smoothed[cell.grid_id.toString()] = sum / count
+      smoothed[(cell.grid_id || 0).toString()] = sum / count
     }
     
     // Apply smoothed values
@@ -367,7 +392,7 @@ export class CentroidGradientInterpolator {
    * Convert to HexagonLayerData format for visualization
    */
   public convertToHexagonData(
-    gridData: GridData,
+    gridData: any,
     timeKey: string = 'current'
   ): HexagonLayerGridData[] {
     const data = gridData[timeKey]
@@ -376,7 +401,7 @@ export class CentroidGradientInterpolator {
     return this.gridCells.map(cell => ({
       gridId: cell.grid_id,
       coordinates: cell.center,
-      weight: data[cell.grid_id.toString()] || 0,
+      weight: data[(cell.grid_id || 0).toString()] || 0,
       row: cell.row,
       col: cell.col,
       dongContributions: {}  // Can be added if needed

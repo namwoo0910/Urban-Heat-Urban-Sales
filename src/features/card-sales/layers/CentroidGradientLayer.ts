@@ -118,13 +118,8 @@ export class CentroidGradientLayer extends CompositeLayer<CentroidGradientLayerP
         return this.getGaussianGradientColor(d.gaussianWeight)
       },
       
-      // Variable opacity based on weight
-      opacity: (d: any) => {
-        // Higher opacity at center, lower at edges
-        const baseOpacity = opacity
-        const weightedOpacity = baseOpacity * (0.3 + 0.7 * d.gaussianWeight)
-        return weightedOpacity
-      },
+      // Fixed opacity
+      opacity: opacity * 0.8,
       
       // Line color for subtle grid
       getLineColor: [255, 255, 255, 20],

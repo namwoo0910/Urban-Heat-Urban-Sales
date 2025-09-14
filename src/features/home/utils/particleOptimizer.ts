@@ -3,7 +3,7 @@
  * 정적 파일에서 파티클 데이터를 즉시 로드하고 런타임에 색상 적용
  */
 
-import type { ParticleData } from './particle-data-optimized'
+import type { ParticleData } from './particleGenerator'
 
 // 메모리 캐시 (위치 데이터만)
 const particleCache = new Map<string, Omit<ParticleData, 'color'>[]>()

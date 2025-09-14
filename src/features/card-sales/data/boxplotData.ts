@@ -52,13 +52,22 @@ export async function loadNormalizedBoxPlotData(): Promise<BoxPlotDataPoint[]> {
   return parseNormalizedCsvToBoxPlotData(text)
 }
 
-// 행정동별 x 업종별 박스플롯 데이터 로드 - 현재 비활성화
-// export async function loadDongBoxPlotData(): Promise<DongBoxPlotDataPoint[]> {
-//   const { parseDongCsvToBoxPlotData } = await import('./dongBoxplotData')
-//   const response = await fetch('/data/charts/norm_행정동x업종_bxplt.csv')
-//   const text = await response.text()
-//   return parseDongCsvToBoxPlotData(text)
-// }
+// 행정동별 x 업종별 박스플롯 데이터 로드
+export async function loadDongBoxPlotData(): Promise<DongBoxPlotDataPoint[]> {
+  try {
+    const { parseDongCsvToBoxPlotData } = await import('./dongBoxplotData')
+    const response = await fetch('/data/charts/norm_행정동x업종_bxplt.csv')
+    if (!response.ok) {
+      console.warn('Failed to load dong boxplot data:', response.status)
+      return []
+    }
+    const text = await response.text()
+    return parseDongCsvToBoxPlotData(text)
+  } catch (error) {
+    console.error('Error loading dong boxplot data:', error)
+    return []
+  }
+}
 
 // CSV 파싱 함수
 function parseCsvToBoxPlotData(csvText: string): BoxPlotDataPoint[] {

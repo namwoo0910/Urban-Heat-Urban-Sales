@@ -183,7 +183,7 @@ export class OptimizedTimeSeriesLoader {
     const cached = this.dataCache.get(month)
     if (cached) {
       const duration = stopTimer()
-      console.log(`[OptimizedLoader] Cache hit for ${month} (${duration.toFixed(2)}ms)`)
+      console.log(`[OptimizedLoader] Cache hit for ${month}`)
       return cached
     }
     
@@ -202,7 +202,7 @@ export class OptimizedTimeSeriesLoader {
       if (data) {
         this.dataCache.set(month, data)
         const duration = stopTimer()
-        console.log(`[OptimizedLoader] Loaded ${month} (${duration.toFixed(2)}ms)`)
+        console.log(`[OptimizedLoader] Loaded ${month}`)
       }
       return data
     } finally {
@@ -292,7 +292,7 @@ export class OptimizedTimeSeriesLoader {
     const results = await Promise.all(promises)
     
     const duration = stopTimer()
-    console.log(`[OptimizedLoader] Loaded ${months.length} months in parallel (${duration.toFixed(2)}ms)`)
+    console.log(`[OptimizedLoader] Loaded ${months.length} months in parallel`)
     
     return results
   }

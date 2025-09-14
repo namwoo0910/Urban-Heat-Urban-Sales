@@ -80,8 +80,8 @@ export function OptimizedTimeSeriesMeshLayer({
   
   const dataLoader = useRef(getOptimizedLoader())
   const meshCache = useRef<Map<string, MeshGeometry>>(new Map())
-  const playIntervalRef = useRef<NodeJS.Timeout>()
-  const animationRef = useRef<number>()
+  const playIntervalRef = useRef<NodeJS.Timeout | undefined>(undefined)
+  const animationRef = useRef<number | undefined>(undefined)
   const transitionStartRef = useRef<number>(0)
   const prevMeshRef = useRef<MeshGeometry | null>(null)
   const targetMeshRef = useRef<MeshGeometry | null>(null)
@@ -190,7 +190,9 @@ export function OptimizedTimeSeriesMeshLayer({
       // Limit cache size to prevent memory issues
       if (meshCache.current.size > 10) {
         const firstKey = meshCache.current.keys().next().value
-        meshCache.current.delete(firstKey)
+        if (firstKey) {
+          meshCache.current.delete(firstKey)
+        }
       }
       
       // Update performance metrics
@@ -404,7 +406,7 @@ export function OptimizedTimeSeriesMeshLayer({
     return new SimpleMeshLayer({
       id: 'optimized-time-series-mesh',
       data: [{ position: [centerX, centerY, 0] }],
-      mesh: meshObject,
+      mesh: meshObject as any,
       sizeScale: 1,
       wireframe: currentResolution <= 30, // Wireframe for low-res
       getPosition: (d: any) => d.position,

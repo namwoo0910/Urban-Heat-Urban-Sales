@@ -96,7 +96,7 @@ export function DistrictFilterPanel({
     const guCode = gu ? getDistrictCode(gu) : null
     
     setSelectedGu(gu)
-    setSelectedGuCode(guCode)
+    setSelectedGuCode(guCode || null)
     setSelectedDong(null)
     setSelectedDongCode(null)
     
@@ -115,7 +115,7 @@ export function DistrictFilterPanel({
     const dongCode = dong && selectedGu ? getDongCode(selectedGu, dong) : null
     
     setSelectedDong(dong)
-    setSelectedDongCode(dongCode)
+    setSelectedDongCode(dongCode || null)
     
     onDongChange?.(dong)
     triggerFilterChange({

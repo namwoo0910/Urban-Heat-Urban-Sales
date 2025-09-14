@@ -13,10 +13,6 @@ import type { FilterState } from '../LocalEconomyFilterPanel'
 import { RotateCcw } from 'lucide-react'
 
 interface UIControlsProps {
-  // 3D Mode
-  is3DMode: boolean
-  onToggle3D: (enabled: boolean) => void
-  
   // Layer visibility
   showMeshLayer: boolean
   showBoundary: boolean
@@ -48,8 +44,6 @@ interface UIControlsProps {
 }
 
 export const UIControls = React.memo(({
-  is3DMode,
-  onToggle3D,
   showMeshLayer,
   showBoundary,
   showDistrictLabels,
@@ -89,9 +83,9 @@ export const UIControls = React.memo(({
           onUpperPercentileChange={(upperPercentile) => onLayerConfigChange({ ...layerConfig, upperPercentile })}
           onReset={() => {}}
           // Optional props
-          is3DMode={is3DMode}
+          is3DMode={false}
           showBoundary={showBoundary}
-          onIs3DModeChange={onToggle3D}
+          onIs3DModeChange={() => {}}
           onBoundaryToggle={onToggleBoundary}
           onDistrictLabelsToggle={onToggleDistrictLabels}
           onDongLabelsToggle={onToggleDongLabels}

@@ -79,15 +79,19 @@ export class ClimateDataLoader {
       if (this.monthlyDataCache.size >= 3) {
         // 가장 오래된 캐시 삭제
         const firstKey = this.monthlyDataCache.keys().next().value
-        this.monthlyDataCache.delete(firstKey)
+        if (firstKey) {
+          this.monthlyDataCache.delete(firstKey)
+        }
         console.log(`[ClimateDataLoader] 오래된 캐시 삭제: ${firstKey}`)
       }
       
-      this.monthlyDataCache.set(yearMonth, this.consolidatedData)
+      if (this.consolidatedData) {
+        this.monthlyDataCache.set(yearMonth, this.consolidatedData)
+      }
       this.currentMonth = yearMonth
       
-      console.log(`[ClimateDataLoader] ${yearMonth} 데이터 로드 완료: ${this.consolidatedData.length}개 레코드`)
-      return this.consolidatedData
+      console.log(`[ClimateDataLoader] ${yearMonth} 데이터 로드 완료: ${this.consolidatedData?.length || 0}개 레코드`)
+      return this.consolidatedData || []
       
     } catch (error) {
       console.error(`[ClimateDataLoader] 데이터 로드 실패:`, error)

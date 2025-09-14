@@ -215,7 +215,7 @@ export function createStaticSeoulMeshLayer(
     }
   }
 
-  console.log(`[createStaticSeoulMeshLayer] Layer created with heightScaleFactor=${heightScaleFactor}, mesh vertices=${meshGeometry.positions?.length / 3}, indices=${meshGeometry.indices?.length / 3}`)
+  console.log(`[createStaticSeoulMeshLayer] Layer created with heightScaleFactor=${heightScaleFactor}, mesh vertices=${meshGeometry.positions?.length ? meshGeometry.positions.length / 3 : 0}, indices=${meshGeometry.indices?.length ? meshGeometry.indices.length / 3 : 0}`)
   return new SimpleMeshLayer(layerProps)
 }
 

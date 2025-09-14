@@ -117,7 +117,9 @@ export function useOptimizedDailyData({
           // 캐시 저장 (최대 5개까지만)
           if (dataCache.size >= 5) {
             const firstKey = dataCache.keys().next().value
-            dataCache.delete(firstKey)
+            if (firstKey) {
+              dataCache.delete(firstKey)
+            }
           }
           dataCache.set(selectedDate, optimizedData)
           
@@ -190,7 +192,9 @@ export function prefetchOptimizedDailyData(dates: string[]) {
         .then(data => {
           if (dataCache.size >= 5) {
             const firstKey = dataCache.keys().next().value
-            dataCache.delete(firstKey)
+            if (firstKey) {
+              dataCache.delete(firstKey)
+            }
           }
           dataCache.set(date, data)
           console.log(`[OptimizedData] 프리페치 완료: ${date}`)

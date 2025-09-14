@@ -24,7 +24,6 @@ import { usePreGeneratedSeoulMeshLayer } from '../SeoulMeshLayer'
 import { useDistrictSelection } from '@/src/shared/hooks/useDistrictSelection'
 
 // Utils
-import { createDong3DPolygonLayers, createDong2DPolygonLayers } from '../../utils/createDeckLayers'
 import { createUnifiedDeckGLLayers } from '../DeckGLUnifiedLayers'
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from '../DistrictLabelsTextLayer'
 import { getDistrictCode, getDongCode } from '../../data/districtCodeMappings'
@@ -32,13 +31,10 @@ import { getDistrictCenter } from '../../data/districtCenters'
 import { getCurrentTheme, getCurrentThemeKey } from '@/src/shared/utils/districtUtils'
 
 // Constants
-import { 
-  DEFAULT_SEOUL_VIEW, 
-  VIEW_2D, 
-  VIEW_3D, 
-  LIGHTING_EFFECT,
+import {
+  DEFAULT_SEOUL_VIEW,
   ANIMATION_CONFIG,
-  LAYER_IDS 
+  LAYER_IDS
 } from './constants'
 
 // Types
@@ -60,7 +56,6 @@ export default function CardSalesDistrictMap() {
   
   // View state
   const [viewState, setViewState] = useState<MapViewState>(DEFAULT_SEOUL_VIEW)
-  const [is3DMode, setIs3DMode] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   
   // Selection state
@@ -90,11 +85,10 @@ export default function CardSalesDistrictMap() {
   const { layerConfig, updateConfig } = useLayerState()
   
   // Data processing
-  const { 
+  const {
     sggData,
     dongData,
     jibData,
-    dongData3D,
     seoulBoundaryData,
     dongSalesMap,
     dongSalesByTypeMap,
@@ -104,7 +98,7 @@ export default function CardSalesDistrictMap() {
   
   // Mesh layer - only render if not showing charts or during mesh phase
   const { layer: meshLayer, isLoading: meshLoading } = usePreGeneratedSeoulMeshLayer({
-    visible: showMeshLayer && !is3DMode && (!showChartPanel || renderPhase === 'mesh'),
+    visible: showMeshLayer && (!showChartPanel || renderPhase === 'mesh'),
     opacity: 0.6
   })
   
@@ -234,8 +228,8 @@ export default function CardSalesDistrictMap() {
         longitude: center[0],
         latitude: center[1],
         zoom: dongName ? 14 : 12,
-        pitch: is3DMode ? 45 : 0,
-        bearing: is3DMode ? -10 : 0,
+        pitch: 0,
+        bearing: 0,
         transitionDuration: ANIMATION_CONFIG.TRANSITION_DURATION,
         transitionInterpolator: new FlyToInterpolator({ speed: ANIMATION_CONFIG.TRANSITION_SPEED }),
         onTransitionEnd: () => {
@@ -243,7 +237,7 @@ export default function CardSalesDistrictMap() {
         }
       } as any)
     }
-  }, [viewState, is3DMode])
+  }, [viewState])
   
   // Handle district selection
   const handleDistrictSelect = useCallback((gu: string | null, dong: string | null) => {
@@ -296,75 +290,36 @@ export default function CardSalesDistrictMap() {
     } as any)
   }, [])
   
-  // Handle 3D mode toggle
-  const handle3DModeToggle = useCallback((enabled: boolean) => {
-    setIs3DMode(enabled)
-    
-    isProgrammaticUpdateRef.current = true
-    setViewState(prev => ({
-      ...prev,
-      pitch: enabled ? 45 : 0,
-      bearing: enabled ? -10 : 0,
-      transitionDuration: ANIMATION_CONFIG.TRANSITION_DURATION,
-      transitionInterpolator: new LinearInterpolator(['pitch', 'bearing']),
-      onTransitionEnd: () => {
-        isProgrammaticUpdateRef.current = false
-      }
-    } as any))
-  }, [])
   
   // Create layers
   const layers = useMemo(() => {
     const allLayers = []
-    
-    // Mesh layer (2D only)
-    if (meshLayer && showMeshLayer && !is3DMode) {
+
+    // Mesh layer
+    if (meshLayer && showMeshLayer) {
       allLayers.push(meshLayer)
     }
-    
-    // District layers
-    if (is3DMode && dongData3D) {
-      // 3D polygon layers
-      const dong3DLayers = createDong3DPolygonLayers({
-        dongData3D,
-        layerConfig: { ...layerConfig, opacity: 1 },
-        dongSalesMap,
-        heightScale: 1,
-        selectedGu,
-        selectedDong,
-        selectedGuCode,
-        selectedDongCode,
-        hoveredDistrict,
-        currentThemeKey,
-        timelineAnimationEnabled: false,
-        isTimelinePlaying: false,
-        getDistrictCode: getDistrictCodeHelper,
-        getDistrictName: getDistrictNameHelper,
-        getGuName: getGuNameHelper
-      })
-      allLayers.push(...dong3DLayers)
-    } else {
-      // 2D unified layers
-      const unifiedLayers = createUnifiedDeckGLLayers({
-        sggData,
-        dongData,
-        dongData3D,
-        seoulBoundaryData,
-        is3DMode,
-        isDragging,
-        viewState: { ...viewState, pitch: viewState.pitch ?? 0, bearing: viewState.bearing ?? 0 },
-        selectedGu,
-        selectedDong,
-        hoveredDistrict,
-        sggVisible: true,
-        dongVisible: true,
-        showBoundary,
-        dongSalesMap,
-        heightScale: 1,
-        currentThemeKey
-      })
-      allLayers.push(...unifiedLayers)
-    }
+
+    // Boundary layers (simplified - only boundary lines if needed)
+    const unifiedLayers = createUnifiedDeckGLLayers({
+      sggData,
+      dongData,
+      dongData3D: null,
+      seoulBoundaryData,
+      is3DMode: false,
+      isDragging,
+      viewState: { ...viewState, pitch: viewState.pitch ?? 0, bearing: viewState.bearing ?? 0 },
+      selectedGu,
+      selectedDong,
+      hoveredDistrict,
+      sggVisible: true,
+      dongVisible: true,
+      showBoundary,
+      dongSalesMap,
+      heightScale: 1,
+      currentThemeKey
+    })
+    allLayers.push(...unifiedLayers)
     
     // Label layers
     if (showDistrictLabels && viewState.zoom >= 10) {
@@ -397,8 +352,6 @@ export default function CardSalesDistrictMap() {
   }, [
     meshLayer,
     showMeshLayer,
-    is3DMode,
-    dongData3D,
     sggData,
     dongData,
     jibData,
@@ -505,14 +458,12 @@ export default function CardSalesDistrictMap() {
           viewState={viewState}
           layers={layers}
           onViewStateChange={handleViewStateChange}
-          effects={is3DMode ? [LIGHTING_EFFECT] : []}
+          effects={[]}
           mapRef={mapRef as any}
         />
       </InteractionHandler>
       
       <UIControls
-        is3DMode={is3DMode}
-        onToggle3D={handle3DModeToggle}
         showMeshLayer={showMeshLayer}
         showBoundary={showBoundary}
         showDistrictLabels={showDistrictLabels}

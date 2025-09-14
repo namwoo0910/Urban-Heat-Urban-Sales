@@ -225,7 +225,7 @@ export function useOptimizedMonthlyData({
     
     async function loadMonthlyData() {
       // 캐시 확인
-      if (monthlyDataCache.has(targetMonth)) {
+      if (targetMonth && monthlyDataCache.has(targetMonth)) {
         console.log(`[MonthlyData] 캐시에서 로드: ${targetMonth}`)
         setMonthlyData(monthlyDataCache.get(targetMonth)!)
         return
@@ -248,9 +248,13 @@ export function useOptimizedMonthlyData({
         // 캐시 저장 (최대 3개월까지)
         if (monthlyDataCache.size >= 3) {
           const firstKey = monthlyDataCache.keys().next().value
-          monthlyDataCache.delete(firstKey)
+          if (firstKey) {
+            monthlyDataCache.delete(firstKey)
+          }
         }
-        monthlyDataCache.set(targetMonth, data)
+        if (targetMonth) {
+          monthlyDataCache.set(targetMonth, data)
+        }
         setMonthlyData(data)
         
         console.log(`[MonthlyData] 로드 완료: ${targetMonth} (${data.metadata.totalDays}일, ${data.dongCount}개 동)`)
@@ -411,7 +415,9 @@ export function prefetchMonthlyData(months: string[]): void {
         .then(data => {
           if (monthlyDataCache.size >= 3) {
             const firstKey = monthlyDataCache.keys().next().value
-            monthlyDataCache.delete(firstKey)
+            if (firstKey) {
+              monthlyDataCache.delete(firstKey)
+            }
           }
           monthlyDataCache.set(month, data)
           console.log(`[MonthlyData] 프리페치 완료: ${month}`)

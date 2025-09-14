@@ -38,7 +38,7 @@ export function useHeightInterpolation(config: InterpolationConfig = {}) {
 
   const [isAnimating, setIsAnimating] = useState(false)
   const heightMapRef = useRef<Map<number, HeightData>>(new Map())
-  const animationFrameRef = useRef<number>()
+  const animationFrameRef = useRef<number | undefined>(undefined)
   const lastUpdateRef = useRef<number>(0)
   const frameInterval = 1000 / fps
 

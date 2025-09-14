@@ -859,7 +859,7 @@ export function applyTheme(themeName: keyof typeof COLOR_THEMES) {
   const theme = COLOR_THEMES[themeName]
   if (!theme) {
     console.warn(`Theme '${themeName}' not found, using default`)
-    return COLOR_THEMES.midnightOcean
+    return COLOR_THEMES.bloomberg
   }
   return theme
 }

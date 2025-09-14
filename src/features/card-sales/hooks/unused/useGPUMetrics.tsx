@@ -62,7 +62,7 @@ export function useGPUMetrics(options: UseGPUMetricsOptions = {}) {
   const [isMonitoring, setIsMonitoring] = useState(false);
   const frameCountRef = useRef(0);
   const lastTimeRef = useRef(performance.now());
-  const rafIdRef = useRef<number>();
+  const rafIdRef = useRef<number | undefined>(undefined);
 
   // Calculate FPS and frame time
   const measurePerformance = useCallback(() => {

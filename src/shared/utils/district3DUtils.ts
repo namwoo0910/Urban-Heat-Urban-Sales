@@ -16,12 +16,13 @@ export function createSplitPolygon(feature: any, shrinkFactor = -0.00008) {
       const shrunkCoordinates = feature.geometry.coordinates.map((polygon: any) => {
         const tempFeature = {
           type: 'Feature',
+          properties: {},
           geometry: {
             type: 'Polygon',
             coordinates: polygon
           }
         }
-        const buffered = turf.buffer(tempFeature, shrinkFactor, { units: 'degrees' })
+        const buffered = turf.buffer(tempFeature as any, shrinkFactor, { units: 'degrees' })
         return buffered?.geometry.coordinates[0] || polygon
       })
       

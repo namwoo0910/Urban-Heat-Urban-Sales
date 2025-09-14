@@ -4,9 +4,10 @@
  * Uses WebGL2 compute-like patterns for data reduction
  */
 
-import { Texture2D, Framebuffer } from '@luma.gl/webgl'
-import { Model, Geometry } from '@luma.gl/engine'
-import GL from '@luma.gl/constants'
+// Temporarily disabled - unused file
+// import { Texture2D, Framebuffer } from '@luma.gl/webgl'
+// import { Model, Geometry } from '@luma.gl/engine'
+// import GL from '@luma.gl/constants'
 
 export interface GPUAggregatorOptions {
   gridSize: number
@@ -17,7 +18,7 @@ export interface GPUAggregatorOptions {
 
 export interface AggregationResult {
   gridData: Float32Array
-  texture: Texture2D
+  texture: any // Texture2D
   gridSize: number
   bounds: [[number, number], [number, number]]
   stats: {
@@ -133,6 +134,8 @@ void main() {
 }
 `
 
+// Temporarily disabled - unused file
+/*
 export class GPUAggregator {
   private gl: WebGL2RenderingContext
   private aggregationModel?: Model
@@ -362,4 +365,4 @@ export class GPUAggregator {
     this.framebuffers.clear()
     this.textures.clear()
   }
-}
+}*/

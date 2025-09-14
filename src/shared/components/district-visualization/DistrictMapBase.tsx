@@ -20,23 +20,27 @@ interface DistrictMapBaseProps {
 }
 
 // Lighting configuration for 3D visualization
+const ambientLight = new AmbientLight({
+  color: [255, 255, 255],
+  intensity: 1.0
+})
+
+const directionalLight1 = new DirectionalLight({
+  color: [255, 255, 255],
+  intensity: 0.8,
+  direction: [-1, -1, -1]
+})
+
+const directionalLight2 = new DirectionalLight({
+  color: [255, 255, 255],
+  intensity: 0.2,
+  direction: [1, 1, 1]
+})
+
 const lightingEffect = new LightingEffect({
-  ambientLight: new AmbientLight({
-    color: [255, 255, 255],
-    intensity: 1.0
-  }),
-  directionalLights: [
-    new DirectionalLight({
-      color: [255, 255, 255],
-      intensity: 0.8,
-      direction: [-1, -1, -1]
-    }),
-    new DirectionalLight({
-      color: [255, 255, 255],
-      intensity: 0.2,
-      direction: [1, 1, 1]
-    })
-  ]
+  ambientLight,
+  directionalLight1,
+  directionalLight2
 })
 
 /**
@@ -59,7 +63,7 @@ export function DistrictMapBase({
     <div className="relative w-full h-full overflow-hidden bg-gray-900">
       <DeckGL
         viewState={viewState}
-        onViewStateChange={onViewStateChange}
+        onViewStateChange={onViewStateChange as any}
         controller={true}
         layers={layers}
         effects={is3DMode ? [lightingEffect] : []}

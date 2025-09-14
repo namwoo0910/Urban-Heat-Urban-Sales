@@ -87,7 +87,7 @@ export function BarChart({
               const lines = payload.value.split('/'); // 슬래시로 나누기
               return (
                 <text x={x} y={y + 10} fill="#9CA3AF" fontSize={10} textAnchor="middle">
-                  {lines.map((line, index) => (
+                  {lines.map((line: any, index: number) => (
                     <tspan x={x} dy={index === 0 ? 0 : 12} key={index}>
                       {line}
                     </tspan>
