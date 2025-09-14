@@ -13,7 +13,6 @@ export function DistrictPieChart() {
       <PieChart
         data={districtAreaData}
         dataKey="value"
-        nameKey="name"
         height={280}
         showTooltip={true}
         showLegend={true}

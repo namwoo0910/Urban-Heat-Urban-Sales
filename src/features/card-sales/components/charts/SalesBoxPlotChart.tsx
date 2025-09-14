@@ -15,9 +15,9 @@ import {
   Line,
   Tooltip
 } from '@/src/shared/components/ui/chart'
-import { 
-  loadNormalizedBoxPlotData, 
-  loadDongBoxPlotData,
+import {
+  loadNormalizedBoxPlotData,
+  // loadDongBoxPlotData,
   type BoxPlotDataPoint,
   type DongBoxPlotDataPoint,
   type BoxPlotStats
@@ -336,11 +336,11 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
         // 업종 리스트 생성
         const categories = getAllCategoryNames(loadedData)
         setCategoryList(['전체', ...categories])
-        
-        // 행정동별 데이터 로드
-        const loadedDongData = await loadDongBoxPlotData()
-        console.log('[BoxPlot] Dong data loaded:', loadedDongData.length, 'dongs')
-        setDongData(loadedDongData)
+
+        // 행정동별 데이터 로드 - 현재 비활성화
+        // const loadedDongData = await loadDongBoxPlotData()
+        // console.log('[BoxPlot] Dong data loaded:', loadedDongData.length, 'dongs')
+        setDongData([])
       } catch (error) {
         console.error('[BoxPlot] Failed to load data:', error)
         setRawData([])

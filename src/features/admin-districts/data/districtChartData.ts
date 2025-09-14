@@ -53,18 +53,6 @@ export const districtCharacteristics = [
   { name: '의료시설', value: 68, metric: '병원 밀도 4.5개/km²' },
 ]
 
-// Composed Chart - 인구와 인구밀도 복합
-export const populationDensityData = [
-  { name: '강남구', population: 547946, density: 13872, ranking: 3 },
-  { name: '서초구', population: 428816, density: 9124, ranking: 8 },
-  { name: '송파구', population: 667483, density: 19706, ranking: 1 },
-  { name: '양천구', population: 457346, density: 26543, ranking: 7 },
-  { name: '관악구', population: 503297, density: 17004, ranking: 5 },
-  { name: '동작구', population: 397674, density: 24354, ranking: 11 },
-  { name: '마포구', population: 378566, density: 15952, ranking: 12 },
-  { name: '종로구', population: 151767, density: 6339, ranking: 24 },
-]
-
 // Heatmap Chart - 시간대별 구역 활동 밀도
 export const districtActivityHeatmap = (() => {
   const hours = Array.from({ length: 24 }, (_, i) => `${i}시`)
@@ -113,31 +101,31 @@ export const districtActivityHeatmap = (() => {
 
 // 구별 상세 데이터 (서울 25개 구)
 export const seoulDistrictsDetailData = [
-  { name: '강남구', population: 547946, area: 39.50, density: 13872, rank: 3 },
-  { name: '강동구', population: 469355, area: 24.59, density: 19089, rank: 6 },
-  { name: '강북구', population: 309859, area: 23.60, density: 13129, rank: 19 },
-  { name: '강서구', population: 603772, area: 41.44, density: 14569, rank: 2 },
-  { name: '관악구', population: 503297, area: 29.57, density: 17021, rank: 5 },
-  { name: '광진구', population: 354705, area: 17.06, density: 20792, rank: 14 },
-  { name: '구로구', population: 441359, area: 20.12, density: 21941, rank: 9 },
-  { name: '금천구', population: 251820, area: 13.02, density: 19341, rank: 22 },
-  { name: '노원구', population: 536948, area: 35.44, density: 15151, rank: 4 },
-  { name: '도봉구', population: 332892, area: 20.70, density: 16082, rank: 16 },
-  { name: '동대문구', population: 357044, area: 14.21, density: 25132, rank: 13 },
-  { name: '동작구', population: 397674, area: 16.35, density: 24326, rank: 11 },
-  { name: '마포구', population: 378566, area: 23.84, density: 15882, rank: 12 },
-  { name: '서대문구', population: 323187, area: 17.63, density: 18335, rank: 17 },
-  { name: '서초구', population: 428816, area: 47.00, density: 9124, rank: 8 },
-  { name: '성동구', population: 298124, area: 16.86, density: 17689, rank: 20 },
-  { name: '성북구', population: 448607, area: 24.58, density: 18253, rank: 10 },
-  { name: '송파구', population: 667483, area: 33.87, density: 19706, rank: 1 },
-  { name: '양천구', population: 457346, area: 17.41, density: 26274, rank: 7 },
-  { name: '영등포구', population: 368962, area: 24.53, density: 15044, rank: 15 },
-  { name: '용산구', population: 232286, area: 21.87, density: 10622, rank: 23 },
-  { name: '은평구', population: 483648, area: 29.71, density: 16279, rank: 18 },
-  { name: '종로구', population: 151767, area: 23.91, density: 6348, rank: 24 },
-  { name: '중구', population: 133240, area: 9.96, density: 13377, rank: 25 },
-  { name: '중랑구', population: 398469, area: 18.50, density: 21539, rank: 21 },
+  { name: '강남구', area: 39.50, rank: 3 },
+  { name: '강동구', area: 24.59, rank: 6 },
+  { name: '강북구', area: 23.60, rank: 19 },
+  { name: '강서구', area: 41.44, rank: 2 },
+  { name: '관악구', area: 29.57, rank: 5 },
+  { name: '광진구', area: 17.06, rank: 14 },
+  { name: '구로구', area: 20.12, rank: 9 },
+  { name: '금천구', area: 13.02, rank: 22 },
+  { name: '노원구', area: 35.44, rank: 4 },
+  { name: '도봉구', area: 20.70, rank: 16 },
+  { name: '동대문구', area: 14.21, rank: 13 },
+  { name: '동작구', area: 16.35, rank: 11 },
+  { name: '마포구', area: 23.84, rank: 12 },
+  { name: '서대문구', area: 17.63, rank: 17 },
+  { name: '서초구', area: 47.00, rank: 8 },
+  { name: '성동구', area: 16.86, rank: 20 },
+  { name: '성북구', area: 24.58, rank: 10 },
+  { name: '송파구', area: 33.87, rank: 1 },
+  { name: '양천구', area: 17.41, rank: 7 },
+  { name: '영등포구', area: 24.53, rank: 15 },
+  { name: '용산구', area: 21.87, rank: 23 },
+  { name: '은평구', area: 29.71, rank: 18 },
+  { name: '종로구', area: 23.91, rank: 24 },
+  { name: '중구', area: 9.96, rank: 25 },
+  { name: '중랑구', area: 18.50, rank: 21 },
 ]
 
 // 행정동 수 데이터

@@ -209,13 +209,6 @@ export class ClimateDataLoader {
       return null
     }
 
-    // 시간대별 인구 추출
-    const populationByHour: number[] = []
-    for (let hour = 0; hour < 24; hour++) {
-      const key = `${hour}시_총생활인구수`
-      populationByHour.push(raw[key] || 0)
-    }
-
     // 업종별 매출 추출 (새로운 구조 지원)
     const salesByCategory: Record<string, number> = {}
     
@@ -264,11 +257,7 @@ export class ClimateDataLoader {
       heatAlert: (raw.폭염경보 || 0) as 0 | 1,
       rainWarning: (raw.호우주의보 || 0) as 0 | 1,
       rainAlert: (raw.호우경보 || 0) as 0 | 1,
-      
-      // 생활인구
-      population: raw.일일_총생활인구수 || 0,
-      populationByHour,
-      
+
       // 매출
       totalSales: totalSales,
       totalTransactions: raw.총매출건수 || 0,
@@ -367,14 +356,11 @@ export class ClimateDataLoader {
   }
 
   /**
-   * 시간대별 데이터 추출 (특정 시간의 생활인구로 weight 조정)
+   * 시간대별 데이터 추출
    */
   getHourlyData(data: ClimateCardSalesData[], hour: number): ClimateCardSalesData[] {
-    return data.map(item => ({
-      ...item,
-      weight: item.populationByHour[hour] || item.weight, // 시간대별 인구를 weight로 사용
-      population: item.populationByHour[hour] || item.population
-    }))
+    // 시간대별 데이터 필터링이 필요하면 여기서 처리
+    return data
   }
 
   /**

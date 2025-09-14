@@ -119,7 +119,7 @@ const LocalEconomyPage = () => {
       )}
 
 
-      <ResearchNavigation href="/research/floating-population" projectName="유동인구" />
+      <ResearchNavigation href="/research/eda" projectName="행정구역 데이터" />
     </div>
   )
 }

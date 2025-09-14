@@ -513,7 +513,6 @@ export function formatScatterplotTooltip(info: any): string {
   • 불쾌지수: ${originalData.discomfortIndex?.toFixed(1) || 0}
   • 기온그룹: ${originalData.temperatureGroup || '정보 없음'}
 ━━━━━━━━━━━━━━━━━━━
-👥 생활인구: ${(originalData.population || 0).toLocaleString()}명
 📅 날짜: ${originalData.date || '정보 없음'}
     `.trim()
   } catch (error) {

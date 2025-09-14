@@ -15,13 +15,6 @@ const projects = [
     href: "/research/local-economy",
   },
   {
-    title: "유동인구",
-    description: "서울시 유동인구 실시간 시각화.",
-    imgSrc: "/images/seoul_pop.webp",
-    imgSrcFallback: "/images/seoul_pop.png",
-    href: "/research/floating-population",
-  },
-  {
     title: "행정구역 데이터",
     description: "탐색적 데이터 분석 및 인사이트 도출.",
     imgSrc: "/images/eda.webp",
@@ -53,12 +46,12 @@ export function Research() {
       <div className="text-center mb-20">
         <h2 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">데이터로 보는 서울</h2>
         <p className="max-w-2xl mx-auto text-xl text-neutral-400">
-          기후에 따른 서울시민 카드매출 및 유동인구 변화 분석/예측
+          기후에 따른 서울시민 카드매출 변화 분석/예측
         </p>
       </div>
       
       <div className="w-full" style={{ paddingBottom: 'calc(5rem - 30px)' }}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[50px] max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[50px] max-w-5xl mx-auto">
           {projects.map((project, index) => (
             <motion.div
               key={project.title}

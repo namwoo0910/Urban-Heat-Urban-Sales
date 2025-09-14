@@ -29,11 +29,7 @@ export interface ClimateCardSalesData {
   heatAlert: 0 | 1 // 폭염경보
   rainWarning: 0 | 1 // 호우주의보
   rainAlert: 0 | 1 // 호우경보
-  
-  // 생활인구 데이터
-  population: number // 일일_총생활인구수
-  populationByHour: number[] // 0시~23시 시간대별 인구
-  
+
   // 매출 데이터
   totalSales: number // 총매출액
   totalTransactions: number // 총매출건수
@@ -66,8 +62,7 @@ export interface RawClimateCardSalesData {
   일평균불쾌지수: number
   일최고불쾌지수: number
   일최저불쾌지수: number
-  일일_총생활인구수?: number
-  [key: string]: any // 시간대별 인구, 성별/연령대별 인구, 업종별 매출 등
+  [key: string]: any // 업종별 매출 등
   총매출액?: number
   총매출건수?: number
   폭염주의보?: number
@@ -102,6 +97,5 @@ export interface AggregatedData {
   averageTemperature: number
   averageHumidity: number
   averageDiscomfortIndex: number
-  totalPopulation: number
   dataPoints: number
 }

@@ -542,8 +542,8 @@ export default function EdaCombinedOptimized() {
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
           <div className="bg-gray-900 text-white p-4 rounded-2xl shadow-2xl max-w-2xl text-center backdrop-blur-md pointer-events-auto">
             <div className="text-sm font-semibold mb-3">
-              해당 지역의 유동인구 시각화를 진행할까요?<br/>
-              <small className="text-gray-400">Would you like to visualize the floating population for this area?</small>
+              해당 지역의 상세 데이터를 확인하시겠습니까?<br/>
+              <small className="text-gray-400">Would you like to view detailed data for this area?</small>
             </div>
             <div className="flex gap-3 justify-center">
               <button

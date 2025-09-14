@@ -9,7 +9,6 @@
 import React, { useEffect, useRef, useState, useMemo } from 'react'
 import { DeckGL } from '@deck.gl/react'
 import { OrthographicView } from '@deck.gl/core'
-import type { MapViewState } from '@deck.gl/core'
 import { useMeshGeometry } from './SeoulMeshLayer'
 import AnimatedMeshLayer from '../layers/AnimatedMeshLayer'
 
@@ -43,19 +42,16 @@ export default function AnimatedMeshBackground({
   targetFPS = 60,
   resolution = 30  // Use lowest resolution for best performance
 }: AnimatedMeshBackgroundProps) {
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number>(0)
   const timeRef = useRef<number>(0)
   const [animationTime, setAnimationTime] = useState(0)
   
   // Fixed view state for background
-  const viewState: MapViewState = useMemo(() => ({
-    longitude: 126.978,
-    latitude: 37.5665,
-    zoom: 10.5,
-    pitch: 45,
-    bearing: 0,
-    maxZoom: 20,
-    minZoom: 8
+  const viewState = useMemo(() => ({
+    'ortho-view': {
+      target: [126.978, 37.5665, 0] as [number, number, number],
+      zoom: 10.5
+    }
   }), [])
   
   // Create fallback mesh for immediate rendering
@@ -154,7 +150,7 @@ export default function AnimatedMeshBackground({
       wireframe: wireframe,
       opacity: opacity,
       getColor: (() => {
-        const hexToRgb = (hex: string) => {
+        const hexToRgb = (hex: string): [number, number, number, number] => {
           const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
           return result ? [
             parseInt(result[1], 16),
@@ -277,12 +273,6 @@ export default function AnimatedMeshBackground({
         layers={layers}
         controller={false}
         getCursor={() => 'default'}
-        parameters={{
-          clearColor: [0, 0, 0, 0],  // Transparent background
-          blend: true,
-          blendFunc: [770, 771],  // GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA
-          blendEquation: 32774    // GL.FUNC_ADD
-        }}
       >
         {/* No base map needed for abstract background */}
       </DeckGL>

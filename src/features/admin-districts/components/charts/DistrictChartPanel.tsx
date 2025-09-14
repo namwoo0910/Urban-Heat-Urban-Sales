@@ -7,7 +7,6 @@ import { DistrictAreaChart } from './DistrictAreaChart'
 import { DistrictBarChart } from './DistrictBarChart'
 import { DistrictPieChart } from './DistrictPieChart'
 import { DistrictRadarChart } from './DistrictRadarChart'
-import { DistrictComposedChart } from './DistrictComposedChart'
 import { DistrictHeatmapChart } from './DistrictHeatmapChart'
 
 export function DistrictChartPanel() {
@@ -19,7 +18,6 @@ export function DistrictChartPanel() {
     { id: 'bar', label: '구별 비교', component: DistrictBarChart },
     { id: 'pie', label: '면적 비율', component: DistrictPieChart },
     { id: 'radar', label: '특성 분석', component: DistrictRadarChart },
-    { id: 'composed', label: '복합 지표', component: DistrictComposedChart },
     { id: 'heatmap', label: '활동 히트맵', component: DistrictHeatmapChart },
   ]
 

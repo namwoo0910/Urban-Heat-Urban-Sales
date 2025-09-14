@@ -15,7 +15,6 @@ export function DistrictHeatmapChart() {
         xLabels={districtActivityHeatmap.xLabels}
         yLabels={districtActivityHeatmap.yLabels}
         height={280}
-        colorScheme="purple"
       />
     </div>
   )

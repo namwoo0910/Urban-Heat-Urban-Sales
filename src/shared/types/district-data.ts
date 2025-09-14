@@ -1,5 +1,5 @@
 /**
- * Shared district data types for both card sales and floating population
+ * Shared district data types for card sales visualization
  */
 
 // Base geographic data for districts

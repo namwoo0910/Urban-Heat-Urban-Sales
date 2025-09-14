@@ -27,7 +27,6 @@ slw_vis/
 │   ├── 📁 eda-visualization/        # EDA 시각화 페이지
 │   ├── 📁 research/                 # 연구 섹션
 │   │   ├── 📁 eda/                  # EDA 분석 페이지
-│   │   ├── 📁 floating-population/  # 유동인구 페이지
 │   │   └── 📁 local-economy/        # 지역경제 페이지
 │   ├── 📁 research-section/         # 연구 섹션 메인
 │   ├── 📁 urbanmountain/            # 3D 도시 시각화
@@ -41,7 +40,6 @@ slw_vis/
 │   │   │   └── 📁 utils/            # 유틸리티 함수
 │   │   ├── 📁 admin-districts/      # 행정구역 지도
 │   │   ├── 📁 card-sales/           # 카드 매출 시각화
-│   │   ├── 📁 floating-pop/         # 유동인구 시각화
 │   │   └── 📁 data-portal/          # 데이터 포털
 │   │
 │   ├── 📁 shared/                   # 🔗 공유 모듈
@@ -141,7 +139,6 @@ slw_vis/
 - **역할**: 연구 섹션 각 페이지
 - **페이지들**:
   - eda: EDA 분석
-  - floating-population: 유동인구
   - local-economy: 지역경제
 
 ---
@@ -201,15 +198,6 @@ slw_vis/
 
 **utils/**
 - `premiumColors.ts`: 프리미엄 색상 팔레트
-
-#### **📁 floating-pop/ - 유동인구 시각화**
-
-**components/**
-- `FloatingPopPage.tsx`: 유동인구 페이지 메인
-- `UrbanMountain3D.tsx`: 3D 도시 시각화
-
-**utils/**
-- `urbanMountainLoader.ts`: 3D 데이터 로더
 
 #### **📁 data-portal/ - 데이터 포털**
 

@@ -13,7 +13,6 @@ export function DistrictRadarChart() {
       <RadarChart
         data={districtCharacteristics}
         dataKey="value"
-        categoryKey="name"
         fillColor="#f59e0b"
         strokeColor="#f59e0b"
         height={280}

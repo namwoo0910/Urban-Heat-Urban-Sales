@@ -71,7 +71,7 @@ export function AnimatedTimeSeriesMeshLayer({
   
   const animationRef = useRef<number>(0)
   const transitionStartRef = useRef<number>(0)
-  const playIntervalRef = useRef<NodeJS.Timeout>()
+  const playIntervalRef = useRef<NodeJS.Timeout | null>(null)
   
   // OPTIMIZATION: Disabled pre-generation - now using on-demand loading
   // This was causing 2-5 second initial load delays
@@ -101,7 +101,9 @@ export function AnimatedTimeSeriesMeshLayer({
       // Limit cache size to prevent memory issues
       if (newCache.size > 5) {
         const firstKey = newCache.keys().next().value
-        newCache.delete(firstKey)
+        if (firstKey) {
+          newCache.delete(firstKey)
+        }
       }
       
       setMeshCache(newCache)

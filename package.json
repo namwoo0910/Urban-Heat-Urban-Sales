@@ -6,15 +6,7 @@
     "build": "next build",
     "dev": "next dev",
     "lint": "next lint",
-    "start": "next start",
-    "generate-particles": "node scripts/generate-static-particles-optimized.js",
-    "generate-mesh": "node scripts/generate-seoul-mesh.js",
-    "convert-mesh-binary": "node scripts/convertMeshToBinary.js",
-    "generate-days": "tsx scripts/generate-all-days.ts --year 2024 --binaryOnly true",
-    "generate-days-json": "tsx scripts/generate-all-days.ts --year 2024 --binaryOnly false",
-    "build-temp-index": "tsx scripts/build-temperature-index.ts",
-    "optimize-mesh": "npm run generate-mesh && npm run convert-mesh-binary",
-    "prebuild": "npm run generate-particles && npm run optimize-mesh"
+    "start": "next start"
   },
   "dependencies": {
     "@deck.gl/aggregation-layers": "^9.1.14",
