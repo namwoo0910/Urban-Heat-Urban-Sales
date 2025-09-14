@@ -24,12 +24,10 @@ slw_vis/
 │   ├── layout.tsx                   # 최상위 레이아웃
 │   ├── page.tsx                     # 홈페이지 (/)
 │   ├── globals.css                  # 전역 CSS
-│   ├── 📁 eda-visualization/        # EDA 시각화 페이지
 │   ├── 📁 research/                 # 연구 섹션
 │   │   ├── 📁 eda/                  # EDA 분석 페이지
 │   │   └── 📁 local-economy/        # 지역경제 페이지
 │   ├── 📁 research-section/         # 연구 섹션 메인
-│   ├── 📁 urbanmountain/            # 3D 도시 시각화
 │   └── 📁 contact/                  # 연락처 페이지
 │
 ├── 📁 src/                          # 🎨 소스 코드
@@ -38,7 +36,6 @@ slw_vis/
 │   │   │   ├── 📁 components/       # UI 컴포넌트
 │   │   │   ├── 📁 hooks/            # 커스텀 Hook
 │   │   │   └── 📁 utils/            # 유틸리티 함수
-│   │   ├── 📁 admin-districts/      # 행정구역 지도
 │   │   ├── 📁 card-sales/           # 카드 매출 시각화
 │   │   └── 📁 data-portal/          # 데이터 포털
 │   │
@@ -60,7 +57,6 @@ slw_vis/
 │
 ├── 📁 public/                       # 📦 정적 파일
 │   ├── 📁 data/                     # 데이터 파일
-│   │   ├── 📁 eda/                  # 지도 데이터 (GeoJSON)
 │   │   ├── particles-*.json         # 파티클 데이터
 │   │   └── 📁 processed_data/       # 전처리 데이터
 │   ├── 📁 images/                   # 이미지 파일
@@ -131,10 +127,6 @@ slw_vis/
 - **역할**: 홈페이지 진입점
 - **연결**: HomePage 컴포넌트 렌더링
 
-#### **app/eda-visualization/page.tsx**
-- **역할**: EDA 데이터 시각화 페이지
-- **연결**: AdminDistrictsPage 컴포넌트
-
 #### **app/research/[하위]/page.tsx**
 - **역할**: 연구 섹션 각 페이지
 - **페이지들**:
@@ -162,15 +154,6 @@ slw_vis/
 **utils/**
 - `particleGenerator.ts`: 파티클 생성 로직
 - `particleOptimizer.ts`: 파티클 최적화
-
-#### **📁 admin-districts/ - 행정구역 지도**
-
-**components/**
-- `AdminDistrictsPage.tsx`: 행정구역 페이지 메인
-- `EDAMapVisualization.tsx`: Mapbox 지도 시각화
-
-**utils/**
-- `boundaryProcessor.ts`: 경계 데이터 처리
 
 #### **📁 card-sales/ - 카드 매출 시각화**
 

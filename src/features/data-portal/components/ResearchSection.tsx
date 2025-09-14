@@ -26,17 +26,17 @@ const projects = [
 export function Research() {
   const router = useRouter()
 
-  // Smart prefetching for EDA visualization
+  // Prefetch pages on hover
   const handleEDAHover = () => {
-    // Prefetch the EDA page
     router.prefetch('/research/eda')
-    router.prefetch('/eda-visualization')
-    
-    // Preload heavy data files in background
+  }
+
+  const handleLocalEconomyHover = () => {
+    router.prefetch('/research/local-economy')
+
+    // Preload local economy data files in background
     geoJSONLoader.preload([
-      '/data/eda/gu.geojson',
-      '/data/local_economy/local_economy_dong.geojson',
-      '/data/eda/ct.geojson'
+      '/data/local_economy/local_economy_dong.geojson'
     ]).catch(e => console.warn('Preload failed:', e))
   }
 
@@ -61,9 +61,13 @@ export function Research() {
               viewport={{ once: true }}
             >
               <TransitionLink href={project.href}>
-                <div 
+                <div
                   className="group relative block w-full h-[500px] overflow-hidden rounded-lg shadow-lg"
-                  onMouseEnter={project.title === "EDA" ? handleEDAHover : undefined}
+                  onMouseEnter={
+                    project.title === "행정구역 데이터" ? handleEDAHover :
+                    project.title === "카드매출" ? handleLocalEconomyHover :
+                    undefined
+                  }
                 >
                   <Image
                     src={project.imgSrc || "/placeholder.svg"}

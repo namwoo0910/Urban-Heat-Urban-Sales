@@ -87,7 +87,7 @@ export default function CardSalesDistrictMap() {
   const [currentThemeKey, setCurrentThemeKey] = useState('blue')
   
   // Layer configuration
-  const { layerConfig, setLayerConfig } = useLayerState()
+  const { layerConfig, updateConfig } = useLayerState()
   
   // Data processing
   const { 
@@ -103,10 +103,9 @@ export default function CardSalesDistrictMap() {
   } = useDataProcessor()
   
   // Mesh layer - only render if not showing charts or during mesh phase
-  const { meshLayer, isLoading: meshLoading } = usePreGeneratedSeoulMeshLayer({
+  const { layer: meshLayer, isLoading: meshLoading } = usePreGeneratedSeoulMeshLayer({
     visible: showMeshLayer && !is3DMode && (!showChartPanel || renderPhase === 'mesh'),
-    opacity: 0.6,
-    colorTheme: currentThemeKey
+    opacity: 0.6
   })
   
   // Monitor mesh loading performance
@@ -180,10 +179,11 @@ export default function CardSalesDistrictMap() {
   
   // District selection helper
   const districtSelection = useDistrictSelection({
+    mapRef: { current: null },
     onDistrictSelect: (districtName: string | null) => {
       if (districtName) {
         setSelectedGu(districtName)
-        setSelectedGuCode(getDistrictCode(districtName))
+        setSelectedGuCode(getDistrictCode(districtName) ?? null)
       }
     }
   })
@@ -222,9 +222,9 @@ export default function CardSalesDistrictMap() {
   
   // Handle district zoom
   const handleDistrictZoom = useCallback((guName: string, dongName?: string | null) => {
-    const center = dongName 
-      ? getDistrictCenter('dong', dongName)
-      : getDistrictCenter('gu', guName)
+    const center = dongName
+      ? getDistrictCenter('동', dongName)
+      : getDistrictCenter('구', guName)
     
     if (center) {
       isProgrammaticUpdateRef.current = true
@@ -251,9 +251,9 @@ export default function CardSalesDistrictMap() {
     setSelectedDong(dong)
     
     if (gu) {
-      setSelectedGuCode(getDistrictCode(gu))
+      setSelectedGuCode(getDistrictCode(gu) ?? null)
       if (dong) {
-        setSelectedDongCode(getDongCode(gu, dong))
+        setSelectedDongCode(getDongCode(gu, dong) ?? null)
         handleDistrictZoom(gu, dong)
       } else {
         setSelectedDongCode(null)
@@ -327,7 +327,7 @@ export default function CardSalesDistrictMap() {
       // 3D polygon layers
       const dong3DLayers = createDong3DPolygonLayers({
         dongData3D,
-        layerConfig,
+        layerConfig: { ...layerConfig, opacity: 1 },
         dongSalesMap,
         heightScale: 1,
         selectedGu,
@@ -348,18 +348,16 @@ export default function CardSalesDistrictMap() {
       const unifiedLayers = createUnifiedDeckGLLayers({
         sggData,
         dongData,
-        jibData,
         dongData3D,
         seoulBoundaryData,
         is3DMode,
         isDragging,
-        viewState,
+        viewState: { ...viewState, pitch: viewState.pitch ?? 0, bearing: viewState.bearing ?? 0 },
         selectedGu,
         selectedDong,
         hoveredDistrict,
         sggVisible: true,
         dongVisible: true,
-        jibVisible: viewState.zoom > 14,
         showBoundary,
         dongSalesMap,
         heightScale: 1,
@@ -372,22 +370,25 @@ export default function CardSalesDistrictMap() {
     if (showDistrictLabels && viewState.zoom >= 10) {
       allLayers.push(createDistrictLabelsTextLayer({
         visible: true,
-        onClick: (info: PickingInfo) => {
-          if (info.object?.nameKr) {
-            handleDistrictSelect(info.object.nameKr, null)
-          }
+        viewState,
+        selectedGu,
+        selectedDong,
+        hoveredDistrict,
+        onClick: (districtName: string) => {
+          handleDistrictSelect(districtName, null)
         }
       }))
     }
     
     if (showDongLabels && viewState.zoom >= 12) {
       allLayers.push(createDongLabelsTextLayer({
-        visible: true,
-        onClick: (info: PickingInfo) => {
-          if (info.object?.name) {
-            const guName = getGuNameHelper(info.object)
-            handleDistrictSelect(guName, info.object.name)
-          }
+        dongData: dongData?.features || [],
+        viewState,
+        selectedGu,
+        selectedDong,
+        onClick: (districtName: string) => {
+          const [gu, dong] = districtName.split(' ')
+          handleDistrictSelect(gu, dong)
         }
       }))
     }
@@ -505,7 +506,7 @@ export default function CardSalesDistrictMap() {
           layers={layers}
           onViewStateChange={handleViewStateChange}
           effects={is3DMode ? [LIGHTING_EFFECT] : []}
-          mapRef={mapRef}
+          mapRef={mapRef as any}
         />
       </InteractionHandler>
       
@@ -521,7 +522,7 @@ export default function CardSalesDistrictMap() {
         onToggleDistrictLabels={setShowDistrictLabels}
         onToggleDongLabels={setShowDongLabels}
         layerConfig={layerConfig}
-        onLayerConfigChange={setLayerConfig}
+        onLayerConfigChange={updateConfig}
         selectedGu={selectedGu}
         selectedDong={selectedDong}
         selectedBusinessType={null}

@@ -24,7 +24,7 @@ export interface ParticleData {
   district?: string
 }
 
-import type { SeoulBoundaryData } from './seoul-boundaries-optimized'
+import type { SeoulBoundaryData } from './boundaryProcessor'
 
 // Export the loadSeoulBoundaries function
 export async function loadSeoulBoundaries(): Promise<SeoulBoundaryData> {
@@ -126,12 +126,12 @@ export const COLOR_THEMES = {
     'rgba(0, 128, 255, 0.7)',    // Sky blue
   ]
 }
-import type { BoundaryGrid } from '@/src/features/admin-districts/utils/boundaryProcessor'
-import { 
+import type { BoundaryGrid } from './boundaryProcessor'
+import {
   generateStratifiedPoints,
   DISTRICT_CENTERS,
   precomputeBoundaryGrid
-} from '@/src/features/admin-districts/utils/boundaryProcessor'
+} from './boundaryProcessor'
 import { 
   fastSin, 
   fastCos, 

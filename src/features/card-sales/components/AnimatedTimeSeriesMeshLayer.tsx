@@ -263,7 +263,7 @@ export function AnimatedTimeSeriesMeshLayer({
     return new SimpleMeshLayer({
       id: 'animated-time-series-mesh',
       data: [{ position: [centerX, centerY, 0] }],
-      mesh: meshObject,
+      mesh: meshObject as any,
       sizeScale: 1,
       wireframe: false,
       getPosition: (d: any) => d.position,

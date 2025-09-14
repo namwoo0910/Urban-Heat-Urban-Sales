@@ -52,3 +52,5 @@ export function DefaultChartsPanel({
     </div>
   )
 }
+
+export default DefaultChartsPanel

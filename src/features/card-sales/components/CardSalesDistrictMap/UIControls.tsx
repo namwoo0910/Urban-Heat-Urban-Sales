@@ -76,25 +76,27 @@ export const UIControls = React.memo(({
       {/* Main controls in top-right corner */}
       <div className={`absolute top-4 right-4 z-40 ${className}`}>
         <UnifiedControls
+          // Required props
+          onTimeChange={() => {}}
+          currentTime={0}
+          visible={layerConfig.visible}
+          coverage={layerConfig.coverage}
+          upperPercentile={layerConfig.upperPercentile}
+          isDataLoading={false}
+          dataError={null}
+          onVisibleChange={(visible) => onLayerConfigChange({ ...layerConfig, visible })}
+          onCoverageChange={(coverage) => onLayerConfigChange({ ...layerConfig, coverage })}
+          onUpperPercentileChange={(upperPercentile) => onLayerConfigChange({ ...layerConfig, upperPercentile })}
+          onReset={() => {}}
+          // Optional props
           is3DMode={is3DMode}
-          showMeshLayer={showMeshLayer}
           showBoundary={showBoundary}
-          showDistrictLabels={showDistrictLabels}
-          showDongLabels={showDongLabels}
-          layerConfig={layerConfig}
-          timelineAnimationEnabled={false}
-          isTimelinePlaying={false}
-          currentMonth={1}
-          totalMonths={12}
-          onToggle3D={onToggle3D}
-          onToggleMesh={onToggleMesh}
-          onToggleBoundary={onToggleBoundary}
-          onToggleDistrictLabels={onToggleDistrictLabels}
-          onToggleDongLabels={onToggleDongLabels}
-          onLayerConfigChange={onLayerConfigChange}
-          onToggleTimelineAnimation={() => {}}
-          onToggleTimelinePlay={() => {}}
-          onMonthChange={() => {}}
+          onIs3DModeChange={onToggle3D}
+          onBoundaryToggle={onToggleBoundary}
+          onDistrictLabelsToggle={onToggleDistrictLabels}
+          onDongLabelsToggle={onToggleDongLabels}
+          heightScale={1}
+          onHeightScaleChange={() => {}}
         />
       </div>
       
@@ -115,8 +117,8 @@ export const UIControls = React.memo(({
           <SelectedAreaSalesInfo
             selectedGu={selectedGu}
             selectedDong={selectedDong}
-            dongSalesMap={dongSalesMap}
-            dongSalesByTypeMap={dongSalesByTypeMap}
+            hexagonData={[]}
+            climateData={null}
           />
         </div>
       )}

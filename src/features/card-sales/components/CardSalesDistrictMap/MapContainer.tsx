@@ -40,7 +40,7 @@ export const MapContainer = React.memo(({
     <DeckGL
       viewState={viewState}
       layers={layers}
-      onViewStateChange={onViewStateChange}
+      onViewStateChange={onViewStateChange as any}
       onHover={onHover}
       onClick={onClick}
       controller={controller}
@@ -51,7 +51,7 @@ export const MapContainer = React.memo(({
         depthFunc: 0x0203, // GL.LEQUAL
         blend: true,
         blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
-      }}
+      } as any}
     >
       <MapGL 
         ref={mapRef}

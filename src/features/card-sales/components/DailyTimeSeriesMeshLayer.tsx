@@ -41,7 +41,7 @@ export function DailyTimeSeriesMeshLayer({
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isPlaying, setIsPlaying] = useState(autoPlay)
   const [isLoadingList, setIsLoadingList] = useState(true)
-  const playIntervalRef = useRef<NodeJS.Timeout>()
+  const playIntervalRef = useRef<NodeJS.Timeout | null>(null)
 
   // Load available daily dates from index
   useEffect(() => {
@@ -65,7 +65,7 @@ export function DailyTimeSeriesMeshLayer({
   const currentDate = dates[currentIndex]
   const currentMonth = currentDate ? currentDate.slice(0, 6) : ''
   const seasonalRgba = currentMonth ? getSeasonalMeshColor(currentMonth) : [0, 255, 225, 255]
-  const seasonalHex = useMemo(() => rgbaToHex(seasonalRgba), [seasonalRgba])
+  const seasonalHex = useMemo(() => rgbaToHex(seasonalRgba as [number, number, number, number]), [seasonalRgba])
 
   // Use pre-generated mesh hook with date prop
   const { layer, isLoading } = usePreGeneratedSeoulMeshLayer({

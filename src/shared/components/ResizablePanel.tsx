@@ -168,3 +168,5 @@ export function ResizablePanel({
     </div>
   )
 }
+
+export default ResizablePanel

@@ -6,8 +6,8 @@ import { DeckGL } from "@deck.gl/react"
 import { ScatterplotLayer, LineLayer, SolidPolygonLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
 import "mapbox-gl/dist/mapbox-gl.css"
-import { precomputeBoundaryGrid } from "@/src/features/admin-districts/utils/boundaryProcessor"
-import type { SeoulBoundaryData } from "@/src/features/admin-districts/utils/boundaryProcessor"
+import { precomputeBoundaryGrid } from "@/src/features/home/utils/boundaryProcessor"
+import type { SeoulBoundaryData } from "@/src/features/home/utils/boundaryProcessor"
 import { 
   generateParticlesOptimized, 
   generateInitialParticles, 

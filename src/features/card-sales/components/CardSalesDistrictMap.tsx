@@ -238,7 +238,7 @@ export default function CardSalesDistrictMap() {
     setSelectedDong(filters.selectedDong)
     setSelectedDongCode(filters.selectedDongCode)
     setSelectedBusinessType(filters.selectedBusinessType)
-    setSelectedDate(filters.selectedDate)
+    setSelectedDate(filters.selectedDate || '')
     
     // 필터에서 행정동 선택시 통합 줌 함수 사용
     if (filters.selectedDong && filters.selectedGu) {
@@ -755,15 +755,15 @@ export default function CardSalesDistrictMap() {
         const calculatedGuCode = guCode || getDistrictCodeFromMapping(guName)
         const calculatedDongCode = dongCode || getDongCodeFromMapping(guName, dongName)
         
-        setSelectedGuCode(calculatedGuCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
         setSelectedDong(dongName)
-        setSelectedDongCode(calculatedDongCode)
+        setSelectedDongCode(calculatedDongCode ?? null)
         
           } else if (guName) {
         // 구 클릭시: 구만 설정 (서울 전체 뷰 유지)
         setSelectedGu(guName)
         const calculatedGuCode = guCode || getDistrictCodeFromMapping(guName)
-        setSelectedGuCode(calculatedGuCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
         setSelectedDong(null)
         setSelectedDongCode(null)
         
@@ -775,7 +775,7 @@ export default function CardSalesDistrictMap() {
       if (guName) {
         setSelectedGu(guName)
         const calculatedGuCode = getDistrictCodeFromMapping(guName)
-        setSelectedGuCode(calculatedGuCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
         setSelectedDong(null)
         setSelectedDongCode(null)
           }
@@ -788,8 +788,8 @@ export default function CardSalesDistrictMap() {
         setSelectedDong(dongName)
         const calculatedGuCode = getDistrictCodeFromMapping(guName)
         const calculatedDongCode = getDongCodeFromMapping(guName, dongName)
-        setSelectedGuCode(calculatedGuCode)
-        setSelectedDongCode(calculatedDongCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
+        setSelectedDongCode(calculatedDongCode ?? null)
           }
     }
     // Handle district labels click
@@ -798,7 +798,7 @@ export default function CardSalesDistrictMap() {
       if (guName) {
         setSelectedGu(guName)
         const calculatedGuCode = getDistrictCodeFromMapping(guName)
-        setSelectedGuCode(calculatedGuCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
         setSelectedDong(null)
         setSelectedDongCode(null)
           }
@@ -914,18 +914,18 @@ export default function CardSalesDistrictMap() {
             }
             
             return getModernDistrictColor(
-              guName,
-              dongName,
+              guName || '',
+              dongName || '',
               height,
               currentThemeKey,
-              isThisDongSelected,
+              isThisDongSelected || false,
               isHovered
             )
           }
           
           // Fallback to legacy color system with sales-based intensity
           if (selectedDong && dongName === selectedDong) {
-            return convertColorExpressionToRGB(height, 'bright', guName, dongName, true, false, totalSales)
+            return convertColorExpressionToRGB(height, 'bright', guName || undefined, dongName || undefined, true, false, totalSales)
           }
           // Strong highlight if gu is hovered (show district boundary effect)
           if (hoveredDistrict === guName) {
@@ -933,12 +933,12 @@ export default function CardSalesDistrictMap() {
             return applyColorAdjustments(255, 215, 0, 255)  // Gold color with full opacity
           }
           if (selectedGu && guName === selectedGu) {
-            return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
+            return convertColorExpressionToRGB(height, currentThemeKey, guName || undefined, dongName || undefined, false, false, totalSales)
           }
           if (selectedGu || selectedDong) {
             return applyColorAdjustments(51, 51, 51, 200)
           }
-          return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
+          return convertColorExpressionToRGB(height, currentThemeKey, guName || undefined, dongName || undefined, false, false, totalSales)
         },
         
         // Modern edge rendering with district-based colors
@@ -950,7 +950,7 @@ export default function CardSalesDistrictMap() {
             const isHighlighted = (selectedDong && dongName === selectedDong) || 
                                  hoveredDistrict === dongName ||
                                  hoveredDistrict === guName  // Highlight edges when gu is hovered
-            return getModernEdgeColor(guName, isHighlighted, currentThemeKey)
+            return getModernEdgeColor(guName || '', isHighlighted, currentThemeKey)
           }
           
           // Strong highlight edges when gu is hovered
@@ -1004,8 +1004,10 @@ export default function CardSalesDistrictMap() {
             if (dongName && guName) {
               setSelectedDong(dongName)
               setSelectedGu(guName)
-              setSelectedDongCode(dongCode || getDongCodeFromMapping(guName, dongName))
-              setSelectedGuCode(guCode || getDistrictCodeFromMapping(guName))
+              const finalDongCode = dongCode || getDongCodeFromMapping(guName, dongName)
+              const finalGuCode = guCode || getDistrictCodeFromMapping(guName)
+              setSelectedDongCode(typeof finalDongCode === 'number' ? finalDongCode : (finalDongCode ? Number(finalDongCode) : null))
+              setSelectedGuCode(typeof finalGuCode === 'number' ? finalGuCode : (finalGuCode ? Number(finalGuCode) : null))
               
               // 통합 줌 함수 사용
               handleDistrictZoom(guName, dongName)
@@ -1116,13 +1118,16 @@ export default function CardSalesDistrictMap() {
     seoulBoundaryData,
     is3DMode,
     isDragging,
-    viewState,
+    viewState: {
+      ...viewState,
+      pitch: viewState.pitch ?? 0,
+      bearing: viewState.bearing ?? 0
+    },
     selectedGu,
     selectedDong,
     hoveredDistrict,
     sggVisible: districtSelection.sggVisible,
     dongVisible: districtSelection.dongVisible,
-    jibVisible: districtSelection.jibVisible,
     showBoundary,
     dongSalesMap,
     heightScale,
@@ -1153,8 +1158,10 @@ export default function CardSalesDistrictMap() {
           if (dongName && guName) {
             setSelectedDong(dongName)
             setSelectedGu(guName)
-            setSelectedDongCode(dongCode || getDongCodeFromMapping(guName, dongName))
-            setSelectedGuCode(guCode || getDistrictCode(guName))
+            const finalDongCode = dongCode || getDongCodeFromMapping(guName, dongName)
+            const finalGuCode = guCode || getDistrictCode(guName)
+            setSelectedDongCode(typeof finalDongCode === 'number' ? finalDongCode : (finalDongCode ? Number(finalDongCode) : null))
+            setSelectedGuCode(typeof finalGuCode === 'number' ? finalGuCode : (finalGuCode ? Number(finalGuCode) : null))
             handleDistrictZoom(guName, dongName)
           }
         }
@@ -1162,7 +1169,7 @@ export default function CardSalesDistrictMap() {
         else if (props.SIGUNGU_NM || props.GU_NM) {
           const guName = getGuName(props)
           setSelectedGu(guName)
-          setSelectedGuCode(getDistrictCodeFromMapping(guName))
+          setSelectedGuCode(guName ? getDistrictCodeFromMapping(guName) ?? null : null)
           setSelectedDong(null)
           setSelectedDongCode(null)
         }
@@ -1600,7 +1607,7 @@ export default function CardSalesDistrictMap() {
                           currentThemeKey === 'orange' ? 'orange' : 'blue'
           baseColor = optimizedFeature.fillColorRGB[themeKey as keyof typeof optimizedFeature.fillColorRGB]
         } else {
-          baseColor = convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
+          baseColor = convertColorExpressionToRGB(height, currentThemeKey, guName || undefined, dongName || undefined, false, false, totalSales)
         }
         
         colorMap.set(dongCode, {
@@ -1912,7 +1919,7 @@ export default function CardSalesDistrictMap() {
   }, [])
 
   // Layer filter for performance optimization during interaction
-  const layerFilter = useCallback(({ layer, viewport }) => {
+  const layerFilter = useCallback(({ layer, viewport }: any) => {
     // During drag, only render essential layers
     if (isDragging) {
       // Always render mesh and essential 3D layers
@@ -1953,12 +1960,10 @@ export default function CardSalesDistrictMap() {
           if (isHovering) return 'pointer'
           return 'grab'
         }}
-        // GPU Optimization Parameters  
+        // GPU Optimization Parameters
         parameters={{
           ...COMMON_GPU_PARAMS,
-          blendFunc: [0x0302, 0x0303, 0x0001, 0x0303], // Extended blend for DeckGL main canvas
-          blendEquation: 0x8006, // GL.FUNC_ADD
-        }}
+        } as any}
         _typedArrayManagerProps={{
           overAlloc: 1.2,  // Reduce over-allocation (default 2.0)
           poolSize: 100    // Limit pool size for memory efficiency
@@ -2073,16 +2078,11 @@ export default function CardSalesDistrictMap() {
 
       {/* 통합 컨트롤 패널 */}
       <UnifiedControls
+        // Required time props
+        onTimeChange={() => {}}
+        currentTime={0}
         // 지도 컨트롤 props
         showBoundary={showBoundary}
-        // District visibility props
-        dongVisible={districtSelection.dongVisible}
-        onDongVisibleChange={(visible) => districtSelection.setDongVisible(visible)}
-        // Additional display options
-        showDistrictLabels={showDistrictLabels}
-        showDongLabels={showDongLabels}
-        onDistrictLabelsToggle={(visible: boolean) => setShowDistrictLabels(visible)}
-        onDongLabelsToggle={(visible: boolean) => setShowDongLabels(visible)}
         onBoundaryToggle={(show) => {
           setShowBoundary(show)
           // Boundary visibility now controlled through Deck.gl layer props

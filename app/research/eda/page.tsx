@@ -33,7 +33,8 @@ const EDAPage = () => {
   }, [])
 
   const handleEnterVisualization = () => {
-    router.push('/eda-visualization')
+    // Visualization page has been removed
+    // router.push('/eda-visualization')
   }
 
   return (
@@ -81,19 +82,7 @@ const EDAPage = () => {
               ))}
             </div>
             
-            <div className="mt-[50px]">
-              <button
-                onClick={handleEnterVisualization}
-                className="group relative px-8 py-4 bg-gradient-to-r from-slate-800 to-zinc-800 hover:from-slate-900 hover:to-zinc-900 text-white font-semibold rounded-xl transition-all duration-300 transform hover:scale-105 hover:shadow-2xl"
-              >
-                <span className="flex items-center gap-3">
-                  <span>Map Visualization</span>
-                  <svg className="w-5 h-5 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                  </svg>
-                </span>
-              </button>
-            </div>
+            {/* Visualization button removed - page no longer available */}
           </div>
         </div>
       </div>
