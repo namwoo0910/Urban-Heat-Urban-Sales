@@ -1,15 +1,12 @@
 "use client"
 
-import { useRef, useState, useCallback } from "react"
+import { useRef } from "react"
 import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { TransitionLink } from "@/src/shared/components/navigation/TransitionLink"
 import { ArrowRight } from "lucide-react"
-import { AnimationControls } from "./ParticleAnimationControls"
-import type { AnimationConfig } from "../hooks/useParticleAnimation"
-import { defaultAnimationConfig } from "../hooks/useParticleAnimation"
 
 // 동적으로 파티클 맵 로드 (SSR 비활성화) - 최적화된 버전 사용
 const SeoulMapOptimized = dynamic(
@@ -30,27 +27,41 @@ const SeoulMapOptimized = dynamic(
   }
 )
 
+// Fixed animation configuration for optimal particle effects
+const FIXED_ANIMATION_CONFIG = {
+  waveEnabled: true,
+  waveSpeed: 2.0,
+  waveAmplitude: 0.01,
+  pulseEnabled: true,
+  pulseSpeed: 0.005,
+  pulseIntensity: 0.5,
+  fireflyEnabled: true,
+  fireflySpeed: 0.002,
+  fireflyRandomness: 1.0,
+  colorCycleEnabled: false,
+  colorCycleSpeed: 0.002,
+  orbitalEnabled: false,
+  orbitalSpeed: 0.001,
+  orbitalRadius: 0.002,
+  autoRotateEnabled: false,
+  autoRotateSpeed: 0.5,
+  colorTheme: 'current' as const,
+  blackBackgroundEnabled: false,
+  trailEnabled: false,
+  trailLength: 5,
+  flowFieldEnabled: false,
+  flowFieldStrength: 1.0,
+  attractionEnabled: false,
+  attractionStrength: 1.0,
+  morphEnabled: false,
+  morphSpeed: 1.0
+}
+
 export function Hero() {
   const container = useRef(null)
-  
-  // Animation configuration state management
-  const [animationConfig, setAnimationConfig] = useState<AnimationConfig>({
-    ...defaultAnimationConfig,
-    waveEnabled: true,
-    pulseEnabled: true,
-    fireflyEnabled: true,
-    trailEnabled: false, // Disabled for performance
-  })
-  
+
   // Map style set to pure black background
   const mapStyle = "mapbox://styles/mapbox/dark-v11"
-  
-  // Handle animation config changes
-  const handleAnimationConfigChange = useCallback((changes: Partial<AnimationConfig>) => {
-    setAnimationConfig(prev => ({ ...prev, ...changes }))
-  }, [])
-  
-  // Map style change handler removed - using fixed dark theme
 
   useGSAP(
     () => {
@@ -83,15 +94,15 @@ export function Hero() {
     { scope: container },
   )
 
-  const words = ["CLIMATE", "ECONOMY", "POPULATION"]
+  const words = ["Urban Heat", "Urban Sales"]
   const splitTitle = words.map((word, i) => (
     <span key={i} className="inline-block">
       {word.split("").map((char, j) => (
-        <span key={j} className="inline-block hero-char">
-          {char}
+        <span key={j} className={`inline-block hero-char ${char === ' ' ? 'mx-2' : ''}`}>
+          {char === ' ' ? '\u00A0' : char}
         </span>
       ))}
-      {i < words.length - 1 && <span className="inline-block mx-6 hero-char">·</span>}
+      {i < words.length - 1 && <span className="inline-block mx-4 hero-char">,</span>}
     </span>
   ))
 
@@ -100,8 +111,8 @@ export function Hero() {
       {/* 파티클 맵 배경 */}
       <div className="absolute inset-0 z-0">
         <SeoulMapOptimized
-          animationConfig={animationConfig}
-          onAnimationConfigChange={handleAnimationConfigChange}
+          animationConfig={FIXED_ANIMATION_CONFIG as any}
+          onAnimationConfigChange={() => {}}
           mapStyle={mapStyle}
         />
       </div>
@@ -121,7 +132,7 @@ export function Hero() {
       />
       {/* Top text elements */}
       <div className="absolute left-0 right-0 z-10 flex flex-col items-center text-white text-center px-4" style={{ top: 'calc(7rem - 10px)' }}>
-        <h1 className="hero-title font-['Montserrat'] font-bold tracking-tight text-3xl md:text-4xl lg:text-5xl mb-4 uppercase">{splitTitle}</h1>
+        <h1 className="hero-title font-['Montserrat'] font-bold tracking-wider text-3xl md:text-4xl lg:text-5xl mb-4">{splitTitle}</h1>
         <motion.p
           className="hero-subtitle font-['Montserrat'] font-semibold tracking-wider text-sm md:text-base lg:text-lg text-neutral-300 uppercase"
           initial={{ opacity: 0 }}
@@ -144,16 +155,7 @@ export function Hero() {
           </motion.button>
         </TransitionLink>
       </div>
-      
-      {/* Animation Controls - positioned above all other elements */}
-      <div className="absolute top-[56px] left-4 z-[100]">
-        <AnimationControls
-          config={animationConfig}
-          onConfigChange={handleAnimationConfigChange}
-          performanceLevel="high"
-        />
-      </div>
-      
+
       {/* 애니메이션 스타일 */}
       <style jsx>{`
         @keyframes ping {

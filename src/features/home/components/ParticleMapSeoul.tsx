@@ -927,22 +927,6 @@ export function SeoulMapOptimized({
         
       </DeckGL>
 
-      {/* Animation controls moved to Hero component for proper z-index handling */}
-
-      {/* 성능 정보 표시 (개발 모드에서만) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="absolute right-4 bg-black/60 backdrop-blur-sm rounded px-3 py-2 text-xs text-white/80 space-y-1" style={{ top: '86px' }}>
-          <div>Performance: {performanceLevel.toUpperCase()}</div>
-          <div>Particles: {config.particleCount}</div>
-          <div>Target FPS: {config.fps}</div>
-          <div className={`${currentFPS < 25 ? 'text-red-400' : currentFPS < 45 ? 'text-yellow-400' : 'text-green-400'}`}>
-            Current FPS: {currentFPS}
-          </div>
-          <div>Connections: {config.connectionCount}</div>
-          <div>Glow: {config.glowLayers > 0 ? 'ON' : 'OFF'}</div>
-        </div>
-      )}
-      
       {/* 간단한 그라데이션 오버레이 */}
       <div 
         className="absolute inset-0 pointer-events-none"
