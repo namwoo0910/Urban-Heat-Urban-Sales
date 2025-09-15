@@ -41,16 +41,16 @@ export function Research() {
   }
 
   return (
-    <div id="research" className="relative min-h-screen px-4 sm:px-6 lg:px-8" style={{ paddingTop: 'calc(8rem - 50px)' }}>
+    <div id="research" className="relative h-screen px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
       {/* Main title section with proper spacing for fixed header */}
-      <div className="text-center mb-20">
-        <h2 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">데이터로 보는 서울</h2>
-        <p className="max-w-2xl mx-auto text-xl text-neutral-400">
+      <div className="text-center mb-12">
+        <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">데이터로 보는 서울</h2>
+        <p className="max-w-2xl mx-auto text-lg text-neutral-400">
           기후에 따른 서울시민 카드매출 변화 분석/예측
         </p>
       </div>
-      
-      <div className="w-full" style={{ paddingBottom: 'calc(5rem - 30px)' }}>
+
+      <div className="w-full">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-[50px] max-w-5xl mx-auto">
           {projects.map((project, index) => (
             <motion.div
@@ -62,7 +62,7 @@ export function Research() {
             >
               <TransitionLink href={project.href}>
                 <div
-                  className="group relative block w-full h-[500px] overflow-hidden rounded-lg shadow-lg"
+                  className="group relative block w-full h-[400px] overflow-hidden rounded-lg shadow-lg"
                   onMouseEnter={
                     project.title === "행정구역 데이터" ? handleEDAHover :
                     project.title === "카드매출" ? handleLocalEconomyHover :

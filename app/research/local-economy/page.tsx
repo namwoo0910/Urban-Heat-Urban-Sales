@@ -4,7 +4,6 @@ import { lazy, Suspense } from "react"
 import dynamic from "next/dynamic"
 import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
 import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
-import ResearchNavigation from "@/src/features/data-portal/components/PortalNavigation"
 import { useState, useEffect } from "react"
 import { Button } from "@/src/shared/components/ui/button"
 import { Badge } from "@/src/shared/components/ui/badge"
@@ -119,7 +118,6 @@ const LocalEconomyPage = () => {
       )}
 
 
-      <ResearchNavigation href="/research/eda" projectName="행정구역 데이터" />
     </div>
   )
 }

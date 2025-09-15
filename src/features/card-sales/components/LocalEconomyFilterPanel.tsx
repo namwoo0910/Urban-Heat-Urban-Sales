@@ -212,7 +212,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   
   
   return (
-    <div className={`fixed bottom-[266px] left-4 z-50 ${className}`}>
+    <div className={`fixed bottom-4 left-4 z-50 ${className}`}>
       <Card className="bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 p-2 w-[300px]">
         {/* First Row: 자치구 and 행정동 */}
         <div className="flex gap-1 mb-1">

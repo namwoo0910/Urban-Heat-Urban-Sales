@@ -221,7 +221,6 @@ slw_vis/
 
 #### **📁 components/layout/**
 - `AppHeader.tsx`: 헤더 컴포넌트
-- `AppFooter.tsx`: 푸터 컴포넌트
 
 #### **📁 components/navigation/**
 - `TransitionLink.tsx`: 페이지 전환 링크

@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation"
 import { useEffect } from "react"
 import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
 import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
-import ResearchNavigation from "@/src/features/data-portal/components/PortalNavigation"
 
 const features = [
   {
@@ -87,7 +86,6 @@ const EDAPage = () => {
         </div>
       </div>
 
-      <ResearchNavigation href="/research/local-economy" projectName="카드매출" />
     </div>
   )
 }
