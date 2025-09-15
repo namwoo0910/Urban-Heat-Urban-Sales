@@ -31,7 +31,6 @@ import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
 import { InlineMeshMonthToggle } from "./MeshMonthToggle"
-import { getSeasonalMeshHexColor } from "../utils/seasonalMeshColors"
 import { getTemperatureMeshHexColor } from "../utils/temperaturePalette"
 import { getAvailableDailyDates } from "../utils/loadStaticMesh"
 import type { FeatureCollection } from 'geojson'
@@ -251,27 +250,20 @@ export default function CardSalesDistrictMap() {
   const [heightScale, setHeightScale] = useState<number>(500000000) // 5억원 단위로 증가 (높이 감소)
   
   
-  // Mesh layer states
-  const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
+  // Mesh layer is always on
+  const showMeshLayer = true
   
   // Layer configuration
   const handlePolygonLayerToggle = useCallback((visible: boolean) => {
     setVisible(visible)
-    if (visible) {
-      setShowMeshLayer(false) // Turn off mesh layer when polygon layer is turned on
-    }
+    // Mesh layer always stays on
   }, [setVisible])
   
-  const handleMeshLayerToggle = useCallback((visible: boolean) => {
-    setShowMeshLayer(visible)
-    if (visible) {
-      setVisible(false) // Turn off polygon layer when mesh layer is turned on
-    }
-  }, [setVisible])
+  // Mesh layer is always on, no toggle needed
   // Wireframe always true - removed state
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
-  const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
-  const [useSeasonalMeshColor, setUseSeasonalMeshColor] = useState<boolean>(false)
+  const [meshColor, setMeshColor] = useState<string>('#00CED1')  // Default gradient-inspired turquoise color
+  const [useTemperatureColor, setUseTemperatureColor] = useState<boolean>(false)  // Toggle for temperature-based colors
   const [timelineMode, setTimelineMode] = useState<'monthly'|'daily'>('monthly')
   const [availableDailyDates, setAvailableDailyDates] = useState<string[]>([])
   const [selectedDailyIndex, setSelectedDailyIndex] = useState<number>(0)
@@ -395,17 +387,6 @@ export default function CardSalesDistrictMap() {
     }
   }, [])
 
-  // Auto-apply seasonal mesh color
-  useEffect(() => {
-    if (!useSeasonalMeshColor) return
-    if (timelineMode === 'monthly') {
-      setMeshColor(getSeasonalMeshHexColor(selectedMeshMonth))
-    } else if (timelineMode === 'daily' && availableDailyDates.length > 0) {
-      const dd = availableDailyDates[selectedDailyIndex]
-      const mm = dd?.slice(0,6)
-      if (mm) setMeshColor(getSeasonalMeshHexColor(mm))
-    }
-  }, [useSeasonalMeshColor, selectedMeshMonth, timelineMode, availableDailyDates, selectedDailyIndex])
 
   // Chain scheduling for daily autoplay (align transition to tick)
   const dailyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
@@ -448,6 +429,27 @@ export default function CardSalesDistrictMap() {
       scheduleNextDailyTick()
     }
   }, [selectedDailyIndex, dailyAutoPlay, timelineMode, scheduleNextDailyTick])
+
+  // Daily playback control handlers
+  const handleDailyPlayPause = useCallback(() => {
+    setDailyAutoPlay(prev => !prev)
+  }, [])
+
+  const handleDailyIndexChange = useCallback((index: number) => {
+    if (index >= 0 && index < availableDailyDates.length) {
+      setSelectedDailyIndex(index)
+    }
+  }, [availableDailyDates.length])
+
+  const handleDailySkipToStart = useCallback(() => {
+    setSelectedDailyIndex(0)
+  }, [])
+
+  const handleDailySkipToEnd = useCallback(() => {
+    if (availableDailyDates.length > 0) {
+      setSelectedDailyIndex(availableDailyDates.length - 1)
+    }
+  }, [availableDailyDates.length])
 
   // Update overlay (date label + avg temp) using prebuilt index (fast, no fetch per step)
 
@@ -781,9 +783,13 @@ export default function CardSalesDistrictMap() {
   
   // Use pre-generated mesh layer for better performance with real sales data
   const dynamicMeshColor = useMemo(() => {
-    // Temperature-based dynamic color (fallback to existing meshColor if temp unknown)
-    return overlayAvgTemp !== null ? getTemperatureMeshHexColor(overlayAvgTemp) : meshColor
-  }, [overlayAvgTemp, meshColor])
+    // Use temperature-based color only if toggle is enabled
+    if (useTemperatureColor && overlayAvgTemp !== null) {
+      return getTemperatureMeshHexColor(overlayAvgTemp)
+    }
+    // Otherwise use user-selected color
+    return meshColor
+  }, [useTemperatureColor, overlayAvgTemp, meshColor])
 
   const { layer: preGeneratedMeshLayer, isLoading: isMeshLoading } = usePreGeneratedSeoulMeshLayer({
     resolution: meshResolution,
@@ -1536,28 +1542,26 @@ export default function CardSalesDistrictMap() {
         onWaveAmplitudeChange={setWaveAmplitude}
         
         
-        // Mesh layer props
-        showMeshLayer={showMeshLayer}
-        onShowMeshLayerChange={handleMeshLayerToggle}
+        // Mesh layer props (always on, no toggle)
         // Wireframe always true - props removed
         // Mesh resolution fixed at 120 - props removed
         meshColor={meshColor}
         onMeshColorChange={setMeshColor}
-        useSeasonalMeshColor={useSeasonalMeshColor}
-        onUseSeasonalMeshColorChange={setUseSeasonalMeshColor}
+        useTemperatureColor={useTemperatureColor}
+        onUseTemperatureColorChange={setUseTemperatureColor}
         timelineMode={timelineMode}
         onTimelineModeChange={setTimelineMode}
-        dailyAvailableCount={availableDailyDates.length}
-        selectedDailyIndex={selectedDailyIndex}
-        onSelectedDailyIndexChange={setSelectedDailyIndex}
-        dailyAutoPlay={dailyAutoPlay}
-        onDailyAutoPlayChange={setDailyAutoPlay}
-        dailyPlaySpeed={dailyPlaySpeed}
-        onDailyPlaySpeedChange={setDailyPlaySpeed}
-        transitionMs={transitionMs}
-        onTransitionMsChange={setTransitionMs}
         selectedMeshMonth={selectedMeshMonth}
         onMeshMonthChange={setSelectedMeshMonth}
+        // Daily playback props
+        isDailyPlaybackActive={dailyAutoPlay}
+        currentDayIndex={selectedDailyIndex}
+        totalDays={availableDailyDates.length}
+        currentDate={availableDailyDates[selectedDailyIndex] || ''}
+        onPlayPause={handleDailyPlayPause}
+        onDayChange={handleDailyIndexChange}
+        onSkipToStart={handleDailySkipToStart}
+        onSkipToEnd={handleDailySkipToEnd}
         />
 
       {/* 지도 초기화 버튼 */}

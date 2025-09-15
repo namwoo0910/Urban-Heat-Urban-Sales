@@ -27,8 +27,7 @@ slw_vis/
 │   ├── 📁 research/                 # 연구 섹션
 │   │   ├── 📁 eda/                  # EDA 분석 페이지
 │   │   └── 📁 local-economy/        # 지역경제 페이지
-│   ├── 📁 research-section/         # 연구 섹션 메인
-│   └── 📁 contact/                  # 연락처 페이지
+│   └── 📁 research-section/         # 연구 섹션 메인
 │
 ├── 📁 src/                          # 🎨 소스 코드
 │   ├── 📁 features/                 # 기능별 모듈

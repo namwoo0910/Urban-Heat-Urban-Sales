@@ -246,23 +246,9 @@ export function InlineMeshMonthToggle({
   }, [isPlaying, selectedMonth, onMonthChange])
 
   return (
-    <div className={`flex items-center gap-2 ${className}`}>
-      <Calendar size={14} className="text-cyan-400" />
-      
-      {/* Play Button */}
-      <button
-        onClick={() => setIsPlaying(!isPlaying)}
-        className={`p-1 rounded transition-colors duration-150 ${
-          isPlaying
-            ? 'bg-orange-500 text-white'
-            : 'bg-gray-700 text-gray-400 hover:bg-gray-600 hover:text-white'
-        }`}
-        title={isPlaying ? '정지' : '자동재생'}
-      >
-        {isPlaying ? <Pause size={12} /> : <Play size={12} />}
-      </button>
-      
-      <div className="flex gap-1">
+    <div className={`${className}`}>
+      {/* Compact 2-row grid layout */}
+      <div className="grid grid-cols-6 gap-0.5">
         {MONTHS.map((month, index) => {
           const monthNumber = index + 1
           return (
@@ -272,10 +258,10 @@ export function InlineMeshMonthToggle({
                 setIsPlaying(false)
                 onMonthChange(monthNumber)
               }}
-              className={`px-2 py-1 text-xs font-medium rounded transition-all duration-150 ${
+              className={`px-1 py-1 text-[10px] font-medium rounded transition-all duration-150 ${
                 selectedMonth === monthNumber
-                  ? 'bg-cyan-500 text-white scale-110'
-                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white'
+                  ? 'bg-cyan-500 text-white'
+                  : 'bg-gray-800 text-gray-400 hover:bg-gray-700 hover:text-white border border-gray-700'
               }`}
               disabled={isPlaying}
             >
@@ -283,6 +269,24 @@ export function InlineMeshMonthToggle({
             </button>
           )
         })}
+      </div>
+
+      {/* Playback control below */}
+      <div className="flex items-center gap-1 mt-1">
+        <button
+          onClick={() => setIsPlaying(!isPlaying)}
+          className={`p-0.5 rounded transition-colors duration-150 ${
+            isPlaying
+              ? 'bg-cyan-500/20 text-cyan-400'
+              : 'text-gray-500 hover:text-gray-300'
+          }`}
+          title={isPlaying ? '정지' : '자동재생'}
+        >
+          {isPlaying ? <Pause size={10} /> : <Play size={10} />}
+        </button>
+        <span className="text-[9px] text-gray-500">
+          {isPlaying ? '재생 중...' : '자동 재생'}
+        </span>
       </div>
     </div>
   )

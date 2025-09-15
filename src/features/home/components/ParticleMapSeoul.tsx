@@ -189,9 +189,9 @@ export function SeoulMapOptimized({
   const rotationRef = useRef(0)
   
   // Amplitude animation refs for initial effect
-  const amplitudeAnimationRef = useRef<number>(15.0) // Start at much higher amplitude for very dramatic scatter
+  const amplitudeAnimationRef = useRef<number>(30.0) // Start at 2x higher amplitude for very dramatic scatter
   const animationStartTimeRef = useRef<number | null>(null)
-  const animationDurationRef = useRef<number>(15000) // 15 seconds animation
+  const animationDurationRef = useRef<number>(20000) // 20 seconds animation for smoother convergence from greater distance
   
   // Object pooling for animation optimization
   const animationPoolRef = useRef<{
@@ -277,7 +277,7 @@ export function SeoulMapOptimized({
   // Enhanced data loading with optimizations
   useEffect(() => {
     // Initialize amplitude animation immediately (before loading)
-    amplitudeAnimationRef.current = 15.0 // Start with dramatic scatter
+    amplitudeAnimationRef.current = 30.0 // Start with 2x dramatic scatter
     animationStartTimeRef.current = Date.now() // Animation starts now
     
     async function loadDataOptimized(): Promise<void> {
@@ -540,7 +540,7 @@ export function SeoulMapOptimized({
             
             // Use cubic easing out for smooth decay
             const easedProgress = 1.0 - Math.pow(1.0 - progress, 3)
-            const currentAmplitude = 15.0 - (14.8 * easedProgress) // From 15.0 to 0.2
+            const currentAmplitude = 30.0 - (29.8 * easedProgress) // From 30.0 to 0.2
             
             amplitudeAnimationRef.current = currentAmplitude
             
