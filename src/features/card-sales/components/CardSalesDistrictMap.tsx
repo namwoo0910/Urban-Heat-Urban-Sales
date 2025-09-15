@@ -11,21 +11,17 @@ import UnifiedControls from "./SalesDataControls"
 import { formatTooltip, formatScatterplotTooltip } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
-// import { useOptimizedMonthlyData } from "../hooks/useOptimizedMonthlyData" // Removed - optimized data deleted
-// import { useBinaryOptimizedData } from "../hooks/useBinaryOptimizedData" // Moved to del
 import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
 import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode as getDistrictCodeFromMapping, getDongCode as getDongCodeFromMapping } from "../data/districtCodeMappings"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
-// Removed MeshLoadingOverlay import
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { loadDistrictData, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
 import { DEFAULT_SEOUL_VIEW } from "@/src/shared/utils/district3DUtils"
-// RotateCcw removed - replay button removed for performance
 import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getSimpleSalesColor, applyColorAdjustments } from "../utils/modernColorPalette"
 import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
@@ -77,7 +73,6 @@ const convertColorExpressionToRGB = (
   return applyColorAdjustments(r, g, b, baseAlpha);
 }
 
-// 줌 설정 제거됨 - 행정동 클릭시 카메라 이동 없음
 
 export default function CardSalesDistrictMap() {
   const mapRef = useRef<MapRef>(null)
@@ -85,7 +80,6 @@ export default function CardSalesDistrictMap() {
   const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   const [currentThemeKey, setCurrentThemeKey] = useState('blue') // Default to blue theme for districts
-  // REMOVED: is3DMode state - 3D polygon layers not used
   const [themeAdjustments, setThemeAdjustments] = useState({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })
   
   // Listen for theme adjustment changes
@@ -159,8 +153,6 @@ export default function CardSalesDistrictMap() {
   
   // 드래그 상태 추가 - 성능 최적화용
   const [isDragging, setIsDragging] = useState(false)
-  
-  // Removed initial camera animation states
   
   
 
@@ -321,7 +313,7 @@ export default function CardSalesDistrictMap() {
             })
           }
         } catch (e) {
-          console.warn(`Failed to load month ${month}:`, e)
+          // Failed to load month data
         }
       }
 
@@ -438,7 +430,7 @@ export default function CardSalesDistrictMap() {
       }
       setOverlayAvgTemp(cnt > 0 ? sum / cnt : null)
     } catch (e) {
-      console.warn('Monthly avg temp load failed', e)
+      // Monthly avg temp load failed
       setOverlayAvgTemp(null)
     } finally {
       setOverlayLoading(false)
@@ -461,7 +453,7 @@ export default function CardSalesDistrictMap() {
       }
       setOverlayAvgTemp(cnt > 0 ? sum / cnt : null)
     } catch (e) {
-      console.warn('Daily avg temp load failed', e)
+      // Daily avg temp load failed
       setOverlayAvgTemp(null)
     } finally {
       setOverlayLoading(false)
@@ -890,9 +882,6 @@ export default function CardSalesDistrictMap() {
     // onHover and onClick removed - mesh layer is purely visual
   }, undefined)  // REMOVED: dongData3D dependency
   
-  // Removed initial camera animation
-  
-  // 자동 회전 기능 제거 - 성능 최적화를 위해 비활성화
   
   // Load Seoul boundary data for unified layers
   const [seoulBoundaryData, setSeoulBoundaryData] = useState<FeatureCollection | null>(null)
@@ -917,8 +906,6 @@ export default function CardSalesDistrictMap() {
     showBoundary
   })
   
-  // Remove unnecessary progressive loading - all layers load immediately now
-  // Layer loading state is managed directly in the render logic
   
   // Combine all deck.gl layers - Using conditional rendering for better performance (no cloning)
   const deckLayers = useMemo(() => {
@@ -1008,7 +995,7 @@ export default function CardSalesDistrictMap() {
     
     try {
       // 디버깅: 실제 레이어 ID 확인
-      console.log('[Tooltip Debug] Layer ID:', info.layer?.id, 'Object keys:', Object.keys(info.object))
+      // Debug: Layer tooltip info
       
       // District layer tooltip handling
       // Check for properties existence to determine if it's a district feature
@@ -1115,7 +1102,7 @@ export default function CardSalesDistrictMap() {
       
       
       // 기존 HexagonLayer의 경우 (폴백) - dongSalesMap 사용하도록 개선
-      console.log('[Tooltip Debug] Using fallback logic, dongSalesMap size:', dongSalesMap.size)
+      // Using fallback tooltip logic
       
       // dongSalesMap에서 데이터가 있으면 기본 툴팁 생성
       if (dongSalesMap.size > 0 && info.object.coordinates) {

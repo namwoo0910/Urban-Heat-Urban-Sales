@@ -64,13 +64,13 @@ export function hasPreGeneratedMesh(resolution: number): boolean {
 export async function loadStaticSeoulMesh(resolution: number = 60): Promise<MeshGeometry> {
   // Return cached data if available
   if (meshCacheByResolution.has(resolution)) {
-    console.log(`[LoadStaticMesh] Using cached mesh data for resolution ${resolution}`)
+    // Using cached mesh data
     return meshCacheByResolution.get(resolution)!
   }
 
   // If already loading this resolution, wait for the existing promise
   if (loadingPromises.has(resolution)) {
-    console.log(`[LoadStaticMesh] Waiting for existing load operation for resolution ${resolution}`)
+    // Debug log removed
     return loadingPromises.get(resolution)!
   }
 
@@ -84,12 +84,12 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
     try {
       // First load the header file
       const headerUrl = `/data/binary/seoul-mesh-${resolution}.header.json`
-      console.log(`[LoadStaticMesh] Loading header from ${headerUrl}...`)
+      // Debug log removed
       const headerResponse = await fetch(headerUrl)
       
       if (!headerResponse.ok) {
         // Fallback to JSON if binary not available
-        console.log(`[LoadStaticMesh] Binary header not found, trying JSON fallback...`)
+        // Debug log removed
         const jsonUrl = `/data/seoul-mesh-${resolution}.json`
         const jsonResponse = await fetch(jsonUrl)
         if (!jsonResponse.ok) {
@@ -113,7 +113,7 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
       
       // Load the binary data (use uncompressed directly to avoid decompression issues)
       const binaryUrl = `/data/binary/seoul-mesh-${resolution}.bin`
-      console.log(`[LoadStaticMesh] Loading uncompressed binary data from ${binaryUrl}...`)
+      // Debug log removed
       const binaryResponse = await fetch(binaryUrl)
       
       if (!binaryResponse.ok) {
@@ -121,9 +121,9 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
       }
       
       const arrayBuffer = await binaryResponse.arrayBuffer()
-      console.log(`[LoadStaticMesh] ArrayBuffer loaded - size: ${arrayBuffer.byteLength} bytes, expected: ${header.totalSize} bytes`)
+      // Debug log removed
       
-      console.log(`[LoadStaticMesh] Parsing binary data for resolution ${resolution}...`)
+      // Debug log removed
       
       // Parse binary data according to header offsets
       const meshGeometry: MeshGeometry = {
@@ -168,8 +168,8 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
         const { offset, length } = header.offsets.indices
         const elementCount = length / 4 // Uint32 is 4 bytes per element
         
-        console.log(`[LoadStaticMesh] Indices - offset: ${offset}, length: ${length}, elementCount: ${elementCount}`)
-        console.log(`[LoadStaticMesh] Buffer size check: ${offset + length} <= ${arrayBuffer.byteLength} = ${offset + length <= arrayBuffer.byteLength}`)
+        // Debug log removed
+        // Debug log removed
         
         if (offset + length > arrayBuffer.byteLength) {
           throw new Error(`Invalid indices range: offset ${offset} + length ${length} = ${offset + length} exceeds buffer size ${arrayBuffer.byteLength}`)
@@ -179,7 +179,7 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
         meshGeometry.indices = new Uint32Array(view) // Create a copy
       }
 
-      console.log(`[LoadStaticMesh] Loaded binary mesh: ${header.metadata.triangles} triangles, ${header.metadata.resolution}x${header.metadata.resolution} grid`)
+      // Debug log removed
       
       // Cache the result
       meshCacheByResolution.set(resolution, meshGeometry)
@@ -187,7 +187,7 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
       
       return meshGeometry
     } catch (error) {
-      console.error(`[LoadStaticMesh] Failed to load static mesh for resolution ${resolution}:`, error)
+      // Error logging removed
       loadingPromises.delete(resolution)
       throw error
     }
@@ -205,11 +205,11 @@ export function clearMeshCache(resolution?: number): void {
   if (resolution !== undefined) {
     meshCacheByResolution.delete(resolution)
     loadingPromises.delete(resolution)
-    console.log(`[LoadStaticMesh] Cache cleared for resolution ${resolution}`)
+    // Debug log removed
   } else {
     meshCacheByResolution.clear()
     loadingPromises.clear()
-    console.log('[LoadStaticMesh] All cache cleared')
+    // Debug log removed
   }
 }
 
@@ -256,7 +256,7 @@ export function getNearestAvailableResolution(targetResolution: number): number 
     }
   }
 
-  console.log(`[LoadStaticMesh] Resolution ${targetResolution} not available, using nearest: ${nearest}`)
+  // Debug log removed
   return nearest
 }
 
@@ -267,16 +267,16 @@ export function getNearestAvailableResolution(targetResolution: number): number 
 export async function preloadCommonResolutions(): Promise<void> {
   const commonResolutions = [30, 60, 90] // Most commonly used
   
-  console.log('[LoadStaticMesh] Preloading common resolutions:', commonResolutions)
+  // Debug log removed
   
-  const promises = commonResolutions.map(res => 
-    loadStaticSeoulMesh(res).catch(err => 
-      console.error(`Failed to preload resolution ${res}:`, err)
-    )
+  const promises = commonResolutions.map(res =>
+    loadStaticSeoulMesh(res).catch(err => {
+      // Error logging removed
+    })
   )
   
   await Promise.all(promises)
-  console.log('[LoadStaticMesh] Preloading complete')
+  // Debug log removed
 }
 
 // Cache for loaded monthly mesh data
@@ -297,13 +297,13 @@ export function hasPreGeneratedMonthlyMesh(month: string): boolean {
 export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry> {
   // Return cached data if available
   if (monthlyMeshCache.has(month)) {
-    console.log(`[LoadStaticMesh] Using cached monthly mesh data for ${month}`)
+    // Debug log removed
     return monthlyMeshCache.get(month)!
   }
 
   // If already loading this month, wait for the existing promise
   if (monthlyLoadingPromises.has(month)) {
-    console.log(`[LoadStaticMesh] Waiting for existing load operation for month ${month}`)
+    // Debug log removed
     return monthlyLoadingPromises.get(month)!
   }
 
@@ -317,12 +317,12 @@ export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry>
     try {
       // First try binary format
       const headerUrl = `/data/binary/seoul-mesh-${month}.header.json`
-      console.log(`[LoadStaticMesh] Loading monthly header from ${headerUrl}...`)
+      // Debug log removed
       const headerResponse = await fetch(headerUrl)
       
       if (!headerResponse.ok) {
         // Fallback to JSON if binary not available
-        console.log(`[LoadStaticMesh] Binary header not found for ${month}, trying JSON fallback...`)
+        // Debug log removed
         const jsonUrl = `/data/seoul-mesh-${month}.json`
         const jsonResponse = await fetch(jsonUrl)
         if (!jsonResponse.ok) {
@@ -346,7 +346,7 @@ export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry>
       
       // Load the binary data
       const binaryUrl = `/data/binary/seoul-mesh-${month}.bin`
-      console.log(`[LoadStaticMesh] Loading monthly binary data from ${binaryUrl}...`)
+      // Debug log removed
       const binaryResponse = await fetch(binaryUrl)
       
       if (!binaryResponse.ok) {
@@ -354,7 +354,7 @@ export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry>
       }
       
       const arrayBuffer = await binaryResponse.arrayBuffer()
-      console.log(`[LoadStaticMesh] Monthly ArrayBuffer loaded - size: ${arrayBuffer.byteLength} bytes`)
+      // Debug log removed
       
       // Parse binary data according to header offsets (same logic as loadStaticSeoulMesh)
       const meshGeometry: MeshGeometry = {
@@ -402,7 +402,7 @@ export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry>
         meshGeometry.indices = new Uint32Array(view)
       }
 
-      console.log(`[LoadStaticMesh] Loaded monthly binary mesh for ${month}: ${header.metadata.triangles} triangles`)
+      // Debug log removed
       
       // Cache the result
       monthlyMeshCache.set(month, meshGeometry)
@@ -410,7 +410,7 @@ export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry>
       
       return meshGeometry
     } catch (error) {
-      console.error(`[LoadStaticMesh] Failed to load monthly mesh for ${month}:`, error)
+      // Error logging removed
       monthlyLoadingPromises.delete(month)
       throw error
     }
@@ -524,10 +524,10 @@ export function clearMonthlyMeshCache(month?: string): void {
   if (month !== undefined) {
     monthlyMeshCache.delete(month)
     monthlyLoadingPromises.delete(month)
-    console.log(`[LoadStaticMesh] Monthly cache cleared for ${month}`)
+    // Debug log removed
   } else {
     monthlyMeshCache.clear()
     monthlyLoadingPromises.clear()
-    console.log('[LoadStaticMesh] All monthly cache cleared')
+    // Debug log removed
   }
 }

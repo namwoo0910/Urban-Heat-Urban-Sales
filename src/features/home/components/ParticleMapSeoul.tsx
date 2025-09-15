@@ -295,9 +295,8 @@ export function SeoulMapOptimized({
         
         // Step 2: Try static files first (fastest)
         try {
-          const quality = config.particleCount >= 12000 ? 'high' : 
-                         config.particleCount >= 8000 ? 'medium' : 'low'
-          const staticParticles = await loadStaticParticles(quality, animationConfig.colorTheme)
+          // Always use high quality particles
+          const staticParticles = await loadStaticParticles('high', animationConfig.colorTheme)
           
           setLoadingPhase('Loaded from static data!')
           setLoadingProgress(100)

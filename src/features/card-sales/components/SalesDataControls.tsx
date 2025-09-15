@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from "framer-motion"
 import {
   ChevronDown,
   MapPin,
-  Loader2,
   Palette,
   BarChart3,
   Play,
