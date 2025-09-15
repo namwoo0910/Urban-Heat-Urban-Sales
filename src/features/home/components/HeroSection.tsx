@@ -99,11 +99,10 @@ export function Hero() {
     <div ref={container} className="relative w-full min-h-screen h-screen overflow-hidden">
       {/* 파티클 맵 배경 */}
       <div className="absolute inset-0 z-0">
-        <SeoulMapOptimized 
+        <SeoulMapOptimized
           animationConfig={animationConfig}
           onAnimationConfigChange={handleAnimationConfigChange}
           mapStyle={mapStyle}
-          onMapStyleChange={() => {}} // No-op since style is fixed
         />
       </div>
       
@@ -152,8 +151,6 @@ export function Hero() {
           config={animationConfig}
           onConfigChange={handleAnimationConfigChange}
           performanceLevel="high"
-          mapStyle={mapStyle}
-          onMapStyleChange={() => {}} // No-op since style is fixed
         />
       </div>
       

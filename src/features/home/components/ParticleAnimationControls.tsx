@@ -13,16 +13,12 @@ interface AnimationControlsProps {
   config: AnimationConfig
   onConfigChange: (config: Partial<AnimationConfig>) => void
   performanceLevel: 'high' | 'medium' | 'low'
-  mapStyle: string
-  onMapStyleChange: (style: string) => void
 }
 
-export function AnimationControls({ 
-  config, 
+export function AnimationControls({
+  config,
   onConfigChange,
-  performanceLevel,
-  mapStyle,
-  onMapStyleChange
+  performanceLevel
 }: AnimationControlsProps) {
   // State for collapsible panel
   const [isExpanded, setIsExpanded] = useState(false)

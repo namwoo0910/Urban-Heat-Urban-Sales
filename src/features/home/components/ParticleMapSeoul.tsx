@@ -146,14 +146,12 @@ interface SeoulMapOptimizedProps {
   animationConfig: AnimationConfig
   onAnimationConfigChange: (changes: Partial<AnimationConfig>) => void
   mapStyle: string
-  onMapStyleChange: (style: string) => void
 }
 
 export function SeoulMapOptimized({
   animationConfig,
   onAnimationConfigChange,
-  mapStyle,
-  onMapStyleChange
+  mapStyle
 }: SeoulMapOptimizedProps) {
   // 성능 레벨 감지 및 적응형 관리
   const [performanceLevel, setPerformanceLevel] = useState<keyof typeof PERFORMANCE_CONFIG>(() => detectPerformanceLevel())

@@ -65,7 +65,7 @@ export default function UnifiedControls({
   onHeightScaleChange,
 
   // Mesh layer props (always on)
-  meshColor = '#00CED1',
+  meshColor = '#FFFFFF',
   onMeshColorChange,
   selectedMeshMonth = 2,  // Default to February
   onMeshMonthChange,
@@ -196,7 +196,7 @@ export default function UnifiedControls({
                         <div className="flex items-center gap-1.5">
                           <input
                             type="color"
-                            value={meshColor || '#00CED1'}
+                            value={meshColor || '#FFFFFF'}
                             onChange={(e) => onMeshColorChange?.(e.target.value)}
                             className={`w-6 h-6 border border-gray-600 rounded ${useTemperatureColor ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                             disabled={useTemperatureColor}

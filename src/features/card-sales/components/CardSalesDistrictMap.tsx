@@ -247,7 +247,7 @@ export default function CardSalesDistrictMap() {
   const [dongSalesByTypeMap, setDongSalesByTypeMap] = useState<Map<number, Map<string, number>>>(new Map())
   
   // 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
-  const [heightScale, setHeightScale] = useState<number>(500000000) // 5억원 단위로 증가 (높이 감소)
+  const [heightScale, setHeightScale] = useState<number>(1000000000) // 10억원(1B) 단위로 증가 (높이 감소)
   
   
   // Mesh layer is always on
@@ -262,7 +262,7 @@ export default function CardSalesDistrictMap() {
   // Mesh layer is always on, no toggle needed
   // Wireframe always true - removed state
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
-  const [meshColor, setMeshColor] = useState<string>('#00CED1')  // Default gradient-inspired turquoise color
+  const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
   const [useTemperatureColor, setUseTemperatureColor] = useState<boolean>(false)  // Toggle for temperature-based colors
   const [timelineMode, setTimelineMode] = useState<'monthly'|'daily'>('monthly')
   const [availableDailyDates, setAvailableDailyDates] = useState<string[]>([])
