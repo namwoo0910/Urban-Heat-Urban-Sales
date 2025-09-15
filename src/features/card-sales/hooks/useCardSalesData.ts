@@ -55,7 +55,6 @@ interface UseLayerStateReturn {
   
   // 필터 업데이트 함수들
   setFilterOptions: (options: ClimateFilterOptions) => void
-  setSelectedDate: (date: string) => void
   setSelectedHour: (hour: number) => void
   setColorMode: (mode: ColorMode) => void
   
@@ -129,7 +128,6 @@ export function useLayerState(): UseLayerStateReturn {
   const [filterOptions, setFilterOptions] = useState<ClimateFilterOptions>({
     date: '2024-01-01' // 기본 날짜
   })
-  const [selectedDate, setSelectedDateState] = useState('2024-01-01')
   const [selectedHour, setSelectedHourState] = useState(12) // 기본 12시
   const [colorMode, setColorModeState] = useState<ColorMode>('temperature')
   
@@ -264,7 +262,7 @@ export function useLayerState(): UseLayerStateReturn {
           const nextIndex = (prevIndex + 1) % 12
           // 날짜 변경
           const nextDate = monthlyDates[nextIndex]
-          setSelectedDate(nextDate)
+          // Date selection removed - timeline animation only
           console.log('[Timeline Animation] Changed to:', nextDate)
           return nextIndex
         })
@@ -276,11 +274,11 @@ export function useLayerState(): UseLayerStateReturn {
   
   // 시계열 애니메이션 활성화 시 현재 날짜를 첫 번째 월로 설정
   useEffect(() => {
-    if (timelineAnimationEnabled && !selectedDate) {
-      setSelectedDate(monthlyDates[0])
+    if (timelineAnimationEnabled) {
+      // Start from first month
       setCurrentMonthIndex(0)
     }
-  }, [timelineAnimationEnabled, monthlyDates, selectedDate])
+  }, [timelineAnimationEnabled, monthlyDates])
   
   // 계산된 값들 (memoized for performance)
   const rotationDirectionText = useMemo(() => 
@@ -612,13 +610,6 @@ export function useLayerState(): UseLayerStateReturn {
   }, [filterOptions, applyHierarchicalFilters, createSimpleDataPoints, createCategoryDataPoints])
   
   // 필터 업데이트 함수들
-  const setSelectedDate = useCallback((date: string) => {
-    console.log(`[useCardSalesData] Date changed to: ${date}`)
-    setSelectedDateState(date)
-    // "전체"를 선택한 경우 빈 문자열로 처리하여 필터링 안함
-    const filterDate = date === '전체' ? '' : date
-    setFilterOptions(prev => ({ ...prev, date: filterDate }))
-  }, [])
   
   const setSelectedHour = useCallback((hour: number) => {
     setSelectedHourState(hour)
@@ -665,7 +656,6 @@ export function useLayerState(): UseLayerStateReturn {
     
     // 필터 상태
     filterOptions,
-    selectedDate,
     selectedHour,
     colorMode,
     
@@ -696,7 +686,6 @@ export function useLayerState(): UseLayerStateReturn {
     
     // 필터 업데이트 함수들
     setFilterOptions,
-    setSelectedDate,
     setSelectedHour,
     setColorMode,
     

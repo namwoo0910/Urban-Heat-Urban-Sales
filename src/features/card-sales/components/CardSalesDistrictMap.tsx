@@ -11,14 +11,13 @@ import UnifiedControls from "./SalesDataControls"
 import { formatTooltip, formatScatterplotTooltip } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
-import { useOptimizedMonthlyData } from "../hooks/useOptimizedMonthlyData"
+// import { useOptimizedMonthlyData } from "../hooks/useOptimizedMonthlyData" // Removed - optimized data deleted
 // import { useBinaryOptimizedData } from "../hooks/useBinaryOptimizedData" // Moved to del
 import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
 import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
 import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode as getDistrictCodeFromMapping, getDongCode as getDongCodeFromMapping } from "../data/districtCodeMappings"
-import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
 // Removed MeshLoadingOverlay import
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
@@ -79,15 +78,7 @@ const convertColorExpressionToRGB = (
   return applyColorAdjustments(r, g, b, baseAlpha);
 }
 
-// 줌 설정 통합 관리
-const ZOOM_SETTINGS = {
-  DONG: 12.5,              // 동 선택시 줌 레벨 (한 단계 멀리)
-  GU: 12,                  // 구 선택시 줌 레벨
-  PITCH_DONG: 50,          // 동 선택시 카메라 각도 (match initial)
-  PITCH_GU: 50,            // 구 선택시 카메라 각도 (match initial)
-  TRANSITION_DURATION: 1500,
-  TRANSITION_SPEED: 1.2
-} as const
+// 줌 설정 제거됨 - 행정동 클릭시 카메라 이동 없음
 
 export default function CardSalesDistrictMap() {
   const mapRef = useRef<MapRef>(null)
@@ -150,8 +141,6 @@ export default function CardSalesDistrictMap() {
     setSelectedSubCategory,
     
     // Date filter
-    selectedDate,
-    setSelectedDate,
     
     
   } = useLayerState()
@@ -196,16 +185,17 @@ export default function CardSalesDistrictMap() {
     const center = dongCenter || getDistrictCenter('구', guName)
     
     if (center) {
-        setViewState(prev => ({
-        ...prev,
-        longitude: center[0],
-        latitude: center[1],
-        zoom: dongCenter ? ZOOM_SETTINGS.DONG : ZOOM_SETTINGS.GU,
-        pitch: dongCenter ? ZOOM_SETTINGS.PITCH_DONG : ZOOM_SETTINGS.PITCH_GU,
-        bearing: prev.bearing || 0,
-        transitionInterpolator: new FlyToInterpolator({speed: 1.5}),
-        transitionDuration: 'auto'
-      } as MapViewState))
+        // 줌 기능 제거 - 카메라 이동 없이 선택만 유지
+        // setViewState(prev => ({
+        //   ...prev,
+        //   longitude: center[0],
+        //   latitude: center[1],
+        //   zoom: dongCenter ? ZOOM_SETTINGS.DONG : ZOOM_SETTINGS.GU,
+        //   pitch: dongCenter ? ZOOM_SETTINGS.PITCH_DONG : ZOOM_SETTINGS.PITCH_GU,
+        //   bearing: prev.bearing || 0,
+        //   transitionInterpolator: new FlyToInterpolator({speed: 1.5}),
+        //   transitionDuration: 'auto'
+        // } as MapViewState))
       
     }
   }, [setViewState])
@@ -219,16 +209,15 @@ export default function CardSalesDistrictMap() {
     setSelectedDong(filters.selectedDong)
     setSelectedDongCode(filters.selectedDongCode)
     setSelectedBusinessType(filters.selectedBusinessType)
-    setSelectedDate(filters.selectedDate || '')
     
-    // 필터에서 행정동 선택시 통합 줌 함수 사용
-    if (filters.selectedDong && filters.selectedGu) {
-      handleDistrictZoom(filters.selectedGu, filters.selectedDong)
-    } else if (filters.selectedGu && !filters.selectedDong) {
-      // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
-      // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
-    }
-  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setSelectedDate, handleDistrictZoom])
+    // 필터에서 행정동 선택시 줌 제거 - 선택만 하고 카메라 이동 없음
+    // if (filters.selectedDong && filters.selectedGu) {
+    //   handleDistrictZoom(filters.selectedGu, filters.selectedDong)
+    // } else if (filters.selectedGu && !filters.selectedDong) {
+    //   // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
+    //   // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
+    // }
+  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, handleDistrictZoom])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
@@ -1128,10 +1117,6 @@ export default function CardSalesDistrictMap() {
     
     loadData()
   }, [])
-  
-  // 최적화된 일별 데이터 사용 (selectedDate는 이미 YYYY-MM-DD 형식)
-  const formatSelectedDate = selectedDate || '2024-01-01'
-  
   // Binary 형식 사용 여부 (환경변수 또는 기본값 true)
   const USE_BINARY_FORMAT = process.env.NEXT_PUBLIC_USE_BINARY_FORMAT !== 'false'
   
@@ -1146,30 +1131,13 @@ export default function CardSalesDistrictMap() {
   //   useBinary: true
   // })
   
-  // JSON 형식 데이터 로딩만 사용
-  const jsonDataResult = useOptimizedMonthlyData({ 
-    selectedDate: formatSelectedDate,
-    enabled: true // Always use JSON format now
-  })
+  // Optimized data removed - initialize with empty values
+  const optimizedFeatures = null
+  const optimizedDongMap = new Map()
+  const isOptimizedLoading = false
+  const optimizedError = null
   
-  // JSON 데이터만 사용
-  const { 
-    features: optimizedFeatures, 
-    dongMap: optimizedDongMap,
-    isLoading: isOptimizedLoading,
-    error: optimizedError 
-  } = jsonDataResult // Only use JSON data now
-  
-  // 추가 디버깅: useOptimizedMonthlyData 상태 모니터링
-  console.log('[DEBUG] useOptimizedMonthlyData Result:', {
-    formatSelectedDate,
-    hasFeatures: !!optimizedFeatures,
-    featuresLength: optimizedFeatures?.length,
-    hasDongMap: !!optimizedDongMap,
-    dongMapSize: optimizedDongMap?.size,
-    isLoading: isOptimizedLoading,
-    error: optimizedError
-  })
+  // Optimized data debugging removed
   
   // 성능 로깅 - 주석 처리 (binary data removed)
   useEffect(() => {
@@ -1177,59 +1145,15 @@ export default function CardSalesDistrictMap() {
     }
   }, []) // Removed dependencies since binary data is removed
 
-  // Load sales data from optimized data
+  // Sales data loading removed - optimized data deleted
   useEffect(() => {
-    console.log('[DEBUG] Data loading status:', {
-      features: optimizedFeatures?.length,
-      dongMap: optimizedDongMap?.size,
-      isLoading: isOptimizedLoading,
-      error: optimizedError,
-      selectedDate: formatSelectedDate
-    })
-    
-    if (!optimizedFeatures || !optimizedDongMap) {
-      return
-    }
-    
-    // 디버깅: optimizedDongMap 확인
-    const firstThree = Array.from(optimizedDongMap.entries()).slice(0, 3)
-    firstThree.forEach(([dongCode, feature]) => {
-      console.log(`[DEBUG] DongCode ${dongCode}: sales=${feature.totalSales}`)
-    })
-
-    
-    // Convert optimized data to existing map format for compatibility
+    // Initialize empty maps since optimized data is removed
     const salesByDong = new Map<number, number>()
     const salesByDongAndType = new Map<number, Map<string, number>>()
-    
-    optimizedFeatures.forEach(feature => {
-      salesByDong.set(feature.dongCode, feature.totalSales)
-      
-      if (feature.salesByType && Object.keys(feature.salesByType).length > 0) {
-        const typeMap = new Map<string, number>()
-        Object.entries(feature.salesByType).forEach(([type, amount]) => {
-          typeMap.set(type, amount)
-        })
-        salesByDongAndType.set(feature.dongCode, typeMap)
-      }
-    })
-    
-    
-    // Log min/max for reference
-    const salesValues = optimizedFeatures.map(f => f.totalSales)
-    if (salesValues.length > 0) {
-      const minSales = Math.min(...salesValues)
-      const maxSales = Math.max(...salesValues)
-    }
-    
+
     setDongSalesMap(salesByDong)
     setDongSalesByTypeMap(salesByDongAndType)
-    
-    console.log('[DEBUG] Maps created:', {
-      dongSalesMap: salesByDong.size,
-      dongSalesByTypeMap: salesByDongAndType.size
-    })
-  }, [optimizedFeatures, optimizedDongMap])
+  }, [])
   
   // Memoize dong colors for performance
   const dongColorMap = useMemo(() => {
@@ -1246,20 +1170,8 @@ export default function CardSalesDistrictMap() {
         const dongName = getDistrictName(feature.properties)
         const totalSales = dongSalesMap.get(Number(dongCode)) || 0
         
-        // Use optimized data if available
-        const optimizedFeature = optimizedDongMap?.get(Number(dongCode))
-        let baseColor
-        
-        if (optimizedFeature?.fillColorRGB) {
-          const themeKey = currentThemeKey === 'modern' || currentThemeKey === 'adjacent' ? 'blue' : 
-                          currentThemeKey === 'bright' ? 'bright' :
-                          currentThemeKey === 'green' ? 'green' :
-                          currentThemeKey === 'purple' ? 'purple' :
-                          currentThemeKey === 'orange' ? 'orange' : 'blue'
-          baseColor = optimizedFeature.fillColorRGB[themeKey as keyof typeof optimizedFeature.fillColorRGB]
-        } else {
-          baseColor = convertColorExpressionToRGB(height, currentThemeKey, guName || undefined, dongName || undefined, false, false, totalSales)
-        }
+        // Calculate base color without optimized data
+        const baseColor = convertColorExpressionToRGB(height, currentThemeKey, guName || undefined, dongName || undefined, false, false, totalSales)
         
         colorMap.set(dongCode, {
           baseColor,
@@ -1270,7 +1182,7 @@ export default function CardSalesDistrictMap() {
     })
     
     return colorMap
-  }, [dongData, dongSalesMap, optimizedDongMap, currentThemeKey])
+  }, [dongData, dongSalesMap, currentThemeKey])
 
   
   // REMOVED: 3D data preprocessing useEffect - 3D polygon layers not used
@@ -1578,19 +1490,9 @@ export default function CardSalesDistrictMap() {
         externalSelectedGu={selectedGu}
         externalSelectedDong={selectedDong}
         externalSelectedBusinessType={selectedBusinessType}
-        externalSelectedDate={selectedDate}
         // Timeline animation state
       />
 
-      {/* 선택된 지역 매출액 정보 */}
-      <SelectedAreaSalesInfo
-        selectedGu={selectedGu}
-        selectedDong={selectedDong}
-        hexagonData={hexagonData}
-        climateData={climateData}
-        visible={true}
-        selectedDate={selectedDate}
-      />
 
 
       {/* 통합 컨트롤 패널 */}
@@ -1804,7 +1706,6 @@ export default function CardSalesDistrictMap() {
                 selectedDong={selectedDong}
                 selectedDongCode={selectedDongCode}
                 selectedBusinessType={selectedBusinessType}
-                selectedDate={selectedDate}
               />
             </div>
           </ResizablePanel>

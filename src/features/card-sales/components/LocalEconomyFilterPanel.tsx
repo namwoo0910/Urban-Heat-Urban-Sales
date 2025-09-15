@@ -15,7 +15,6 @@ import {
 import { 
   getAllBusinessTypes
 } from "../data/businessHierarchy"
-import { dateExtractor } from "../utils/dateExtractor"
 
 interface LocalEconomyFilterPanelProps {
   onFilterChange?: (filters: FilterState) => void
@@ -24,7 +23,6 @@ interface LocalEconomyFilterPanelProps {
   externalSelectedGu?: string | null
   externalSelectedDong?: string | null
   externalSelectedBusinessType?: string | null
-  externalSelectedDate?: string | null
   // Timeline animation state
   isTimelineAnimating?: boolean
 }
@@ -35,7 +33,6 @@ export interface FilterState {
   selectedDong: string | null      // 동 이름 (UI 표시용) 
   selectedDongCode: number | null  // 동 코드 (필터링용)
   selectedBusinessType: string | null
-  selectedDate: string | null      // 선택된 날짜 (YYYY-MM-DD 형식)
 }
 
 const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
@@ -45,7 +42,6 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   externalSelectedGu,
   externalSelectedDong,
   externalSelectedBusinessType,
-  externalSelectedDate,
   // Timeline animation state
   isTimelineAnimating = false,
 }: LocalEconomyFilterPanelProps) {
@@ -56,10 +52,6 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
   const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
-  const [selectedDate, setSelectedDate] = useState<string | null>('2024-01-01') // 기본값을 1월 1일로 설정
-  const [availableDates, setAvailableDates] = useState<string[]>([])
-  const [isLoadingDates, setIsLoadingDates] = useState(true)
-  const [selectedMonth, setSelectedMonth] = useState<string>('2024-01')
   
   // Get available options
   const availableDistricts = useMemo(() => getAllDistricts(), [])
@@ -105,47 +97,9 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     setSelectedBusinessType(value === '전체' ? null : value)
   }
   
-  // Handle date selection
-  const handleDateChange = (value: string) => {
-    setSelectedDate(value === '전체' ? null : value)
-  }
   
-  // Handle month change
-  const handleMonthChange = (value: string) => {
-    setSelectedMonth(value)
-    // When month changes, select the first date of that month by default
-    const monthDates = dateExtractor.getDatesForMonth(value)
-    if (monthDates.length > 0) {
-      setSelectedDate(monthDates[0])
-    }
-  }
   
-  // Load available dates on mount
-  useEffect(() => {
-    const loadDates = async () => {
-      setIsLoadingDates(true)
-      try {
-        const allDates = await dateExtractor.loadAvailableDates()
-        // Set dates for the initial selected month
-        const monthDates = dateExtractor.getDatesForMonth(selectedMonth)
-        setAvailableDates(monthDates)
-        console.log(`[DateLoader] Loaded ${monthDates.length} dates for ${selectedMonth}`)
-      } catch (error) {
-        console.error('[DateLoader] Failed to load dates:', error)
-      } finally {
-        setIsLoadingDates(false)
-      }
-    }
-    
-    loadDates()
-  }, [])
   
-  // Update available dates when month changes
-  useEffect(() => {
-    const monthDates = dateExtractor.getDatesForMonth(selectedMonth)
-    setAvailableDates(monthDates)
-    console.log(`[DateSelector] Updated dates for ${selectedMonth}:`, monthDates.length)
-  }, [selectedMonth])
   
   // Get available months
   const availableMonths = useMemo(() => {
@@ -203,12 +157,6 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     }
   }, [externalSelectedBusinessType]) // Remove selectedBusinessType dependency
 
-  useEffect(() => {
-    // Only update if values are different to prevent infinite loops
-    if (externalSelectedDate !== undefined && externalSelectedDate !== selectedDate) {
-      setSelectedDate(externalSelectedDate)
-    }
-  }, [externalSelectedDate]) // Remove selectedDate dependency
 
   // Track if it's the initial mount
   const isInitialMount = useRef(true)
@@ -217,8 +165,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     selectedGuCode,
     selectedDong,
     selectedDongCode,
-    selectedBusinessType,
-    selectedDate
+    selectedBusinessType
   })
 
   // Notify parent of filter changes - Fixed to prevent initial trigger and loops
@@ -232,8 +179,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
         selectedGuCode,
         selectedDong,
         selectedDongCode,
-        selectedBusinessType,
-        selectedDate
+        selectedBusinessType
       }
       return
     }
@@ -244,8 +190,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
       previousValues.current.selectedGuCode !== selectedGuCode ||
       previousValues.current.selectedDong !== selectedDong ||
       previousValues.current.selectedDongCode !== selectedDongCode ||
-      previousValues.current.selectedBusinessType !== selectedBusinessType ||
-      previousValues.current.selectedDate !== selectedDate
+      previousValues.current.selectedBusinessType !== selectedBusinessType
     
     if (hasChanged && onFilterChange) {
       // Update previous values before calling onChange to prevent race conditions
@@ -254,8 +199,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
         selectedGuCode,
         selectedDong,
         selectedDongCode,
-        selectedBusinessType,
-        selectedDate
+        selectedBusinessType
       }
       previousValues.current = newValues
       
@@ -264,7 +208,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
         onFilterChange(newValues)
       }, 0)
     }
-  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, selectedDate]) // Remove onFilterChange dependency
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType]) // Remove onFilterChange dependency
   
   
   return (
@@ -361,83 +305,6 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
             </Select>
           </div>
           
-        </div>
-        
-        {/* Third Row: 날짜 선택 (월 선택 + 일 선택) */}
-        <div className="flex gap-1 mt-1">
-          {/* 월 선택 드롭다운 */}
-          <div className="flex-1">
-            <Select 
-              value={selectedMonth} 
-              onValueChange={handleMonthChange}
-              disabled={isTimelineAnimating || isLoadingDates}
-            >
-              <SelectTrigger className={`bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2 ${
-                (isTimelineAnimating || isLoadingDates) ? 'opacity-50' : ''
-              }`}>
-                <SelectValue>
-                  {isLoadingDates ? '로딩 중...' : 
-                    availableMonths.find(m => m.value === selectedMonth)?.label || selectedMonth
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
-                {availableMonths.map(month => (
-                  <SelectItem 
-                    key={month.value} 
-                    value={month.value}
-                    className="text-gray-200 hover:bg-gray-900/50"
-                  >
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* 일 선택 드롭다운 */}
-          <div className="flex-1">
-            <Select 
-              value={selectedDate || "전체"} 
-              onValueChange={handleDateChange}
-              disabled={isTimelineAnimating || isLoadingDates || availableDates.length === 0}
-            >
-              <SelectTrigger className={`bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2 ${
-                (isTimelineAnimating || isLoadingDates) ? 'opacity-50' : ''
-              }`}>
-                <SelectValue>
-                  {isTimelineAnimating && selectedDate ? 
-                    `📅 ${new Date(selectedDate).getDate()}일` :
-                    selectedDate ? 
-                    `${new Date(selectedDate).getDate()}일` : 
-                    "날짜 선택"
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
-                {isLoadingDates ? (
-                  <div className="text-gray-400 text-xs p-2">로딩 중...</div>
-                ) : availableDates.length === 0 ? (
-                  <div className="text-gray-400 text-xs p-2">데이터 없음</div>
-                ) : (
-                  availableDates.map(date => {
-                    const dateObj = new Date(date)
-                    const day = dateObj.getDate()
-                    const weekday = dateObj.toLocaleDateString('ko-KR', { weekday: 'short' })
-                    return (
-                      <SelectItem 
-                        key={date}
-                        value={date}
-                        className="text-gray-200 hover:bg-gray-900/50"
-                      >
-                        {`${day}일 (${weekday})`}
-                      </SelectItem>
-                    )
-                  })
-                )}
-              </SelectContent>
-            </Select>
-          </div>
         </div>
       </Card>
     </div>

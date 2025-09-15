@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useEffect, useState } from 'react'
-import { useOptimizedMonthlyData } from './useOptimizedMonthlyData'
+// import { useOptimizedMonthlyData } from './useOptimizedMonthlyData' // Removed - optimized data deleted
 // import { useBinaryOptimizedData } from './useBinaryOptimizedData' // Moved to del
 import { useHeightInterpolation } from './useHeightInterpolation'
 import { loadDistrictData } from '@/src/shared/utils/districtUtils'
@@ -42,12 +42,10 @@ export function useDataProcessor(filters?: FilterState): UseDataProcessorReturn 
   const [isLoadingBoundaries, setIsLoadingBoundaries] = useState(true)
   const [boundaryError, setBoundaryError] = useState<Error | null>(null)
   
-  // Sales data - using default date since polygon layers are removed
-  const {
-    data,
-    isLoading: isSalesLoading,
-    error: salesError
-  } = useOptimizedMonthlyData({ selectedDate: '2024-01-01', enabled: false })
+  // Sales data - removed optimized data loading
+  const data = null
+  const isSalesLoading = false
+  const salesError = null
 
   // Create empty maps for now since polygon layers are removed
   const dongSalesMap = new Map<number, number>()

@@ -248,10 +248,10 @@ export default function CardSalesDistrictMap() {
       setSelectedGuCode(getDistrictCode(gu) ?? null)
       if (dong) {
         setSelectedDongCode(getDongCode(gu, dong) ?? null)
-        handleDistrictZoom(gu, dong)
+        // 줌 기능 제거 - handleDistrictZoom(gu, dong)
       } else {
         setSelectedDongCode(null)
-        handleDistrictZoom(gu)
+        // 줌 기능 제거 - handleDistrictZoom(gu)
       }
     } else {
       setSelectedGuCode(null)
@@ -266,9 +266,10 @@ export default function CardSalesDistrictMap() {
     setSelectedDong(filters.selectedDong)
     setSelectedDongCode(filters.selectedDongCode)
     
-    if (filters.selectedGu) {
-      handleDistrictZoom(filters.selectedGu, filters.selectedDong)
-    }
+    // 줌 기능 제거 - 선택만 하고 카메라 이동 없음
+    // if (filters.selectedGu) {
+    //   handleDistrictZoom(filters.selectedGu, filters.selectedDong)
+    // }
   }, [handleDistrictZoom])
   
   // Handle reset

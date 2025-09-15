@@ -9,7 +9,7 @@ import React, { useEffect, useState } from "react"
 import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL } from 'react-map-gl'
 import type { MapViewState } from '@deck.gl/core'
-import { OptimizedTimeSeriesMeshLayer, OptimizedTimelineControls } from './OptimizedTimeSeriesMeshLayer'
+// import { OptimizedTimeSeriesMeshLayer, OptimizedTimelineControls } from './OptimizedTimeSeriesMeshLayer' // Removed - optimized data deleted
 import { getCachedTimeSeriesData } from '../utils/timeSeriesDataLoader'
 import { loadDistrictData } from '@/src/shared/utils/districtUtils'
 import { MAPBOX_TOKEN } from '@/src/shared/constants/mapConfig'
@@ -83,25 +83,23 @@ export function AnimatedCardSalesMap() {
     loadData()
   }, [])
   
-  // Create optimized animated mesh layer
+  // Create optimized animated mesh layer - REMOVED (OptimizedTimeSeriesMeshLayer deleted)
   // Extract months from timeSeriesData for optimized loader
   const months = timeSeriesData.map(d => d.month)
-  
-  const animatedMesh = OptimizedTimeSeriesMeshLayer({
-    districtData: dongData,
-    dongBoundaries: dongData,
-    months,  // Pass months array instead of full timeSeriesData
-    visible: true,
-    autoPlay,
-    playSpeed,
-    transitionDuration: 1000,
-    onMonthChange: setCurrentMonth,
-    salesHeightScale: 100000000,
-    initialResolution: 30,     // Start with low resolution for fast display
-    targetResolution: 90,       // Target high quality
-    enableProgressive: true,    // Enable progressive loading
-    enablePreloading: false     // Disabled to prevent background processing
-  })
+
+  // Temporary placeholder until mesh layer is reimplemented
+  const animatedMesh = {
+    layer: null,
+    controls: {
+      currentMonthIndex: 0,
+      setCurrentMonthIndex: () => {},
+      isPlaying: false,
+      togglePlay: () => {},
+      nextMonth: () => {},
+      prevMonth: () => {},
+      goToMonth: () => {}
+    }
+  }
   
   if (isLoading) {
     return (
@@ -242,14 +240,14 @@ export function AnimatedCardSalesMap() {
         <Settings className="w-5 h-5 text-gray-300" />
       </button>
       
-      {/* Timeline controls - Using optimized version */}
-      <div className="absolute bottom-4 left-4 right-4 z-10">
+      {/* Timeline controls - Commented out (OptimizedTimelineControls deleted) */}
+      {/* <div className="absolute bottom-4 left-4 right-4 z-10">
         <OptimizedTimelineControls
           months={months}
           controls={animatedMesh.controls}
           className="max-w-2xl mx-auto"
         />
-      </div>
+      </div> */}
       
       {/* Performance stats */}
       <div className="absolute bottom-4 right-4 z-10">
