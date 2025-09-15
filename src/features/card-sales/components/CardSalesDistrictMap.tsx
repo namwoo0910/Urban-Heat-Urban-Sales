@@ -277,19 +277,100 @@ export default function CardSalesDistrictMap() {
   const [overlayAvgTemp, setOverlayAvgTemp] = useState<number | null>(null)
   const [overlayLoading, setOverlayLoading] = useState<boolean>(false)
   const [overlayHeight, setOverlayHeight] = useState<number>(80)
-  const tempBarPercent = useMemo(() => {
-    if (overlayAvgTemp === null || isNaN(overlayAvgTemp)) return 0
-    const min = -15, max = 35
-    const p = Math.max(0, Math.min(1, (overlayAvgTemp - min) / (max - min)))
-    return Math.round(p * 100)
-  }, [overlayAvgTemp])
-  const tempBarColor = useMemo(() => {
-    const t = overlayAvgTemp ?? 0
-    if (t <= 0) return '#60a5fa' // blue
-    if (t <= 15) return '#34d399' // green
-    if (t <= 25) return '#f59e0b' // amber
+
+  // Full year temperature data (365 days)
+  const [yearTempData, setYearTempData] = useState<Array<{date: string, temp: number | null}>>([])
+  const [isLoadingYearData, setIsLoadingYearData] = useState(true)
+
+  // Load full year temperature data on mount
+  useEffect(() => {
+    const loadYearData = async () => {
+      setIsLoadingYearData(true)
+      const allData: Array<{date: string, temp: number | null}> = []
+
+      // Load all 12 months
+      for (let month = 1; month <= 12; month++) {
+        const monthStr = month.toString().padStart(2, '0')
+        try {
+          const res = await fetch(`/data/local_economy/monthly/2024-${monthStr}.json`)
+          if (res.ok) {
+            const monthData = await res.json()
+
+            // Group by date and calculate daily average
+            const dailyTemps: Record<string, {sum: number, count: number}> = {}
+
+            for (const item of monthData) {
+              const date = item['기준일자']
+              const temp = item['일평균기온']
+
+              if (date && typeof temp === 'number' && !isNaN(temp)) {
+                if (!dailyTemps[date]) {
+                  dailyTemps[date] = { sum: 0, count: 0 }
+                }
+                dailyTemps[date].sum += temp
+                dailyTemps[date].count++
+              }
+            }
+
+            // Convert to array format
+            Object.entries(dailyTemps).forEach(([date, data]) => {
+              allData.push({
+                date,
+                temp: data.count > 0 ? data.sum / data.count : null
+              })
+            })
+          }
+        } catch (e) {
+          console.warn(`Failed to load month ${month}:`, e)
+        }
+      }
+
+      // Sort by date
+      allData.sort((a, b) => a.date.localeCompare(b.date))
+      setYearTempData(allData)
+      setIsLoadingYearData(false)
+    }
+
+    loadYearData()
+  }, [])
+
+  // Create year temperature graph path
+  const yearTempGraphPath = useMemo(() => {
+    if (yearTempData.length < 2) return ''
+
+    const width = 200
+    const height = 40
+    const padding = 2
+    const min = -15
+    const max = 35
+
+    const xStep = (width - padding * 2) / Math.max(1, yearTempData.length - 1)
+
+    const points = yearTempData.map((d, i) => {
+      const x = padding + i * xStep
+      const y = d.temp !== null
+        ? height - padding - ((d.temp - min) / (max - min)) * (height - padding * 2)
+        : height / 2
+      return `${x},${y}`
+    })
+
+    return `M ${points.join(' L ')}`
+  }, [yearTempData])
+
+  // Find current date position in year data
+  const currentDateIndex = useMemo(() => {
+    if (!overlayDateLabel || yearTempData.length === 0) return -1
+    return yearTempData.findIndex(d => d.date === overlayDateLabel)
+  }, [overlayDateLabel, yearTempData])
+
+  // Get color for temperature
+  const getTemperatureColor = (temp: number | null) => {
+    if (temp === null) return '#9ca3af'
+    if (temp <= 0) return '#60a5fa' // blue
+    if (temp <= 15) return '#34d399' // green
+    if (temp <= 25) return '#f59e0b' // amber
     return '#ef4444' // red
-  }, [overlayAvgTemp])
+  }
 
   // Match overlay height to info panel height
   useEffect(() => {
@@ -1465,26 +1546,107 @@ export default function CardSalesDistrictMap() {
         </MapGL>
       </DeckGL>
       
-      {/* Center-top overlay: date + average temperature */}
-      <div className="absolute left-1/2 -translate-x-1/2 z-10" style={{ top: '56px' }}>
+      {/* Left-top overlay: date + average temperature */}
+      <div className="absolute left-4 z-10" style={{ top: '86px' }}>
         <div
-          className="bg-black/80 backdrop-blur-sm rounded-md px-2 py-1 border border-gray-800/50 flex items-center gap-2 shadow-lg"
+          className="bg-black/80 backdrop-blur-sm rounded-md px-3 py-2 border border-gray-800/50 flex flex-col gap-2 shadow-lg"
           style={{ margin: '5px' }}
         >
-          <div className="text-white text-base font-semibold tracking-wide min-w-[80px] text-center">
-            {overlayDateLabel || '—'}
-          </div>
-          <div className="flex items-center gap-2">
+          {/* Date and Temperature Row */}
+          <div className="flex items-center gap-3">
+            <div className="text-white text-base font-semibold tracking-wide min-w-[80px] text-center">
+              {overlayDateLabel || '—'}
+            </div>
             <div className="text-cyan-300 text-base font-semibold min-w-[56px] text-center">
               {overlayLoading ? '…' : (overlayAvgTemp !== null ? `${overlayAvgTemp.toFixed(1)}°C` : '—')}
             </div>
-            <div className="w-24 h-1 bg-gray-800 rounded overflow-hidden">
-              <div
-                className="h-1"
-                style={{ width: `${tempBarPercent}%`, backgroundColor: tempBarColor }}
-              />
-            </div>
           </div>
+
+          {/* Year Temperature Chart */}
+          <div className="relative">
+              <svg width="200" height="40" className="overflow-visible">
+                {/* Background */}
+                <rect x="0" y="0" width="200" height="40" fill="#111111" rx="2" opacity="0.5" />
+
+                {/* Grid lines */}
+                <line x1="2" y1="20" x2="198" y2="20" stroke="#374151" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.3" />
+
+                {/* Month markers */}
+                {[0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334].map((day, i) => {
+                  const x = 2 + (day / 365) * 196
+                  return (
+                    <g key={i}>
+                      <line x1={x} y1="36" x2={x} y2="40" stroke="#4b5563" strokeWidth="0.5" />
+                      <text x={x + 8} y="39" fill="#6b7280" fontSize="6" fontFamily="monospace">
+                        {['J','F','M','A','M','J','J','A','S','O','N','D'][i]}
+                      </text>
+                    </g>
+                  )
+                })}
+
+                {/* Temperature line */}
+                {yearTempGraphPath && (
+                  <path
+                    d={yearTempGraphPath}
+                    fill="none"
+                    stroke="url(#yearTempGradient)"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    opacity="0.9"
+                  />
+                )}
+
+                {/* Current date indicator */}
+                {currentDateIndex >= 0 && yearTempData.length > 0 && (
+                  <>
+                    {/* Vertical line */}
+                    <line
+                      x1={2 + (currentDateIndex / Math.max(1, yearTempData.length - 1)) * 196}
+                      y1="2"
+                      x2={2 + (currentDateIndex / Math.max(1, yearTempData.length - 1)) * 196}
+                      y2="38"
+                      stroke="#fbbf24"
+                      strokeWidth="1"
+                      opacity="0.8"
+                    />
+                    {/* Current point */}
+                    <circle
+                      cx={2 + (currentDateIndex / Math.max(1, yearTempData.length - 1)) * 196}
+                      cy={overlayAvgTemp !== null
+                        ? 40 - 2 - ((overlayAvgTemp - (-15)) / (35 - (-15))) * 36
+                        : 20}
+                      r="3"
+                      fill={getTemperatureColor(overlayAvgTemp)}
+                      stroke="#ffffff"
+                      strokeWidth="1.5"
+                    />
+                  </>
+                )}
+
+                {/* Gradient definition */}
+                <defs>
+                  <linearGradient id="yearTempGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#ef4444" />
+                    <stop offset="30%" stopColor="#f59e0b" />
+                    <stop offset="50%" stopColor="#34d399" />
+                    <stop offset="100%" stopColor="#60a5fa" />
+                  </linearGradient>
+                </defs>
+              </svg>
+
+              {/* Temperature scale labels */}
+              <div className="absolute -top-1 -left-4 text-[7px] text-gray-500 font-mono">35°</div>
+              <div className="absolute top-[15px] -left-4 text-[7px] text-gray-500 font-mono">10°</div>
+              <div className="absolute -bottom-1 -left-4 text-[7px] text-gray-500 font-mono">-15°</div>
+
+              {/* Loading indicator */}
+              {isLoadingYearData && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded">
+                  <div className="text-[8px] text-gray-400">Loading...</div>
+                </div>
+              )}
+            </div>
         </div>
       </div>
 
