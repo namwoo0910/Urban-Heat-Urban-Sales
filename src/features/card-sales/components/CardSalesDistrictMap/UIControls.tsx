@@ -8,7 +8,6 @@
 import React from 'react'
 import UnifiedControls from '../SalesDataControls'
 import LocalEconomyFilterPanel from '../LocalEconomyFilterPanel'
-import { SelectedAreaSalesInfo } from '../SelectedAreaSalesInfo'
 import type { FilterState } from '../LocalEconomyFilterPanel'
 import { RotateCcw } from 'lucide-react'
 
@@ -70,25 +69,7 @@ export const UIControls = React.memo(({
       {/* Main controls in top-right corner */}
       <div className={`absolute top-4 right-4 z-40 ${className}`}>
         <UnifiedControls
-          // Required props
-          onTimeChange={() => {}}
-          currentTime={0}
-          visible={layerConfig.visible}
-          coverage={layerConfig.coverage}
-          upperPercentile={layerConfig.upperPercentile}
-          isDataLoading={false}
-          dataError={null}
-          onVisibleChange={(visible) => onLayerConfigChange({ ...layerConfig, visible })}
-          onCoverageChange={(coverage) => onLayerConfigChange({ ...layerConfig, coverage })}
-          onUpperPercentileChange={(upperPercentile) => onLayerConfigChange({ ...layerConfig, upperPercentile })}
-          onReset={() => {}}
-          // Optional props
-          is3DMode={false}
-          showBoundary={showBoundary}
-          onIs3DModeChange={() => {}}
-          onBoundaryToggle={onToggleBoundary}
-          onDistrictLabelsToggle={onToggleDistrictLabels}
-          onDongLabelsToggle={onToggleDongLabels}
+          // Only valid props from UnifiedControlsProps interface
           heightScale={1}
           onHeightScaleChange={() => {}}
         />
@@ -101,21 +82,10 @@ export const UIControls = React.memo(({
           externalSelectedGu={selectedGu}
           externalSelectedDong={selectedDong}
           externalSelectedBusinessType={selectedBusinessType}
-          externalSelectedDate={selectedDate}
         />
       </div>
       
-      {/* Sales info panel */}
-      {(selectedGu || selectedDong) && (
-        <div className="absolute bottom-20 left-4 z-30">
-          <SelectedAreaSalesInfo
-            selectedGu={selectedGu}
-            selectedDong={selectedDong}
-            hexagonData={[]}
-            climateData={null}
-          />
-        </div>
-      )}
+      {/* Sales info panel - removed SelectedAreaSalesInfo component */}
       
       {/* Reset button */}
       {onReset && (selectedGu || selectedDong) && (

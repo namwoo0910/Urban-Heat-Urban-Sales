@@ -888,7 +888,7 @@ export default function CardSalesDistrictMap() {
     dongSalesMap: dongSalesMap,  // Pass sales data map
     salesHeightScale: heightScale  // Use the same height scale as polygon layer
     // onHover and onClick removed - mesh layer is purely visual
-  }, null)  // REMOVED: dongData3D dependency
+  }, undefined)  // REMOVED: dongData3D dependency
   
   // Removed initial camera animation
   
@@ -1045,8 +1045,10 @@ export default function CardSalesDistrictMap() {
         
         const salesInTenMillion = Math.round(totalSales / 10000000)
         
-        // 날짜 정보 (selectedDate 사용)
-        const date = selectedDate || '202401'
+        // 날짜 정보
+        const date = timelineMode === 'monthly'
+          ? (selectedMeshMonth < 10 ? `20240${selectedMeshMonth}` : `2024${selectedMeshMonth}`)
+          : (timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : '202401')
         
         // 선택된 업종이 있으면 해당 업종 매출, 없으면 전체 업종 표시
         let businessTypeHtml = ''
@@ -1123,7 +1125,9 @@ export default function CardSalesDistrictMap() {
           const tooltipHtml = `
 📍 위치: ${position[1].toFixed(4)}, ${position[0].toFixed(4)}
 💰 데이터: ${dongSalesMap.size}개 동 로딩됨
-📅 날짜: ${selectedDate || '정보 없음'}
+📅 날짜: ${timelineMode === 'monthly'
+  ? (selectedMeshMonth < 10 ? `2024년 ${selectedMeshMonth}월` : `2024년 ${selectedMeshMonth}월`)
+  : (timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : '정보 없음')}
           `.trim()
           
           return {
@@ -1665,43 +1669,9 @@ export default function CardSalesDistrictMap() {
 
       {/* 통합 컨트롤 패널 */}
       <UnifiedControls
-        // Required time props
-        onTimeChange={() => {}}
-        currentTime={0}
-        // 지도 컨트롤 props
-        showBoundary={showBoundary}
-        onBoundaryToggle={(show) => {
-          setShowBoundary(show)
-          // Boundary visibility now controlled through Deck.gl layer props
-        }}
-        onSeoulBaseToggle={(show) => {
-          // Seoul base is now removed, this toggle can be deprecated or repurposed
-        }}
-        // REMOVED: 3D mode props - 3D polygon layers not used
         // 높이 스케일 props
         heightScale={heightScale}
         onHeightScaleChange={setHeightScale}
-        // 레이어 컨트롤 props
-        visible={layerConfig.visible}
-        coverage={layerConfig.coverage}
-        upperPercentile={layerConfig.upperPercentile}
-        isDataLoading={isDataLoading}
-        dataError={dataError}
-        onVisibleChange={handlePolygonLayerToggle}
-        onCoverageChange={setCoverage}
-        onUpperPercentileChange={setUpperPercentile}
-        onReset={resetConfig}
-        // 색상 모드 props
-        colorMode={colorMode === 'alert' ? 'sales' : colorMode}
-        onColorModeChange={setColorMode}
-        selectedHour={selectedHour}
-        onSelectedHourChange={setSelectedHour}
-        // 애니메이션 props
-        animationSpeed={layerConfig.animationSpeed}
-        waveAmplitude={layerConfig.waveAmplitude}
-        onAnimationEnabledChange={setAnimationEnabled}
-        onAnimationSpeedChange={setAnimationSpeed}
-        onWaveAmplitudeChange={setWaveAmplitude}
         
         
         // Mesh layer props (always on, no toggle)

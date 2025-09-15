@@ -303,22 +303,12 @@ export default function CardSalesDistrictMap() {
 
     // Boundary layers (simplified - only boundary lines if needed)
     const unifiedLayers = createUnifiedDeckGLLayers({
-      sggData,
-      dongData,
-      dongData3D: null,
       seoulBoundaryData,
-      is3DMode: false,
       isDragging,
       viewState: { ...viewState, pitch: viewState.pitch ?? 0, bearing: viewState.bearing ?? 0 },
-      selectedGu,
-      selectedDong,
-      hoveredDistrict,
-      sggVisible: true,
-      dongVisible: true,
       showBoundary,
-      dongSalesMap,
-      heightScale: 1,
-      currentThemeKey
+      onHover: handleHover,
+      onClick: handleClick
     })
     allLayers.push(...unifiedLayers)
     

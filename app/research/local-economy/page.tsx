@@ -1,7 +1,6 @@
 "use client"
 
 import { lazy, Suspense } from "react"
-import dynamic from "next/dynamic"
 import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
 import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
 import { useState, useEffect } from "react"
@@ -11,17 +10,6 @@ import { Map, Layers, Zap } from "lucide-react"
 
 // Dynamic imports for better performance
 const CardSalesDistrictMap = lazy(() => import("@/src/features/card-sales/components/CardSalesDistrictMap"))
-
-// Dynamic import for animated mesh background
-const AnimatedMeshBackground = dynamic(
-  () => import("@/src/features/card-sales/components/AnimatedMeshBackground"),
-  { 
-    ssr: false,
-    loading: () => (
-      <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-teal-950 to-cyan-950" />
-    )
-  }
-)
 
 const features = [
   {
@@ -62,26 +50,16 @@ const LocalEconomyPage = () => {
   return (
     <div>
       {!showVisualization ? (
-        // Landing page with animated mesh background
+        // Landing page with gradient background
         <div className="relative h-screen overflow-hidden">
-          {/* Animated Mesh Background */}
+          {/* Gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-br from-emerald-950 via-teal-950 to-cyan-950" />
+
+          {/* Animated gradient overlay */}
           <div className="absolute inset-0">
-            <AnimatedMeshBackground
-              waveSpeed={0.3}
-              waveAmplitude={25}
-              waveFrequency={1.5}
-              breathingSpeed={0.2}
-              breathingScale={0.15}
-              wireframe={true}
-              opacity={0.25}
-              color="#00FFE1"
-              targetFPS={60}
-              resolution={30}
-            />
+            <div className="absolute inset-0 bg-gradient-to-br from-emerald-900/20 via-teal-900/20 to-cyan-900/20 animate-pulse" />
+            <div className="absolute inset-0 bg-gradient-to-tr from-emerald-800/10 via-transparent to-cyan-800/10" />
           </div>
-          
-          {/* Gradient overlay for better text readability */}
-          <div className="absolute inset-0 bg-gradient-to-br from-emerald-950/70 via-teal-950/70 to-cyan-950/70" />
 
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="text-center space-y-8">

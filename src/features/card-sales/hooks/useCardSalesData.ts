@@ -742,5 +742,8 @@ export function useLayerState(): UseLayerStateReturn {
     setIsTimelinePlaying,
     setTimelineSpeed,
     toggleTimelineAnimation,
+
+    // 선택된 날짜 (default value)
+    selectedDate: '202401',
   }
 }

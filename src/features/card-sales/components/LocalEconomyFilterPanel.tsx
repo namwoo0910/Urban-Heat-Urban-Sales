@@ -316,7 +316,6 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     prevProps.externalSelectedGu === nextProps.externalSelectedGu &&
     prevProps.externalSelectedDong === nextProps.externalSelectedDong &&
     prevProps.externalSelectedBusinessType === nextProps.externalSelectedBusinessType &&
-    prevProps.externalSelectedDate === nextProps.externalSelectedDate &&
     prevProps.isTimelineAnimating === nextProps.isTimelineAnimating &&
     prevProps.className === nextProps.className &&
     prevProps.onFilterChange === nextProps.onFilterChange
