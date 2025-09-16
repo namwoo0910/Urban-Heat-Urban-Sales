@@ -7,7 +7,7 @@
 
 "use client"
 
-import React, { useState, useMemo, useCallback, useRef } from 'react'
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { throttle } from 'lodash-es'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import type { MapRef } from 'react-map-gl'
@@ -24,6 +24,7 @@ import { DEFAULT_SEOUL_VIEW } from '../constants/mapConfig'
 
 // Layers
 import { createDistrictBoundaryLayers } from './layers/DistrictBoundaryLayers'
+import type { ThemeKey } from '../utils/edaColorPalette'
 
 export default function EDADistrictMap() {
   // Core refs
@@ -40,9 +41,14 @@ export default function EDADistrictMap() {
 
   // UI state
   const [showGuBoundaries, setShowGuBoundaries] = useState(true)
-  const [showDongBoundaries, setShowDongBoundaries] = useState(false)
+  const [showDongBoundaries, setShowDongBoundaries] = useState(true)
   const [showLabels, setShowLabels] = useState(true)
   const [showStats, setShowStats] = useState(false)
+
+  // Theme & interaction state
+  const [currentTheme, setCurrentTheme] = useState<ThemeKey>('ocean')
+  const [useUniqueColors, setUseUniqueColors] = useState(true)
+  const [selectionMode, setSelectionMode] = useState<'gu' | 'dong'>('gu')
 
   // Load district data
   const { guData, dongData, isLoading, error } = useDistrictData()
@@ -54,13 +60,16 @@ export default function EDADistrictMap() {
            properties?.dong_name ||
            properties?.DONG_NM ||
            properties?.H_DONG_NM ||
+           properties?.['행정동'] ||
            null
   }, [])
 
   const getGuName = useCallback((properties: any): string | null => {
     return properties?.guName ||
            properties?.SGG_NM ||
+           properties?.SIG_KOR_NM ||
            properties?.SIGUNGU_NM ||
+           properties?.['자치구'] ||
            null
   }, [])
 
@@ -68,12 +77,17 @@ export default function EDADistrictMap() {
   const handleHover = useCallback((info: PickingInfo) => {
     if (info.object) {
       const properties = info.object.properties || info.object
-      const districtName = getDistrictName(properties) || getGuName(properties)
-      setHoveredDistrict(districtName)
+      if (selectionMode === 'gu') {
+        const guName = getGuName(properties)
+        setHoveredDistrict(guName)
+      } else {
+        const districtName = getDistrictName(properties)
+        setHoveredDistrict(districtName)
+      }
     } else {
       setHoveredDistrict(null)
     }
-  }, [getDistrictName, getGuName])
+  }, [getDistrictName, getGuName, selectionMode])
 
   // Handle click
   const handleClick = useCallback((info: PickingInfo) => {
@@ -82,20 +96,26 @@ export default function EDADistrictMap() {
       const guName = getGuName(properties)
       const dongName = getDistrictName(properties)
 
-      if (dongName && guName) {
-        setSelectedGu(guName)
-        setSelectedDong(dongName)
-      } else if (guName) {
-        setSelectedGu(guName)
-        setSelectedDong(null)
+      if (selectionMode === 'gu') {
+        if (guName) {
+          setSelectedGu(guName)
+          setSelectedDong(null)
+        }
+      } else {
+        if (dongName && guName) {
+          setSelectedGu(guName)
+          setSelectedDong(dongName)
+        } else if (guName) {
+          setSelectedGu(guName)
+        }
       }
     }
-  }, [getGuName, getDistrictName])
+  }, [getGuName, getDistrictName, selectionMode])
 
   // Handle reset
   const handleReset = useCallback(() => {
     setSelectedGu(null)
-    setSelectedDong(null)
+     setSelectedDong(null)
     setHoveredDistrict(null)
     setViewState(DEFAULT_SEOUL_VIEW)
   }, [])
@@ -104,7 +124,7 @@ export default function EDADistrictMap() {
   const layers = useMemo(() => {
     const allLayers = []
 
-    // District boundary layers
+    // District boundary layers with theme support
     const boundaryLayers = createDistrictBoundaryLayers({
       guData,
       dongData,
@@ -116,7 +136,10 @@ export default function EDADistrictMap() {
       hoveredDistrict,
       viewState,
       onHover: handleHover,
-      onClick: handleClick
+      onClick: handleClick,
+      theme: currentTheme,
+      useUniqueColors,
+      selectionMode
     })
 
     allLayers.push(...boundaryLayers)
@@ -133,7 +156,10 @@ export default function EDADistrictMap() {
     hoveredDistrict,
     viewState,
     handleHover,
-    handleClick
+    handleClick,
+    currentTheme,
+    useUniqueColors,
+    selectionMode
   ])
 
   // Handle view state changes
@@ -153,7 +179,23 @@ export default function EDADistrictMap() {
     if (!info.object) return null
 
     const properties = info.object.properties || info.object
-    const districtName = getDistrictName(properties) || getGuName(properties)
+    if (selectionMode === 'gu') {
+      const guName = getGuName(properties)
+      if (!guName) return null
+      return {
+        text: guName,
+        style: {
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          color: '#333',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          fontSize: '14px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }
+      }
+    }
+
+    const districtName = getDistrictName(properties)
 
     if (!districtName) return null
 
@@ -168,7 +210,14 @@ export default function EDADistrictMap() {
         boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
       }
     }
-  }, [getDistrictName, getGuName])
+  }, [getDistrictName, getGuName, selectionMode])
+
+  useEffect(() => {
+    setHoveredDistrict(null)
+    if (selectionMode === 'gu') {
+      setSelectedDong(null)
+    }
+  }, [selectionMode])
 
   // Loading state
   if (isLoading) {
@@ -210,10 +259,16 @@ export default function EDADistrictMap() {
         showStats={showStats}
         selectedGu={selectedGu}
         selectedDong={selectedDong}
+        currentTheme={currentTheme}
+        useUniqueColors={useUniqueColors}
+        selectionMode={selectionMode}
         onToggleGuBoundaries={setShowGuBoundaries}
         onToggleDongBoundaries={setShowDongBoundaries}
         onToggleLabels={setShowLabels}
         onToggleStats={setShowStats}
+        onThemeChange={setCurrentTheme}
+        onToggleUniqueColors={setUseUniqueColors}
+        onSelectionModeChange={setSelectionMode}
         onReset={handleReset}
       />
 

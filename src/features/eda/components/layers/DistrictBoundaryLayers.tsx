@@ -1,12 +1,34 @@
 /**
  * District Boundary Layers for EDA Visualization
  *
- * Creates deck.gl layers for displaying Seoul district boundaries.
+ * Creates sophisticated deck.gl layers with gradients and visual effects
+ * for displaying Seoul district boundaries.
  */
 
 import { GeoJsonLayer, TextLayer } from '@deck.gl/layers'
 import type { FeatureCollection } from 'geojson'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
+import {
+  getDistrictFillColor,
+  getBorderColor,
+  getLineWidth,
+  STATE_COLORS,
+  type ThemeKey
+} from '../../utils/edaColorPalette'
+
+function lightenColor(color: any, amount: number = 0.25, alpha?: number): number[] {
+  const [r = 0, g = 0, b = 0, a = 180] = color as number[]
+  const clampChannel = (value: number) => Math.max(0, Math.min(255, Math.round(value)))
+  const lightenChannel = (value: number) => clampChannel(value + (255 - value) * amount)
+  const nextAlpha = typeof alpha === 'number' ? alpha : (typeof a === 'number' ? a : 180)
+
+  return [
+    lightenChannel(r),
+    lightenChannel(g),
+    lightenChannel(b),
+    clampChannel(nextAlpha)
+  ]
+}
 
 interface BoundaryLayerProps {
   guData: FeatureCollection | null
@@ -20,6 +42,9 @@ interface BoundaryLayerProps {
   viewState: MapViewState
   onHover?: (info: PickingInfo) => void
   onClick?: (info: PickingInfo) => void
+  theme?: ThemeKey
+  useUniqueColors?: boolean
+  selectionMode?: 'gu' | 'dong'
 }
 
 export function createDistrictBoundaryLayers({
@@ -33,87 +58,274 @@ export function createDistrictBoundaryLayers({
   hoveredDistrict,
   viewState,
   onHover,
-  onClick
+  onClick,
+  theme = 'ocean',
+  useUniqueColors = true,
+  selectionMode = 'gu'
 }: BoundaryLayerProps): any[] {
   const layers = []
 
-  // Gu (district) boundaries layer
+  // Get selected features for glow effect
+  const getSelectedGuFeatures = () => {
+    if (!selectedGu || !guData) return null
+    return {
+      ...guData,
+      features: guData.features.filter(f => {
+        const name = f.properties?.guName ||
+                     f.properties?.SGG_NM ||
+                     f.properties?.SIG_KOR_NM ||
+                     f.properties?.['자치구']
+        return name === selectedGu
+      })
+    }
+  }
+
+  const getSelectedDongFeatures = () => {
+    if (!selectedDong || !dongData) return null
+    return {
+      ...dongData,
+      features: dongData.features.filter(f => {
+        const name = f.properties?.ADM_DR_NM ||
+                     f.properties?.dongName ||
+                     f.properties?.DONG_NM ||
+                     f.properties?.['행정동']
+        return name === selectedDong
+      })
+    }
+  }
+
+  // Base fill layer with gradients (Gu)
   if (showGuBoundaries && guData) {
+    // Glow effect layer for selected districts (render first for proper layering)
+    const selectedFeatures = getSelectedGuFeatures()
+    if (selectedFeatures && selectedFeatures.features.length > 0) {
+      layers.push(
+        new GeoJsonLayer({
+          id: 'gu-glow',
+          data: selectedFeatures,
+          pickable: false,
+          stroked: true,
+          filled: true,
+          getFillColor: STATE_COLORS.selected.glow,
+          getLineColor: STATE_COLORS.selected.border,
+          getLineWidth: 8,
+          lineWidthMinPixels: 4,
+          lineWidthMaxPixels: 10,
+          lineCapRounded: true,
+          lineJointRounded: true,
+          parameters: {
+            depthTest: false,
+            blend: true,
+            blendFunc: [770, 1], // Additive blending for glow
+            blendEquation: 32774
+          }
+        })
+      )
+    }
+
+    // Main Gu boundaries layer with sophisticated fill
     layers.push(
       new GeoJsonLayer({
         id: 'gu-boundaries',
         data: guData,
-        pickable: true,
+        pickable: selectionMode === 'gu',
         stroked: true,
         filled: true,
-        getFillColor: (d: any) => {
-          const name = d.properties?.guName || d.properties?.SGG_NM
-          if (name === selectedGu) {
-            return [59, 130, 246, 60] // Blue with transparency
-          }
-          if (name === hoveredDistrict) {
-            return [156, 163, 175, 40] // Gray with transparency
-          }
-          return [255, 255, 255, 0] // Transparent
-        },
-        getLineColor: [107, 114, 128, 255], // Gray border
-        getLineWidth: 2,
+        getFillColor: (d: any) => getDistrictFillColor(
+          d.properties,
+          selectedGu,
+          selectedDong,
+          hoveredDistrict,
+          theme,
+          useUniqueColors
+        ),
+        getLineColor: (d: any) => getBorderColor(
+          d.properties,
+          selectedGu,
+          selectedDong,
+          hoveredDistrict
+        ),
+        getLineWidth: (d: any) => getLineWidth(
+          d.properties,
+          selectedGu,
+          selectedDong,
+          1.5
+        ),
         lineWidthMinPixels: 1,
-        lineWidthMaxPixels: 3,
-        onHover,
-        onClick,
+        lineWidthMaxPixels: 4,
+        lineCapRounded: true,
+        lineJointRounded: true,
+        autoHighlight: selectionMode === 'gu',
+        highlightColor: [59, 130, 246, 80],
+        onHover: selectionMode === 'gu' ? onHover : undefined,
+        onClick: selectionMode === 'gu' ? onClick : undefined,
         updateTriggers: {
-          getFillColor: [selectedGu, hoveredDistrict]
+          getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors],
+          getLineColor: [selectedGu, selectedDong, hoveredDistrict],
+          getLineWidth: [selectedGu, selectedDong]
+        },
+        transitions: {
+          getFillColor: { duration: 300, easing: x => x * x },
+          getLineColor: { duration: 200 },
+          getLineWidth: { duration: 200 }
         }
       })
     )
   }
 
-  // Dong (neighborhood) boundaries layer
-  if (showDongBoundaries && dongData && viewState.zoom > 11) {
+  // Dong (neighborhood) boundaries layer with enhanced visuals
+  if (showDongBoundaries && dongData) {
+    // Glow effect for selected dong
+    const selectedDongFeatures = getSelectedDongFeatures()
+    if (selectedDongFeatures && selectedDongFeatures.features.length > 0) {
+      layers.push(
+        new GeoJsonLayer({
+          id: 'dong-glow',
+          data: selectedDongFeatures,
+          pickable: false,
+          stroked: true,
+          filled: true,
+          getFillColor: STATE_COLORS.selected.glow,
+          getLineColor: STATE_COLORS.selected.border,
+          getLineWidth: 6,
+          lineWidthMinPixels: 3,
+          lineWidthMaxPixels: 8,
+          lineCapRounded: true,
+          lineJointRounded: true,
+          parameters: {
+            depthTest: false,
+            blend: true,
+            blendFunc: [770, 1],
+            blendEquation: 32774
+          }
+        })
+      )
+    }
+
+    // Main dong boundaries layer
     layers.push(
       new GeoJsonLayer({
         id: 'dong-boundaries',
         data: dongData,
-        pickable: true,
+        pickable: selectionMode === 'dong',
         stroked: true,
         filled: true,
         getFillColor: (d: any) => {
-          const dongName = d.properties?.ADM_DR_NM || d.properties?.dongName || d.properties?.DONG_NM
-          const guName = d.properties?.SIG_KOR_NM || d.properties?.SGG_NM || d.properties?.guName
+          const dongName = d.properties?.ADM_DR_NM ||
+                           d.properties?.dongName ||
+                           d.properties?.DONG_NM ||
+                           d.properties?.['행정동']
+          const guName = d.properties?.SIG_KOR_NM ||
+                          d.properties?.SGG_NM ||
+                          d.properties?.guName ||
+                          d.properties?.['자치구']
 
-          if (dongName === selectedDong || guName === selectedGu) {
-            return [59, 130, 246, 40] // Blue with transparency
+          const baseColor = getDistrictFillColor(
+            d.properties,
+            null,
+            null,
+            null,
+            theme,
+            useUniqueColors
+          )
+          const defaultFill = lightenColor(baseColor, 0.35, useUniqueColors ? 205 : 185)
+
+          // Enhanced selection states
+          if (dongName === selectedDong) {
+            return STATE_COLORS.selected.fill
           }
           if (dongName === hoveredDistrict) {
-            return [156, 163, 175, 30] // Gray with transparency
+            return STATE_COLORS.hover.fill
           }
-          return [255, 255, 255, 0] // Transparent
+          if (guName === selectedGu) {
+            return lightenColor(baseColor, 0.25, 210)
+          }
+
+          return defaultFill
         },
-        getLineColor: [156, 163, 175, 200], // Light gray border
-        getLineWidth: 1,
+        getLineColor: (d: any) => {
+          const dongName = d.properties?.ADM_DR_NM ||
+                           d.properties?.dongName ||
+                           d.properties?.DONG_NM ||
+                           d.properties?.['행정동']
+          const guName = d.properties?.SIG_KOR_NM ||
+                          d.properties?.SGG_NM ||
+                          d.properties?.guName ||
+                          d.properties?.['자치구']
+
+          const baseColor = getDistrictFillColor(
+            d.properties,
+            null,
+            null,
+            null,
+            theme,
+            useUniqueColors
+          )
+          const defaultBorder = lightenColor([255, 255, 255, 220], 0, 220)
+
+          if (dongName === selectedDong) {
+            return STATE_COLORS.selected.border
+          }
+          if (dongName === hoveredDistrict) {
+            return STATE_COLORS.hover.border
+          }
+          if (guName === selectedGu && selectionMode === 'dong') {
+            return [255, 255, 255, 230]
+          }
+
+          return [255, 255, 255, 210]
+        },
+        getLineWidth: (d: any) => {
+          const dongName = d.properties?.ADM_DR_NM ||
+                           d.properties?.dongName ||
+                           d.properties?.DONG_NM ||
+                           d.properties?.['행정동']
+          return dongName === selectedDong ? 2 : 1
+        },
         lineWidthMinPixels: 0.5,
-        lineWidthMaxPixels: 2,
-        onHover,
-        onClick,
+        lineWidthMaxPixels: 3,
+        lineCapRounded: true,
+        lineJointRounded: true,
+        autoHighlight: selectionMode === 'dong',
+        highlightColor: [59, 130, 246, 60],
+        onHover: selectionMode === 'dong' ? onHover : undefined,
+        onClick: selectionMode === 'dong' ? onClick : undefined,
         updateTriggers: {
-          getFillColor: [selectedGu, selectedDong, hoveredDistrict]
+          getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors],
+          getLineColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors],
+          getLineWidth: [selectedDong]
+        },
+        transitions: {
+          getFillColor: { duration: 250, easing: x => x * x },
+          getLineColor: { duration: 200 },
+          getLineWidth: { duration: 150 }
         }
       })
     )
   }
 
-  // Text labels for districts
+  // Enhanced text labels with modern styling
   if (showLabels) {
-    // Gu labels
+    // Gu labels with sophisticated styling
     if (showGuBoundaries && guData && viewState.zoom >= 10) {
       const guLabels = guData.features.map(feature => {
-        const name = feature.properties?.guName || feature.properties?.SGG_NM || ''
+        const name = feature.properties?.guName ||
+                     feature.properties?.SGG_NM ||
+                     feature.properties?.SIG_KOR_NM ||
+                     feature.properties?.['자치구'] ||
+                     ''
         const centroid = getFeatureCentroid(feature)
+        const isSelected = name === selectedGu
+        const isHovered = name === hoveredDistrict
+
         return {
           text: name,
           position: centroid,
-          size: viewState.zoom < 12 ? 14 : 16
+          size: isSelected ? 18 : (viewState.zoom < 12 ? 14 : 16),
+          color: isSelected ? STATE_COLORS.selected.border :
+                 isHovered ? STATE_COLORS.hover.border :
+                 [55, 65, 81, 255],
+          weight: isSelected ? 700 : 600
         }
       }).filter(label => label.text && label.position)
 
@@ -124,29 +336,55 @@ export function createDistrictBoundaryLayers({
           getText: d => d.text,
           getPosition: d => d.position,
           getSize: d => d.size,
-          getColor: [55, 65, 81, 255], // Dark gray
+          getColor: d => d.color,
           getTextAnchor: 'middle',
           getAlignmentBaseline: 'center',
-          fontFamily: '"Pretendard", "Noto Sans KR", sans-serif',
-          fontWeight: 600,
+          fontFamily: '"Pretendard Variable", "Pretendard", "Noto Sans KR", sans-serif',
+          fontWeight: d => d.weight,
           billboard: false,
-          backgroundPadding: [4, 2],
-          getBackgroundColor: [255, 255, 255, 200],
+          backgroundPadding: [6, 3],
+          getBackgroundColor: [255, 255, 255, 230],
           outlineWidth: 2,
-          outlineColor: [255, 255, 255, 255]
+          outlineColor: [255, 255, 255, 255],
+          characterSet: 'auto',
+          updateTriggers: {
+            getSize: [selectedGu, viewState.zoom],
+            getColor: [selectedGu, hoveredDistrict]
+          },
+          transitions: {
+            getSize: { duration: 200 },
+            getColor: { duration: 200 }
+          }
         })
       )
     }
 
-    // Dong labels (only at higher zoom levels)
+    // Dong labels with modern effects
     if (showDongBoundaries && dongData && viewState.zoom >= 13) {
       const dongLabels = dongData.features.map(feature => {
-        const name = feature.properties?.ADM_DR_NM || feature.properties?.dongName || feature.properties?.DONG_NM || ''
+        const name = feature.properties?.ADM_DR_NM ||
+                     feature.properties?.dongName ||
+                     feature.properties?.DONG_NM ||
+                     feature.properties?.['행정동'] ||
+                     ''
+        const guName = feature.properties?.SIG_KOR_NM ||
+                        feature.properties?.SGG_NM ||
+                        feature.properties?.guName ||
+                        feature.properties?.['자치구']
         const centroid = getFeatureCentroid(feature)
+        const isSelected = name === selectedDong
+        const isHovered = name === hoveredDistrict
+        const isParentSelected = guName === selectedGu
+
         return {
           text: name,
           position: centroid,
-          size: 12
+          size: isSelected ? 14 : 12,
+          color: isSelected ? STATE_COLORS.selected.border :
+                 isHovered ? STATE_COLORS.hover.border :
+                 isParentSelected ? [75, 85, 99, 255] :
+                 [107, 114, 128, 255],
+          weight: isSelected ? 600 : 400
         }
       }).filter(label => label.text && label.position)
 
@@ -157,16 +395,25 @@ export function createDistrictBoundaryLayers({
           getText: d => d.text,
           getPosition: d => d.position,
           getSize: d => d.size,
-          getColor: [107, 114, 128, 255], // Gray
+          getColor: d => d.color,
           getTextAnchor: 'middle',
           getAlignmentBaseline: 'center',
-          fontFamily: '"Pretendard", "Noto Sans KR", sans-serif',
-          fontWeight: 400,
+          fontFamily: '"Pretendard Variable", "Pretendard", "Noto Sans KR", sans-serif',
+          fontWeight: d => d.weight,
           billboard: false,
-          backgroundPadding: [3, 1],
-          getBackgroundColor: [255, 255, 255, 180],
+          backgroundPadding: [4, 2],
+          getBackgroundColor: [255, 255, 255, 210],
           outlineWidth: 1,
-          outlineColor: [255, 255, 255, 255]
+          outlineColor: [255, 255, 255, 255],
+          characterSet: 'auto',
+          updateTriggers: {
+            getSize: [selectedDong],
+            getColor: [selectedGu, selectedDong, hoveredDistrict]
+          },
+          transitions: {
+            getSize: { duration: 150 },
+            getColor: { duration: 150 }
+          }
         })
       )
     }
