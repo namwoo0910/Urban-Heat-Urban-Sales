@@ -8,17 +8,15 @@ import TransitionLink from "@/src/shared/components/navigation/TransitionLink"
 
 const projects = [
   {
-    title: "카드매출",
-    description: "카드 매출 데이터 시각화 및 분석.",
+    title: "온도와 매출 x AI",
+    description: "기온에 따른 매출 변화를 체험하세요.",
     imgSrc: "/images/seoul_economy.webp",
-    imgSrcFallback: "/images/seoul_economy.png",
     href: "/research/local-economy",
   },
   {
-    title: "행정구역 데이터",
-    description: "탐색적 데이터 분석 및 인사이트 도출.",
+    title: "우리 동네 x BigData",
+    description: "자치구, 행정동별 데이터를 탐색하세요.",
     imgSrc: "/images/eda.webp",
-    imgSrcFallback: "/images/eda.png",
     href: "/research/eda",
   },
 ]
@@ -34,10 +32,14 @@ export function Research() {
   const handleLocalEconomyHover = () => {
     router.prefetch('/research/local-economy')
 
-    // Preload local economy data files in background
-    geoJSONLoader.preload([
-      '/data/local_economy/local_economy_dong.geojson'
-    ]).catch(e => console.warn('Preload failed:', e))
+    geoJSONLoader
+      .preload(['/data/local_economy/local_economy_dong.geojson'])
+      .catch(e => console.warn('Preload failed:', e))
+  }
+
+  const hoverHandlers: Record<string, () => void> = {
+    '/research/eda': handleEDAHover,
+    '/research/local-economy': handleLocalEconomyHover,
   }
 
   return (
@@ -63,14 +65,10 @@ export function Research() {
               <TransitionLink href={project.href}>
                 <div
                   className="group relative block w-full h-[400px] overflow-hidden rounded-lg shadow-lg"
-                  onMouseEnter={
-                    project.title === "행정구역 데이터" ? handleEDAHover :
-                    project.title === "카드매출" ? handleLocalEconomyHover :
-                    undefined
-                  }
+                  onMouseEnter={hoverHandlers[project.href]}
                 >
                   <Image
-                    src={project.imgSrc || "/placeholder.svg"}
+                    src={project.imgSrc}
                     fill
                     alt={project.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
