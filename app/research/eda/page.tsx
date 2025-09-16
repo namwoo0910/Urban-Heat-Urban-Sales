@@ -2,7 +2,6 @@
 
 import { useRouter } from "next/navigation"
 import { useEffect } from "react"
-import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
 import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
 
 const features = [

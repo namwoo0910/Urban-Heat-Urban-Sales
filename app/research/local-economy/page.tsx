@@ -1,12 +1,8 @@
 "use client"
 
 import { lazy, Suspense } from "react"
-import FeatureCard from "@/src/features/data-portal/components/DataFeatureCard"
 import ResearchHeader from "@/src/features/data-portal/components/ResearchHeader"
 import { useState, useEffect } from "react"
-import { Button } from "@/src/shared/components/ui/button"
-import { Badge } from "@/src/shared/components/ui/badge"
-import { Map, Layers, Zap } from "lucide-react"
 
 // Dynamic imports for better performance
 const CardSalesDistrictMap = lazy(() => import("@/src/features/card-sales/components/CardSalesDistrictMap"))
