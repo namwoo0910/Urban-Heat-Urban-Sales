@@ -6,7 +6,6 @@ import { ScatterplotLayer } from '@deck.gl/layers'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
-import { BUSINESS_TYPE_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/businessTypeColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
 import { createStaticSeoulMeshLayer, useStaticSeoulMeshLayer, type SeoulMeshLayerProps } from './SeoulMeshLayer'
 

@@ -5,9 +5,8 @@ import type { LayerConfig, HexagonLayerData } from '../components/LayerManager'
 import { DEFAULT_LAYER_CONFIG } from '../components/LayerManager'
 import type { ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
-import { climateDataLoader } from '../utils/climateDataLoader'
+import { cardSalesDataLoader } from '../utils/cardSalesDataLoader'
 import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
-import { getCategoryOffset } from '../constants/categoryOffsets'
 
 interface UseLayerStateReturn {
   
@@ -378,12 +377,10 @@ export function useLayerState(): UseLayerStateReturn {
         const categorySales = item.salesByCategory[selectedBusinessType] || 0
         
         if (categorySales > 0) {
-          const offset = getCategoryOffset(selectedBusinessType)
-          
           categoryPoints.push({
             coordinates: [
-              item.coordinates[0] + offset.dx,
-              item.coordinates[1] + offset.dy
+              item.coordinates[0],
+              item.coordinates[1]
             ],
             weight: categorySales,
             businessType: selectedBusinessType,
@@ -414,12 +411,10 @@ export function useLayerState(): UseLayerStateReturn {
         if (categoryPoints.length >= MAX_POINTS) return
         if (sales < minSalesThreshold) return // Skip small sales in unfiltered view
         
-        const offset = getCategoryOffset(category)
-        
         categoryPoints.push({
           coordinates: [
-            item.coordinates[0] + offset.dx,
-            item.coordinates[1] + offset.dy
+            item.coordinates[0],
+            item.coordinates[1]
           ],
           weight: sales,
           middleCategory: category,
@@ -545,16 +540,16 @@ export function useLayerState(): UseLayerStateReturn {
 
   // 전체 데이터 로딩 함수
   const loadData = useCallback(async () => {
-    console.log('[ClimateDataLoader] 기후-카드매출 데이터 로딩 시작...')
+    console.log('[CardSalesDataLoader] 카드매출 데이터 로딩 시작...')
     setIsDataLoading(true)
     setDataError(null)
     
     try {
       // 기후-카드매출 데이터 로드
-      const data = await climateDataLoader.loadAllData(filterOptions)
+      const data = await cardSalesDataLoader.loadAllData(filterOptions)
       
-      console.log(`[ClimateDataLoader] 데이터 로딩 완료: ${data.length}개 포인트`)
-      console.log(`[ClimateDataLoader] 현재 필터 - 날짜: ${filterOptions.date || '전체'}`)
+      console.log(`[CardSalesDataLoader] 데이터 로딩 완료: ${data.length}개 포인트`)
+      console.log(`[CardSalesDataLoader] 현재 필터 - 날짜: ${filterOptions.date || '전체'}`)
       
       // 로드된 원본 데이터의 총 매출 확인
       let rawTotalSales = 0
@@ -567,7 +562,7 @@ export function useLayerState(): UseLayerStateReturn {
           })
         }
       })
-      console.log(`[ClimateDataLoader] 원본 데이터 총 매출: ${(rawTotalSales/100000000).toFixed(1)}억원`)
+      console.log(`[CardSalesDataLoader] 원본 데이터 총 매출: ${(rawTotalSales/100000000).toFixed(1)}억원`)
       
       // Apply hierarchical filters
       const filteredData = applyHierarchicalFilters(data)
@@ -583,7 +578,7 @@ export function useLayerState(): UseLayerStateReturn {
           })
         }
       })
-      console.log(`[ClimateDataLoader] 필터링 후 총 매출: ${(filteredTotalSales/100000000).toFixed(1)}억원`)
+      console.log(`[CardSalesDataLoader] 필터링 후 총 매출: ${(filteredTotalSales/100000000).toFixed(1)}억원`)
       
       // Create data points (always use simple mode now)
       const hexData = createSimpleDataPoints(filteredData)
@@ -591,16 +586,16 @@ export function useLayerState(): UseLayerStateReturn {
       setClimateData(data) // Keep original data
       setHexagonData(hexData) // Set filtered hexagon data
       
-      console.log(`[ClimateDataLoader] 필터링 후: climate=${filteredData.length}개, hexagon=${hexData.length}개`)
+      console.log(`[CardSalesDataLoader] 필터링 후: climate=${filteredData.length}개, hexagon=${hexData.length}개`)
       
       // 샘플 데이터 확인
       if (hexData.length > 0 && hexData[0].originalData) {
         const sample = hexData[0].originalData
-        console.log(`[ClimateDataLoader] 샘플 데이터 - 날짜: ${sample.date || sample.기준일자}, 지역: ${sample.guName} ${sample.dongName}`)
+        console.log(`[CardSalesDataLoader] 샘플 데이터 - 날짜: ${sample.date || sample.기준일자}, 지역: ${sample.guName} ${sample.dongName}`)
       }
       
     } catch (error) {
-      console.error('[ClimateDataLoader] 데이터 로드 실패:', error)
+      console.error('[CardSalesDataLoader] 데이터 로드 실패:', error)
       
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다'
       setDataError(`데이터 로드 실패: ${errorMessage}`)
