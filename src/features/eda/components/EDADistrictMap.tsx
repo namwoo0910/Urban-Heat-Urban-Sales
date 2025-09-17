@@ -39,15 +39,14 @@ export default function EDADistrictMap() {
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
 
-  // UI state
-  const [showGuBoundaries, setShowGuBoundaries] = useState(true)
-  const [showDongBoundaries, setShowDongBoundaries] = useState(true)
-  const [showLabels, setShowLabels] = useState(true)
-  const [showStats, setShowStats] = useState(false)
+  // UI state (fixed defaults without toggles)
+  const showGuBoundaries = true
+  const showDongBoundaries = true
+  const showLabels = true
 
   // Theme & interaction state
-  const [currentTheme, setCurrentTheme] = useState<ThemeKey>('ocean')
-  const [useUniqueColors, setUseUniqueColors] = useState(true)
+  const currentTheme: ThemeKey = 'ocean'
+  const useUniqueColors = true
   const [selectionMode, setSelectionMode] = useState<'gu' | 'dong'>('gu')
 
   // Load district data
@@ -111,14 +110,6 @@ export default function EDADistrictMap() {
       }
     }
   }, [getGuName, getDistrictName, selectionMode])
-
-  // Handle reset
-  const handleReset = useCallback(() => {
-    setSelectedGu(null)
-     setSelectedDong(null)
-    setHoveredDistrict(null)
-    setViewState(DEFAULT_SEOUL_VIEW)
-  }, [])
 
   // Create layers
   const layers = useMemo(() => {
@@ -253,27 +244,12 @@ export default function EDADistrictMap() {
       />
 
       <UIControls
-        showGuBoundaries={showGuBoundaries}
-        showDongBoundaries={showDongBoundaries}
-        showLabels={showLabels}
-        showStats={showStats}
-        selectedGu={selectedGu}
-        selectedDong={selectedDong}
-        currentTheme={currentTheme}
-        useUniqueColors={useUniqueColors}
         selectionMode={selectionMode}
-        onToggleGuBoundaries={setShowGuBoundaries}
-        onToggleDongBoundaries={setShowDongBoundaries}
-        onToggleLabels={setShowLabels}
-        onToggleStats={setShowStats}
-        onThemeChange={setCurrentTheme}
-        onToggleUniqueColors={setUseUniqueColors}
         onSelectionModeChange={setSelectionMode}
-        onReset={handleReset}
       />
 
       {/* Info Panel */}
-      {(selectedGu || hoveredDistrict) && (
+      {(selectedGu || selectedDong) && (
         <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4 max-w-xs">
           <div className="space-y-2">
             {selectedGu && (
@@ -286,12 +262,6 @@ export default function EDADistrictMap() {
               <div>
                 <span className="text-xs text-gray-500">선택된 동:</span>
                 <div className="font-semibold text-gray-800">{selectedDong}</div>
-              </div>
-            )}
-            {hoveredDistrict && !selectedGu && (
-              <div>
-                <span className="text-xs text-gray-500">호버:</span>
-                <div className="text-gray-700">{hoveredDistrict}</div>
               </div>
             )}
           </div>
