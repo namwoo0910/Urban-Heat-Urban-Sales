@@ -143,10 +143,10 @@ export function ResizablePanel({
           {/* Handle bar */}
           <div
             className={`w-1 h-full relative
-              ${isResizing 
-                ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]' 
-                : 'bg-gray-700/50 hover:bg-blue-500/70 hover:shadow-[0_0_8px_rgba(59,130,246,0.3)]'
-              } 
+              ${isResizing
+                ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
+                : 'bg-transparent hover:bg-blue-500/50 hover:shadow-[0_0_8px_rgba(59,130,246,0.3)]'
+              }
               transition-all duration-200`}
           >
             {/* Grip dots in center */}

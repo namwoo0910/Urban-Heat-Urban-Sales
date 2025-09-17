@@ -32,9 +32,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   const data = payload[0].payload
   
   return (
-    <div className="rounded-lg border border-gray-800/50 bg-black/90 backdrop-blur-md p-2 shadow-lg">
-      <div className="text-xs text-gray-300 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: '#DBDEE3' }}></div>
+    <div className="rounded-lg border border-gray-200/60 bg-white/95 backdrop-blur-sm p-2 shadow-lg">
+      <div className="text-xs text-gray-700 flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full shadow-sm" style={{ backgroundColor: '#3B82F6' }}></div>
         <span>매출액: {formatCurrency(data.sales)}</span>
       </div>
     </div>
@@ -124,7 +124,7 @@ export function MonthlySalesChart({
   if (isLoading) {
     return (
       <div className="w-full h-full flex items-center justify-center">
-        <div className="text-white">데이터 로딩 중...</div>
+        <div className="text-gray-700">데이터 로딩 중...</div>
       </div>
     )
   }
@@ -158,8 +158,8 @@ export function MonthlySalesChart({
 
       {/* 차트 제목 */}
       <div className="mb-2">
-        <h3 className="text-lg font-bold text-white mb-1">월별 매출액</h3>
-        <p className="text-sm text-gray-400">
+        <h3 className="text-lg font-bold text-gray-800 mb-1">월별 매출액</h3>
+        <p className="text-sm text-gray-600">
           2024년 카드매출 월별 추이 {locationText}
         </p>
       </div>
@@ -171,7 +171,7 @@ export function MonthlySalesChart({
             data={chartData}
             margin={{ top: 10, right: 20, bottom: 5, left: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} stroke="#374151" />
+            <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#E5E7EB" />
             
             <XAxis 
               dataKey="monthIndex"
@@ -182,23 +182,23 @@ export function MonthlySalesChart({
                 const monthNames = ['1월', '2월', '3월', '4월', '5월', '6월', '7월', '8월', '9월', '10월', '11월', '12월']
                 return monthNames[value] || ''
               }}
-              tick={{ fontSize: 12, fill: '#9CA3AF' }}
-              axisLine={{ stroke: '#4B5563' }}
-              tickLine={{ stroke: '#4B5563' }}
+              tick={{ fontSize: 12, fill: '#4B5563' }}
+              axisLine={{ stroke: '#E5E7EB', strokeOpacity: 0.5 }}
+              tickLine={{ stroke: '#E5E7EB', strokeOpacity: 0.5 }}
             />
             
             {/* 매출액 Y축 */}
             <YAxis 
               domain={yDomain}
               tickFormatter={(value) => `${value.toFixed(0)}억`}
-              tick={{ fontSize: 11, fill: '#9CA3AF' }}
-              axisLine={{ stroke: '#4B5563' }}
-              tickLine={{ stroke: '#4B5563' }}
-              label={{ 
-                value: '매출액 (억원)', 
-                angle: -90, 
+              tick={{ fontSize: 11, fill: '#4B5563' }}
+              axisLine={{ stroke: '#E5E7EB', strokeOpacity: 0.5 }}
+              tickLine={{ stroke: '#E5E7EB', strokeOpacity: 0.5 }}
+              label={{
+                value: '매출액 (억원)',
+                angle: -90,
                 position: 'insideLeft',
-                style: { textAnchor: 'middle', fill: '#9CA3AF' }
+                style: { textAnchor: 'middle', fill: '#6B7280' }
               }}
             />
             
@@ -210,21 +210,21 @@ export function MonthlySalesChart({
                 key={`weather-${event.date}-${index}`}
                 x={event.precisePosition}
                 stroke={event.color}
-                strokeOpacity={0.3}
-                strokeWidth={1.5}
+                strokeOpacity={0.5}
+                strokeWidth={2}
               />
             ))}
             
             {/* 매출액 Line */}
-            <Line 
+            <Line
               type="monotone"
               dataKey="formattedSales"
               name="매출액"
-              stroke="#DBDEE3"
-              strokeOpacity={0.9}
-              strokeWidth={2}
-              dot={{ fill: '#DBDEE3', fillOpacity: 0.9, strokeWidth: 1.5, r: 3 }}
-              activeDot={{ r: 5, stroke: '#DBDEE3', strokeWidth: 2 }}
+              stroke="#3B82F6"
+              strokeOpacity={1}
+              strokeWidth={3}
+              dot={{ fill: '#3B82F6', fillOpacity: 1, strokeWidth: 2, r: 4, filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3))' }}
+              activeDot={{ r: 6, stroke: '#3B82F6', strokeWidth: 2, fill: '#fff', filter: 'drop-shadow(0 2px 8px rgba(59, 130, 246, 0.5))' }}
             />
           </LineChart>
         </ResponsiveContainer>
@@ -232,16 +232,16 @@ export function MonthlySalesChart({
         {/* 날씨 이벤트 범례 - X축 중앙 아래 */}
         <div className="flex justify-center gap-6 mt-0 text-xs">
           <span className="flex items-center gap-1">
-            <span className="w-4 h-1 bg-blue-500"></span>
-            <span className="text-gray-400">한파</span>
+            <span className="w-4 h-1 bg-blue-500 shadow-sm"></span>
+            <span className="text-gray-600 font-medium">한파</span>
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-4 h-1 bg-green-500"></span>
-            <span className="text-gray-400">온화</span>
+            <span className="w-4 h-1 bg-emerald-500 shadow-sm"></span>
+            <span className="text-gray-600 font-medium">온화</span>
           </span>
           <span className="flex items-center gap-1">
-            <span className="w-4 h-1 bg-red-500"></span>
-            <span className="text-gray-400">폭염</span>
+            <span className="w-4 h-1 bg-red-500 shadow-sm"></span>
+            <span className="text-gray-600 font-medium">폭염</span>
           </span>
         </div>
       </div>

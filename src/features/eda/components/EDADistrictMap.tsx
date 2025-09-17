@@ -55,7 +55,7 @@ export default function EDADistrictMap() {
   const showGuBoundaries = true
   const showDongBoundaries = true
   const showLabels = true
-  const [showChartPanel, setShowChartPanel] = useState(false)
+  const showChartPanel = true // Always show chart panel
 
   // Theme & interaction state
   const currentTheme: ThemeKey = 'ocean'
@@ -293,8 +293,6 @@ export default function EDADistrictMap() {
       <UIControls
         selectionMode={selectionMode}
         onSelectionModeChange={handleSelectionModeChange}
-        showChartPanel={showChartPanel}
-        onToggleChartPanel={() => setShowChartPanel(!showChartPanel)}
       />
 
       {/* Filter panel */}
@@ -352,7 +350,7 @@ export default function EDADistrictMap() {
               initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
               minWidth={300}
               maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
-              className="h-full bg-white/95 backdrop-blur-sm shadow-lg"
+              className="h-full bg-transparent shadow-lg"
             >
               <div className="h-full p-4 overflow-y-auto">
                 <DefaultChartsPanel
