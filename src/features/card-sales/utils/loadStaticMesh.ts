@@ -531,3 +531,175 @@ export function clearMonthlyMeshCache(month?: string): void {
     // Debug log removed
   }
 }
+
+// =========================
+// AI Prediction mesh support
+// =========================
+
+interface PredictionMeshHeader {
+  format: string
+  version: string
+  type: string
+  scenario: string
+  date: string
+  resolution: number
+  vertices: number
+  triangles: number
+  positionsBytes: number
+  normalsBytes: number
+  texCoordsBytes: number
+  indicesBytes: number
+  bounds: {
+    minX: number
+    minY: number
+    maxX: number
+    maxY: number
+  }
+  center: {
+    x: number
+    y: number
+  }
+  generated: string
+  temperatureScenario?: string
+  averageSales?: number
+  totalDongs?: number
+}
+
+// Cache for prediction meshes
+const predictionMeshCache = new Map<string, MeshGeometry>()
+const predictionLoadingPromises = new Map<string, Promise<MeshGeometry>>()
+
+// Available temperature scenarios
+export const TEMPERATURE_SCENARIOS = [
+  { key: 't001', label: 'T+0.1°C' },
+  { key: 't005', label: 'T+0.5°C' },
+  { key: 't010', label: 'T+1.0°C' },
+  { key: 't100', label: 'T+10°C' }
+]
+
+/**
+ * Load AI prediction mesh for a specific date and temperature scenario
+ * @param dateCode - Date in YYYYMMDD format (e.g., '20240701')
+ * @param scenario - Temperature scenario key (e.g., 't001', 't005', 't010', 't100')
+ */
+export async function loadPredictionMesh(dateCode: string, scenario: string): Promise<MeshGeometry> {
+  const cacheKey = `${dateCode}-${scenario}`
+
+  // Return cached data if available
+  if (predictionMeshCache.has(cacheKey)) {
+    return predictionMeshCache.get(cacheKey)!
+  }
+
+  // If already loading, wait for existing promise
+  if (predictionLoadingPromises.has(cacheKey)) {
+    return predictionLoadingPromises.get(cacheKey)!
+  }
+
+  // Start loading
+  const loadingPromise = (async () => {
+    try {
+      // Load header file
+      const headerUrl = `/data/binary/prediction/seoul-mesh-pred-${dateCode}-${scenario}.header.json`
+      const headerResponse = await fetch(headerUrl)
+
+      if (!headerResponse.ok) {
+        throw new Error(`Failed to load prediction mesh header for ${dateCode}-${scenario}: ${headerResponse.status}`)
+      }
+
+      const header: PredictionMeshHeader = await headerResponse.json()
+
+      // Load binary data
+      const binaryUrl = `/data/binary/prediction/seoul-mesh-pred-${dateCode}-${scenario}.bin`
+      const binaryResponse = await fetch(binaryUrl)
+
+      if (!binaryResponse.ok) {
+        throw new Error(`Failed to load prediction mesh binary for ${dateCode}-${scenario}: ${binaryResponse.status}`)
+      }
+
+      const arrayBuffer = await binaryResponse.arrayBuffer()
+
+      // Parse binary data according to the new format (positions, normals, texCoords, indices)
+      const meshGeometry: MeshGeometry = {
+        positions: new Float32Array(0),
+        normals: new Float32Array(0),
+        texCoords: new Float32Array(0),
+        metadata: {
+          center: header.center
+        }
+      }
+
+      let offset = 0
+
+      // Extract positions
+      const positionCount = header.vertices * 3
+      meshGeometry.positions = new Float32Array(arrayBuffer, offset, positionCount)
+      offset += header.positionsBytes
+
+      // Extract normals
+      const normalCount = header.vertices * 3
+      meshGeometry.normals = new Float32Array(arrayBuffer, offset, normalCount)
+      offset += header.normalsBytes
+
+      // Extract texCoords
+      const texCoordCount = header.vertices * 2
+      meshGeometry.texCoords = new Float32Array(arrayBuffer, offset, texCoordCount)
+      offset += header.texCoordsBytes
+
+      // Extract indices if present
+      if (header.indicesBytes > 0) {
+        const indexCount = header.triangles * 3
+        meshGeometry.indices = new Uint32Array(arrayBuffer, offset, indexCount)
+      }
+
+      // Cache the result
+      predictionMeshCache.set(cacheKey, meshGeometry)
+      predictionLoadingPromises.delete(cacheKey)
+
+      return meshGeometry
+    } catch (error) {
+      predictionLoadingPromises.delete(cacheKey)
+      throw error
+    }
+  })()
+
+  predictionLoadingPromises.set(cacheKey, loadingPromise)
+  return loadingPromise
+}
+
+/**
+ * Check if a prediction mesh exists
+ */
+export async function hasPredictionMesh(dateCode: string, scenario: string): Promise<boolean> {
+  try {
+    const headerUrl = `/data/binary/prediction/seoul-mesh-pred-${dateCode}-${scenario}.header.json`
+    const resp = await fetch(headerUrl, { method: 'HEAD' })
+    return resp.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Get available prediction dates
+ */
+export function getAvailablePredictionDates(): string[] {
+  // Return July 2024 dates (1-31)
+  const dates: string[] = []
+  for (let day = 1; day <= 31; day++) {
+    dates.push(`202407${day.toString().padStart(2, '0')}`)
+  }
+  return dates
+}
+
+/**
+ * Clear prediction mesh cache
+ */
+export function clearPredictionMeshCache(cacheKey?: string): void {
+  if (cacheKey !== undefined) {
+    predictionMeshCache.delete(cacheKey)
+    predictionLoadingPromises.delete(cacheKey)
+  } else {
+    predictionMeshCache.clear()
+    predictionLoadingPromises.clear()
+  }
+}

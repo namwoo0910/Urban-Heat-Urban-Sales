@@ -9,15 +9,17 @@ import { COORDINATE_SYSTEM } from '@deck.gl/core'
 import { MaskExtension } from '@deck.gl/extensions'
 import { useMemo, useEffect, useState, useRef } from 'react'
 import { generateGridMesh, getHeightColor, type MeshGeometry, getUnifiedSeoulBoundary } from '../utils/meshGenerator'
-import { 
-  loadStaticSeoulMesh, 
-  checkStaticMeshExists, 
-  hasPreGeneratedMesh, 
+import {
+  loadStaticSeoulMesh,
+  checkStaticMeshExists,
+  hasPreGeneratedMesh,
   getNearestAvailableResolution,
   loadMonthlySeoulMesh,
   hasPreGeneratedMonthlyMesh,
   hasPreGeneratedDailyMesh,
-  loadDailySeoulMesh
+  loadDailySeoulMesh,
+  loadPredictionMesh,
+  hasPredictionMesh
 } from '../utils/loadStaticMesh'
 import * as turf from '@turf/turf'
 
@@ -159,10 +161,10 @@ export function createStaticSeoulMeshLayer(
   // Use center from metadata if available, otherwise use default
   const centerX = meshGeometry.metadata?.center?.x || 126.974139
   const centerY = meshGeometry.metadata?.center?.y || 37.564876
-  
+
   const layerProps: any = {
     id: 'seoul-mesh-layer-static',
-    data: [{ 
+    data: [{
       position: [centerX, centerY, 0]  // Center position from mesh metadata
     }],
     mesh: meshObject,
@@ -709,4 +711,102 @@ export function useStaticSeoulMeshLayer(
   // Use the new hook with default resolution 200 for backward compatibility
   const { layer } = usePreGeneratedSeoulMeshLayer({ ...props, resolution: 200 })
   return layer
+}
+
+/**
+ * React hook for AI prediction mesh layer
+ * Loads pre-generated prediction meshes based on date and temperature scenario
+ */
+export function usePredictionMeshLayer(
+  props: SeoulMeshLayerProps & {
+    predictionDate?: string  // YYYYMMDD format
+    temperatureScenario?: string  // 't001', 't005', 't010', 't100'
+  } = {}
+): { layer: SimpleMeshLayer | null; isLoading: boolean; error: Error | null } {
+  const {
+    predictionDate = '20240701',  // Default to July 1, 2024
+    temperatureScenario = 't001',  // Default to T+0.1°C
+    visible = true,
+    wireframe = false,
+    opacity = 0.8,
+    pickable = true,
+    onHover,
+    onClick,
+    color = '#FF00E1',  // Magenta for predictions
+    salesHeightScale = 100000000,
+    animatedOpacity
+  } = props
+
+  const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  // Load prediction mesh when date or scenario changes
+  useEffect(() => {
+    let cancelled = false
+
+    const loadMesh = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Check if prediction mesh exists
+        const exists = await hasPredictionMesh(predictionDate, temperatureScenario)
+        if (!exists) {
+          throw new Error(`No prediction mesh available for ${predictionDate} with scenario ${temperatureScenario}`)
+        }
+
+        // Load the prediction mesh
+        const data = await loadPredictionMesh(predictionDate, temperatureScenario)
+
+        if (!cancelled) {
+          setMeshData(data)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[usePredictionMeshLayer] Failed to load prediction mesh:', err)
+          setError(err as Error)
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadMesh()
+
+    return () => {
+      cancelled = true
+    }
+  }, [predictionDate, temperatureScenario])
+
+  // Create layer from mesh data
+  const layer = useMemo(() => {
+    if (!meshData || !visible) return null
+
+    return createStaticSeoulMeshLayer(meshData, {
+      visible,
+      wireframe,
+      opacity: animatedOpacity ?? opacity,
+      pickable,
+      onHover,
+      onClick,
+      color,
+      salesHeightScale
+    })
+  }, [
+    meshData,
+    visible,
+    wireframe,
+    opacity,
+    animatedOpacity,
+    pickable,
+    onHover,
+    onClick,
+    color,
+    salesHeightScale
+  ])
+
+  return { layer, isLoading: loading, error }
 }

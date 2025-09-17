@@ -9,7 +9,7 @@ import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import UnifiedControls from "./SalesDataControls"
 import { formatTooltip, formatScatterplotTooltip } from "./LayerManager"
-import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
+import { usePreGeneratedSeoulMeshLayer, usePredictionMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
 import { getDistrictCode as getDistrictCodeFromMapping, getDongCode as getDongCodeFromMapping } from "../data/districtCodeMappings"
@@ -72,11 +72,22 @@ const convertColorExpressionToRGB = (
 
 export default function CardSalesDistrictMap() {
   const mapRef = useRef<MapRef>(null)
+  const mapRefRight = useRef<MapRef>(null)  // Second map ref for AI prediction map
   const cleanupRef = useRef<(() => void)[]>([])
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   const [currentThemeKey, setCurrentThemeKey] = useState('blue') // Default to blue theme for districts
   const [themeAdjustments, setThemeAdjustments] = useState({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })
-  
+
+  // AI Prediction Mode State
+  const [isAIPredictionMode, setIsAIPredictionMode] = useState(false)
+  const [predictionDate, setPredictionDate] = useState('20240701') // Default July 1, 2024
+  const [temperatureScenario, setTemperatureScenario] = useState('t001') // Default T+0.1°C
+
+  // AI Prediction Toggle Handler
+  const handleAIPredictionToggle = useCallback(() => {
+    setIsAIPredictionMode(prev => !prev)
+  }, [])
+
   // Listen for theme adjustment changes
   useEffect(() => {
     const handleThemeAdjustments = (event: CustomEvent) => {
@@ -153,7 +164,15 @@ export default function CardSalesDistrictMap() {
 
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
-  
+
+  // Shared throttled handler for viewport changes - used by both maps
+  // This MUST be defined at the top level to follow React's Rules of Hooks
+  const handleViewStateChange = useMemo(() =>
+    throttle(({ viewState: newViewState }) => {
+      setViewState(newViewState as MapViewState)
+    }, 16), // 60fps
+  [setViewState])
+
   // 기본 뷰로 리셋하는 재사용 함수
   const resetToDefaultView = useCallback(() => {
     setViewState({
@@ -858,6 +877,19 @@ export default function CardSalesDistrictMap() {
     salesHeightScale: heightScale  // Use the same height scale as polygon layer
     // onHover and onClick removed - mesh layer is purely visual
   }, undefined)  // REMOVED: dongData3D dependency
+
+  // AI Prediction Mesh Layer
+  const { layer: predictionMeshLayer, isLoading: isPredictionLoading } = usePredictionMeshLayer({
+    predictionDate,
+    temperatureScenario,
+    visible: isAIPredictionMode,
+    wireframe: true,
+    opacity: 1,
+    color: dynamicMeshColor, // Use same color as main mesh layer
+    salesHeightScale: heightScale,
+    pickable: false  // Disabled to prevent tooltips and highlighting - mesh layer is purely visual
+    // No onHover handler needed
+  })
   
   
   // Load Seoul boundary data for unified layers
@@ -1422,13 +1454,20 @@ export default function CardSalesDistrictMap() {
     <div className="relative w-full h-screen flex">
       {/* Mesh Loading Overlay */}
       {/* Removed MeshLoadingOverlay */}
-      
-      {/* Map Section - Flexible Width */}
-      <div className={`relative flex-1 transition-all duration-300`}>
-        {/* 애니메이션 버튼 제거 - 성능 최적화 */}
-        
-        {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
-        <DeckGL
+
+      {/* Split View Container - Shows two maps when AI Prediction mode is active */}
+      <div className={`relative flex w-full h-full ${isAIPredictionMode ? 'gap-1' : ''}`}>
+        {/* Left Map (Current Sales) */}
+        <div className={`relative transition-all duration-500 ${isAIPredictionMode ? 'w-1/2' : 'w-full'}`}>
+          {/* Label for split view mode */}
+          {isAIPredictionMode && (
+            <div className="absolute top-4 left-4 z-20 bg-black/80 backdrop-blur-sm rounded-md px-3 py-2 border border-gray-800/50">
+              <div className="text-white text-sm font-semibold">현재 매출</div>
+            </div>
+          )}
+
+          {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
+          <DeckGL
         viewState={viewState}
         controller={{
           scrollZoom: {
@@ -1472,14 +1511,7 @@ export default function CardSalesDistrictMap() {
         onDragEnd={() => {
           setIsDragging(false) // 드래그 상태 해제
         }}
-        onViewStateChange={useMemo(() => 
-          throttle(({ viewState: newViewState }) => {
-            
-            // Update the viewState - DeckGL and MapGL sync automatically
-            setViewState(newViewState as MapViewState)
-            
-          }, 16), // 60fps
-        [setViewState])}
+        onViewStateChange={handleViewStateChange}
       >
         <MapGL
           ref={mapRef}
@@ -1525,9 +1557,91 @@ export default function CardSalesDistrictMap() {
           )}
         </MapGL>
       </DeckGL>
-      
+        </div>
+
+        {/* Right Map (AI Prediction) - Only shown when AI mode is active */}
+        {isAIPredictionMode && (
+          <div className="relative w-1/2 transition-all duration-500">
+            {/* Label for AI prediction map */}
+            <div className="absolute top-4 left-4 z-20 bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm rounded-md px-3 py-2 border border-purple-500/30">
+              <div className="text-white text-sm font-semibold">AI 예측</div>
+            </div>
+
+            {/* Second DeckGL instance for AI predictions */}
+            <DeckGL
+              viewState={viewState}
+              controller={{
+                scrollZoom: {
+                  speed: 0.005,
+                  smooth: true
+                },
+                dragPan: true,
+                dragRotate: true,
+                doubleClickZoom: true,
+                touchZoom: true,
+                touchRotate: true,
+                keyboard: true
+              }}
+              layers={predictionMeshLayer ? [predictionMeshLayer] : []} // AI prediction mesh layer
+              effects={[lightingEffect]}
+              getCursor={({isDragging: dragging, isHovering}) => {
+                if (dragging) return 'grabbing'
+                if (isHovering) return 'pointer'
+                return 'grab'
+              }}
+              parameters={{
+                blend: true,
+                blendFunc: [770, 771, 1, 771],
+                depthTest: true,
+                depthFunc: 513,
+              } as any}
+              _typedArrayManagerProps={{
+                overAlloc: 1.2,
+                poolSize: 100
+              }}
+              onViewStateChange={handleViewStateChange}
+            >
+              <MapGL
+                mapboxAccessToken={MAPBOX_TOKEN}
+                mapStyle={currentLayer === 'black' ? {
+                  version: 8,
+                  sources: {},
+                  layers: [{
+                    id: 'background',
+                    type: 'background',
+                    paint: {
+                      'background-color': '#000000'
+                    }
+                  }],
+                } : currentLayer === 'very-dark' ? 'mapbox://styles/mapbox/dark-v11' : currentLayer}
+                {...viewState}
+                reuseMaps
+                style={{ width: '100%', height: '100%' }}
+              >
+                {/* Semi-transparent overlay for very-dark mode */}
+                {currentLayer === 'very-dark' && (
+                  <div
+                    className="absolute inset-0 bg-black/70 pointer-events-none"
+                    style={{ mixBlendMode: 'multiply' }}
+                  />
+                )}
+              </MapGL>
+            </DeckGL>
+
+            {/* Placeholder for AI predictions */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <div className="bg-black/60 backdrop-blur-sm rounded-lg px-6 py-4 border border-purple-500/30">
+                <div className="text-gray-400 text-sm text-center">
+                  AI 예측 레이어가 여기에 표시됩니다
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Left-top overlay: date + average temperature */}
-      <div className="absolute z-10" style={{ top: '86px', left: '116px' }}>
+      <div className="absolute z-10" style={{ top: '86px', left: '276px' }}>
         <div
           className="bg-black/80 backdrop-blur-sm rounded-md px-3 py-2 border border-gray-800/50 flex flex-col gap-2 shadow-lg"
           style={{ margin: '5px' }}
@@ -1636,8 +1750,8 @@ export default function CardSalesDistrictMap() {
         // 높이 스케일 props
         heightScale={heightScale}
         onHeightScaleChange={setHeightScale}
-        
-        
+
+
         // Mesh layer props (always on, no toggle)
         // Wireframe always true - props removed
         // Mesh resolution fixed at 120 - props removed
@@ -1658,6 +1772,13 @@ export default function CardSalesDistrictMap() {
         onDayChange={handleDailyIndexChange}
         onSkipToStart={handleDailySkipToStart}
         onSkipToEnd={handleDailySkipToEnd}
+        // AI Prediction mode props
+        isAIPredictionMode={isAIPredictionMode}
+        onAIPredictionToggle={handleAIPredictionToggle}
+        predictionDate={predictionDate}
+        onPredictionDateChange={setPredictionDate}
+        temperatureScenario={temperatureScenario}
+        onTemperatureScenarioChange={setTemperatureScenario}
         />
 
       {/* 지도 초기화 버튼 */}
@@ -1688,9 +1809,6 @@ export default function CardSalesDistrictMap() {
           <div className="text-sm">{dataError}</div>
         </div>
       )}
-
-      </div>
-      
     </div>
   )
 }
