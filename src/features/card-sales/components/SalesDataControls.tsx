@@ -85,7 +85,7 @@ export default function UnifiedControls({
   const [isExpanded, setIsExpanded] = useState(true)
 
   return (
-    <div className={`fixed bottom-24 z-50 transition-all duration-300 left-4`}>
+    <div className={`fixed bottom-4 z-50 transition-all duration-300 left-4`}>
       <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[260px]' : 'w-auto'}`}>
         {/* Header with expand/collapse */}
         <div className="flex items-center">

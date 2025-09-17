@@ -2,12 +2,12 @@
  * EDA District Map Component
  *
  * Main map visualization for exploratory data analysis of Seoul districts.
- * Uses light theme by default for better data visibility.
+ * Enhanced with card sales filters and charts.
  */
 
 "use client"
 
-import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useMemo, useCallback, useRef, useEffect, lazy, Suspense } from 'react'
 import { throttle } from 'lodash-es'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import type { MapRef } from 'react-map-gl'
@@ -15,9 +15,18 @@ import type { MapRef } from 'react-map-gl'
 // Components
 import { MapContainer } from './MapContainer'
 import { UIControls } from './UIControls'
+import LocalEconomyFilterPanel from '@/src/features/card-sales/components/LocalEconomyFilterPanel'
+import type { FilterState } from '@/src/features/card-sales/components/LocalEconomyFilterPanel'
+
+// Lazy load heavy components
+const DefaultChartsPanel = lazy(() => import('@/src/features/card-sales/components/charts/DefaultChartsPanel'))
+const ResizablePanel = lazy(() => import('@/src/shared/components/ResizablePanel'))
 
 // Hooks
 import { useDistrictData } from '../hooks/useDistrictData'
+
+// Data and utilities
+import { getDistrictCode, getDongCode } from '@/src/features/card-sales/data/districtCodeMappings'
 
 // Constants
 import { DEFAULT_SEOUL_VIEW } from '../constants/mapConfig'
@@ -36,13 +45,17 @@ export default function EDADistrictMap() {
 
   // Selection state
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
+  const [selectedGuCode, setSelectedGuCode] = useState<number | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
+  const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
 
-  // UI state (fixed defaults without toggles)
+  // UI state
   const showGuBoundaries = true
   const showDongBoundaries = true
   const showLabels = true
+  const [showChartPanel, setShowChartPanel] = useState(false)
 
   // Theme & interaction state
   const currentTheme: ThemeKey = 'ocean'
@@ -88,7 +101,7 @@ export default function EDADistrictMap() {
     }
   }, [getDistrictName, getGuName, selectionMode])
 
-  // Handle click
+  // Handle click with district code mapping
   const handleClick = useCallback((info: PickingInfo) => {
     if (info.object) {
       const properties = info.object.properties || info.object
@@ -98,18 +111,51 @@ export default function EDADistrictMap() {
       if (selectionMode === 'gu') {
         if (guName) {
           setSelectedGu(guName)
+          setSelectedGuCode(getDistrictCode(guName) || null)
           setSelectedDong(null)
+          setSelectedDongCode(null)
         }
       } else {
         if (dongName && guName) {
           setSelectedGu(guName)
+          setSelectedGuCode(getDistrictCode(guName) || null)
           setSelectedDong(dongName)
+          setSelectedDongCode(getDongCode(guName, dongName) || null)
         } else if (guName) {
           setSelectedGu(guName)
+          setSelectedGuCode(getDistrictCode(guName) || null)
         }
       }
     }
   }, [getGuName, getDistrictName, selectionMode])
+
+  // Handle filter changes from LocalEconomyFilterPanel
+  const handleFilterChange = useCallback((filters: FilterState) => {
+    setSelectedGu(filters.selectedGu)
+    setSelectedGuCode(filters.selectedGuCode)
+    setSelectedDong(filters.selectedDong)
+    setSelectedDongCode(filters.selectedDongCode)
+    setSelectedBusinessType(filters.selectedBusinessType)
+  }, [])
+
+  // Handle selection mode change
+  const handleSelectionModeChange = useCallback((mode: 'gu' | 'dong') => {
+    setSelectionMode(mode)
+    // Clear dong selection when switching to gu mode
+    if (mode === 'gu') {
+      setSelectedDong(null)
+      setSelectedDongCode(null)
+    }
+  }, [])
+
+  // Reset selection
+  const handleReset = useCallback(() => {
+    setSelectedGu(null)
+    setSelectedGuCode(null)
+    setSelectedDong(null)
+    setSelectedDongCode(null)
+    setSelectedBusinessType(null)
+  }, [])
 
   // Create layers
   const layers = useMemo(() => {
@@ -207,6 +253,7 @@ export default function EDADistrictMap() {
     setHoveredDistrict(null)
     if (selectionMode === 'gu') {
       setSelectedDong(null)
+      setSelectedDongCode(null)
     }
   }, [selectionMode])
 
@@ -245,7 +292,18 @@ export default function EDADistrictMap() {
 
       <UIControls
         selectionMode={selectionMode}
-        onSelectionModeChange={setSelectionMode}
+        onSelectionModeChange={handleSelectionModeChange}
+        showChartPanel={showChartPanel}
+        onToggleChartPanel={() => setShowChartPanel(!showChartPanel)}
+      />
+
+      {/* Filter panel */}
+      <LocalEconomyFilterPanel
+        onFilterChange={handleFilterChange}
+        externalSelectedGu={selectedGu}
+        externalSelectedDong={selectedDong}
+        externalSelectedBusinessType={selectedBusinessType}
+        className="fixed bottom-4 left-4 z-50"
       />
 
       {/* Info Panel */}
@@ -264,9 +322,80 @@ export default function EDADistrictMap() {
                 <div className="font-semibold text-gray-800">{selectedDong}</div>
               </div>
             )}
+            {selectedBusinessType && (
+              <div>
+                <span className="text-xs text-gray-500">선택된 업종:</span>
+                <div className="font-semibold text-gray-800">{selectedBusinessType}</div>
+              </div>
+            )}
           </div>
         </div>
       )}
+
+      {/* Charts panel */}
+      {showChartPanel && (
+        <div
+          className="absolute top-0 right-0 h-full"
+          style={{
+            animation: 'slideInFromRight 0.5s ease-out'
+          }}
+        >
+          <Suspense fallback={
+            <div className="absolute bottom-4 right-4 bg-gray-100 p-4 rounded-lg shadow-lg">
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-gray-700"></div>
+                <span className="text-gray-700 text-sm">차트 로딩 중...</span>
+              </div>
+            </div>
+          }>
+            <ResizablePanel
+              initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
+              minWidth={300}
+              maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
+              className="h-full bg-white/95 backdrop-blur-sm shadow-lg"
+            >
+              <div className="h-full p-4 overflow-y-auto">
+                <DefaultChartsPanel
+                  selectedGu={selectedGu}
+                  selectedGuCode={selectedGuCode}
+                  selectedDong={selectedDong}
+                  selectedDongCode={selectedDongCode}
+                  selectedBusinessType={selectedBusinessType}
+                />
+              </div>
+            </ResizablePanel>
+          </Suspense>
+        </div>
+      )}
+
+      {/* Reset button */}
+      {(selectedGu || selectedDong || selectedBusinessType) && (
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30">
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-2 px-4 py-2 bg-white/90 hover:bg-white text-gray-700 rounded-lg shadow-lg transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>전체 보기</span>
+          </button>
+        </div>
+      )}
+
+      {/* CSS Animation Keyframes */}
+      <style jsx>{`
+        @keyframes slideInFromRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
     </div>
   )
 }

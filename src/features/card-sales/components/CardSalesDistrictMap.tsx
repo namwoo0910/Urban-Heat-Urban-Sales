@@ -11,10 +11,7 @@ import UnifiedControls from "./SalesDataControls"
 import { formatTooltip, formatScatterplotTooltip } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
-import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
-import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
-import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode as getDistrictCodeFromMapping, getDongCode as getDongCodeFromMapping } from "../data/districtCodeMappings"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
@@ -23,7 +20,6 @@ import { loadDistrictData, getCurrentTheme, getCurrentThemeKey } from "@/src/sha
 import { getDistrictCenter } from "../data/districtCenters"
 import { DEFAULT_SEOUL_VIEW } from "@/src/shared/utils/district3DUtils"
 import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getSimpleSalesColor, applyColorAdjustments } from "../utils/modernColorPalette"
-import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
 import { InlineMeshMonthToggle } from "./MeshMonthToggle"
@@ -77,7 +73,6 @@ const convertColorExpressionToRGB = (
 export default function CardSalesDistrictMap() {
   const mapRef = useRef<MapRef>(null)
   const cleanupRef = useRef<(() => void)[]>([])
-  const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   const [currentThemeKey, setCurrentThemeKey] = useState('blue') // Default to blue theme for districts
   const [themeAdjustments, setThemeAdjustments] = useState({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })
@@ -191,24 +186,6 @@ export default function CardSalesDistrictMap() {
     }
   }, [setViewState])
   
-  // Handle filter panel changes - simplified to prevent loops
-  const handleFilterChange = useCallback((filters: FilterState) => {
-    // Directly update states without checking current values
-    // This prevents unnecessary re-renders and loops
-    setSelectedGu(filters.selectedGu)
-    setSelectedGuCode(filters.selectedGuCode)
-    setSelectedDong(filters.selectedDong)
-    setSelectedDongCode(filters.selectedDongCode)
-    setSelectedBusinessType(filters.selectedBusinessType)
-    
-    // 필터에서 행정동 선택시 줌 제거 - 선택만 하고 카메라 이동 없음
-    // if (filters.selectedDong && filters.selectedGu) {
-    //   handleDistrictZoom(filters.selectedGu, filters.selectedDong)
-    // } else if (filters.selectedGu && !filters.selectedDong) {
-    //   // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
-    //   // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
-    // }
-  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, handleDistrictZoom])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
@@ -1453,7 +1430,19 @@ export default function CardSalesDistrictMap() {
         {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
         <DeckGL
         viewState={viewState}
-        controller={true}
+        controller={{
+          scrollZoom: {
+            speed: 0.005,  // 기본값(0.01)의 절반 - 더 세밀한 줌 컨트롤
+            smooth: true    // 부드러운 줌 전환 효과
+          },
+          // 다른 controller 옵션은 기본값 유지
+          dragPan: true,
+          dragRotate: true,
+          doubleClickZoom: true,
+          touchZoom: true,
+          touchRotate: true,
+          keyboard: true
+        }}
         layers={deckLayers} // Deck.gl layers for visualization
         effects={[lightingEffect]} // Add lighting for solid mesh rendering
         getTooltip={isDragging ? undefined : getTooltip} // 드래그 중 툴팁 비활성화로 성능 최적화
@@ -1538,7 +1527,7 @@ export default function CardSalesDistrictMap() {
       </DeckGL>
       
       {/* Left-top overlay: date + average temperature */}
-      <div className="absolute left-4 z-10" style={{ top: '86px' }}>
+      <div className="absolute z-10" style={{ top: '86px', left: '116px' }}>
         <div
           className="bg-black/80 backdrop-blur-sm rounded-md px-3 py-2 border border-gray-800/50 flex flex-col gap-2 shadow-lg"
           style={{ margin: '5px' }}
@@ -1642,18 +1631,6 @@ export default function CardSalesDistrictMap() {
       </div>
 
 
-      {/* LocalEconomy Filter Panel - Positioned properly above map */}
-      <LocalEconomyFilterPanel
-        onFilterChange={handleFilterChange}
-        // External sync props for bidirectional updates
-        externalSelectedGu={selectedGu}
-        externalSelectedDong={selectedDong}
-        externalSelectedBusinessType={selectedBusinessType}
-        // Timeline animation state
-      />
-
-
-
       {/* 통합 컨트롤 패널 */}
       <UnifiedControls
         // 높이 스케일 props
@@ -1714,126 +1691,6 @@ export default function CardSalesDistrictMap() {
 
       </div>
       
-      {/* Chart Open Button - Always visible at right edge */}
-      {!showChartPanel && (
-        <button
-          onClick={() => setShowChartPanel(true)}
-          className="fixed top-4 right-0 bg-black/90 backdrop-blur-md border-l border-t border-b border-gray-800/50 rounded-l-lg shadow-2xl hover:bg-gray-900/50 transition-all duration-300 z-40 group hover:pl-1"
-        >
-          <div className="py-6 px-3 flex flex-col items-center justify-center space-y-3">
-            {/* Icon */}
-            <svg 
-              className="w-5 h-5 text-blue-400 transition-transform duration-300"
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            
-            {/* Vertical Text */}
-            <div 
-              className="text-gray-200 font-bold text-sm tracking-wider"
-              style={{ 
-                writingMode: 'vertical-rl',
-                textOrientation: 'mixed'
-              }}
-            >
-              차트열기
-            </div>
-            
-            {/* Arrow Indicator */}
-            <svg 
-              className="w-4 h-4 text-gray-400 transition-transform duration-300 rotate-180"
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
-      )}
-      
-      {/* Chart Panel with Wing Button */}
-      <div 
-        className={`fixed top-0 right-0 h-full flex transition-all duration-500 z-40 ${
-          showChartPanel ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        {/* Wing Button - Vertical Tab */}
-        <button
-          onClick={() => setShowChartPanel(!showChartPanel)}
-          className="absolute top-4 -left-12 bg-black/90 backdrop-blur-md border-l border-t border-b border-gray-800/50 rounded-l-lg shadow-2xl hover:bg-gray-900/50 transition-all duration-300 group hover:pr-1"
-        >
-          <div className="py-6 px-3 flex flex-col items-center justify-center space-y-3">
-            {/* Icon */}
-            <svg 
-              className={`w-5 h-5 text-blue-400 transition-transform duration-300 ${
-                showChartPanel ? 'rotate-180' : ''
-              }`} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            
-            {/* Vertical Text */}
-            <div 
-              className="text-gray-200 font-bold text-sm tracking-wider"
-              style={{ 
-                writingMode: 'vertical-rl',
-                textOrientation: 'mixed'
-              }}
-            >
-              {showChartPanel ? '차트닫기' : '차트열기'}
-            </div>
-            
-            {/* Arrow Indicator */}
-            <svg 
-              className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${
-                showChartPanel ? 'rotate-0' : 'rotate-180'
-              }`}
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
-        
-        {/* Chart Panel */}
-        {showChartPanel && (
-          <ResizablePanel
-            initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
-            minWidth={300}
-            maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
-            className="h-screen bg-black/80 border-l border-gray-800/50"
-          >
-            <div className="h-full p-4 overflow-y-auto">
-              <DefaultChartsPanel 
-                selectedGu={selectedGu}
-                selectedGuCode={selectedGuCode}
-                selectedDong={selectedDong}
-                selectedDongCode={selectedDongCode}
-                selectedBusinessType={selectedBusinessType}
-              />
-            </div>
-          </ResizablePanel>
-        )}
-      </div>
     </div>
   )
 }
