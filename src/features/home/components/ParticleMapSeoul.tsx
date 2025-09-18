@@ -189,7 +189,7 @@ export function SeoulMapOptimized({
   // Amplitude animation refs for initial effect
   const amplitudeAnimationRef = useRef<number>(30.0) // Start at 2x higher amplitude for very dramatic scatter
   const animationStartTimeRef = useRef<number | null>(null)
-  const animationDurationRef = useRef<number>(20000) // 20 seconds animation for smoother convergence from greater distance
+  const animationDurationRef = useRef<number>(10000) // 10 seconds animation for smoother convergence from greater distance
   
   // Object pooling for animation optimization
   const animationPoolRef = useRef<{

@@ -47,14 +47,8 @@ interface UnifiedControlsProps {
   onDayChange?: (index: number) => void
   onSkipToStart?: () => void
   onSkipToEnd?: () => void
-  // AI Prediction mode
+  // AI Prediction mode - only for conditional UI
   isAIPredictionMode?: boolean
-  onAIPredictionToggle?: () => void
-  // AI Prediction controls
-  predictionDate?: string  // YYYYMMDD format
-  onPredictionDateChange?: (date: string) => void
-  temperatureScenario?: string  // 't001', 't005', 't010', 't100'
-  onTemperatureScenarioChange?: (scenario: string) => void
 }
 
 const PRESET_MESH_COLORS = [
@@ -89,63 +83,14 @@ export default function UnifiedControls({
   onSkipToStart,
   onSkipToEnd,
   // AI Prediction mode
-  isAIPredictionMode = false,
-  onAIPredictionToggle,
-  // AI Prediction controls
-  predictionDate = '20240701',
-  onPredictionDateChange,
-  temperatureScenario = 't001',
-  onTemperatureScenarioChange
+  isAIPredictionMode = false
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(true)
 
   return (
     <div className={`fixed bottom-4 z-50 transition-all duration-300`} style={{ left: '64px' }}>
-      {/* AI Prediction Toggle Button - Separate from main controls */}
-      <div className="mb-2">
-        <Button
-          onClick={onAIPredictionToggle}
-          className={`w-[200px] ${
-            isAIPredictionMode
-              ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white'
-              : 'bg-black/90 hover:bg-gray-900/90 text-gray-200 border border-gray-800/50'
-          } backdrop-blur-md shadow-2xl transition-all duration-300`}
-        >
-          <Brain size={16} className="mr-2" />
-          <span className="font-medium">AI 예측</span>
-          {isAIPredictionMode && <span className="ml-2 text-xs opacity-75">활성화</span>}
-        </Button>
-      </div>
-
-      {/* AI Prediction Controls - Only shown when AI mode is active */}
-      {isAIPredictionMode && (
-        <Card className="mb-2 bg-purple-900/20 backdrop-blur-md border-purple-600/30 shadow-lg text-gray-200 p-2">
-          <div className="space-y-2">
-            {/* Date Selector */}
-            <div className="space-y-1">
-              <Label className="text-purple-200 text-[11px]">예측 날짜 (2024년 7월)</Label>
-              <div className="flex items-center gap-1">
-                <Slider
-                  value={[parseInt(predictionDate.slice(-2)) - 1]}
-                  onValueChange={(value) => {
-                    const day = (value[0] + 1).toString().padStart(2, '0')
-                    onPredictionDateChange?.(`202407${day}`)
-                  }}
-                  min={0}
-                  max={30}
-                  step={1}
-                  className="flex-1 h-1"
-                />
-                <span className="text-[10px] text-purple-300 font-mono w-8">
-                  {parseInt(predictionDate.slice(-2))}일
-                </span>
-              </div>
-            </div>
-          </div>
-        </Card>
-      )}
-
-      <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[200px]' : 'w-auto'}`}>
+      {!isAIPredictionMode && (
+        <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[200px]' : 'w-auto'}`}>
         {/* Header with expand/collapse */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
@@ -294,7 +239,8 @@ export default function UnifiedControls({
             </motion.div>
           )}
         </AnimatePresence>
-      </Card>
+        </Card>
+      )}
     </div>
   )
 }

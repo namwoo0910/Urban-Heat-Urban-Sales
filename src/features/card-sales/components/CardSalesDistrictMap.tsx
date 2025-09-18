@@ -8,6 +8,7 @@ import type { MapRef } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import UnifiedControls from "./SalesDataControls"
+import DualLayerControls from "./DualLayerControls"
 import { formatTooltip, formatScatterplotTooltip } from "./LayerManager"
 import { usePreGeneratedSeoulMeshLayer, usePredictionMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
@@ -222,11 +223,19 @@ export default function CardSalesDistrictMap() {
   // District GeoJSON data - REMOVED: sggData not needed
   const [dongData, setDongData] = useState<any>(null)
 
-  // Animation states for AI prediction mode
-  const [isAnimating, setIsAnimating] = useState(false)
-  const [animationType, setAnimationType] = useState<'7days' | '31days' | null>(null)
-  const [animationDay, setAnimationDay] = useState(1)
-  const animationRef = useRef<NodeJS.Timeout | null>(null)
+  // Separate animation states for actual and prediction layers
+  // Actual data animation
+  const [isActualAnimating, setIsActualAnimating] = useState(false)
+  const [actualAnimationType, setActualAnimationType] = useState<'7days' | '31days' | null>(null)
+  const [actualAnimationDay, setActualAnimationDay] = useState(1)
+  const [actualDate, setActualDate] = useState('20240701') // Actual data date
+  const actualAnimationRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Prediction data animation
+  const [isPredictionAnimating, setIsPredictionAnimating] = useState(false)
+  const [predictionAnimationType, setPredictionAnimationType] = useState<'7days' | '31days' | null>(null)
+  const [predictionAnimationDay, setPredictionAnimationDay] = useState(1)
+  const predictionAnimationRef = useRef<NodeJS.Timeout | null>(null)
 
   // REMOVED: 3D polygon data states - 3D polygon layers not used
   
@@ -251,8 +260,11 @@ export default function CardSalesDistrictMap() {
   // Mesh layer is always on, no toggle needed
   // Wireframe always true - removed state
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
-  const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
-  const [useTemperatureColor, setUseTemperatureColor] = useState<boolean>(false)  // Toggle for temperature-based colors
+  // Separate color states for actual and prediction layers
+  const [actualMeshColor, setActualMeshColor] = useState<string>('#FFFFFF')  // Actual data mesh color
+  const [predictionMeshColor, setPredictionMeshColor] = useState<string>('#00CED1')  // Prediction mesh color (cyan)
+  const [useActualTemperatureColor, setUseActualTemperatureColor] = useState<boolean>(false)  // Temperature color for actual
+  const [usePredictionTemperatureColor, setUsePredictionTemperatureColor] = useState<boolean>(false)  // Temperature color for prediction
   const [timelineMode, setTimelineMode] = useState<'monthly'|'daily'>('daily')
   const [availableDailyDates, setAvailableDailyDates] = useState<string[]>([])
   const [selectedDailyIndex, setSelectedDailyIndex] = useState<number>(0)
@@ -403,13 +415,17 @@ export default function CardSalesDistrictMap() {
     return yearTempData.findIndex(d => d.date === overlayDateLabel)
   }, [overlayDateLabel, yearTempData])
 
-  // Get color for temperature
+  // Get color for temperature (5-degree intervals)
   const getTemperatureColor = (temp: number | null) => {
-    if (temp === null) return '#9ca3af'
-    if (temp <= 0) return '#60a5fa' // blue
-    if (temp <= 15) return '#34d399' // green
-    if (temp <= 25) return '#f59e0b' // amber
-    return '#ef4444' // red
+    if (temp === null) return '#9ca3af' // gray
+    if (temp <= 0) return '#60a5fa' // blue - Freezing
+    if (temp <= 5) return '#38bdf8' // light blue - Very Cold
+    if (temp <= 10) return '#22d3ee' // cyan - Cold
+    if (temp <= 15) return '#34d399' // green - Cool
+    if (temp <= 20) return '#facc15' // yellow - Mild
+    if (temp <= 25) return '#f59e0b' // orange - Warm
+    if (temp <= 30) return '#ef4444' // red - Hot
+    return '#dc2626' // dark red - Very Hot
   }
 
   // Match overlay height to info panel height
@@ -902,15 +918,24 @@ export default function CardSalesDistrictMap() {
     })
   }, [])  // Lighting configuration is constant
   
-  // Use pre-generated mesh layer for better performance with real sales data
-  const dynamicMeshColor = useMemo(() => {
+  // Separate dynamic colors for actual and prediction mesh layers
+  const dynamicActualMeshColor = useMemo(() => {
     // Use temperature-based color only if toggle is enabled
-    if (useTemperatureColor && overlayAvgTemp !== null) {
+    if (useActualTemperatureColor && overlayAvgTemp !== null) {
       return getTemperatureMeshHexColor(overlayAvgTemp)
     }
     // Otherwise use user-selected color
-    return meshColor
-  }, [useTemperatureColor, overlayAvgTemp, meshColor])
+    return actualMeshColor
+  }, [useActualTemperatureColor, overlayAvgTemp, actualMeshColor])
+
+  const dynamicPredictionMeshColor = useMemo(() => {
+    // Use temperature-based color only if toggle is enabled
+    if (usePredictionTemperatureColor && overlayAvgTemp !== null) {
+      return getTemperatureMeshHexColor(overlayAvgTemp)
+    }
+    // Otherwise use user-selected color
+    return predictionMeshColor
+  }, [usePredictionTemperatureColor, overlayAvgTemp, predictionMeshColor])
 
   const { layer: preGeneratedMeshLayer, isLoading: isMeshLoading } = usePreGeneratedSeoulMeshLayer({
     resolution: meshResolution,
@@ -919,10 +944,10 @@ export default function CardSalesDistrictMap() {
     opacity: 1,  // Wireframe opacity
     animatedOpacity: 0.8,  // Fixed opacity
     month: timelineMode === 'monthly' ? (selectedMeshMonth < 10 ? `20240${selectedMeshMonth}` : `2024${selectedMeshMonth}`) : undefined,
-    date: timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : undefined,
+    date: isAIPredictionMode ? actualDate : (timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : undefined),
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
-    color: dynamicMeshColor,  // Temperature-based sleek color
+    color: dynamicActualMeshColor,  // Temperature-based sleek color for actual data
     transitionMs: transitionMs,
     // REMOVED: dongBoundaries parameter - no 3D polygon data needed
     dongSalesMap: dongSalesMap,  // Pass sales data map
@@ -937,7 +962,7 @@ export default function CardSalesDistrictMap() {
     visible: isAIPredictionMode,
     wireframe: true,
     opacity: 1,
-    color: dynamicMeshColor, // Use same color as main mesh layer
+    color: dynamicPredictionMeshColor, // Separate color for prediction layer
     salesHeightScale: heightScale,
     pickable: false  // Disabled to prevent tooltips and highlighting - mesh layer is purely visual
     // No onHover handler needed
@@ -1047,26 +1072,22 @@ export default function CardSalesDistrictMap() {
       selectedGu, selectedDong, hoveredDistrict, showMeshLayer, preGeneratedMeshLayer,
       unifiedLayers, layerConfig, dongData])  // REMOVED: is3DMode, dongData3D, createDong3DPolygonLayersOptimized dependencies
   
-  // Animation control functions
-  const startAnimation = useCallback((type: '7days' | '31days') => {
-    setIsAnimating(true)
-    setAnimationType(type)
-    setAnimationDay(1)
+  // Separate animation control functions for actual and prediction layers
+  const startActualAnimation = useCallback((type: '7days' | '31days') => {
+    setIsActualAnimating(true)
+    setActualAnimationType(type)
+    setActualAnimationDay(1)
 
     const maxDays = type === '7days' ? 7 : 31
-    const scenarios = ['t001', 't005', 't010', 't100']
     let currentDay = 1
-    let currentScenarioIndex = 0
 
     const animate = () => {
-      // Update prediction date
+      // Update actual data date
       const dayStr = currentDay.toString().padStart(2, '0')
       const dateStr = `202407${dayStr}`
-      setPredictionDate(dateStr)
-      setTemperatureScenario(scenarios[currentScenarioIndex])
-      setAnimationDay(currentDay)
+      setActualAnimationDay(currentDay)
 
-      // Sync left layer (actual data) to the same date
+      // Update actual data layer to the corresponding date
       if (availableDailyDates.length > 0) {
         const dayIndex = availableDailyDates.findIndex(d => d === dateStr || d.includes(`07${dayStr}`))
         if (dayIndex !== -1) {
@@ -1080,31 +1101,75 @@ export default function CardSalesDistrictMap() {
       currentDay++
       if (currentDay > maxDays) {
         currentDay = 1
+      }
+
+      // Continue animation
+      actualAnimationRef.current = setTimeout(animate, 500) // 500ms per frame
+    }
+
+    animate()
+  }, [availableDailyDates, setSelectedDailyIndex, setSelectedMeshMonth])
+
+  const startPredictionAnimation = useCallback((type: '7days' | '31days') => {
+    setIsPredictionAnimating(true)
+    setPredictionAnimationType(type)
+    setPredictionAnimationDay(1)
+
+    const maxDays = type === '7days' ? 7 : 31
+    const scenarios = ['t001', 't005', 't010', 't100']
+    let currentDay = 1
+    let currentScenarioIndex = 0
+
+    const animate = () => {
+      // Update prediction date
+      const dayStr = currentDay.toString().padStart(2, '0')
+      const dateStr = `202407${dayStr}`
+      setPredictionDate(dateStr)
+      setTemperatureScenario(scenarios[currentScenarioIndex])
+      setPredictionAnimationDay(currentDay)
+
+      // Move to next frame
+      currentDay++
+      if (currentDay > maxDays) {
+        currentDay = 1
         currentScenarioIndex = (currentScenarioIndex + 1) % scenarios.length
       }
 
       // Continue animation
-      animationRef.current = setTimeout(animate, 500) // 500ms per frame
+      predictionAnimationRef.current = setTimeout(animate, 500) // 500ms per frame
     }
 
     animate()
-  }, [setPredictionDate, setTemperatureScenario, availableDailyDates, setSelectedDailyIndex, setSelectedMeshMonth])
+  }, [setPredictionDate, setTemperatureScenario])
 
-  const stopAnimation = useCallback(() => {
-    if (animationRef.current) {
-      clearTimeout(animationRef.current)
-      animationRef.current = null
+  const stopActualAnimation = useCallback(() => {
+    if (actualAnimationRef.current) {
+      clearTimeout(actualAnimationRef.current)
+      actualAnimationRef.current = null
     }
-    setIsAnimating(false)
-    setAnimationType(null)
-    setAnimationDay(1)
+    setIsActualAnimating(false)
+    setActualAnimationType(null)
+    setActualAnimationDay(1)
   }, [])
 
-  // Clean up animation on unmount
+  const stopPredictionAnimation = useCallback(() => {
+    if (predictionAnimationRef.current) {
+      clearTimeout(predictionAnimationRef.current)
+      predictionAnimationRef.current = null
+    }
+    setIsPredictionAnimating(false)
+    setPredictionAnimationType(null)
+    setPredictionAnimationDay(1)
+  }, [])
+
+  // Clean up animations on unmount
   useEffect(() => {
     return () => {
-      if (animationRef.current) {
-        clearTimeout(animationRef.current)
+      if (actualAnimationRef.current) {
+        clearTimeout(actualAnimationRef.current)
+      }
+      if (predictionAnimationRef.current) {
+        clearTimeout(predictionAnimationRef.current)
       }
     }
   }, [])
@@ -1691,7 +1756,10 @@ export default function CardSalesDistrictMap() {
                     {temperatureScenario === 't001' && '+0.1°C'}
                     {temperatureScenario === 't005' && '+0.5°C'}
                     {temperatureScenario === 't010' && '+1.0°C'}
+                    {temperatureScenario === 't050' && '+5°C'}
                     {temperatureScenario === 't100' && '+10°C'}
+                    {temperatureScenario === 't150' && '+15°C'}
+                    {temperatureScenario === 't200' && '+20°C'}
                   </div>
                 </div>
               </div>
@@ -1758,99 +1826,45 @@ export default function CardSalesDistrictMap() {
               </MapGL>
             </DeckGL>
 
-            {/* Unified Control Panel - Bottom Right */}
-            <div className="absolute bottom-4 right-4 z-20">
-              <div className="bg-black/85 backdrop-blur-md rounded-xl border border-purple-500/20 shadow-2xl overflow-hidden">
-                {/* Temperature Scenario Tabs */}
-                <div className="flex divide-x divide-purple-500/20">
-                  {[
-                    { value: 't001', label: '+0.1°C' },
-                    { value: 't005', label: '+0.5°C' },
-                    { value: 't010', label: '+1.0°C' },
-                    { value: 't100', label: '+10°C' }
-                  ].map(scenario => (
-                    <button
-                      key={scenario.value}
-                      onClick={() => setTemperatureScenario(scenario.value)}
-                      className={`px-3 py-2 text-xs font-medium transition-all ${
-                        temperatureScenario === scenario.value
-                          ? 'bg-gradient-to-b from-purple-600 to-purple-700 text-white'
-                          : 'text-purple-300 hover:bg-purple-900/30'
-                      }`}
-                    >
-                      {scenario.label}
-                    </button>
-                  ))}
-                </div>
+            {/* Dual Layer Controls - Show instead of unified panel when AI prediction is active */}
+            <DualLayerControls
+              // Actual layer props
+              isActualAnimating={isActualAnimating}
+              actualAnimationType={actualAnimationType}
+              actualAnimationDay={actualAnimationDay}
+              onStartActualAnimation={startActualAnimation}
+              onStopActualAnimation={stopActualAnimation}
+              actualMeshColor={actualMeshColor}
+              onActualMeshColorChange={setActualMeshColor}
+              useActualTemperatureColor={useActualTemperatureColor}
+              onUseActualTemperatureColorChange={setUseActualTemperatureColor}
+              actualDate={actualDate}
+              onActualDateChange={setActualDate}
 
-                {/* Playback Controls */}
-                <div className="p-2 space-y-1.5">
-                  {!isAnimating ? (
-                    <div className="flex gap-1">
-                      <button
-                        onClick={() => startAnimation('7days')}
-                        className="flex-1 bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-600 hover:to-pink-600 text-white px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 text-xs font-medium"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3l14 9-14 9V3z" />
-                        </svg>
-                        7일
-                      </button>
-                      <button
-                        onClick={() => startAnimation('31days')}
-                        className="flex-1 bg-gradient-to-r from-purple-600/80 to-pink-600/80 hover:from-purple-600 hover:to-pink-600 text-white px-3 py-1.5 rounded-lg transition-all flex items-center justify-center gap-1.5 text-xs font-medium"
-                      >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 3l14 9-14 9V3z" />
-                        </svg>
-                        31일
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Stop button and progress */}
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={stopAnimation}
-                          className="bg-red-600/80 hover:bg-red-600 text-white px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 text-xs font-medium"
-                        >
-                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <rect x="6" y="6" width="12" height="12" strokeWidth={2.5} />
-                          </svg>
-                          정지
-                        </button>
-                        <div className="flex-1 bg-purple-900/30 rounded-lg px-2.5 py-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-purple-200 text-[10px] font-medium">
-                              {animationType === '7days' ? '7일' : '31일'} 재생중
-                            </span>
-                            <span className="text-white text-xs font-bold">
-                              {animationDay}/{animationType === '7days' ? '7' : '31'}
-                            </span>
-                          </div>
-                          {/* Progress bar */}
-                          <div className="mt-1 h-1 bg-purple-950/50 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-purple-400 to-pink-400 transition-all duration-300"
-                              style={{
-                                width: `${(animationDay / (animationType === '7days' ? 7 : 31)) * 100}%`
-                              }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+              // Prediction layer props
+              isPredictionAnimating={isPredictionAnimating}
+              predictionAnimationType={predictionAnimationType}
+              predictionAnimationDay={predictionAnimationDay}
+              onStartPredictionAnimation={startPredictionAnimation}
+              onStopPredictionAnimation={stopPredictionAnimation}
+              predictionMeshColor={predictionMeshColor}
+              onPredictionMeshColorChange={setPredictionMeshColor}
+              usePredictionTemperatureColor={usePredictionTemperatureColor}
+              onUsePredictionTemperatureColorChange={setUsePredictionTemperatureColor}
+
+              // Prediction-specific props
+              predictionDate={predictionDate}
+              onPredictionDateChange={setPredictionDate}
+              temperatureScenario={temperatureScenario}
+              onTemperatureScenarioChange={setTemperatureScenario}
+            />
 
           </div>
         )}
 
         {/* Center Divider Line - Only shown in AI prediction mode */}
         {isAIPredictionMode && (
-          <div className="absolute left-1/2 top-0 bottom-0 w-[2px] -translate-x-1/2 z-30 pointer-events-none bg-gray-400/70"></div>
+          <div className="absolute left-1/2 top-0 bottom-0 w-[1px] -translate-x-1/2 z-30 pointer-events-none bg-gray-400/70"></div>
         )}
       </div>
 
@@ -1865,109 +1879,26 @@ export default function CardSalesDistrictMap() {
         }}
       >
         <div
-          className="bg-black/80 backdrop-blur-sm rounded-md px-3 py-2 border border-gray-800/50 flex flex-col gap-2 shadow-lg"
+          className="backdrop-blur-md rounded-lg px-3 py-2 flex items-center gap-4 shadow-lg"
           style={{ margin: '5px' }}
         >
-          {/* Date and Temperature Row */}
+          {/* Date and Temperature */}
           <div className="flex items-center gap-3">
-            <div className="text-white text-base font-semibold tracking-wide min-w-[80px] text-center">
+            <div className="text-white text-lg font-bold">
               {overlayDateLabel || '—'}
             </div>
-            <div className="text-cyan-300 text-base font-semibold min-w-[56px] text-center">
+            <div
+              className="text-lg font-bold"
+              style={{ color: getTemperatureColor(overlayAvgTemp) }}
+            >
               {overlayLoading ? '…' : (overlayAvgTemp !== null ? `${overlayAvgTemp.toFixed(1)}°C` : '—')}
             </div>
           </div>
-
-          {/* Year Temperature Chart */}
-          <div className="relative">
-              <svg width="200" height="40" className="overflow-visible">
-                {/* Background */}
-                <rect x="0" y="0" width="200" height="40" fill="#111111" rx="2" opacity="0.5" />
-
-                {/* Grid lines */}
-                <line x1="2" y1="20" x2="198" y2="20" stroke="#374151" strokeWidth="0.5" strokeDasharray="2,2" opacity="0.3" />
-
-                {/* Month markers */}
-                {[0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334].map((day, i) => {
-                  const x = 2 + (day / 365) * 196
-                  return (
-                    <g key={i}>
-                      <line x1={x} y1="36" x2={x} y2="40" stroke="#4b5563" strokeWidth="0.5" />
-                      <text x={x + 8} y="39" fill="#6b7280" fontSize="6" fontFamily="monospace">
-                        {['J','F','M','A','M','J','J','A','S','O','N','D'][i]}
-                      </text>
-                    </g>
-                  )
-                })}
-
-                {/* Temperature line */}
-                {yearTempGraphPath && (
-                  <path
-                    d={yearTempGraphPath}
-                    fill="none"
-                    stroke="url(#yearTempGradient)"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    opacity="0.9"
-                  />
-                )}
-
-                {/* Current date indicator */}
-                {currentDateIndex >= 0 && yearTempData.length > 0 && (
-                  <>
-                    {/* Vertical line */}
-                    <line
-                      x1={2 + (currentDateIndex / Math.max(1, yearTempData.length - 1)) * 196}
-                      y1="2"
-                      x2={2 + (currentDateIndex / Math.max(1, yearTempData.length - 1)) * 196}
-                      y2="38"
-                      stroke="#fbbf24"
-                      strokeWidth="1"
-                      opacity="0.8"
-                    />
-                    {/* Current point */}
-                    <circle
-                      cx={2 + (currentDateIndex / Math.max(1, yearTempData.length - 1)) * 196}
-                      cy={overlayAvgTemp !== null
-                        ? 40 - 2 - ((overlayAvgTemp - (-15)) / (35 - (-15))) * 36
-                        : 20}
-                      r="3"
-                      fill={getTemperatureColor(overlayAvgTemp)}
-                      stroke="#ffffff"
-                      strokeWidth="1.5"
-                    />
-                  </>
-                )}
-
-                {/* Gradient definition */}
-                <defs>
-                  <linearGradient id="yearTempGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                    <stop offset="0%" stopColor="#ef4444" />
-                    <stop offset="30%" stopColor="#f59e0b" />
-                    <stop offset="50%" stopColor="#34d399" />
-                    <stop offset="100%" stopColor="#60a5fa" />
-                  </linearGradient>
-                </defs>
-              </svg>
-
-              {/* Temperature scale labels */}
-              <div className="absolute -top-1 -left-4 text-[7px] text-gray-500 font-mono">35°</div>
-              <div className="absolute top-[15px] -left-4 text-[7px] text-gray-500 font-mono">10°</div>
-              <div className="absolute -bottom-1 -left-4 text-[7px] text-gray-500 font-mono">-15°</div>
-
-              {/* Loading indicator */}
-              {isLoadingYearData && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded">
-                  <div className="text-[8px] text-gray-400">Loading...</div>
-                </div>
-              )}
-            </div>
         </div>
       </div>
 
 
-      {/* 통합 컨트롤 패널 */}
+      {/* 통합 컨트롤 패널 - Always show for AI button and basic controls */}
       <UnifiedControls
         // 높이 스케일 props
         heightScale={heightScale}
@@ -1977,10 +1908,10 @@ export default function CardSalesDistrictMap() {
         // Mesh layer props (always on, no toggle)
         // Wireframe always true - props removed
         // Mesh resolution fixed at 120 - props removed
-        meshColor={meshColor}
-        onMeshColorChange={setMeshColor}
-        useTemperatureColor={useTemperatureColor}
-        onUseTemperatureColorChange={setUseTemperatureColor}
+        meshColor={actualMeshColor}
+        onMeshColorChange={setActualMeshColor}
+        useTemperatureColor={useActualTemperatureColor}
+        onUseTemperatureColorChange={setUseActualTemperatureColor}
         timelineMode={timelineMode}
         onTimelineModeChange={setTimelineMode}
         selectedMeshMonth={selectedMeshMonth}
@@ -1994,19 +1925,38 @@ export default function CardSalesDistrictMap() {
         onDayChange={handleDailyIndexChange}
         onSkipToStart={handleDailySkipToStart}
         onSkipToEnd={handleDailySkipToEnd}
-        // AI Prediction mode props
+        // AI Prediction mode - only pass the state for conditional UI
         isAIPredictionMode={isAIPredictionMode}
-        onAIPredictionToggle={handleAIPredictionToggle}
-        predictionDate={predictionDate}
-        onPredictionDateChange={handlePredictionDateChange}
-        temperatureScenario={temperatureScenario}
-        onTemperatureScenarioChange={setTemperatureScenario}
       />
+
+      {/* AI 예측 활성화 버튼 - 지도 초기화 버튼 위 */}
+      <button
+        onClick={handleAIPredictionToggle}
+        className={`absolute z-30 transition-all duration-300 px-4 py-2 rounded-lg shadow-2xl backdrop-blur-md text-sm font-medium ${
+          isAIPredictionMode
+            ? 'bg-purple-900/50 hover:bg-purple-900/60 text-purple-200 border border-purple-500/30'
+            : 'bg-black/90 hover:bg-gray-900/90 text-gray-200 border border-gray-800/50'
+        }`}
+        style={{
+          bottom: '70px',
+          left: '50%',
+          transform: 'translateX(-50%)'
+        }}
+      >
+        <span className="flex items-center gap-2 pointer-events-none">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+          <span>AI 예측</span>
+          {isAIPredictionMode && <span className="text-xs opacity-75">(활성화)</span>}
+        </span>
+      </button>
 
       {/* 지도 초기화 버튼 */}
       <button
         onClick={handleFullReset}
-        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 bg-black/90 hover:bg-gray-900/50 backdrop-blur-md text-gray-200 text-sm font-medium px-4 py-2 rounded-lg border border-gray-800/50 transition-all duration-200 shadow-2xl"
+        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[31] bg-black/90 hover:bg-gray-900/50 backdrop-blur-md text-gray-200 text-sm font-medium px-4 py-2 rounded-lg border border-gray-800/50 transition-all duration-200 shadow-2xl"
       >
         지도 초기화
       </button>
