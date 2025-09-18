@@ -1847,6 +1847,11 @@ export default function CardSalesDistrictMap() {
 
           </div>
         )}
+
+        {/* Center Divider Line - Only shown in AI prediction mode */}
+        {isAIPredictionMode && (
+          <div className="absolute left-1/2 top-0 bottom-0 w-[2px] -translate-x-1/2 z-30 pointer-events-none bg-gray-400/70"></div>
+        )}
       </div>
 
       {/* Left-top overlay: date + average temperature */}
@@ -1996,7 +2001,7 @@ export default function CardSalesDistrictMap() {
         onPredictionDateChange={handlePredictionDateChange}
         temperatureScenario={temperatureScenario}
         onTemperatureScenarioChange={setTemperatureScenario}
-        />
+      />
 
       {/* 지도 초기화 버튼 */}
       <button

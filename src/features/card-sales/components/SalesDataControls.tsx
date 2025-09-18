@@ -199,8 +199,8 @@ export default function UnifiedControls({
                   </span>
                 </div>
 
-                {/* Mode Toggle + Timeline Selector in One Row */}
-                {timelineMode === 'monthly' ? (
+                {/* Mode Toggle + Timeline Selector in One Row - Hide in AI mode */}
+                {!isAIPredictionMode && timelineMode === 'monthly' ? (
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
                       <span className="text-[9px] text-gray-400">월</span>
@@ -218,7 +218,7 @@ export default function UnifiedControls({
                       </button>
                     </div>
                   </div>
-                ) : (
+                ) : !isAIPredictionMode ? (
                   <div className="space-y-1">
                     <div className="flex items-center gap-1">
                       <span className="text-[9px] text-gray-400">일</span>
@@ -255,10 +255,10 @@ export default function UnifiedControls({
                       </button>
                     </div>
                   </div>
-                )}
+                ) : null}
 
-                {/* Color Quick Presets - Simplified */}
-                {!useTemperatureColor && (
+                {/* Color Quick Presets - Simplified - Hide in AI mode */}
+                {!isAIPredictionMode && !useTemperatureColor && (
                   <div className="flex items-center gap-1">
                     <Palette size={10} className="text-gray-500" />
                     {PRESET_MESH_COLORS.map(({ name, color, isGradient }) => (
