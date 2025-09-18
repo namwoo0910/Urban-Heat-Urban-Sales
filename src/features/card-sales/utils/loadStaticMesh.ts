@@ -548,6 +548,7 @@ interface PredictionMeshHeader {
   positionsBytes: number
   normalsBytes: number
   texCoordsBytes: number
+  colorsBytes?: number  // Add colors bytes field (optional for backward compatibility)
   indicesBytes: number
   bounds: {
     minX: number
@@ -644,6 +645,13 @@ export async function loadPredictionMesh(dateCode: string, scenario: string): Pr
       const texCoordCount = header.vertices * 2
       meshGeometry.texCoords = new Float32Array(arrayBuffer, offset, texCoordCount)
       offset += header.texCoordsBytes
+
+      // Extract colors if present (for gradient rendering)
+      if (header.colorsBytes && header.colorsBytes > 0) {
+        const colorCount = header.vertices * 4  // RGBA
+        meshGeometry.colors = new Float32Array(arrayBuffer, offset, colorCount)
+        offset += header.colorsBytes
+      }
 
       // Extract indices if present
       if (header.indicesBytes > 0) {

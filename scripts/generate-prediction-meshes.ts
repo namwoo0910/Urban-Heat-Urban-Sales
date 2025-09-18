@@ -129,7 +129,7 @@ function convertToBinary(
     maxY = Math.max(maxY, positions[i + 1])
   }
 
-  // Create header
+  // Create header (now includes colors)
   const header = {
     format: 'seoul-mesh-binary',
     version: '1.1',
@@ -142,6 +142,7 @@ function convertToBinary(
     positionsBytes: meshData.positions.byteLength,
     normalsBytes: meshData.normals.byteLength,
     texCoordsBytes: meshData.texCoords.byteLength,
+    colorsBytes: meshData.colors?.byteLength || 0,  // Add colors byte length
     indicesBytes: meshData.indices?.byteLength || 0,
     bounds: {
       minX: minX,
@@ -160,11 +161,12 @@ function convertToBinary(
 
   fs.writeFileSync(headerFile, JSON.stringify(header, null, 2))
 
-  // Create binary buffer
+  // Create binary buffer (now includes colors)
   const totalSize =
     meshData.positions.byteLength +
     meshData.normals.byteLength +
     meshData.texCoords.byteLength +
+    (meshData.colors?.byteLength || 0) +  // Include colors in total size
     (meshData.indices?.byteLength || 0)
 
   const buffer = Buffer.allocUnsafe(totalSize)
@@ -181,6 +183,12 @@ function convertToBinary(
   // Write texCoords
   Buffer.from(meshData.texCoords.buffer).copy(buffer, offset)
   offset += meshData.texCoords.byteLength
+
+  // Write colors
+  if (meshData.colors) {
+    Buffer.from(meshData.colors.buffer).copy(buffer, offset)
+    offset += meshData.colors.byteLength
+  }
 
   // Write indices
   if (meshData.indices) {

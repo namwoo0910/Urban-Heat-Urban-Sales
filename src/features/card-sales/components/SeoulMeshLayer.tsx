@@ -196,8 +196,8 @@ export function createStaticSeoulMeshLayer(
       }
       return hexToRgb(color)
     }),
-    // Disable vertex colors to allow getColor to work
-    vertexColors: false,
+    // Enable vertex colors for gradient rendering when available
+    vertexColors: true,
     material: {
       ambient: wireframe ? 0.6 : 0.8,   // Brighter ambient light
       diffuse: wireframe ? 0.9 : 1.0,   // Maximum diffuse
