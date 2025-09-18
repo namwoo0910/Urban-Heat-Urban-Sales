@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ChevronDown, Filter } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/components/ui/select"
 import { Button } from "@/src/shared/components/ui/button"
@@ -45,7 +47,10 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   // Timeline animation state
   isTimelineAnimating = false,
 }: LocalEconomyFilterPanelProps) {
-  
+
+  // Expand/collapse state
+  const [isExpanded, setIsExpanded] = useState(false)
+
   // Filter states
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
   const [selectedGuCode, setSelectedGuCode] = useState<number | null>(null)
@@ -213,9 +218,43 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   
   return (
     <div className={`fixed bottom-4 left-4 z-50 ${className}`}>
-      <Card className="bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 p-2 w-[300px]">
-        {/* First Row: 자치구 and 행정동 */}
-        <div className="flex gap-1 mb-1">
+      <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[300px]' : 'w-auto'}`}>
+        {/* Header with expand/collapse */}
+        <div className="flex items-center">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex-1 flex items-center justify-between p-2 hover:bg-gray-900/50 transition-colors group"
+          >
+            <div className="flex items-center space-x-1.5">
+              <Filter size={14} className="text-cyan-400" />
+              <span className="font-medium text-xs text-gray-200">필터</span>
+            </div>
+            <motion.div
+              animate={{ rotate: isExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300 transition-colors" />
+            </motion.div>
+          </button>
+        </div>
+
+        {/* Collapsible Content */}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              key="content"
+              initial="collapsed"
+              animate="open"
+              exit="collapsed"
+              variants={{
+                open: { opacity: 1, height: "auto" },
+                collapsed: { opacity: 0, height: 0 }
+              }}
+              transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+            >
+              <div className="p-2 space-y-1 border-t border-gray-800/50">
+                {/* First Row: 자치구 and 행정동 */}
+                <div className="flex gap-1">
           <div className="flex-1">
             <Select value={selectedGu || "전체"} onValueChange={handleGuChange}>
               <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
@@ -273,10 +312,10 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
               </SelectContent>
             </Select>
           </div>
-        </div>
-        
-        {/* Second Row: 업종 and 상세보기 버튼 */}
-        <div className="flex gap-1">
+                </div>
+
+                {/* Second Row: 업종 and 상세보기 버튼 */}
+                <div className="flex gap-1">
           <div className="flex-1">
             <Select 
               value={selectedBusinessType || "전체"} 
@@ -305,7 +344,11 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
             </Select>
           </div>
           
-        </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Card>
     </div>
   )

@@ -55,9 +55,9 @@ export function Header() {
           </div>
         </TransitionLink>
         
-        {/* Center: 데이터로 보는 서울 Button - Always centered */}
+        {/* Right: 데이터로 보는 서울 Button */}
         {pathname !== '/' && pathname !== '/research-section' && (
-          <div className="absolute left-1/2 transform -translate-x-1/2">
+          <div className="ml-auto">
             <TransitionLink href="/research-section">
               <motion.button
                 className="font-['Montserrat'] font-semibold text-white text-sm py-1.5 px-4 transition-all duration-300 hover:text-gray-300 uppercase tracking-wider"
