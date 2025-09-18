@@ -51,16 +51,16 @@ export default function EDADistrictMap() {
   const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
 
+  // Theme & interaction state
+  const [currentTheme, setCurrentTheme] = useState<ThemeKey>('ocean')
+  const useUniqueColors = currentTheme === 'modern' // Only use unique colors for modern theme
+  const [selectionMode, setSelectionMode] = useState<'gu' | 'dong'>('gu')
+
   // UI state
-  const showGuBoundaries = true
-  const showDongBoundaries = true
+  const showGuBoundaries = selectionMode === 'gu'
+  const showDongBoundaries = selectionMode === 'dong'
   const showLabels = true
   const showChartPanel = true // Always show chart panel
-
-  // Theme & interaction state
-  const currentTheme: ThemeKey = 'ocean'
-  const useUniqueColors = true
-  const [selectionMode, setSelectionMode] = useState<'gu' | 'dong'>('gu')
 
   // Load district data
   const { guData, dongData, isLoading, error } = useDistrictData()
@@ -138,6 +138,11 @@ export default function EDADistrictMap() {
     setSelectedBusinessType(filters.selectedBusinessType)
   }, [])
 
+  // Handle theme change
+  const handleThemeChange = useCallback((theme: string) => {
+    setCurrentTheme(theme as ThemeKey)
+  }, [])
+
   // Handle selection mode change
   const handleSelectionModeChange = useCallback((mode: 'gu' | 'dong') => {
     setSelectionMode(mode)
@@ -176,7 +181,8 @@ export default function EDADistrictMap() {
       onClick: handleClick,
       theme: currentTheme,
       useUniqueColors,
-      selectionMode
+      selectionMode,
+      fillEnabled: true
     })
 
     allLayers.push(...boundaryLayers)
@@ -298,6 +304,8 @@ export default function EDADistrictMap() {
       {/* Filter panel */}
       <LocalEconomyFilterPanel
         onFilterChange={handleFilterChange}
+        onThemeChange={handleThemeChange}
+        currentTheme={currentTheme}
         externalSelectedGu={selectedGu}
         externalSelectedDong={selectedDong}
         externalSelectedBusinessType={selectedBusinessType}
@@ -366,20 +374,18 @@ export default function EDADistrictMap() {
         </div>
       )}
 
-      {/* Reset button */}
-      {(selectedGu || selectedDong || selectedBusinessType) && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30">
-          <button
-            onClick={handleReset}
-            className="flex items-center gap-2 px-4 py-2 bg-white/90 hover:bg-white text-gray-700 rounded-lg shadow-lg transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            <span>전체 보기</span>
-          </button>
-        </div>
-      )}
+      {/* Map Reset Button - Always visible */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30">
+        <button
+          onClick={handleReset}
+          className="flex items-center gap-2 px-4 py-2 bg-white/95 hover:bg-blue-50/95 text-slate-700 hover:text-blue-700 rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-blue-100/50 hover:border-blue-200/70 font-medium"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>지도 초기화</span>
+        </button>
+      </div>
 
       {/* CSS Animation Keyframes */}
       <style jsx>{`

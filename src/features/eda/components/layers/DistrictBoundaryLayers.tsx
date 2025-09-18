@@ -13,7 +13,8 @@ import {
   getBorderColor,
   getLineWidth,
   STATE_COLORS,
-  type ThemeKey
+  type ThemeKey,
+  type RGBAColor
 } from '../../utils/edaColorPalette'
 
 function lightenColor(color: any, amount: number = 0.25, alpha?: number): number[] {
@@ -45,6 +46,7 @@ interface BoundaryLayerProps {
   theme?: ThemeKey
   useUniqueColors?: boolean
   selectionMode?: 'gu' | 'dong'
+  fillEnabled?: boolean
 }
 
 export function createDistrictBoundaryLayers({
@@ -61,7 +63,8 @@ export function createDistrictBoundaryLayers({
   onClick,
   theme = 'ocean',
   useUniqueColors = true,
-  selectionMode = 'gu'
+  selectionMode = 'gu',
+  fillEnabled = true
 }: BoundaryLayerProps): any[] {
   const layers = []
 
@@ -105,8 +108,8 @@ export function createDistrictBoundaryLayers({
           data: selectedFeatures,
           pickable: false,
           stroked: true,
-          filled: true,
-          getFillColor: STATE_COLORS.selected.glow,
+          filled: fillEnabled,
+          getFillColor: fillEnabled ? STATE_COLORS.selected.glow : [0, 0, 0, 0],
           getLineColor: STATE_COLORS.selected.border,
           getLineWidth: 8,
           lineWidthMinPixels: 4,
@@ -130,29 +133,69 @@ export function createDistrictBoundaryLayers({
         data: guData,
         pickable: selectionMode === 'gu',
         stroked: true,
-        filled: true,
-        getFillColor: (d: any) => getDistrictFillColor(
+        filled: fillEnabled,
+        getFillColor: (d: any) => fillEnabled ? getDistrictFillColor(
           d.properties,
           selectedGu,
           selectedDong,
           hoveredDistrict,
           theme,
           useUniqueColors
-        ),
-        getLineColor: (d: any) => getBorderColor(
-          d.properties,
-          selectedGu,
-          selectedDong,
-          hoveredDistrict
-        ),
-        getLineWidth: (d: any) => getLineWidth(
-          d.properties,
-          selectedGu,
-          selectedDong,
-          1.5
-        ),
-        lineWidthMinPixels: 1,
-        lineWidthMaxPixels: 4,
+        ) : [0, 0, 0, 0],
+        getLineColor: (d: any) => {
+          const guName = d.properties?.guName ||
+                         d.properties?.SGG_NM ||
+                         d.properties?.SIG_KOR_NM ||
+                         d.properties?.['자치구']
+
+          const isSelected = guName && guName === selectedGu
+          const isHovered = guName && guName === hoveredDistrict
+
+          if (isSelected) {
+            // For selected districts, use the same color as fill (no border effect)
+            const fillColor = getDistrictFillColor(
+              d.properties,
+              selectedGu,
+              selectedDong,
+              hoveredDistrict,
+              theme,
+              useUniqueColors
+            )
+            return fillColor
+          }
+
+          // For non-selected districts, get the base theme color and darken it
+          const fillColor = getDistrictFillColor(
+            d.properties,
+            null,
+            null,
+            null,
+            theme,
+            useUniqueColors
+          )
+
+          // Darken for border
+          const darkenFactor = isHovered ? 0.5 : 0.6
+          const borderColor = [
+            Math.round(fillColor[0] * darkenFactor),
+            Math.round(fillColor[1] * darkenFactor),
+            Math.round(fillColor[2] * darkenFactor),
+            255 // Full opacity for borders
+          ]
+
+          return borderColor as RGBAColor
+        },
+        getLineWidth: (d: any) => {
+          const baseWidth = fillEnabled ? 1.5 : 2.5 // Thicker lines when no fill
+          return getLineWidth(
+            d.properties,
+            selectedGu,
+            selectedDong,
+            baseWidth
+          )
+        },
+        lineWidthMinPixels: fillEnabled ? 1 : 2,
+        lineWidthMaxPixels: fillEnabled ? 4 : 6,
         lineCapRounded: true,
         lineJointRounded: true,
         autoHighlight: selectionMode === 'gu',
@@ -160,9 +203,9 @@ export function createDistrictBoundaryLayers({
         onHover: selectionMode === 'gu' ? onHover : undefined,
         onClick: selectionMode === 'gu' ? onClick : undefined,
         updateTriggers: {
-          getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors],
-          getLineColor: [selectedGu, selectedDong, hoveredDistrict],
-          getLineWidth: [selectedGu, selectedDong]
+          getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors, fillEnabled],
+          getLineColor: [selectedGu, selectedDong, hoveredDistrict, fillEnabled, theme, useUniqueColors],
+          getLineWidth: [selectedGu, selectedDong, fillEnabled]
         },
         transitions: {
           getFillColor: { duration: 300, easing: x => x * x },
@@ -184,8 +227,8 @@ export function createDistrictBoundaryLayers({
           data: selectedDongFeatures,
           pickable: false,
           stroked: true,
-          filled: true,
-          getFillColor: STATE_COLORS.selected.glow,
+          filled: fillEnabled,
+          getFillColor: fillEnabled ? STATE_COLORS.selected.glow : [0, 0, 0, 0],
           getLineColor: STATE_COLORS.selected.border,
           getLineWidth: 6,
           lineWidthMinPixels: 3,
@@ -209,81 +252,73 @@ export function createDistrictBoundaryLayers({
         data: dongData,
         pickable: selectionMode === 'dong',
         stroked: true,
-        filled: true,
+        filled: fillEnabled,
         getFillColor: (d: any) => {
-          const dongName = d.properties?.ADM_DR_NM ||
-                           d.properties?.dongName ||
-                           d.properties?.DONG_NM ||
-                           d.properties?.['행정동']
-          const guName = d.properties?.SIG_KOR_NM ||
-                          d.properties?.SGG_NM ||
-                          d.properties?.guName ||
-                          d.properties?.['자치구']
+          if (!fillEnabled) return [0, 0, 0, 0]
 
-          const baseColor = getDistrictFillColor(
+          // Use the theme-aware fill color function from edaColorPalette
+          return getDistrictFillColor(
             d.properties,
-            null,
-            null,
-            null,
+            selectedGu,
+            selectedDong,
+            hoveredDistrict,
             theme,
             useUniqueColors
           )
-          const defaultFill = lightenColor(baseColor, 0.35, useUniqueColors ? 205 : 185)
-
-          // Enhanced selection states
-          if (dongName === selectedDong) {
-            return STATE_COLORS.selected.fill
-          }
-          if (dongName === hoveredDistrict) {
-            return STATE_COLORS.hover.fill
-          }
-          if (guName === selectedGu) {
-            return lightenColor(baseColor, 0.25, 210)
-          }
-
-          return defaultFill
         },
         getLineColor: (d: any) => {
           const dongName = d.properties?.ADM_DR_NM ||
                            d.properties?.dongName ||
                            d.properties?.DONG_NM ||
                            d.properties?.['행정동']
-          const guName = d.properties?.SIG_KOR_NM ||
-                          d.properties?.SGG_NM ||
-                          d.properties?.guName ||
-                          d.properties?.['자치구']
 
-          const baseColor = getDistrictFillColor(
+          const isSelected = dongName && dongName === selectedDong
+          const isHovered = dongName && dongName === hoveredDistrict
+
+          if (isSelected) {
+            // For selected districts, use the same color as fill (no border effect)
+            const fillColor = getDistrictFillColor(
+              d.properties,
+              selectedGu,
+              selectedDong,
+              hoveredDistrict,
+              theme,
+              useUniqueColors
+            )
+            return fillColor
+          }
+
+          // For non-selected districts, get the base theme color and darken it
+          const fillColor = getDistrictFillColor(
             d.properties,
-            null,
+            null, // Don't pass selection state to get base color
             null,
             null,
             theme,
             useUniqueColors
           )
-          const defaultBorder = lightenColor([255, 255, 255, 220], 0, 220)
 
-          if (dongName === selectedDong) {
-            return STATE_COLORS.selected.border
-          }
-          if (dongName === hoveredDistrict) {
-            return STATE_COLORS.hover.border
-          }
-          if (guName === selectedGu && selectionMode === 'dong') {
-            return [255, 255, 255, 230]
-          }
+          // Darken for border
+          const darkenFactor = isHovered ? 0.5 : 0.6
+          const borderColor = [
+            Math.round(fillColor[0] * darkenFactor),
+            Math.round(fillColor[1] * darkenFactor),
+            Math.round(fillColor[2] * darkenFactor),
+            255 // Full opacity for borders
+          ]
 
-          return [255, 255, 255, 210]
+          return borderColor as RGBAColor
         },
         getLineWidth: (d: any) => {
           const dongName = d.properties?.ADM_DR_NM ||
                            d.properties?.dongName ||
                            d.properties?.DONG_NM ||
                            d.properties?.['행정동']
-          return dongName === selectedDong ? 2 : 1
+          const baseWidth = fillEnabled ? 1 : 2 // Thicker lines when no fill
+          return dongName === selectedDong ? baseWidth * 2 : baseWidth
         },
-        lineWidthMinPixels: 0.5,
-        lineWidthMaxPixels: 3,
+        lineWidthMinPixels: fillEnabled ? 0.5 : 1.5,
+        lineWidthMaxPixels: fillEnabled ? 3 : 5,
         lineCapRounded: true,
         lineJointRounded: true,
         autoHighlight: selectionMode === 'dong',
@@ -291,9 +326,9 @@ export function createDistrictBoundaryLayers({
         onHover: selectionMode === 'dong' ? onHover : undefined,
         onClick: selectionMode === 'dong' ? onClick : undefined,
         updateTriggers: {
-          getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors],
-          getLineColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors],
-          getLineWidth: [selectedDong]
+          getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors, fillEnabled],
+          getLineColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors, fillEnabled],
+          getLineWidth: [selectedDong, fillEnabled]
         },
         transitions: {
           getFillColor: { duration: 250, easing: x => x * x },

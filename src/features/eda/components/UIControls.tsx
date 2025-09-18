@@ -10,10 +10,10 @@ export function UIControls({
   onSelectionModeChange
 }: UIControlsProps) {
   return (
-    <div className="absolute bottom-6 right-6">
+    <div className="absolute bottom-20 left-1/2 transform -translate-x-1/2 z-30">
       {/* Selection mode buttons */}
-      <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4">
-        <div className="grid grid-cols-2 gap-2">
+      <div className="bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-3">
+        <div className="flex gap-2">
           <SelectionButton
             label="자치구"
             active={selectionMode === 'gu'}
@@ -42,8 +42,11 @@ function SelectionButton({ label, active, onClick }: SelectionButtonProps) {
       type="button"
       onClick={onClick}
       className={`
-        w-full px-4 py-2 text-sm rounded-md border transition-colors
-        ${active ? 'bg-blue-600 border-blue-600 text-white shadow-sm' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-100'}
+        px-4 py-2 text-sm rounded-md border transition-all duration-200 font-medium
+        ${active
+          ? 'bg-blue-600 border-blue-600 text-white shadow-sm hover:bg-blue-700'
+          : 'bg-white/95 border-blue-100/50 text-slate-700 hover:bg-blue-50/95 hover:text-blue-700 hover:border-blue-200/70'
+        }
       `}
     >
       {label}

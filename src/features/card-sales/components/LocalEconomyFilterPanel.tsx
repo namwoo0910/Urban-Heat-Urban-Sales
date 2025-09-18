@@ -20,6 +20,8 @@ import {
 
 interface LocalEconomyFilterPanelProps {
   onFilterChange?: (filters: FilterState) => void
+  onThemeChange?: (theme: string) => void
+  currentTheme?: string
   className?: string
   // External filter state synchronization
   externalSelectedGu?: string | null
@@ -39,6 +41,8 @@ export interface FilterState {
 
 const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   onFilterChange,
+  onThemeChange,
+  currentTheme = 'ocean',
   className = "",
   // External filter state synchronization
   externalSelectedGu,
@@ -216,24 +220,44 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType]) // Remove onFilterChange dependency
   
   
+  // Theme colors for map
+  const themes = [
+    // Vibrant themes
+    { id: 'ocean', color: '#0C2C84', label: 'Ocean' },
+    { id: 'aurora', color: '#FF1493', label: 'Aurora' },
+    { id: 'sunset', color: '#FF5E4D', label: 'Sunset' },
+    { id: 'hologram', color: '#7828C8', label: 'Hologram' },
+    { id: 'modern', color: '#2980B9', label: 'Modern' },
+    { id: 'cyberpunk', color: '#FF0096', label: 'Cyberpunk' },
+    // Pastel themes
+    { id: 'pastelBlue', color: '#ADD8E6', label: 'Pastel Blue' },
+    { id: 'pastelPink', color: '#FFB6C1', label: 'Pastel Pink' },
+    { id: 'pastelGreen', color: '#98FB98', label: 'Pastel Green' },
+    { id: 'pastelPurple', color: '#DDA0DD', label: 'Pastel Purple' },
+    { id: 'pastelYellow', color: '#FFFACD', label: 'Pastel Yellow' },
+    { id: 'pastelCoral', color: '#FFDAB9', label: 'Pastel Coral' },
+    { id: 'pastelGray', color: '#D3D3D3', label: 'Pastel Gray' },
+    { id: 'pastelMint', color: '#BDFCEE', label: 'Pastel Mint' }
+  ]
+
   return (
     <div className={`fixed bottom-4 left-4 z-50 ${className}`}>
-      <Card className={`bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 overflow-hidden ${isExpanded ? 'w-[300px]' : 'w-auto'}`}>
+      <Card className={`bg-white/95 backdrop-blur-md border-blue-100/50 shadow-xl text-slate-700 overflow-hidden ${isExpanded ? 'w-[300px]' : 'w-auto'}`}>
         {/* Header with expand/collapse */}
         <div className="flex items-center">
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="flex-1 flex items-center justify-between p-2 hover:bg-gray-900/50 transition-colors group"
+            className="flex-1 flex items-center justify-between p-2 hover:bg-blue-50/50 transition-colors group"
           >
             <div className="flex items-center space-x-1.5">
-              <Filter size={14} className="text-cyan-400" />
-              <span className="font-medium text-xs text-gray-200">필터</span>
+              <Filter size={14} className="text-blue-600" />
+              <span className="font-medium text-xs text-slate-700">필터</span>
             </div>
             <motion.div
               animate={{ rotate: isExpanded ? 180 : 0 }}
               transition={{ duration: 0.2 }}
             >
-              <ChevronDown className="w-3.5 h-3.5 text-gray-500 group-hover:text-gray-300 transition-colors" />
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-colors" />
             </motion.div>
           </button>
         </div>
@@ -252,18 +276,18 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
               }}
               transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
             >
-              <div className="p-2 space-y-1 border-t border-gray-800/50">
+              <div className="p-2 space-y-1 border-t border-blue-100/50">
                 {/* First Row: 자치구 and 행정동 */}
                 <div className="flex gap-1">
           <div className="flex-1">
             <Select value={selectedGu || "전체"} onValueChange={handleGuChange}>
-              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
+              <SelectTrigger className="bg-white border-gray-200 text-slate-700 h-7 text-xs px-2 hover:border-blue-300">
                 <SelectValue placeholder="자치구" />
               </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-white border-gray-200 max-h-64 overflow-y-auto">
                 <SelectItem 
                   value="전체"
-                  className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
+                  className="text-slate-700 hover:bg-blue-50 font-semibold border-b border-gray-200"
                 >
                   전체 자치구
                 </SelectItem>
@@ -271,7 +295,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={district} 
                     value={district}
-                    className="text-gray-200 hover:bg-gray-900/50"
+                    className="text-slate-700 hover:bg-blue-50"
                   >
                     {district}
                   </SelectItem>
@@ -286,16 +310,16 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
               onValueChange={handleDongChange}
               disabled={!selectedGu}
             >
-              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 disabled:opacity-50 h-7 text-xs px-2">
+              <SelectTrigger className="bg-white border-gray-200 text-slate-700 disabled:opacity-50 h-7 text-xs px-2 hover:border-blue-300">
                 <SelectValue>
                   {selectedDong || "전체 행정동"}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-white border-gray-200 max-h-64 overflow-y-auto">
                 {selectedGu && (
                   <SelectItem 
                     value="전체"
-                    className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
+                    className="text-slate-700 hover:bg-blue-50 font-semibold border-b border-gray-200"
                   >
                     전체 행정동
                   </SelectItem>
@@ -304,7 +328,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={dong} 
                     value={dong}
-                    className="text-gray-200 hover:bg-gray-900/50"
+                    className="text-slate-700 hover:bg-blue-50"
                   >
                     {dong}
                   </SelectItem>
@@ -321,13 +345,13 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
               value={selectedBusinessType || "전체"} 
               onValueChange={handleBusinessTypeChange}
             >
-              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
+              <SelectTrigger className="bg-white border-gray-200 text-slate-700 h-7 text-xs px-2 hover:border-blue-300">
                 <SelectValue placeholder="업종" />
               </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-white border-gray-200 max-h-64 overflow-y-auto">
                 <SelectItem 
                   value="전체"
-                  className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
+                  className="text-slate-700 hover:bg-blue-50 font-semibold border-b border-gray-200"
                 >
                   전체 업종
                 </SelectItem>
@@ -335,7 +359,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={category} 
                     value={category}
-                    className="text-gray-200 hover:bg-gray-900/50"
+                    className="text-slate-700 hover:bg-blue-50"
                   >
                     {category}
                   </SelectItem>
@@ -344,6 +368,38 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
             </Select>
           </div>
           
+                </div>
+
+                {/* Theme Selector - Compact color dots */}
+                <div className="flex flex-col gap-1 pt-1 mt-1 border-t border-blue-100/50">
+                  <div className="flex gap-1 items-center">
+                    <span className="text-[10px] text-gray-500 self-center mr-1">색상:</span>
+                    <div className="flex gap-1 items-center flex-wrap">
+                      {themes.slice(0, 6).map(theme => (
+                        <button
+                          key={theme.id}
+                          onClick={() => onThemeChange?.(theme.id)}
+                          className={`w-4 h-4 rounded-full transition-all ${currentTheme === theme.id ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
+                          style={{ backgroundColor: theme.color }}
+                          title={theme.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 items-center">
+                    <span className="text-[10px] text-gray-500 self-center mr-1">파스텔:</span>
+                    <div className="flex gap-1 items-center flex-wrap">
+                      {themes.slice(6).map(theme => (
+                        <button
+                          key={theme.id}
+                          onClick={() => onThemeChange?.(theme.id)}
+                          className={`w-4 h-4 rounded-full transition-all ${currentTheme === theme.id ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
+                          style={{ backgroundColor: theme.color }}
+                          title={theme.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </motion.div>
@@ -361,7 +417,9 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     prevProps.externalSelectedBusinessType === nextProps.externalSelectedBusinessType &&
     prevProps.isTimelineAnimating === nextProps.isTimelineAnimating &&
     prevProps.className === nextProps.className &&
-    prevProps.onFilterChange === nextProps.onFilterChange
+    prevProps.onFilterChange === nextProps.onFilterChange &&
+    prevProps.currentTheme === nextProps.currentTheme &&
+    prevProps.onThemeChange === nextProps.onThemeChange
   )
 })
 

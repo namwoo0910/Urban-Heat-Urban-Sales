@@ -262,7 +262,7 @@ export default function CardSalesDistrictMap() {
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
   // Separate color states for actual and prediction layers
   const [actualMeshColor, setActualMeshColor] = useState<string>('#FFFFFF')  // Actual data mesh color
-  const [predictionMeshColor, setPredictionMeshColor] = useState<string>('#00CED1')  // Prediction mesh color (cyan)
+  const [predictionMeshColor, setPredictionMeshColor] = useState<string>('#FFD700')  // Prediction mesh color (yellow)
   const [useActualTemperatureColor, setUseActualTemperatureColor] = useState<boolean>(false)  // Temperature color for actual
   const [usePredictionTemperatureColor, setUsePredictionTemperatureColor] = useState<boolean>(false)  // Temperature color for prediction
   const [timelineMode, setTimelineMode] = useState<'monthly'|'daily'>('daily')

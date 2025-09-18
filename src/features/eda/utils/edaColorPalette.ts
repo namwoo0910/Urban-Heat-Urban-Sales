@@ -68,6 +68,87 @@ export const DISTRICT_GRADIENTS = {
       [0, 255, 255],      // Cyan
       [255, 255, 255]     // White
     ] as RGBAColor[]
+  },
+  // Pastel tone themes
+  pastelBlue: {
+    name: 'Pastel Blue',
+    colors: [
+      [173, 216, 230],    // Light blue
+      [176, 224, 230],    // Powder blue
+      [191, 239, 255],    // Alice blue
+      [135, 206, 235],    // Sky blue
+      [135, 206, 250]     // Light sky blue
+    ] as RGBAColor[]
+  },
+  pastelPink: {
+    name: 'Pastel Pink',
+    colors: [
+      [255, 182, 193],    // Light pink
+      [255, 192, 203],    // Pink
+      [255, 218, 225],    // Misty rose
+      [252, 202, 214],    // Rose pink
+      [244, 194, 194]     // Soft pink
+    ] as RGBAColor[]
+  },
+  pastelGreen: {
+    name: 'Pastel Green',
+    colors: [
+      [152, 251, 152],    // Pale green
+      [193, 225, 193],    // Sage green
+      [216, 240, 211],    // Tea green
+      [183, 240, 190],    // Mint green
+      [208, 240, 192]     // Pale lime
+    ] as RGBAColor[]
+  },
+  pastelPurple: {
+    name: 'Pastel Purple',
+    colors: [
+      [230, 230, 250],    // Lavender
+      [216, 191, 216],    // Thistle
+      [221, 160, 221],    // Plum
+      [218, 189, 246],    // Light purple
+      [199, 177, 214]     // Lilac
+    ] as RGBAColor[]
+  },
+  pastelYellow: {
+    name: 'Pastel Yellow',
+    colors: [
+      [255, 253, 208],    // Cream
+      [255, 250, 205],    // Lemon chiffon
+      [255, 255, 224],    // Light yellow
+      [250, 250, 210],    // Light goldenrod
+      [255, 248, 198]     // Buttercup
+    ] as RGBAColor[]
+  },
+  pastelCoral: {
+    name: 'Pastel Coral',
+    colors: [
+      [255, 218, 185],    // Peach puff
+      [255, 228, 196],    // Bisque
+      [255, 204, 180],    // Peach
+      [250, 200, 178],    // Apricot
+      [255, 192, 178]     // Salmon pink
+    ] as RGBAColor[]
+  },
+  pastelGray: {
+    name: 'Pastel Gray',
+    colors: [
+      [220, 220, 220],    // Gainsboro
+      [211, 211, 211],    // Light gray
+      [192, 192, 192],    // Silver
+      [201, 201, 201],    // Gray goose
+      [229, 229, 229]     // Platinum
+    ] as RGBAColor[]
+  },
+  pastelMint: {
+    name: 'Pastel Mint',
+    colors: [
+      [189, 252, 238],    // Ice mint
+      [175, 238, 238],    // Pale turquoise
+      [209, 255, 247],    // Seafoam
+      [188, 234, 234],    // Cool mint
+      [224, 255, 255]     // Light cyan
+    ] as RGBAColor[]
   }
 } as const
 
@@ -181,28 +262,44 @@ export function getDistrictFillColor(
   const isHovered = (guName && guName === hoveredDistrict) ||
                    (dongName && dongName === hoveredDistrict)
 
-  // Return state-based colors
+  // Get base color first
+  let baseColor: RGBAColor
+
+  // Get the base theme color
+  if (useUniqueColors && guName && DISTRICT_UNIQUE_COLORS[guName]) {
+    baseColor = [...DISTRICT_UNIQUE_COLORS[guName]] as RGBAColor
+    baseColor[3] = 160 // Adjust base opacity
+  } else {
+    const districtIndex = guName ?
+      Object.keys(DISTRICT_UNIQUE_COLORS).indexOf(guName) :
+      Math.floor(Math.random() * 25)
+    baseColor = getGradientColor(districtIndex, theme)
+  }
+
+  // Apply state-based modifications to theme colors
   if (isSelectedGu || isSelectedDong) {
-    return STATE_COLORS.selected.fill
+    // Darken the theme color by 40% for selection
+    const darkenFactor = 0.6
+    return [
+      Math.round(baseColor[0] * darkenFactor),
+      Math.round(baseColor[1] * darkenFactor),
+      Math.round(baseColor[2] * darkenFactor),
+      200 // Higher opacity for selected
+    ] as RGBAColor
   }
 
   if (isHovered) {
-    return STATE_COLORS.hover.fill
+    // Slightly darken for hover (20% darker)
+    const darkenFactor = 0.8
+    return [
+      Math.round(baseColor[0] * darkenFactor),
+      Math.round(baseColor[1] * darkenFactor),
+      Math.round(baseColor[2] * darkenFactor),
+      190 // Slightly higher opacity for hover
+    ] as RGBAColor
   }
 
-  // Return unique district color if enabled
-  if (useUniqueColors && guName && DISTRICT_UNIQUE_COLORS[guName]) {
-    const color = [...DISTRICT_UNIQUE_COLORS[guName]] as RGBAColor
-    color[3] = 160 // Adjust base opacity
-    return color
-  }
-
-  // Return gradient color based on district index
-  const districtIndex = guName ?
-    Object.keys(DISTRICT_UNIQUE_COLORS).indexOf(guName) :
-    Math.floor(Math.random() * 25)
-
-  return getGradientColor(districtIndex, theme)
+  return baseColor
 }
 
 /**
