@@ -94,14 +94,15 @@ export const InteractionHandler = React.memo(({
     }
     
     // Pass through the original handler if child has one
-    if (children.props.onViewStateChange) {
-      children.props.onViewStateChange(params)
+    const childProps = children.props as any
+    if (childProps?.onViewStateChange) {
+      childProps.onViewStateChange(params)
     }
-  }, [isDragging, onDragStart, onDragEnd, children.props.onViewStateChange])
+  }, [isDragging, onDragStart, onDragEnd, (children.props as any)?.onViewStateChange])
   
   // Clone child element with enhanced props
   return React.cloneElement(children, {
-    ...children.props,
+    ...(children.props as any),
     onHover: handleHover,
     onClick: handleClick,
     onViewStateChange: handleViewStateChange

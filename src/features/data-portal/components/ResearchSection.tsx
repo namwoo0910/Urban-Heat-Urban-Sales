@@ -8,24 +8,15 @@ import TransitionLink from "@/src/shared/components/navigation/TransitionLink"
 
 const projects = [
   {
-    title: "카드매출",
-    description: "카드 매출 데이터 시각화 및 분석.",
+    title: "온도와 매출 x AI",
+    description: "기온에 따른 매출 변화를 체험하세요.",
     imgSrc: "/images/seoul_economy.webp",
-    imgSrcFallback: "/images/seoul_economy.png",
     href: "/research/local-economy",
   },
   {
-    title: "유동인구",
-    description: "서울시 유동인구 실시간 시각화.",
-    imgSrc: "/images/seoul_pop.webp",
-    imgSrcFallback: "/images/seoul_pop.png",
-    href: "/research/floating-population",
-  },
-  {
-    title: "행정구역 데이터",
-    description: "탐색적 데이터 분석 및 인사이트 도출.",
+    title: "우리 동네 x BigData",
+    description: "자치구, 행정동별 데이터를 탐색하세요.",
     imgSrc: "/images/eda.webp",
-    imgSrcFallback: "/images/eda.png",
     href: "/research/eda",
   },
 ]
@@ -33,32 +24,36 @@ const projects = [
 export function Research() {
   const router = useRouter()
 
-  // Smart prefetching for EDA visualization
+  // Prefetch pages on hover
   const handleEDAHover = () => {
-    // Prefetch the EDA page
     router.prefetch('/research/eda')
-    router.prefetch('/eda-visualization')
-    
-    // Preload heavy data files in background
-    geoJSONLoader.preload([
-      '/data/eda/gu.geojson',
-      '/data/local_economy/local_economy_dong.geojson',
-      '/data/eda/ct.geojson'
-    ]).catch(e => console.warn('Preload failed:', e))
+  }
+
+  const handleLocalEconomyHover = () => {
+    router.prefetch('/research/local-economy')
+
+    geoJSONLoader
+      .preload(['/data/local_economy/local_economy_dong.geojson'])
+      .catch(e => console.warn('Preload failed:', e))
+  }
+
+  const hoverHandlers: Record<string, () => void> = {
+    '/research/eda': handleEDAHover,
+    '/research/local-economy': handleLocalEconomyHover,
   }
 
   return (
-    <div id="research" className="relative min-h-screen px-4 sm:px-6 lg:px-8" style={{ paddingTop: 'calc(8rem - 50px)' }}>
+    <div id="research" className="relative h-screen px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
       {/* Main title section with proper spacing for fixed header */}
-      <div className="text-center mb-20">
-        <h2 className="text-5xl md:text-6xl font-bold tracking-tight mb-6">데이터로 보는 서울</h2>
-        <p className="max-w-2xl mx-auto text-xl text-neutral-400">
-          기후에 따른 서울시민 카드매출 및 유동인구 변화 분석/예측
+      <div className="text-center mb-12">
+        <h2 className="text-4xl md:text-5xl font-bold tracking-tight mb-4">데이터로 보는 서울</h2>
+        <p className="max-w-2xl mx-auto text-lg text-neutral-400">
+          기후에 따른 서울시민 카드매출 변화 분석/예측
         </p>
       </div>
-      
-      <div className="w-full" style={{ paddingBottom: 'calc(5rem - 30px)' }}>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[50px] max-w-7xl mx-auto">
+
+      <div className="w-full">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[50px] max-w-5xl mx-auto">
           {projects.map((project, index) => (
             <motion.div
               key={project.title}
@@ -68,12 +63,12 @@ export function Research() {
               viewport={{ once: true }}
             >
               <TransitionLink href={project.href}>
-                <div 
-                  className="group relative block w-full h-[500px] overflow-hidden rounded-lg shadow-lg"
-                  onMouseEnter={project.title === "EDA" ? handleEDAHover : undefined}
+                <div
+                  className="group relative block w-full h-[400px] overflow-hidden rounded-lg shadow-lg"
+                  onMouseEnter={hoverHandlers[project.href]}
                 >
                   <Image
-                    src={project.imgSrc || "/placeholder.svg"}
+                    src={project.imgSrc}
                     fill
                     alt={project.title}
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"

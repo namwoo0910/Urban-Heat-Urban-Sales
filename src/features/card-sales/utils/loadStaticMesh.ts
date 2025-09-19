@@ -42,6 +42,12 @@ const loadingPromises = new Map<number, Promise<MeshGeometry>>()
 // Pre-generated resolutions available
 export const PREGENERATED_RESOLUTIONS = [30, 60, 90, 120, 200]
 
+// Pre-generated monthly meshes available
+export const PREGENERATED_MONTHS = [
+  '202401', '202402', '202403', '202404', '202405', '202406', 
+  '202407', '202408', '202409', '202410', '202411', '202412'
+] // All 12 months of 2024
+
 /**
  * Check if a pre-generated mesh exists for the given resolution
  */
@@ -58,13 +64,13 @@ export function hasPreGeneratedMesh(resolution: number): boolean {
 export async function loadStaticSeoulMesh(resolution: number = 60): Promise<MeshGeometry> {
   // Return cached data if available
   if (meshCacheByResolution.has(resolution)) {
-    console.log(`[LoadStaticMesh] Using cached mesh data for resolution ${resolution}`)
+    // Using cached mesh data
     return meshCacheByResolution.get(resolution)!
   }
 
   // If already loading this resolution, wait for the existing promise
   if (loadingPromises.has(resolution)) {
-    console.log(`[LoadStaticMesh] Waiting for existing load operation for resolution ${resolution}`)
+    // Debug log removed
     return loadingPromises.get(resolution)!
   }
 
@@ -78,12 +84,12 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
     try {
       // First load the header file
       const headerUrl = `/data/binary/seoul-mesh-${resolution}.header.json`
-      console.log(`[LoadStaticMesh] Loading header from ${headerUrl}...`)
+      // Debug log removed
       const headerResponse = await fetch(headerUrl)
       
       if (!headerResponse.ok) {
         // Fallback to JSON if binary not available
-        console.log(`[LoadStaticMesh] Binary header not found, trying JSON fallback...`)
+        // Debug log removed
         const jsonUrl = `/data/seoul-mesh-${resolution}.json`
         const jsonResponse = await fetch(jsonUrl)
         if (!jsonResponse.ok) {
@@ -107,7 +113,7 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
       
       // Load the binary data (use uncompressed directly to avoid decompression issues)
       const binaryUrl = `/data/binary/seoul-mesh-${resolution}.bin`
-      console.log(`[LoadStaticMesh] Loading uncompressed binary data from ${binaryUrl}...`)
+      // Debug log removed
       const binaryResponse = await fetch(binaryUrl)
       
       if (!binaryResponse.ok) {
@@ -115,9 +121,9 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
       }
       
       const arrayBuffer = await binaryResponse.arrayBuffer()
-      console.log(`[LoadStaticMesh] ArrayBuffer loaded - size: ${arrayBuffer.byteLength} bytes, expected: ${header.totalSize} bytes`)
+      // Debug log removed
       
-      console.log(`[LoadStaticMesh] Parsing binary data for resolution ${resolution}...`)
+      // Debug log removed
       
       // Parse binary data according to header offsets
       const meshGeometry: MeshGeometry = {
@@ -162,8 +168,8 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
         const { offset, length } = header.offsets.indices
         const elementCount = length / 4 // Uint32 is 4 bytes per element
         
-        console.log(`[LoadStaticMesh] Indices - offset: ${offset}, length: ${length}, elementCount: ${elementCount}`)
-        console.log(`[LoadStaticMesh] Buffer size check: ${offset + length} <= ${arrayBuffer.byteLength} = ${offset + length <= arrayBuffer.byteLength}`)
+        // Debug log removed
+        // Debug log removed
         
         if (offset + length > arrayBuffer.byteLength) {
           throw new Error(`Invalid indices range: offset ${offset} + length ${length} = ${offset + length} exceeds buffer size ${arrayBuffer.byteLength}`)
@@ -173,7 +179,7 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
         meshGeometry.indices = new Uint32Array(view) // Create a copy
       }
 
-      console.log(`[LoadStaticMesh] Loaded binary mesh: ${header.metadata.triangles} triangles, ${header.metadata.resolution}x${header.metadata.resolution} grid`)
+      // Debug log removed
       
       // Cache the result
       meshCacheByResolution.set(resolution, meshGeometry)
@@ -181,7 +187,7 @@ export async function loadStaticSeoulMesh(resolution: number = 60): Promise<Mesh
       
       return meshGeometry
     } catch (error) {
-      console.error(`[LoadStaticMesh] Failed to load static mesh for resolution ${resolution}:`, error)
+      // Error logging removed
       loadingPromises.delete(resolution)
       throw error
     }
@@ -199,11 +205,11 @@ export function clearMeshCache(resolution?: number): void {
   if (resolution !== undefined) {
     meshCacheByResolution.delete(resolution)
     loadingPromises.delete(resolution)
-    console.log(`[LoadStaticMesh] Cache cleared for resolution ${resolution}`)
+    // Debug log removed
   } else {
     meshCacheByResolution.clear()
     loadingPromises.clear()
-    console.log('[LoadStaticMesh] All cache cleared')
+    // Debug log removed
   }
 }
 
@@ -250,7 +256,7 @@ export function getNearestAvailableResolution(targetResolution: number): number 
     }
   }
 
-  console.log(`[LoadStaticMesh] Resolution ${targetResolution} not available, using nearest: ${nearest}`)
+  // Debug log removed
   return nearest
 }
 
@@ -261,14 +267,447 @@ export function getNearestAvailableResolution(targetResolution: number): number 
 export async function preloadCommonResolutions(): Promise<void> {
   const commonResolutions = [30, 60, 90] // Most commonly used
   
-  console.log('[LoadStaticMesh] Preloading common resolutions:', commonResolutions)
+  // Debug log removed
   
-  const promises = commonResolutions.map(res => 
-    loadStaticSeoulMesh(res).catch(err => 
-      console.error(`Failed to preload resolution ${res}:`, err)
-    )
+  const promises = commonResolutions.map(res =>
+    loadStaticSeoulMesh(res).catch(err => {
+      // Error logging removed
+    })
   )
   
   await Promise.all(promises)
-  console.log('[LoadStaticMesh] Preloading complete')
+  // Debug log removed
+}
+
+// Cache for loaded monthly mesh data
+const monthlyMeshCache = new Map<string, MeshGeometry>()
+const monthlyLoadingPromises = new Map<string, Promise<MeshGeometry>>()
+
+/**
+ * Check if a pre-generated monthly mesh exists
+ */
+export function hasPreGeneratedMonthlyMesh(month: string): boolean {
+  return PREGENERATED_MONTHS.includes(month)
+}
+
+/**
+ * Load pre-generated monthly Seoul mesh data
+ * @param month - The month to load (e.g., '202401', '202402')
+ */
+export async function loadMonthlySeoulMesh(month: string): Promise<MeshGeometry> {
+  // Return cached data if available
+  if (monthlyMeshCache.has(month)) {
+    // Debug log removed
+    return monthlyMeshCache.get(month)!
+  }
+
+  // If already loading this month, wait for the existing promise
+  if (monthlyLoadingPromises.has(month)) {
+    // Debug log removed
+    return monthlyLoadingPromises.get(month)!
+  }
+
+  // Check if this month is available as pre-generated
+  if (!hasPreGeneratedMonthlyMesh(month)) {
+    throw new Error(`No pre-generated mesh available for month ${month}. Available: ${PREGENERATED_MONTHS.join(', ')}`)
+  }
+
+  // Start loading
+  const loadingPromise = (async () => {
+    try {
+      // First try binary format
+      const headerUrl = `/data/binary/seoul-mesh-${month}.header.json`
+      // Debug log removed
+      const headerResponse = await fetch(headerUrl)
+      
+      if (!headerResponse.ok) {
+        // Fallback to JSON if binary not available
+        // Debug log removed
+        const jsonUrl = `/data/seoul-mesh-${month}.json`
+        const jsonResponse = await fetch(jsonUrl)
+        if (!jsonResponse.ok) {
+          throw new Error(`Failed to load monthly mesh data for ${month}: ${jsonResponse.status}`)
+        }
+        const jsonData = await jsonResponse.json()
+        const meshGeometry: MeshGeometry = {
+          positions: new Float32Array(jsonData.positions),
+          normals: new Float32Array(jsonData.normals),
+          texCoords: new Float32Array(jsonData.texCoords),
+          colors: jsonData.colors ? new Float32Array(jsonData.colors) : undefined,
+          indices: jsonData.indices ? new Uint32Array(jsonData.indices) : undefined,
+          metadata: jsonData.metadata
+        }
+        monthlyMeshCache.set(month, meshGeometry)
+        monthlyLoadingPromises.delete(month)
+        return meshGeometry
+      }
+
+      const header: BinaryMeshHeader = await headerResponse.json()
+      
+      // Load the binary data
+      const binaryUrl = `/data/binary/seoul-mesh-${month}.bin`
+      // Debug log removed
+      const binaryResponse = await fetch(binaryUrl)
+      
+      if (!binaryResponse.ok) {
+        throw new Error(`Failed to load monthly binary data for ${month}: ${binaryResponse.status}`)
+      }
+      
+      const arrayBuffer = await binaryResponse.arrayBuffer()
+      // Debug log removed
+      
+      // Parse binary data according to header offsets (same logic as loadStaticSeoulMesh)
+      const meshGeometry: MeshGeometry = {
+        positions: new Float32Array(0),
+        normals: new Float32Array(0),
+        texCoords: new Float32Array(0),
+        metadata: {
+          center: header.metadata.center
+        }
+      }
+      
+      // Extract positions
+      if (header.offsets.positions) {
+        const { offset, count, itemSize } = header.offsets.positions
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.positions = new Float32Array(view)
+      }
+      
+      // Extract normals
+      if (header.offsets.normals) {
+        const { offset, count, itemSize } = header.offsets.normals
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.normals = new Float32Array(view)
+      }
+      
+      // Extract texCoords
+      if (header.offsets.texCoords) {
+        const { offset, count, itemSize } = header.offsets.texCoords
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.texCoords = new Float32Array(view)
+      }
+      
+      // Extract colors
+      if (header.offsets.colors) {
+        const { offset, count, itemSize } = header.offsets.colors
+        const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+        meshGeometry.colors = new Float32Array(view)
+      }
+      
+      // Extract indices
+      if (header.offsets.indices) {
+        const { offset, length } = header.offsets.indices
+        const elementCount = length / 4
+        const view = new Uint32Array(arrayBuffer, offset, elementCount)
+        meshGeometry.indices = new Uint32Array(view)
+      }
+
+      // Debug log removed
+      
+      // Cache the result
+      monthlyMeshCache.set(month, meshGeometry)
+      monthlyLoadingPromises.delete(month)
+      
+      return meshGeometry
+    } catch (error) {
+      // Error logging removed
+      monthlyLoadingPromises.delete(month)
+      throw error
+    }
+  })()
+
+  monthlyLoadingPromises.set(month, loadingPromise)
+  return loadingPromise
+}
+
+// =========================
+// Daily mesh support
+// =========================
+
+/** Check if a pre-generated daily mesh exists (YYYYMMDD). Uses HEAD. */
+export async function hasPreGeneratedDailyMesh(dateCode: string): Promise<boolean> {
+  try {
+    const binaryHeader = `/data/binary/seoul-mesh-${dateCode}.header.json`
+    const resp = await fetch(binaryHeader, { method: 'HEAD' })
+    return resp.ok
+  } catch {
+    return false
+  }
+}
+
+/** Load pre-generated daily mesh (YYYYMMDD) */
+export async function loadDailySeoulMesh(dateCode: string): Promise<MeshGeometry> {
+  // Try binary first
+  const headerUrl = `/data/binary/seoul-mesh-${dateCode}.header.json`
+  const headerResponse = await fetch(headerUrl)
+  if (!headerResponse.ok) {
+    // Fallback to JSON
+    const jsonUrl = `/data/seoul-mesh-${dateCode}.json`
+    const jsonResponse = await fetch(jsonUrl)
+    if (!jsonResponse.ok) {
+      throw new Error(`Failed to load daily mesh data for ${dateCode}: ${jsonResponse.status}`)
+    }
+    const jsonData = await jsonResponse.json()
+    const meshGeometry: MeshGeometry = {
+      positions: new Float32Array(jsonData.positions),
+      normals: new Float32Array(jsonData.normals),
+      texCoords: new Float32Array(jsonData.texCoords),
+      colors: jsonData.colors ? new Float32Array(jsonData.colors) : undefined,
+      indices: jsonData.indices ? new Uint32Array(jsonData.indices) : undefined,
+      metadata: jsonData.metadata
+    }
+    return meshGeometry
+  }
+
+  const header: BinaryMeshHeader = await headerResponse.json()
+  const binaryUrl = `/data/binary/seoul-mesh-${dateCode}.bin`
+  const binaryResponse = await fetch(binaryUrl)
+  if (!binaryResponse.ok) {
+    throw new Error(`Failed to load daily binary mesh for ${dateCode}: ${binaryResponse.status}`)
+  }
+  const arrayBuffer = await binaryResponse.arrayBuffer()
+
+  const meshGeometry: MeshGeometry = {
+    positions: new Float32Array(0),
+    normals: new Float32Array(0),
+    texCoords: new Float32Array(0),
+    metadata: { center: header.metadata.center }
+  }
+
+  if (header.offsets.positions) {
+    const { offset, count, itemSize } = header.offsets.positions
+    const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+    meshGeometry.positions = new Float32Array(view)
+  }
+  if (header.offsets.normals) {
+    const { offset, count, itemSize } = header.offsets.normals
+    const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+    meshGeometry.normals = new Float32Array(view)
+  }
+  if (header.offsets.texCoords) {
+    const { offset, count, itemSize } = header.offsets.texCoords
+    const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+    meshGeometry.texCoords = new Float32Array(view)
+  }
+  if (header.offsets.colors) {
+    const { offset, count, itemSize } = header.offsets.colors
+    const view = new Float32Array(arrayBuffer, offset, count * itemSize)
+    meshGeometry.colors = new Float32Array(view)
+  }
+  if (header.offsets.indices) {
+    const { offset, length } = header.offsets.indices
+    const elementCount = length / 4
+    const view = new Uint32Array(arrayBuffer, offset, elementCount)
+    meshGeometry.indices = new Uint32Array(view)
+  }
+
+  return meshGeometry
+}
+
+/** Fetch list of available dates (YYYYMMDD) if index exists */
+export async function getAvailableDailyDates(): Promise<string[]> {
+  try {
+    const url = `/data/binary/available-dates.json`
+    const resp = await fetch(url)
+    if (!resp.ok) return []
+    const json = await resp.json()
+    return Array.isArray(json?.dates) ? json.dates : []
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Clear monthly mesh cache
+ */
+export function clearMonthlyMeshCache(month?: string): void {
+  if (month !== undefined) {
+    monthlyMeshCache.delete(month)
+    monthlyLoadingPromises.delete(month)
+    // Debug log removed
+  } else {
+    monthlyMeshCache.clear()
+    monthlyLoadingPromises.clear()
+    // Debug log removed
+  }
+}
+
+// =========================
+// AI Prediction mesh support
+// =========================
+
+interface PredictionMeshHeader {
+  format: string
+  version: string
+  type: string
+  scenario: string
+  date: string
+  resolution: number
+  vertices: number
+  triangles: number
+  positionsBytes: number
+  normalsBytes: number
+  texCoordsBytes: number
+  colorsBytes?: number  // Add colors bytes field (optional for backward compatibility)
+  indicesBytes: number
+  bounds: {
+    minX: number
+    minY: number
+    maxX: number
+    maxY: number
+  }
+  center: {
+    x: number
+    y: number
+  }
+  generated: string
+  temperatureScenario?: string
+  averageSales?: number
+  totalDongs?: number
+}
+
+// Cache for prediction meshes
+const predictionMeshCache = new Map<string, MeshGeometry>()
+const predictionLoadingPromises = new Map<string, Promise<MeshGeometry>>()
+
+// Available temperature scenarios
+export const TEMPERATURE_SCENARIOS = [
+  { key: 't001', label: 'T+0.1°C' },
+  { key: 't005', label: 'T+0.5°C' },
+  { key: 't010', label: 'T+1.0°C' },
+  { key: 't100', label: 'T+10°C' }
+]
+
+/**
+ * Load AI prediction mesh for a specific date and temperature scenario
+ * @param dateCode - Date in YYYYMMDD format (e.g., '20240701')
+ * @param scenario - Temperature scenario key (e.g., 't001', 't005', 't010', 't100')
+ */
+export async function loadPredictionMesh(dateCode: string, scenario: string): Promise<MeshGeometry> {
+  const cacheKey = `${dateCode}-${scenario}`
+
+  // Return cached data if available
+  if (predictionMeshCache.has(cacheKey)) {
+    return predictionMeshCache.get(cacheKey)!
+  }
+
+  // If already loading, wait for existing promise
+  if (predictionLoadingPromises.has(cacheKey)) {
+    return predictionLoadingPromises.get(cacheKey)!
+  }
+
+  // Start loading
+  const loadingPromise = (async () => {
+    try {
+      // Load header file
+      const headerUrl = `/data/binary/prediction/seoul-mesh-pred-${dateCode}-${scenario}.header.json`
+      const headerResponse = await fetch(headerUrl)
+
+      if (!headerResponse.ok) {
+        throw new Error(`Failed to load prediction mesh header for ${dateCode}-${scenario}: ${headerResponse.status}`)
+      }
+
+      const header: PredictionMeshHeader = await headerResponse.json()
+
+      // Load binary data
+      const binaryUrl = `/data/binary/prediction/seoul-mesh-pred-${dateCode}-${scenario}.bin`
+      const binaryResponse = await fetch(binaryUrl)
+
+      if (!binaryResponse.ok) {
+        throw new Error(`Failed to load prediction mesh binary for ${dateCode}-${scenario}: ${binaryResponse.status}`)
+      }
+
+      const arrayBuffer = await binaryResponse.arrayBuffer()
+
+      // Parse binary data according to the new format (positions, normals, texCoords, indices)
+      const meshGeometry: MeshGeometry = {
+        positions: new Float32Array(0),
+        normals: new Float32Array(0),
+        texCoords: new Float32Array(0),
+        metadata: {
+          center: header.center
+        }
+      }
+
+      let offset = 0
+
+      // Extract positions
+      const positionCount = header.vertices * 3
+      meshGeometry.positions = new Float32Array(arrayBuffer, offset, positionCount)
+      offset += header.positionsBytes
+
+      // Extract normals
+      const normalCount = header.vertices * 3
+      meshGeometry.normals = new Float32Array(arrayBuffer, offset, normalCount)
+      offset += header.normalsBytes
+
+      // Extract texCoords
+      const texCoordCount = header.vertices * 2
+      meshGeometry.texCoords = new Float32Array(arrayBuffer, offset, texCoordCount)
+      offset += header.texCoordsBytes
+
+      // Extract colors if present (for gradient rendering)
+      if (header.colorsBytes && header.colorsBytes > 0) {
+        const colorCount = header.vertices * 4  // RGBA
+        meshGeometry.colors = new Float32Array(arrayBuffer, offset, colorCount)
+        offset += header.colorsBytes
+      }
+
+      // Extract indices if present
+      if (header.indicesBytes > 0) {
+        const indexCount = header.triangles * 3
+        meshGeometry.indices = new Uint32Array(arrayBuffer, offset, indexCount)
+      }
+
+      // Cache the result
+      predictionMeshCache.set(cacheKey, meshGeometry)
+      predictionLoadingPromises.delete(cacheKey)
+
+      return meshGeometry
+    } catch (error) {
+      predictionLoadingPromises.delete(cacheKey)
+      throw error
+    }
+  })()
+
+  predictionLoadingPromises.set(cacheKey, loadingPromise)
+  return loadingPromise
+}
+
+/**
+ * Check if a prediction mesh exists
+ */
+export async function hasPredictionMesh(dateCode: string, scenario: string): Promise<boolean> {
+  try {
+    const headerUrl = `/data/binary/prediction/seoul-mesh-pred-${dateCode}-${scenario}.header.json`
+    const resp = await fetch(headerUrl, { method: 'HEAD' })
+    return resp.ok
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Get available prediction dates
+ */
+export function getAvailablePredictionDates(): string[] {
+  // Return July 2024 dates (1-31)
+  const dates: string[] = []
+  for (let day = 1; day <= 31; day++) {
+    dates.push(`202407${day.toString().padStart(2, '0')}`)
+  }
+  return dates
+}
+
+/**
+ * Clear prediction mesh cache
+ */
+export function clearPredictionMeshCache(cacheKey?: string): void {
+  if (cacheKey !== undefined) {
+    predictionMeshCache.delete(cacheKey)
+    predictionLoadingPromises.delete(cacheKey)
+  } else {
+    predictionMeshCache.clear()
+    predictionLoadingPromises.clear()
+  }
 }

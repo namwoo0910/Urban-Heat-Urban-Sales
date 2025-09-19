@@ -6,7 +6,6 @@ import { ScatterplotLayer } from '@deck.gl/layers'
 import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import type { Layer } from '@deck.gl/core'
 import { COLOR_RANGES, type ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
-import { BUSINESS_TYPE_COLOR_MAP, DEFAULT_CATEGORY_COLOR } from '@/src/features/card-sales/constants/businessTypeColors'
 import { calculateDataElevation, DATA_LAYER_ELEVATION } from '@/src/shared/constants/elevationConstants'
 import { createStaticSeoulMeshLayer, useStaticSeoulMeshLayer, type SeoulMeshLayerProps } from './SeoulMeshLayer'
 
@@ -286,14 +285,6 @@ export function LayerManager({
             coverage: config.coverage,
             extruded: true, // IMPORTANT: Enable 3D bars
             pickable: true,
-            // GPU Optimization Parameters
-            parameters: {
-              depthTest: true,
-              blend: true,
-              blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
-              cullFace: 0x0405, // GL.BACK
-              cullFaceMode: true
-            },
             colorRange: COLOR_RANGES[config.colorScheme],
             upperPercentile: config.upperPercentile,
             onHover: (info, event) => {
@@ -348,14 +339,6 @@ export function LayerManager({
           coverage: config.coverage,
           extruded: true, // IMPORTANT: Enable 3D bars
           pickable: true,
-          // GPU Optimization Parameters
-          parameters: {
-            depthTest: true,
-            blend: true,
-            blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
-            cullFace: 0x0405, // GL.BACK
-            cullFaceMode: true
-          },
           colorRange: COLOR_RANGES[config.colorScheme],
           upperPercentile: config.upperPercentile,
           onHover: (info, event) => {
@@ -513,7 +496,6 @@ export function formatScatterplotTooltip(info: any): string {
   • 불쾌지수: ${originalData.discomfortIndex?.toFixed(1) || 0}
   • 기온그룹: ${originalData.temperatureGroup || '정보 없음'}
 ━━━━━━━━━━━━━━━━━━━
-👥 생활인구: ${(originalData.population || 0).toLocaleString()}명
 📅 날짜: ${originalData.date || '정보 없음'}
     `.trim()
   } catch (error) {
@@ -557,11 +539,6 @@ export function createScatterplotLayer(data: HexagonLayerData[] | null, config: 
     
     // 상호작용
     pickable: true,
-    onHover,
-    onClick,
-    
-    // 툴팁
-    getTooltip: formatScatterplotTooltip,
     
     // 성능
     updateTriggers: {
@@ -579,7 +556,8 @@ export function createMeshLayer(
   config: LayerConfig & { hoveredDistrict?: string | null }
 ): SimpleMeshLayer[] | null {
   // Use the pre-generated static mesh layer from SeoulMeshLayer
-  return createStaticSeoulMeshLayer(meshData, config)
+  const layer = createStaticSeoulMeshLayer(meshData, config)
+  return layer ? [layer] : null
 }
 
 // Re-export for backward compatibility

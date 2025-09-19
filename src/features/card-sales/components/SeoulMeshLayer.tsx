@@ -7,13 +7,19 @@ import { SimpleMeshLayer } from '@deck.gl/mesh-layers'
 import { SolidPolygonLayer } from '@deck.gl/layers'
 import { COORDINATE_SYSTEM } from '@deck.gl/core'
 import { MaskExtension } from '@deck.gl/extensions'
-import { useMemo, useEffect, useState } from 'react'
+import { useMemo, useEffect, useState, useRef } from 'react'
 import { generateGridMesh, getHeightColor, type MeshGeometry, getUnifiedSeoulBoundary } from '../utils/meshGenerator'
-import { 
-  loadStaticSeoulMesh, 
-  checkStaticMeshExists, 
-  hasPreGeneratedMesh, 
-  getNearestAvailableResolution 
+import {
+  loadStaticSeoulMesh,
+  checkStaticMeshExists,
+  hasPreGeneratedMesh,
+  getNearestAvailableResolution,
+  loadMonthlySeoulMesh,
+  hasPreGeneratedMonthlyMesh,
+  hasPreGeneratedDailyMesh,
+  loadDailySeoulMesh,
+  loadPredictionMesh,
+  hasPredictionMesh
 } from '../utils/loadStaticMesh'
 import * as turf from '@turf/turf'
 
@@ -33,6 +39,13 @@ export interface SeoulMeshLayerProps {
   dongSalesMap?: Map<number, number>  // Map of dongCode to total sales
   salesHeightScale?: number  // Scale for converting sales to height
   animatedOpacity?: number  // For animated opacity transitions
+  month?: string  // Month identifier for monthly mesh (e.g., '202401', '202402')
+  date?: string   // Daily identifier (e.g., '20240101')
+  transitionMs?: number // Height interpolation duration in ms (for smooth swaps)
+  // Optional: override base positions for smooth height interpolation (unscaled)
+  overridePositions?: Float32Array
+  // Optional: key for triggering updates during animation
+  updateKey?: any
 }
 
 /**
@@ -93,7 +106,9 @@ export function createStaticSeoulMeshLayer(
     onHover,
     onClick,
     color = '#00FFE1',  // Default cyan
-    salesHeightScale = 100000000  // Default to 100M (1억원) for normal height
+    salesHeightScale = 100000000,  // Default to 100M (1억원) for normal height
+    overridePositions,
+    updateKey
   } = props
 
   console.log(`[createStaticSeoulMeshLayer] Creating layer with salesHeightScale=${salesHeightScale}, visible=${visible}, wireframe=${wireframe}, color=${color}`)
@@ -103,14 +118,17 @@ export function createStaticSeoulMeshLayer(
     return null
   }
 
-  // Apply height scale to Z coordinates only
-  const scaledPositions = new Float32Array(meshGeometry.positions.length)
+  // Choose base positions (allow override for animation), then apply height scale to Z only
+  const basePositions = overridePositions && overridePositions.length === meshGeometry.positions.length
+    ? overridePositions
+    : meshGeometry.positions
+  const scaledPositions = new Float32Array(basePositions.length)
   const heightScaleFactor = 100000000 / (salesHeightScale || 100000000)
   
-  for (let i = 0; i < meshGeometry.positions.length; i += 3) {
-    scaledPositions[i] = meshGeometry.positions[i]       // X coordinate unchanged
-    scaledPositions[i + 1] = meshGeometry.positions[i + 1] // Y coordinate unchanged
-    scaledPositions[i + 2] = meshGeometry.positions[i + 2] * heightScaleFactor // Scale Z only
+  for (let i = 0; i < basePositions.length; i += 3) {
+    scaledPositions[i] = basePositions[i]       // X coordinate unchanged
+    scaledPositions[i + 1] = basePositions[i + 1] // Y coordinate unchanged
+    scaledPositions[i + 2] = basePositions[i + 2] * heightScaleFactor // Scale Z only
   }
   
   // Create mesh object with proper deck.gl format
@@ -143,10 +161,10 @@ export function createStaticSeoulMeshLayer(
   // Use center from metadata if available, otherwise use default
   const centerX = meshGeometry.metadata?.center?.x || 126.974139
   const centerY = meshGeometry.metadata?.center?.y || 37.564876
-  
+
   const layerProps: any = {
     id: 'seoul-mesh-layer-static',
-    data: [{ 
+    data: [{
       position: [centerX, centerY, 0]  // Center position from mesh metadata
     }],
     mesh: meshObject,
@@ -178,8 +196,8 @@ export function createStaticSeoulMeshLayer(
       }
       return hexToRgb(color)
     }),
-    // Disable vertex colors to allow getColor to work
-    vertexColors: false,
+    // Enable vertex colors for gradient rendering when available
+    vertexColors: true,
     material: {
       ambient: wireframe ? 0.6 : 0.8,   // Brighter ambient light
       diffuse: wireframe ? 0.9 : 1.0,   // Maximum diffuse
@@ -194,11 +212,12 @@ export function createStaticSeoulMeshLayer(
     opacity: wireframe ? opacity : 1.0,  // Full opacity for solid mode
     updateTriggers: {
       getColor: [color, wireframe],
-      mesh: [wireframe]
+      // Recreate buffers when animation progresses or override changes
+      mesh: [wireframe, updateKey]
     }
   }
 
-  console.log(`[createStaticSeoulMeshLayer] Layer created with heightScaleFactor=${heightScaleFactor}, mesh vertices=${meshGeometry.positions?.length / 3}, indices=${meshGeometry.indices?.length / 3}`)
+  console.log(`[createStaticSeoulMeshLayer] Layer created with heightScaleFactor=${heightScaleFactor}, mesh vertices=${meshGeometry.positions?.length ? meshGeometry.positions.length / 3 : 0}, indices=${meshGeometry.indices?.length ? meshGeometry.indices.length / 3 : 0}`)
   return new SimpleMeshLayer(layerProps)
 }
 
@@ -449,15 +468,29 @@ export function usePreGeneratedSeoulMeshLayer(
     dongBoundaries,
     dongSalesMap,
     salesHeightScale,
-    animatedOpacity
+    animatedOpacity,
+    month,
+    date
   } = props
 
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [loadedResolution, setLoadedResolution] = useState<number | null>(null)
+  const [loadedMonth, setLoadedMonth] = useState<string | null>(null)
 
-  // Load pre-generated mesh data when resolution changes
+  // Smooth transition state
+  const lastMeshRef = useRef<MeshGeometry | null>(null)
+  // Tracks the positions currently displayed (override during transition or final mesh positions)
+  const displayedPositionsRef = useRef<Float32Array | null>(null)
+  const [overridePositions, setOverridePositions] = useState<Float32Array | null>(null)
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [animProgress, setAnimProgress] = useState(0)
+  const animRef = useRef<number | null>(null)
+  const transitionStartRef = useRef<number>(0)
+  const TRANSITION_MS = props.transitionMs ?? 1000
+
+  // Load pre-generated mesh data when resolution or month changes
   useEffect(() => {
     let cancelled = false
 
@@ -465,15 +498,99 @@ export function usePreGeneratedSeoulMeshLayer(
       try {
         setLoading(true)
         
-        // Always use binary file loading - no dynamic generation
-        const nearestResolution = getNearestAvailableResolution(resolution)
-        console.log(`[usePreGeneratedSeoulMeshLayer] Loading binary mesh for resolution ${nearestResolution}`)
+        let data: MeshGeometry
         
-        const data = await loadStaticSeoulMesh(nearestResolution)
+        if (month && hasPreGeneratedMonthlyMesh(month)) {
+          // Load monthly mesh if month is specified and available
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading monthly mesh for ${month}`)
+          data = await loadMonthlySeoulMesh(month)
+          if (!cancelled) {
+            setLoadedMonth(month)
+            setLoadedResolution(null) // Clear resolution when using monthly mesh
+          }
+        } else if (date && await hasPreGeneratedDailyMesh(date)) {
+          // Load daily mesh if specified and available
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading daily mesh for ${date}`)
+          data = await loadDailySeoulMesh(date)
+          if (!cancelled) {
+            setLoadedMonth(null)
+            setLoadedResolution(null) // Using daily, not resolution
+          }
+        } else {
+          // Always use binary file loading - no dynamic generation
+          const nearestResolution = getNearestAvailableResolution(resolution)
+          console.log(`[usePreGeneratedSeoulMeshLayer] Loading binary mesh for resolution ${nearestResolution}`)
+          data = await loadStaticSeoulMesh(nearestResolution)
+          if (!cancelled) {
+            setLoadedResolution(nearestResolution)
+            setLoadedMonth(null) // Clear month when using resolution mesh
+          }
+        }
         
         if (!cancelled) {
-          setMeshData(data)
-          setLoadedResolution(nearestResolution)
+          // Cancel any ongoing transition
+          if (animRef.current) cancelAnimationFrame(animRef.current)
+
+          // Determine starting positions for the transition:
+          // - If we are mid-transition, continue from the currently displayed positions
+          // - Else use the last mesh positions
+          const hasPrev = lastMeshRef.current && lastMeshRef.current.positions
+          const currentDisplayed = displayedPositionsRef.current
+          const canBlendFromDisplayed =
+            !!currentDisplayed && currentDisplayed.length === data.positions.length
+          const canBlendFromLast =
+            !!hasPrev && lastMeshRef.current!.positions.length === data.positions.length
+
+          if (canBlendFromDisplayed || canBlendFromLast) {
+            // Keep rendering with previous mesh during transition to avoid rebinding flicker
+            const from = canBlendFromDisplayed
+              ? new Float32Array(currentDisplayed!) // copy current displayed
+              : lastMeshRef.current!.positions
+            const to = data.positions
+
+            setIsTransitioning(true)
+            setAnimProgress(0)
+            transitionStartRef.current = performance.now()
+
+            // IMPORTANT: set initial override to 'from' so the first frame after setMeshData
+            // still renders the previous shape (avoids one-frame jump/flicker)
+            displayedPositionsRef.current = from
+            setOverridePositions(from)
+
+            const step = () => {
+              const elapsed = performance.now() - transitionStartRef.current
+              const p = Math.min(elapsed / TRANSITION_MS, 1)
+              const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2
+
+              const out = new Float32Array(from.length)
+              for (let i = 0; i < from.length; i += 3) {
+                out[i] = from[i]
+                out[i + 1] = from[i + 1]
+                out[i + 2] = from[i + 2] + (to[i + 2] - from[i + 2]) * e
+              }
+              displayedPositionsRef.current = out
+              setOverridePositions(out)
+              setAnimProgress(e)
+
+              if (p < 1 && !cancelled) {
+                animRef.current = requestAnimationFrame(step)
+              } else {
+                setIsTransitioning(false)
+                setOverridePositions(null)
+                displayedPositionsRef.current = null
+                // Now swap to the new mesh geometry after smooth transition completes
+                setMeshData(data)
+                lastMeshRef.current = data
+              }
+            }
+
+            animRef.current = requestAnimationFrame(step)
+          } else {
+            // First load or mismatched vertices: direct set
+            setMeshData(data)
+            lastMeshRef.current = data
+            displayedPositionsRef.current = data.positions
+          }
           setError(null)
         }
         
@@ -493,17 +610,19 @@ export function usePreGeneratedSeoulMeshLayer(
 
     return () => {
       cancelled = true
+      if (animRef.current) cancelAnimationFrame(animRef.current)
     }
-  }, [resolution]) // Only resolution matters for binary loading
+  }, [resolution, month || '', date || '']) // Reload when resolution or month/date changes
 
   // Create layer from loaded data
   const layer = useMemo(() => {
-    if (!meshData || loading || !visible) {
-      console.log(`[usePreGeneratedSeoulMeshLayer] Not creating layer: meshData=${!!meshData}, loading=${loading}, visible=${visible}`)
+    // Keep rendering previous mesh while new month is loading to avoid flicker
+    if (!meshData || !visible) {
+      console.log(`[usePreGeneratedSeoulMeshLayer] Not creating layer: meshData=${!!meshData}, visible=${visible}`)
       return null
     }
 
-    console.log(`[usePreGeneratedSeoulMeshLayer] Creating layer with resolution ${loadedResolution}, visible=${visible}, wireframe=${wireframe}`)
+    console.log(`[usePreGeneratedSeoulMeshLayer] Creating layer with resolution ${loadedResolution}, month ${loadedMonth}, visible=${visible}, wireframe=${wireframe}`)
     return createStaticSeoulMeshLayer(meshData, {
       visible,
       wireframe,
@@ -512,9 +631,11 @@ export function usePreGeneratedSeoulMeshLayer(
       onHover,
       onClick,
       color,
-      salesHeightScale  // Pass the height scale parameter
+      salesHeightScale,  // Pass the height scale parameter
+      overridePositions: overridePositions || undefined,
+      updateKey: isTransitioning ? animProgress : (loadedMonth || loadedResolution || date)
     })
-  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color, salesHeightScale])
+  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color, salesHeightScale, overridePositions, isTransitioning, animProgress, loadedMonth, loadedResolution, date])
   
   // Return both layer and loading state
   return { layer, isLoading: loading }
@@ -526,7 +647,8 @@ export function usePreGeneratedSeoulMeshLayer(
  */
 export function useMeshGeometry(
   resolution: number = 120,
-  districtData?: any[]
+  districtData?: any[],
+  month?: string
 ): { meshData: MeshGeometry | null; loading: boolean; error: Error | null } {
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
   const [loading, setLoading] = useState(true)
@@ -539,11 +661,18 @@ export function useMeshGeometry(
       try {
         setLoading(true)
         
-        // Always use binary file loading
-        const nearestResolution = getNearestAvailableResolution(resolution)
-        console.log(`[useMeshGeometry] Loading binary mesh at resolution ${nearestResolution}`)
+        let data: MeshGeometry
         
-        const data = await loadStaticSeoulMesh(nearestResolution)
+        if (month && hasPreGeneratedMonthlyMesh(month)) {
+          // Load monthly mesh if month is specified and available
+          console.log(`[useMeshGeometry] Loading monthly mesh for ${month}`)
+          data = await loadMonthlySeoulMesh(month)
+        } else {
+          // Always use binary file loading
+          const nearestResolution = getNearestAvailableResolution(resolution)
+          console.log(`[useMeshGeometry] Loading binary mesh at resolution ${nearestResolution}`)
+          data = await loadStaticSeoulMesh(nearestResolution)
+        }
         
         if (!cancelled) {
           setMeshData(data)
@@ -567,7 +696,7 @@ export function useMeshGeometry(
     return () => {
       cancelled = true
     }
-  }, [resolution]) // Only resolution matters for binary loading
+  }, [resolution, month || '']) // Reload when resolution or month changes, use empty string as fallback
 
   return { meshData, loading, error }
 }
@@ -582,4 +711,185 @@ export function useStaticSeoulMeshLayer(
   // Use the new hook with default resolution 200 for backward compatibility
   const { layer } = usePreGeneratedSeoulMeshLayer({ ...props, resolution: 200 })
   return layer
+}
+
+/**
+ * React hook for AI prediction mesh layer
+ * Loads pre-generated prediction meshes based on date and temperature scenario
+ */
+export function usePredictionMeshLayer(
+  props: SeoulMeshLayerProps & {
+    predictionDate?: string  // YYYYMMDD format
+    temperatureScenario?: string  // 't001', 't005', 't010', 't100'
+    transitionMs?: number  // Smooth transition duration
+  } = {}
+): { layer: SimpleMeshLayer | null; isLoading: boolean; error: Error | null } {
+  const {
+    predictionDate = '20240701',  // Default to July 1, 2024
+    temperatureScenario = 't001',  // Default to T+0.1°C
+    visible = true,
+    wireframe = false,
+    opacity = 0.8,
+    pickable = true,
+    onHover,
+    onClick,
+    color = '#FF00E1',  // Magenta for predictions
+    salesHeightScale = 100000000,
+    animatedOpacity,
+    transitionMs = 400  // Default 400ms for smooth transitions
+  } = props
+
+  const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<Error | null>(null)
+
+  // Transition state for smooth animations
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [animProgress, setAnimProgress] = useState(0)
+  const [overridePositions, setOverridePositions] = useState<Float32Array | null>(null)
+
+  // Refs for managing transitions
+  const lastMeshRef = useRef<MeshGeometry | null>(null)
+  const displayedPositionsRef = useRef<Float32Array | null>(null)
+  const animRef = useRef<number | null>(null)
+  const transitionStartRef = useRef<number>(0)
+  const TRANSITION_MS = transitionMs
+
+  // Load prediction mesh when date or scenario changes
+  useEffect(() => {
+    let cancelled = false
+
+    const loadMesh = async () => {
+      try {
+        setLoading(true)
+        setError(null)
+
+        // Check if prediction mesh exists
+        const exists = await hasPredictionMesh(predictionDate, temperatureScenario)
+        if (!exists) {
+          throw new Error(`No prediction mesh available for ${predictionDate} with scenario ${temperatureScenario}`)
+        }
+
+        // Load the prediction mesh
+        const data = await loadPredictionMesh(predictionDate, temperatureScenario)
+
+        if (!cancelled) {
+          // Cancel any ongoing transition
+          if (animRef.current) cancelAnimationFrame(animRef.current)
+
+          // Determine starting positions for smooth transition
+          const hasPrev = lastMeshRef.current && lastMeshRef.current.positions
+          const currentDisplayed = displayedPositionsRef.current
+          const canBlendFromDisplayed =
+            !!currentDisplayed && currentDisplayed.length === data.positions.length
+          const canBlendFromLast =
+            !!hasPrev && lastMeshRef.current!.positions.length === data.positions.length
+
+          if (canBlendFromDisplayed || canBlendFromLast) {
+            // Smooth transition from previous mesh to new mesh
+            const from = canBlendFromDisplayed
+              ? new Float32Array(currentDisplayed!) // copy current displayed
+              : lastMeshRef.current!.positions
+            const to = data.positions
+
+            setIsTransitioning(true)
+            setAnimProgress(0)
+            transitionStartRef.current = performance.now()
+
+            // Set initial override to avoid flicker
+            displayedPositionsRef.current = from
+            setOverridePositions(from)
+
+            const step = () => {
+              const elapsed = performance.now() - transitionStartRef.current
+              const p = Math.min(elapsed / TRANSITION_MS, 1)
+              // Cubic ease in-out
+              const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2
+
+              const out = new Float32Array(from.length)
+              for (let i = 0; i < from.length; i += 3) {
+                out[i] = from[i]  // X stays the same
+                out[i + 1] = from[i + 1]  // Y stays the same
+                out[i + 2] = from[i + 2] + (to[i + 2] - from[i + 2]) * e  // Z (height) interpolates
+              }
+              displayedPositionsRef.current = out
+              setOverridePositions(out)
+              setAnimProgress(e)
+
+              if (p < 1 && !cancelled) {
+                animRef.current = requestAnimationFrame(step)
+              } else {
+                setIsTransitioning(false)
+                setOverridePositions(null)
+                displayedPositionsRef.current = null
+                // Now swap to the new mesh geometry after smooth transition completes
+                setMeshData(data)
+                lastMeshRef.current = data
+              }
+            }
+
+            animRef.current = requestAnimationFrame(step)
+          } else {
+            // First load or mismatched vertices: direct set
+            setMeshData(data)
+            lastMeshRef.current = data
+            displayedPositionsRef.current = data.positions
+          }
+          setError(null)
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('[usePredictionMeshLayer] Failed to load prediction mesh:', err)
+          setError(err as Error)
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false)
+        }
+      }
+    }
+
+    loadMesh()
+
+    return () => {
+      cancelled = true
+      if (animRef.current) cancelAnimationFrame(animRef.current)
+    }
+  }, [predictionDate, temperatureScenario, TRANSITION_MS])
+
+  // Create layer from mesh data
+  const layer = useMemo(() => {
+    if (!meshData || !visible) return null
+
+    return createStaticSeoulMeshLayer(meshData, {
+      visible,
+      wireframe,
+      opacity: animatedOpacity ?? opacity,
+      pickable,
+      onHover,
+      onClick,
+      color,
+      salesHeightScale,
+      overridePositions: overridePositions || undefined,
+      updateKey: isTransitioning ? animProgress : (predictionDate + temperatureScenario)
+    })
+  }, [
+    meshData,
+    visible,
+    wireframe,
+    opacity,
+    animatedOpacity,
+    pickable,
+    onHover,
+    onClick,
+    color,
+    salesHeightScale,
+    overridePositions,
+    isTransitioning,
+    animProgress,
+    predictionDate,
+    temperatureScenario
+  ])
+
+  return { layer, isLoading: loading, error }
 }

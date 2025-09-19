@@ -6,7 +6,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
-import { generateGridMesh, type MeshGeometry, type MeshGeneratorOptions } from '../src/features/card-sales/utils/meshGenerator'
+import { generateGridMesh, type MeshGeometry, type MeshGeneratorOptions } from '../src/features/card-sales/utils/meshGenerator.js'
 
 // Configuration - Only 120 resolution with line-polygon intersection validation
 const RESOLUTION = 120
@@ -92,7 +92,7 @@ function loadDistrictData(): any[] {
  * Save mesh data as JSON
  */
 function saveMeshAsJSON(meshData: MeshGeometry, resolution: number) {
-  const outputFile = path.join(OUTPUT_DIR, `seoul-mesh-${resolution}.json`)
+  const outputFile = path.join(OUTPUT_DIR, `seoul-mesh-202401.json`)
   
   // Convert TypedArrays to regular arrays for JSON serialization
   const jsonData = {
@@ -106,7 +106,7 @@ function saveMeshAsJSON(meshData: MeshGeometry, resolution: number) {
       vertices: meshData.positions.length / 3,
       triangles: meshData.indices ? meshData.indices.length / 3 : 0,
       generated: new Date().toISOString(),
-      source: 'generate-mesh.ts with line-polygon intersection validation',
+      source: 'generate-mesh.ts with January 2024 sales data and line-polygon intersection validation',
       center: meshData.metadata?.center
     }
   }
@@ -206,7 +206,7 @@ function convertToBinary(jsonFile: string, resolution: number) {
   header.totalSize = offset
   
   // Save header
-  const headerFile = path.join(BINARY_OUTPUT_DIR, `seoul-mesh-${resolution}.header.json`)
+  const headerFile = path.join(BINARY_OUTPUT_DIR, `seoul-mesh-202401.header.json`)
   fs.writeFileSync(headerFile, JSON.stringify(header, null, 2))
   
   // Create binary buffer
@@ -229,7 +229,7 @@ function convertToBinary(jsonFile: string, resolution: number) {
   Buffer.from(indicesArray.buffer).copy(buffer, bufferOffset)
   
   // Save binary file
-  const binaryFile = path.join(BINARY_OUTPUT_DIR, `seoul-mesh-${resolution}.bin`)
+  const binaryFile = path.join(BINARY_OUTPUT_DIR, `seoul-mesh-202401.bin`)
   fs.writeFileSync(binaryFile, buffer)
   
   const binarySize = (buffer.length / 1024 / 1024).toFixed(2)

@@ -5,9 +5,8 @@ import type { LayerConfig, HexagonLayerData } from '../components/LayerManager'
 import { DEFAULT_LAYER_CONFIG } from '../components/LayerManager'
 import type { ColorScheme } from '@/src/features/card-sales/utils/premiumColors'
 import useWaveAnimation from '@/src/features/card-sales/hooks/useWaveAnimation'
-import { climateDataLoader } from '../utils/climateDataLoader'
+import { cardSalesDataLoader } from '../utils/cardSalesDataLoader'
 import type { ClimateCardSalesData, ClimateFilterOptions, ColorMode } from '../types'
-import { getCategoryOffset } from '../constants/categoryOffsets'
 
 interface UseLayerStateReturn {
   
@@ -55,7 +54,6 @@ interface UseLayerStateReturn {
   
   // 필터 업데이트 함수들
   setFilterOptions: (options: ClimateFilterOptions) => void
-  setSelectedDate: (date: string) => void
   setSelectedHour: (hour: number) => void
   setColorMode: (mode: ColorMode) => void
   
@@ -129,7 +127,6 @@ export function useLayerState(): UseLayerStateReturn {
   const [filterOptions, setFilterOptions] = useState<ClimateFilterOptions>({
     date: '2024-01-01' // 기본 날짜
   })
-  const [selectedDate, setSelectedDateState] = useState('2024-01-01')
   const [selectedHour, setSelectedHourState] = useState(12) // 기본 12시
   const [colorMode, setColorModeState] = useState<ColorMode>('temperature')
   
@@ -264,7 +261,7 @@ export function useLayerState(): UseLayerStateReturn {
           const nextIndex = (prevIndex + 1) % 12
           // 날짜 변경
           const nextDate = monthlyDates[nextIndex]
-          setSelectedDate(nextDate)
+          // Date selection removed - timeline animation only
           console.log('[Timeline Animation] Changed to:', nextDate)
           return nextIndex
         })
@@ -276,11 +273,11 @@ export function useLayerState(): UseLayerStateReturn {
   
   // 시계열 애니메이션 활성화 시 현재 날짜를 첫 번째 월로 설정
   useEffect(() => {
-    if (timelineAnimationEnabled && !selectedDate) {
-      setSelectedDate(monthlyDates[0])
+    if (timelineAnimationEnabled) {
+      // Start from first month
       setCurrentMonthIndex(0)
     }
-  }, [timelineAnimationEnabled, monthlyDates, selectedDate])
+  }, [timelineAnimationEnabled, monthlyDates])
   
   // 계산된 값들 (memoized for performance)
   const rotationDirectionText = useMemo(() => 
@@ -380,12 +377,10 @@ export function useLayerState(): UseLayerStateReturn {
         const categorySales = item.salesByCategory[selectedBusinessType] || 0
         
         if (categorySales > 0) {
-          const offset = getCategoryOffset(selectedBusinessType)
-          
           categoryPoints.push({
             coordinates: [
-              item.coordinates[0] + offset.dx,
-              item.coordinates[1] + offset.dy
+              item.coordinates[0],
+              item.coordinates[1]
             ],
             weight: categorySales,
             businessType: selectedBusinessType,
@@ -416,12 +411,10 @@ export function useLayerState(): UseLayerStateReturn {
         if (categoryPoints.length >= MAX_POINTS) return
         if (sales < minSalesThreshold) return // Skip small sales in unfiltered view
         
-        const offset = getCategoryOffset(category)
-        
         categoryPoints.push({
           coordinates: [
-            item.coordinates[0] + offset.dx,
-            item.coordinates[1] + offset.dy
+            item.coordinates[0],
+            item.coordinates[1]
           ],
           weight: sales,
           middleCategory: category,
@@ -547,16 +540,16 @@ export function useLayerState(): UseLayerStateReturn {
 
   // 전체 데이터 로딩 함수
   const loadData = useCallback(async () => {
-    console.log('[ClimateDataLoader] 기후-카드매출 데이터 로딩 시작...')
+    console.log('[CardSalesDataLoader] 카드매출 데이터 로딩 시작...')
     setIsDataLoading(true)
     setDataError(null)
     
     try {
       // 기후-카드매출 데이터 로드
-      const data = await climateDataLoader.loadAllData(filterOptions)
+      const data = await cardSalesDataLoader.loadAllData(filterOptions)
       
-      console.log(`[ClimateDataLoader] 데이터 로딩 완료: ${data.length}개 포인트`)
-      console.log(`[ClimateDataLoader] 현재 필터 - 날짜: ${filterOptions.date || '전체'}`)
+      console.log(`[CardSalesDataLoader] 데이터 로딩 완료: ${data.length}개 포인트`)
+      console.log(`[CardSalesDataLoader] 현재 필터 - 날짜: ${filterOptions.date || '전체'}`)
       
       // 로드된 원본 데이터의 총 매출 확인
       let rawTotalSales = 0
@@ -569,7 +562,7 @@ export function useLayerState(): UseLayerStateReturn {
           })
         }
       })
-      console.log(`[ClimateDataLoader] 원본 데이터 총 매출: ${(rawTotalSales/100000000).toFixed(1)}억원`)
+      console.log(`[CardSalesDataLoader] 원본 데이터 총 매출: ${(rawTotalSales/100000000).toFixed(1)}억원`)
       
       // Apply hierarchical filters
       const filteredData = applyHierarchicalFilters(data)
@@ -585,7 +578,7 @@ export function useLayerState(): UseLayerStateReturn {
           })
         }
       })
-      console.log(`[ClimateDataLoader] 필터링 후 총 매출: ${(filteredTotalSales/100000000).toFixed(1)}억원`)
+      console.log(`[CardSalesDataLoader] 필터링 후 총 매출: ${(filteredTotalSales/100000000).toFixed(1)}억원`)
       
       // Create data points (always use simple mode now)
       const hexData = createSimpleDataPoints(filteredData)
@@ -593,16 +586,16 @@ export function useLayerState(): UseLayerStateReturn {
       setClimateData(data) // Keep original data
       setHexagonData(hexData) // Set filtered hexagon data
       
-      console.log(`[ClimateDataLoader] 필터링 후: climate=${filteredData.length}개, hexagon=${hexData.length}개`)
+      console.log(`[CardSalesDataLoader] 필터링 후: climate=${filteredData.length}개, hexagon=${hexData.length}개`)
       
       // 샘플 데이터 확인
       if (hexData.length > 0 && hexData[0].originalData) {
         const sample = hexData[0].originalData
-        console.log(`[ClimateDataLoader] 샘플 데이터 - 날짜: ${sample.date || sample.기준일자}, 지역: ${sample.guName} ${sample.dongName}`)
+        console.log(`[CardSalesDataLoader] 샘플 데이터 - 날짜: ${sample.date || sample.기준일자}, 지역: ${sample.guName} ${sample.dongName}`)
       }
       
     } catch (error) {
-      console.error('[ClimateDataLoader] 데이터 로드 실패:', error)
+      console.error('[CardSalesDataLoader] 데이터 로드 실패:', error)
       
       const errorMessage = error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다'
       setDataError(`데이터 로드 실패: ${errorMessage}`)
@@ -612,13 +605,6 @@ export function useLayerState(): UseLayerStateReturn {
   }, [filterOptions, applyHierarchicalFilters, createSimpleDataPoints, createCategoryDataPoints])
   
   // 필터 업데이트 함수들
-  const setSelectedDate = useCallback((date: string) => {
-    console.log(`[useCardSalesData] Date changed to: ${date}`)
-    setSelectedDateState(date)
-    // "전체"를 선택한 경우 빈 문자열로 처리하여 필터링 안함
-    const filterDate = date === '전체' ? '' : date
-    setFilterOptions(prev => ({ ...prev, date: filterDate }))
-  }, [])
   
   const setSelectedHour = useCallback((hour: number) => {
     setSelectedHourState(hour)
@@ -665,7 +651,6 @@ export function useLayerState(): UseLayerStateReturn {
     
     // 필터 상태
     filterOptions,
-    selectedDate,
     selectedHour,
     colorMode,
     
@@ -696,7 +681,6 @@ export function useLayerState(): UseLayerStateReturn {
     
     // 필터 업데이트 함수들
     setFilterOptions,
-    setSelectedDate,
     setSelectedHour,
     setColorMode,
     
@@ -753,5 +737,8 @@ export function useLayerState(): UseLayerStateReturn {
     setIsTimelinePlaying,
     setTimelineSpeed,
     toggleTimelineAnimation,
+
+    // 선택된 날짜 (default value)
+    selectedDate: '202401',
   }
 }

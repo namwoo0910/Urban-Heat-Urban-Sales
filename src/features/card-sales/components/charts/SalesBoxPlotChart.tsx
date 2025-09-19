@@ -1,22 +1,20 @@
 "use client"
 
 import { useState, useEffect, useMemo } from 'react'
-import { 
-  ComposedChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Legend, 
+import {
+  ComposedChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
   ResponsiveContainer,
   ErrorBar,
-  Scatter,
-  Cell,
   Line,
   Tooltip
 } from '@/src/shared/components/ui/chart'
-import { 
-  loadNormalizedBoxPlotData, 
+import {
+  loadNormalizedBoxPlotData,
   loadDongBoxPlotData,
   type BoxPlotDataPoint,
   type DongBoxPlotDataPoint,
@@ -207,9 +205,9 @@ const createBoxPlotTooltip = (processedData: any[]) => {
     }
     
     return (
-      <div className="rounded-lg border border-gray-800/50 bg-black/90 backdrop-blur-md p-2 shadow-lg">
-        <div className="text-xs text-gray-400 font-semibold">{title}</div>
-        <div className="text-xs text-gray-400 space-y-0.5 mt-1">
+      <div className="rounded-lg border border-gray-200/60 bg-white/95 backdrop-blur-sm p-2 shadow-lg">
+        <div className="text-xs text-gray-700 font-semibold">{title}</div>
+        <div className="text-xs text-gray-600 space-y-0.5 mt-1">
           {comparisons.map((comp, idx) => (
             <div key={idx} className="flex items-center gap-2">
               <span>{comp.icon} {comp.name}:</span>
@@ -245,9 +243,9 @@ const createMedianLineTooltip = (processedData: any[]) => {
     const 폭염차이 = ((폭염 - 온화) / 온화 * 100).toFixed(1)
     
     return (
-      <div className="rounded-lg border border-gray-800/50 bg-black/90 backdrop-blur-md p-2 shadow-lg">
-        <div className="text-xs text-gray-400 font-semibold">온화 대비 차이</div>
-        <div className="text-xs text-gray-400 space-y-0.5 mt-1">
+      <div className="rounded-lg border border-gray-200/60 bg-white/95 backdrop-blur-sm p-2 shadow-lg">
+        <div className="text-xs text-gray-700 font-semibold">온화 대비 차이</div>
+        <div className="text-xs text-gray-600 space-y-0.5 mt-1">
           <div className="flex items-center gap-2">
             <span>❄️ 한파:</span>
             <span className={parseFloat(한파차이) > 0 ? 'text-green-500' : 'text-red-500'}>
@@ -336,10 +334,16 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
         // 업종 리스트 생성
         const categories = getAllCategoryNames(loadedData)
         setCategoryList(['전체', ...categories])
-        
+
         // 행정동별 데이터 로드
         const loadedDongData = await loadDongBoxPlotData()
-        console.log('[BoxPlot] Dong data loaded:', loadedDongData.length, 'dongs')
+        console.log('[BoxPlot] Dong data loaded:', loadedDongData.length, 'dong-business combinations')
+        if (loadedDongData.length > 0) {
+          console.log('[BoxPlot] Sample dong data:', loadedDongData[0])
+          const uniqueDongs = new Set(loadedDongData.map(d => d.dongName))
+          const uniqueBusinessTypes = new Set(loadedDongData.map(d => d.businessType))
+          console.log('[BoxPlot] Unique dongs:', uniqueDongs.size, 'Unique business types:', uniqueBusinessTypes.size)
+        }
         setDongData(loadedDongData)
       } catch (error) {
         console.error('[BoxPlot] Failed to load data:', error)
@@ -355,6 +359,8 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
   
   // 선택된 업종 또는 행정동에 따라 데이터 처리
   const processedData = useMemo(() => {
+    console.log('[BoxPlot] Processing data - isDongMode:', isDongMode, 'isGuMode:', isGuMode, 'dongDataLength:', dongData.length, 'activeCategory:', activeCategory)
+    console.log('[BoxPlot] Selection - selectedDongCode:', selectedDongCode, 'selectedGuCode:', selectedGuCode)
     // 행정동과 업종이 모두 선택된 경우
     if (isDongMode && dongData.length > 0 && activeCategory !== '전체') {
       const selectedDongBusiness = dongData.find(
@@ -618,23 +624,23 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
       {/* 선택된 업종 또는 행정동/자치구 표시 (레이어 컨트롤에서 선택) */}
       <div className="absolute -top-[55px] right-2 z-10 flex flex-col items-end gap-1">
         {isDongMode && selectedDongName && activeCategory !== '전체' ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {dongGuName} {selectedDongName} - {activeCategory}
           </div>
         ) : isDongMode && selectedDongName ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {dongGuName} {selectedDongName} (전체 업종)
           </div>
         ) : isGuMode && selectedGuName && activeCategory !== '전체' ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {selectedGuName} - {activeCategory}
           </div>
         ) : isGuMode && selectedGuName ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {selectedGuName} (전체 업종)
           </div>
         ) : activeCategory !== '전체' ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {activeCategory}
           </div>
         ) : null}
@@ -646,15 +652,15 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
             data={processedData}
             margin={{ top: 10, right: 20, bottom: 10, left: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+            <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#E5E7EB" />
             
             <XAxis 
               dataKey="temperatureGroup" 
               tick={(props) => {
                 const { x, y, payload } = props
-                const color = payload.value === '한파' ? '#3B82F6' : 
-                             payload.value === '온화' ? '#10B981' : 
-                             payload.value === '폭염' ? '#EF4444' : '#9CA3AF'
+                const color = payload.value === '한파' ? '#2563EB' :
+                             payload.value === '온화' ? '#059669' :
+                             payload.value === '폭염' ? '#DC2626' : '#6B7280'
                 return (
                   <text x={x} y={y} dy={16} textAnchor="middle" fill={color} fontSize={14} fontWeight="bold">
                     {payload.value}
@@ -667,7 +673,9 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
             <YAxis 
               domain={yDomain}
               tickFormatter={(value) => `${value.toFixed(0)}%`}
-              tick={{ fontSize: 11 }}
+              tick={{ fontSize: 11, fill: '#4B5563' }}
+              axisLine={{ stroke: '#E5E7EB', strokeOpacity: 0.5 }}
+              tickLine={{ stroke: '#E5E7EB', strokeOpacity: 0.5 }}
             />
             
             
@@ -694,20 +702,21 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
               type="monotone" 
               dataKey="median" 
               stroke={
-                hoveredGroup === '한파' ? '#3B82F6' :
-                hoveredGroup === '온화' ? '#10B981' :
-                hoveredGroup === '폭염' ? '#EF4444' :
-                '#DBDEE3'
+                hoveredGroup === '한파' ? '#2563EB' :
+                hoveredGroup === '온화' ? '#059669' :
+                hoveredGroup === '폭염' ? '#DC2626' :
+                '#6B7280'
               }
-              strokeWidth={hoveredGroup ? 2.5 : 2}
-              strokeOpacity={0.9}
+              strokeWidth={hoveredGroup ? 1.75 : 1.5}
+              strokeOpacity={1}
               strokeDasharray="5 5"
-              dot={{ 
-                fill: hoveredGroup === '한파' ? '#3B82F6' :
-                      hoveredGroup === '온화' ? '#10B981' :
-                      hoveredGroup === '폭염' ? '#EF4444' :
-                      '#DBDEE3',
-                r: hoveredGroup ? 5 : 4 
+              dot={{
+                fill: hoveredGroup === '한파' ? '#2563EB' :
+                      hoveredGroup === '온화' ? '#059669' :
+                      hoveredGroup === '폭염' ? '#DC2626' :
+                      '#6B7280',
+                r: hoveredGroup ? 6 : 5,
+                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
               }}
               connectNulls
               name="중앙값 연결선"

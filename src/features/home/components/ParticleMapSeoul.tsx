@@ -6,8 +6,8 @@ import { DeckGL } from "@deck.gl/react"
 import { ScatterplotLayer, LineLayer, SolidPolygonLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
 import "mapbox-gl/dist/mapbox-gl.css"
-import { precomputeBoundaryGrid } from "@/src/features/admin-districts/utils/boundaryProcessor"
-import type { SeoulBoundaryData } from "@/src/features/admin-districts/utils/boundaryProcessor"
+import { precomputeBoundaryGrid } from "@/src/features/home/utils/boundaryProcessor"
+import type { SeoulBoundaryData } from "@/src/features/home/utils/boundaryProcessor"
 import { 
   generateParticlesOptimized, 
   generateInitialParticles, 
@@ -146,14 +146,12 @@ interface SeoulMapOptimizedProps {
   animationConfig: AnimationConfig
   onAnimationConfigChange: (changes: Partial<AnimationConfig>) => void
   mapStyle: string
-  onMapStyleChange: (style: string) => void
 }
 
 export function SeoulMapOptimized({
   animationConfig,
   onAnimationConfigChange,
-  mapStyle,
-  onMapStyleChange
+  mapStyle
 }: SeoulMapOptimizedProps) {
   // 성능 레벨 감지 및 적응형 관리
   const [performanceLevel, setPerformanceLevel] = useState<keyof typeof PERFORMANCE_CONFIG>(() => detectPerformanceLevel())
@@ -189,9 +187,9 @@ export function SeoulMapOptimized({
   const rotationRef = useRef(0)
   
   // Amplitude animation refs for initial effect
-  const amplitudeAnimationRef = useRef<number>(15.0) // Start at much higher amplitude for very dramatic scatter
+  const amplitudeAnimationRef = useRef<number>(30.0) // Start at 2x higher amplitude for very dramatic scatter
   const animationStartTimeRef = useRef<number | null>(null)
-  const animationDurationRef = useRef<number>(15000) // 15 seconds animation
+  const animationDurationRef = useRef<number>(10000) // 10 seconds animation for smoother convergence from greater distance
   
   // Object pooling for animation optimization
   const animationPoolRef = useRef<{
@@ -277,7 +275,7 @@ export function SeoulMapOptimized({
   // Enhanced data loading with optimizations
   useEffect(() => {
     // Initialize amplitude animation immediately (before loading)
-    amplitudeAnimationRef.current = 15.0 // Start with dramatic scatter
+    amplitudeAnimationRef.current = 30.0 // Start with 2x dramatic scatter
     animationStartTimeRef.current = Date.now() // Animation starts now
     
     async function loadDataOptimized(): Promise<void> {
@@ -297,9 +295,8 @@ export function SeoulMapOptimized({
         
         // Step 2: Try static files first (fastest)
         try {
-          const quality = config.particleCount >= 12000 ? 'high' : 
-                         config.particleCount >= 8000 ? 'medium' : 'low'
-          const staticParticles = await loadStaticParticles(quality, animationConfig.colorTheme)
+          // Always use high quality particles
+          const staticParticles = await loadStaticParticles('high', animationConfig.colorTheme)
           
           setLoadingPhase('Loaded from static data!')
           setLoadingProgress(100)
@@ -540,7 +537,7 @@ export function SeoulMapOptimized({
             
             // Use cubic easing out for smooth decay
             const easedProgress = 1.0 - Math.pow(1.0 - progress, 3)
-            const currentAmplitude = 15.0 - (14.8 * easedProgress) // From 15.0 to 0.2
+            const currentAmplitude = 30.0 - (29.8 * easedProgress) // From 30.0 to 0.2
             
             amplitudeAnimationRef.current = currentAmplitude
             
@@ -929,22 +926,6 @@ export function SeoulMapOptimized({
         
       </DeckGL>
 
-      {/* Animation controls moved to Hero component for proper z-index handling */}
-
-      {/* 성능 정보 표시 (개발 모드에서만) */}
-      {process.env.NODE_ENV === 'development' && (
-        <div className="absolute right-4 bg-black/60 backdrop-blur-sm rounded px-3 py-2 text-xs text-white/80 space-y-1" style={{ top: '86px' }}>
-          <div>Performance: {performanceLevel.toUpperCase()}</div>
-          <div>Particles: {config.particleCount}</div>
-          <div>Target FPS: {config.fps}</div>
-          <div className={`${currentFPS < 25 ? 'text-red-400' : currentFPS < 45 ? 'text-yellow-400' : 'text-green-400'}`}>
-            Current FPS: {currentFPS}
-          </div>
-          <div>Connections: {config.connectionCount}</div>
-          <div>Glow: {config.glowLayers > 0 ? 'ON' : 'OFF'}</div>
-        </div>
-      )}
-      
       {/* 간단한 그라데이션 오버레이 */}
       <div 
         className="absolute inset-0 pointer-events-none"

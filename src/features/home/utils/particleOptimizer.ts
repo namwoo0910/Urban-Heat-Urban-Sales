@@ -3,7 +3,7 @@
  * 정적 파일에서 파티클 데이터를 즉시 로드하고 런타임에 색상 적용
  */
 
-import type { ParticleData } from './particle-data-optimized'
+import type { ParticleData } from './particleGenerator'
 
 // 메모리 캐시 (위치 데이터만)
 const particleCache = new Map<string, Omit<ParticleData, 'color'>[]>()
@@ -147,10 +147,10 @@ function applyColorTheme(
  * 색상은 런타임에 적용
  */
 export async function loadStaticParticles(
-  quality: 'high' | 'medium' | 'low',
+  quality: 'high',  // Only high quality supported
   colorTheme: string
 ): Promise<ParticleData[]> {
-  const cacheKey = `${quality}-${colorTheme}`
+  const cacheKey = `high-${colorTheme}`  // Always use high quality
   
   // 완성된 파티클 캐시 확인
   if (memoryCache.has(cacheKey)) {
@@ -167,15 +167,15 @@ export async function loadStaticParticles(
     // 위치 데이터 로드 또는 캐시에서 가져오기
     let baseParticles: Omit<ParticleData, 'color'>[]
     
-    if (particleCache.has(quality)) {
-      baseParticles = particleCache.get(quality)!
+    if (particleCache.has('high')) {
+      baseParticles = particleCache.get('high')!
       console.log('[FastLoader] Base particles from cache')
     } else {
       // 색상 없는 파티클 데이터 로드
-      const response = await fetch(`/data/particles-${quality}.json`)
+      const response = await fetch('/data/particles-high.json')
       if (!response.ok) {
         // Fallback to old format for backward compatibility
-        const oldResponse = await fetch(`/data/particles-${quality}-${colorTheme}.json`)
+        const oldResponse = await fetch(`/data/particles-high-${colorTheme}.json`)
         if (!oldResponse.ok) throw new Error('Static file not found')
         
         const oldParticles = await oldResponse.json()
@@ -184,7 +184,7 @@ export async function loadStaticParticles(
       }
       
       baseParticles = await response.json()
-      particleCache.set(quality, baseParticles)
+      particleCache.set('high', baseParticles)
       console.log(`[FastLoader] Loaded ${baseParticles.length} base particles`)
     }
     
@@ -226,14 +226,14 @@ export async function loadWaveGrid(): Promise<{ positions: number[], uvs: number
  * 병렬 프리로드 - 모든 리소스를 동시에 로드
  */
 export async function preloadAllResources(
-  quality: 'high' | 'medium' | 'low',
+  quality: 'high',  // Only high quality supported
   colorTheme: string
 ): Promise<{
   particles: ParticleData[]
   waveGrid: { positions: number[], uvs: number[] }
 }> {
   const [particles, waveGrid] = await Promise.all([
-    loadStaticParticles(quality, colorTheme),
+    loadStaticParticles('high', colorTheme),
     loadWaveGrid()
   ])
   

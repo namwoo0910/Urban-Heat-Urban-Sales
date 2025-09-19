@@ -1,6 +1,8 @@
 "use client"
 
 import React, { useState, useEffect, useMemo, useRef } from "react"
+import { motion, AnimatePresence } from "framer-motion"
+import { ChevronDown, Filter } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/components/ui/select"
 import { Button } from "@/src/shared/components/ui/button"
@@ -15,16 +17,16 @@ import {
 import { 
   getAllBusinessTypes
 } from "../data/businessHierarchy"
-import { dateExtractor } from "../utils/dateExtractor"
 
 interface LocalEconomyFilterPanelProps {
   onFilterChange?: (filters: FilterState) => void
+  onThemeChange?: (theme: string) => void
+  currentTheme?: string
   className?: string
   // External filter state synchronization
   externalSelectedGu?: string | null
   externalSelectedDong?: string | null
   externalSelectedBusinessType?: string | null
-  externalSelectedDate?: string | null
   // Timeline animation state
   isTimelineAnimating?: boolean
 }
@@ -35,31 +37,30 @@ export interface FilterState {
   selectedDong: string | null      // 동 이름 (UI 표시용) 
   selectedDongCode: number | null  // 동 코드 (필터링용)
   selectedBusinessType: string | null
-  selectedDate: string | null      // 선택된 날짜 (YYYY-MM-DD 형식)
 }
 
 const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   onFilterChange,
+  onThemeChange,
+  currentTheme = 'ocean',
   className = "",
   // External filter state synchronization
   externalSelectedGu,
   externalSelectedDong,
   externalSelectedBusinessType,
-  externalSelectedDate,
   // Timeline animation state
   isTimelineAnimating = false,
 }: LocalEconomyFilterPanelProps) {
-  
+
+  // Expand/collapse state
+  const [isExpanded, setIsExpanded] = useState(false)
+
   // Filter states
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
   const [selectedGuCode, setSelectedGuCode] = useState<number | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
   const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
-  const [selectedDate, setSelectedDate] = useState<string | null>('2024-01-01') // 기본값을 1월 1일로 설정
-  const [availableDates, setAvailableDates] = useState<string[]>([])
-  const [isLoadingDates, setIsLoadingDates] = useState(true)
-  const [selectedMonth, setSelectedMonth] = useState<string>('2024-01')
   
   // Get available options
   const availableDistricts = useMemo(() => getAllDistricts(), [])
@@ -105,47 +106,9 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     setSelectedBusinessType(value === '전체' ? null : value)
   }
   
-  // Handle date selection
-  const handleDateChange = (value: string) => {
-    setSelectedDate(value === '전체' ? null : value)
-  }
   
-  // Handle month change
-  const handleMonthChange = (value: string) => {
-    setSelectedMonth(value)
-    // When month changes, select the first date of that month by default
-    const monthDates = dateExtractor.getDatesForMonth(value)
-    if (monthDates.length > 0) {
-      setSelectedDate(monthDates[0])
-    }
-  }
   
-  // Load available dates on mount
-  useEffect(() => {
-    const loadDates = async () => {
-      setIsLoadingDates(true)
-      try {
-        const allDates = await dateExtractor.loadAvailableDates()
-        // Set dates for the initial selected month
-        const monthDates = dateExtractor.getDatesForMonth(selectedMonth)
-        setAvailableDates(monthDates)
-        console.log(`[DateLoader] Loaded ${monthDates.length} dates for ${selectedMonth}`)
-      } catch (error) {
-        console.error('[DateLoader] Failed to load dates:', error)
-      } finally {
-        setIsLoadingDates(false)
-      }
-    }
-    
-    loadDates()
-  }, [])
   
-  // Update available dates when month changes
-  useEffect(() => {
-    const monthDates = dateExtractor.getDatesForMonth(selectedMonth)
-    setAvailableDates(monthDates)
-    console.log(`[DateSelector] Updated dates for ${selectedMonth}:`, monthDates.length)
-  }, [selectedMonth])
   
   // Get available months
   const availableMonths = useMemo(() => {
@@ -203,12 +166,6 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     }
   }, [externalSelectedBusinessType]) // Remove selectedBusinessType dependency
 
-  useEffect(() => {
-    // Only update if values are different to prevent infinite loops
-    if (externalSelectedDate !== undefined && externalSelectedDate !== selectedDate) {
-      setSelectedDate(externalSelectedDate)
-    }
-  }, [externalSelectedDate]) // Remove selectedDate dependency
 
   // Track if it's the initial mount
   const isInitialMount = useRef(true)
@@ -217,8 +174,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     selectedGuCode,
     selectedDong,
     selectedDongCode,
-    selectedBusinessType,
-    selectedDate
+    selectedBusinessType
   })
 
   // Notify parent of filter changes - Fixed to prevent initial trigger and loops
@@ -232,8 +188,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
         selectedGuCode,
         selectedDong,
         selectedDongCode,
-        selectedBusinessType,
-        selectedDate
+        selectedBusinessType
       }
       return
     }
@@ -244,8 +199,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
       previousValues.current.selectedGuCode !== selectedGuCode ||
       previousValues.current.selectedDong !== selectedDong ||
       previousValues.current.selectedDongCode !== selectedDongCode ||
-      previousValues.current.selectedBusinessType !== selectedBusinessType ||
-      previousValues.current.selectedDate !== selectedDate
+      previousValues.current.selectedBusinessType !== selectedBusinessType
     
     if (hasChanged && onFilterChange) {
       // Update previous values before calling onChange to prevent race conditions
@@ -254,8 +208,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
         selectedGuCode,
         selectedDong,
         selectedDongCode,
-        selectedBusinessType,
-        selectedDate
+        selectedBusinessType
       }
       previousValues.current = newValues
       
@@ -264,23 +217,77 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
         onFilterChange(newValues)
       }, 0)
     }
-  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType, selectedDate]) // Remove onFilterChange dependency
+  }, [selectedGu, selectedGuCode, selectedDong, selectedDongCode, selectedBusinessType]) // Remove onFilterChange dependency
   
   
+  // Theme colors for map
+  const themes = [
+    // Vibrant themes
+    { id: 'ocean', color: '#0C2C84', label: 'Ocean' },
+    { id: 'aurora', color: '#FF1493', label: 'Aurora' },
+    { id: 'sunset', color: '#FF5E4D', label: 'Sunset' },
+    { id: 'hologram', color: '#7828C8', label: 'Hologram' },
+    { id: 'modern', color: '#2980B9', label: 'Modern' },
+    { id: 'cyberpunk', color: '#FF0096', label: 'Cyberpunk' },
+    // Pastel themes
+    { id: 'pastelBlue', color: '#ADD8E6', label: 'Pastel Blue' },
+    { id: 'pastelPink', color: '#FFB6C1', label: 'Pastel Pink' },
+    { id: 'pastelGreen', color: '#98FB98', label: 'Pastel Green' },
+    { id: 'pastelPurple', color: '#DDA0DD', label: 'Pastel Purple' },
+    { id: 'pastelYellow', color: '#FFFACD', label: 'Pastel Yellow' },
+    { id: 'pastelCoral', color: '#FFDAB9', label: 'Pastel Coral' },
+    { id: 'pastelGray', color: '#D3D3D3', label: 'Pastel Gray' },
+    { id: 'pastelMint', color: '#BDFCEE', label: 'Pastel Mint' }
+  ]
+
   return (
-    <div className={`fixed bottom-[266px] left-4 z-50 ${className}`}>
-      <Card className="bg-black/90 backdrop-blur-md border-gray-800/50 shadow-2xl text-gray-200 p-2 w-[300px]">
-        {/* First Row: 자치구 and 행정동 */}
-        <div className="flex gap-1 mb-1">
+    <div className={`fixed bottom-4 left-4 z-50 ${className}`}>
+      <Card className={`bg-white/95 backdrop-blur-md border-blue-100/50 shadow-xl text-slate-700 overflow-hidden ${isExpanded ? 'w-[300px]' : 'w-auto'}`}>
+        {/* Header with expand/collapse */}
+        <div className="flex items-center">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="flex-1 flex items-center justify-between p-2 hover:bg-blue-50/50 transition-colors group"
+          >
+            <div className="flex items-center space-x-1.5">
+              <Filter size={14} className="text-blue-600" />
+              <span className="font-medium text-xs text-slate-700">필터</span>
+            </div>
+            <motion.div
+              animate={{ rotate: isExpanded ? 180 : 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <ChevronDown className="w-3.5 h-3.5 text-gray-400 group-hover:text-gray-600 transition-colors" />
+            </motion.div>
+          </button>
+        </div>
+
+        {/* Collapsible Content */}
+        <AnimatePresence initial={false}>
+          {isExpanded && (
+            <motion.div
+              key="content"
+              initial="collapsed"
+              animate="open"
+              exit="collapsed"
+              variants={{
+                open: { opacity: 1, height: "auto" },
+                collapsed: { opacity: 0, height: 0 }
+              }}
+              transition={{ duration: 0.3, ease: [0.04, 0.62, 0.23, 0.98] }}
+            >
+              <div className="p-2 space-y-1 border-t border-blue-100/50">
+                {/* First Row: 자치구 and 행정동 */}
+                <div className="flex gap-1">
           <div className="flex-1">
             <Select value={selectedGu || "전체"} onValueChange={handleGuChange}>
-              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
+              <SelectTrigger className="bg-white border-gray-200 text-slate-700 h-7 text-xs px-2 hover:border-blue-300">
                 <SelectValue placeholder="자치구" />
               </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-white border-gray-200 max-h-64 overflow-y-auto">
                 <SelectItem 
                   value="전체"
-                  className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
+                  className="text-slate-700 hover:bg-blue-50 font-semibold border-b border-gray-200"
                 >
                   전체 자치구
                 </SelectItem>
@@ -288,7 +295,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={district} 
                     value={district}
-                    className="text-gray-200 hover:bg-gray-900/50"
+                    className="text-slate-700 hover:bg-blue-50"
                   >
                     {district}
                   </SelectItem>
@@ -303,16 +310,16 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
               onValueChange={handleDongChange}
               disabled={!selectedGu}
             >
-              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 disabled:opacity-50 h-7 text-xs px-2">
+              <SelectTrigger className="bg-white border-gray-200 text-slate-700 disabled:opacity-50 h-7 text-xs px-2 hover:border-blue-300">
                 <SelectValue>
                   {selectedDong || "전체 행정동"}
                 </SelectValue>
               </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-white border-gray-200 max-h-64 overflow-y-auto">
                 {selectedGu && (
                   <SelectItem 
                     value="전체"
-                    className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
+                    className="text-slate-700 hover:bg-blue-50 font-semibold border-b border-gray-200"
                   >
                     전체 행정동
                   </SelectItem>
@@ -321,7 +328,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={dong} 
                     value={dong}
-                    className="text-gray-200 hover:bg-gray-900/50"
+                    className="text-slate-700 hover:bg-blue-50"
                   >
                     {dong}
                   </SelectItem>
@@ -329,22 +336,22 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
               </SelectContent>
             </Select>
           </div>
-        </div>
-        
-        {/* Second Row: 업종 and 상세보기 버튼 */}
-        <div className="flex gap-1">
+                </div>
+
+                {/* Second Row: 업종 and 상세보기 버튼 */}
+                <div className="flex gap-1">
           <div className="flex-1">
             <Select 
               value={selectedBusinessType || "전체"} 
               onValueChange={handleBusinessTypeChange}
             >
-              <SelectTrigger className="bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2">
+              <SelectTrigger className="bg-white border-gray-200 text-slate-700 h-7 text-xs px-2 hover:border-blue-300">
                 <SelectValue placeholder="업종" />
               </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
+              <SelectContent className="bg-white border-gray-200 max-h-64 overflow-y-auto">
                 <SelectItem 
                   value="전체"
-                  className="text-gray-200 hover:bg-gray-900/50 font-semibold border-b border-gray-800/50"
+                  className="text-slate-700 hover:bg-blue-50 font-semibold border-b border-gray-200"
                 >
                   전체 업종
                 </SelectItem>
@@ -352,7 +359,7 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
                   <SelectItem 
                     key={category} 
                     value={category}
-                    className="text-gray-200 hover:bg-gray-900/50"
+                    className="text-slate-700 hover:bg-blue-50"
                   >
                     {category}
                   </SelectItem>
@@ -361,84 +368,43 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
             </Select>
           </div>
           
-        </div>
-        
-        {/* Third Row: 날짜 선택 (월 선택 + 일 선택) */}
-        <div className="flex gap-1 mt-1">
-          {/* 월 선택 드롭다운 */}
-          <div className="flex-1">
-            <Select 
-              value={selectedMonth} 
-              onValueChange={handleMonthChange}
-              disabled={isTimelineAnimating || isLoadingDates}
-            >
-              <SelectTrigger className={`bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2 ${
-                (isTimelineAnimating || isLoadingDates) ? 'opacity-50' : ''
-              }`}>
-                <SelectValue>
-                  {isLoadingDates ? '로딩 중...' : 
-                    availableMonths.find(m => m.value === selectedMonth)?.label || selectedMonth
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
-                {availableMonths.map(month => (
-                  <SelectItem 
-                    key={month.value} 
-                    value={month.value}
-                    className="text-gray-200 hover:bg-gray-900/50"
-                  >
-                    {month.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          
-          {/* 일 선택 드롭다운 */}
-          <div className="flex-1">
-            <Select 
-              value={selectedDate || "전체"} 
-              onValueChange={handleDateChange}
-              disabled={isTimelineAnimating || isLoadingDates || availableDates.length === 0}
-            >
-              <SelectTrigger className={`bg-gray-900/50 border-gray-700/50 text-gray-200 h-7 text-xs px-2 ${
-                (isTimelineAnimating || isLoadingDates) ? 'opacity-50' : ''
-              }`}>
-                <SelectValue>
-                  {isTimelineAnimating && selectedDate ? 
-                    `📅 ${new Date(selectedDate).getDate()}일` :
-                    selectedDate ? 
-                    `${new Date(selectedDate).getDate()}일` : 
-                    "날짜 선택"
-                  }
-                </SelectValue>
-              </SelectTrigger>
-              <SelectContent className="bg-black/95 border-gray-800/50 max-h-64 overflow-y-auto">
-                {isLoadingDates ? (
-                  <div className="text-gray-400 text-xs p-2">로딩 중...</div>
-                ) : availableDates.length === 0 ? (
-                  <div className="text-gray-400 text-xs p-2">데이터 없음</div>
-                ) : (
-                  availableDates.map(date => {
-                    const dateObj = new Date(date)
-                    const day = dateObj.getDate()
-                    const weekday = dateObj.toLocaleDateString('ko-KR', { weekday: 'short' })
-                    return (
-                      <SelectItem 
-                        key={date}
-                        value={date}
-                        className="text-gray-200 hover:bg-gray-900/50"
-                      >
-                        {`${day}일 (${weekday})`}
-                      </SelectItem>
-                    )
-                  })
-                )}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+                </div>
+
+                {/* Theme Selector - Compact color dots */}
+                <div className="flex flex-col gap-1 pt-1 mt-1 border-t border-blue-100/50">
+                  <div className="flex gap-1 items-center">
+                    <span className="text-[10px] text-gray-500 self-center mr-1">색상:</span>
+                    <div className="flex gap-1 items-center flex-wrap">
+                      {themes.slice(0, 6).map(theme => (
+                        <button
+                          key={theme.id}
+                          onClick={() => onThemeChange?.(theme.id)}
+                          className={`w-4 h-4 rounded-full transition-all ${currentTheme === theme.id ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
+                          style={{ backgroundColor: theme.color }}
+                          title={theme.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex gap-1 items-center">
+                    <span className="text-[10px] text-gray-500 self-center mr-1">파스텔:</span>
+                    <div className="flex gap-1 items-center flex-wrap">
+                      {themes.slice(6).map(theme => (
+                        <button
+                          key={theme.id}
+                          onClick={() => onThemeChange?.(theme.id)}
+                          className={`w-4 h-4 rounded-full transition-all ${currentTheme === theme.id ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
+                          style={{ backgroundColor: theme.color }}
+                          title={theme.label}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </Card>
     </div>
   )
@@ -449,10 +415,11 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
     prevProps.externalSelectedGu === nextProps.externalSelectedGu &&
     prevProps.externalSelectedDong === nextProps.externalSelectedDong &&
     prevProps.externalSelectedBusinessType === nextProps.externalSelectedBusinessType &&
-    prevProps.externalSelectedDate === nextProps.externalSelectedDate &&
     prevProps.isTimelineAnimating === nextProps.isTimelineAnimating &&
     prevProps.className === nextProps.className &&
-    prevProps.onFilterChange === nextProps.onFilterChange
+    prevProps.onFilterChange === nextProps.onFilterChange &&
+    prevProps.currentTheme === nextProps.currentTheme &&
+    prevProps.onThemeChange === nextProps.onThemeChange
   )
 })
 

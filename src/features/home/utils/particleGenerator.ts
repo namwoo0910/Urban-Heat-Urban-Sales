@@ -24,7 +24,7 @@ export interface ParticleData {
   district?: string
 }
 
-import type { SeoulBoundaryData } from './seoul-boundaries-optimized'
+import type { SeoulBoundaryData } from './boundaryProcessor'
 
 // Export the loadSeoulBoundaries function
 export async function loadSeoulBoundaries(): Promise<SeoulBoundaryData> {
@@ -126,12 +126,12 @@ export const COLOR_THEMES = {
     'rgba(0, 128, 255, 0.7)',    // Sky blue
   ]
 }
-import type { BoundaryGrid } from '@/src/features/admin-districts/utils/boundaryProcessor'
-import { 
+import type { BoundaryGrid } from './boundaryProcessor'
+import {
   generateStratifiedPoints,
   DISTRICT_CENTERS,
   precomputeBoundaryGrid
-} from '@/src/features/admin-districts/utils/boundaryProcessor'
+} from './boundaryProcessor'
 import { 
   fastSin, 
   fastCos, 
@@ -177,7 +177,7 @@ export async function generateParticlesOptimized(
   const densityBoost = new Float32Array(points.length)
   for (let i = 0; i < points.length; i++) {
     const point = points[i]
-    densityBoost[i] = getAreaDensityOptimized(point.lng, point.lat)
+    densityBoost[i] = getAreaDensityOptimized(point[0], point[1])
   }
   
   // Batch process particles
@@ -196,18 +196,18 @@ export async function generateParticlesOptimized(
     const baseSize = 30 + Math.random() * 80
     
     particles[validCount] = {
-      x: point.lng,
-      y: point.lat,
+      x: point[0],
+      y: point[1],
       vx: (Math.random() - 0.5) * 0.00002,
       vy: (Math.random() - 0.5) * 0.00002,
       charge: 0.5 + Math.random() * 0.5,
       color: color,
-      position: [point.lng, point.lat],
+      position: [point[0], point[1]],
       size: baseSize * sizeFactor,
       speed: 0.0002 + Math.random() * 0.0005,
       phase: Math.random() * TWO_PI,
       amplitude: 0.001 + Math.random() * 0.002,
-      district: point.district
+      district: undefined
     } as ParticleData
     
     validCount++

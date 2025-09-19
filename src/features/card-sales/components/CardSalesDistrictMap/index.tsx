@@ -7,7 +7,7 @@
 
 "use client"
 
-import React, { useState, useMemo, useCallback, useRef, useEffect, lazy, Suspense, startTransition } from 'react'
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react'
 import { throttle } from 'lodash-es'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import type { MapRef } from 'react-map-gl'
@@ -24,7 +24,6 @@ import { usePreGeneratedSeoulMeshLayer } from '../SeoulMeshLayer'
 import { useDistrictSelection } from '@/src/shared/hooks/useDistrictSelection'
 
 // Utils
-import { createDong3DPolygonLayers, createDong2DPolygonLayers } from '../../utils/createDeckLayers'
 import { createUnifiedDeckGLLayers } from '../DeckGLUnifiedLayers'
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from '../DistrictLabelsTextLayer'
 import { getDistrictCode, getDongCode } from '../../data/districtCodeMappings'
@@ -32,22 +31,14 @@ import { getDistrictCenter } from '../../data/districtCenters'
 import { getCurrentTheme, getCurrentThemeKey } from '@/src/shared/utils/districtUtils'
 
 // Constants
-import { 
-  DEFAULT_SEOUL_VIEW, 
-  VIEW_2D, 
-  VIEW_3D, 
-  LIGHTING_EFFECT,
+import {
+  DEFAULT_SEOUL_VIEW,
   ANIMATION_CONFIG,
-  LAYER_IDS 
+  LAYER_IDS
 } from './constants'
 
 // Types
-import type { FilterState } from '../LocalEconomyFilterPanel'
 import type { FeatureCollection } from 'geojson'
-
-// Lazy load heavy components - no additional delay needed since we control timing with showChartsDelayed
-const DefaultChartsPanel = lazy(() => import('../charts/DefaultChartsPanel'))
-const ResizablePanel = lazy(() => import('@/src/shared/components/ResizablePanel'))
 
 // Transition configuration
 import { LinearInterpolator, FlyToInterpolator } from '@deck.gl/core'
@@ -60,7 +51,6 @@ export default function CardSalesDistrictMap() {
   
   // View state
   const [viewState, setViewState] = useState<MapViewState>(DEFAULT_SEOUL_VIEW)
-  const [is3DMode, setIs3DMode] = useState(false)
   const [isDragging, setIsDragging] = useState(false)
   
   // Selection state
@@ -71,30 +61,23 @@ export default function CardSalesDistrictMap() {
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
   
   // UI state
-  const [showChartPanel, setShowChartPanel] = useState(false)
   const [showMeshLayer, setShowMeshLayer] = useState(false)
   const [showBoundary, setShowBoundary] = useState(false)
   const [showDistrictLabels, setShowDistrictLabels] = useState(false)
   const [showDongLabels, setShowDongLabels] = useState(false)
-  
-  // Progressive rendering state
-  const [renderPhase, setRenderPhase] = useState<'mesh' | 'charts'>('mesh')
-  const [chartsReady, setChartsReady] = useState(false)
-  const [showChartsDelayed, setShowChartsDelayed] = useState(false)
   
   // Theme state
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   const [currentThemeKey, setCurrentThemeKey] = useState('blue')
   
   // Layer configuration
-  const { layerConfig, setLayerConfig } = useLayerState()
+  const { layerConfig, updateConfig } = useLayerState()
   
   // Data processing
-  const { 
+  const {
     sggData,
     dongData,
     jibData,
-    dongData3D,
     seoulBoundaryData,
     dongSalesMap,
     dongSalesByTypeMap,
@@ -102,88 +85,30 @@ export default function CardSalesDistrictMap() {
     error
   } = useDataProcessor()
   
-  // Mesh layer - only render if not showing charts or during mesh phase
-  const { meshLayer, isLoading: meshLoading } = usePreGeneratedSeoulMeshLayer({
-    visible: showMeshLayer && !is3DMode && (!showChartPanel || renderPhase === 'mesh'),
-    opacity: 0.6,
-    colorTheme: currentThemeKey
+  // Mesh layer
+  const { layer: meshLayer, isLoading: meshLoading } = usePreGeneratedSeoulMeshLayer({
+    visible: showMeshLayer,
+    opacity: 0.6
   })
   
   // Monitor mesh loading performance
   useEffect(() => {
     if (showMeshLayer && !meshLoading) {
       console.log('Mesh layer loaded:', {
-        renderPhase,
-        showChartPanel,
         timestamp: performance.now()
       })
     }
-  }, [meshLoading, showMeshLayer, renderPhase, showChartPanel])
-  
-  // Progressive rendering effect - render charts after mesh is ready with delay
-  useEffect(() => {
-    let timer: NodeJS.Timeout | null = null
-    
-    if (showChartPanel && !meshLoading) {
-      // Performance monitoring
-      console.time('chart-render-delay')
-      console.log('Starting chart delay timer (1 second)...')
-      
-      // Delay chart rendering by 1 second to ensure mesh is fully visible first
-      timer = setTimeout(() => {
-        console.timeEnd('chart-render-delay')
-        console.time('chart-render')
-        console.log('Enabling chart rendering now...')
-        
-        setShowChartsDelayed(true)
-        startTransition(() => {
-          setRenderPhase('charts')
-          setChartsReady(true)
-        })
-      }, 1000) // 1 second delay for complete separation
-      
-    } else if (!showChartPanel) {
-      // Reset when chart panel is closed
-      setShowChartsDelayed(false)
-      setRenderPhase('mesh')
-      setChartsReady(false)
-    }
-    
-    return () => {
-      if (timer) {
-        clearTimeout(timer)
-      }
-    }
-  }, [showChartPanel, meshLoading])
-  
-  // Monitor chart rendering completion
-  useEffect(() => {
-    if (renderPhase === 'charts' && chartsReady) {
-      // Chart rendering completed
-      console.timeEnd('chart-render')
-      
-      // Log performance metrics
-      if (performance && performance.now) {
-        console.log('Performance Metrics:', {
-          renderPhase: 'charts',
-          timestamp: performance.now(),
-          memory: (performance as any).memory ? {
-            usedJSHeapSize: ((performance as any).memory.usedJSHeapSize / 1048576).toFixed(2) + ' MB',
-            totalJSHeapSize: ((performance as any).memory.totalJSHeapSize / 1048576).toFixed(2) + ' MB'
-          } : 'N/A'
-        })
-      }
-    }
-  }, [renderPhase, chartsReady])
+  }, [meshLoading, showMeshLayer])
   
   // Reset has been moved to the main progressive rendering effect above
   
   // District selection helper
   const districtSelection = useDistrictSelection({
+    mapRef: { current: null },
     onDistrictSelect: (districtName: string | null) => {
       if (districtName) {
         setSelectedGu(districtName)
-        setSelectedGuCode(getDistrictCode(districtName))
+        setSelectedGuCode(getDistrictCode(districtName) ?? null)
       }
     }
   })
@@ -222,9 +147,9 @@ export default function CardSalesDistrictMap() {
   
   // Handle district zoom
   const handleDistrictZoom = useCallback((guName: string, dongName?: string | null) => {
-    const center = dongName 
-      ? getDistrictCenter('dong', dongName)
-      : getDistrictCenter('gu', guName)
+    const center = dongName
+      ? getDistrictCenter('동', dongName)
+      : getDistrictCenter('구', guName)
     
     if (center) {
       isProgrammaticUpdateRef.current = true
@@ -234,8 +159,8 @@ export default function CardSalesDistrictMap() {
         longitude: center[0],
         latitude: center[1],
         zoom: dongName ? 14 : 12,
-        pitch: is3DMode ? 45 : 0,
-        bearing: is3DMode ? -10 : 0,
+        pitch: 0,
+        bearing: 0,
         transitionDuration: ANIMATION_CONFIG.TRANSITION_DURATION,
         transitionInterpolator: new FlyToInterpolator({ speed: ANIMATION_CONFIG.TRANSITION_SPEED }),
         onTransitionEnd: () => {
@@ -243,7 +168,7 @@ export default function CardSalesDistrictMap() {
         }
       } as any)
     }
-  }, [viewState, is3DMode])
+  }, [viewState])
   
   // Handle district selection
   const handleDistrictSelect = useCallback((gu: string | null, dong: string | null) => {
@@ -251,29 +176,17 @@ export default function CardSalesDistrictMap() {
     setSelectedDong(dong)
     
     if (gu) {
-      setSelectedGuCode(getDistrictCode(gu))
+      setSelectedGuCode(getDistrictCode(gu) ?? null)
       if (dong) {
-        setSelectedDongCode(getDongCode(gu, dong))
-        handleDistrictZoom(gu, dong)
+        setSelectedDongCode(getDongCode(gu, dong) ?? null)
+        // 줌 기능 제거 - handleDistrictZoom(gu, dong)
       } else {
         setSelectedDongCode(null)
-        handleDistrictZoom(gu)
+        // 줌 기능 제거 - handleDistrictZoom(gu)
       }
     } else {
       setSelectedGuCode(null)
       setSelectedDongCode(null)
-    }
-  }, [handleDistrictZoom])
-  
-  // Handle filter changes
-  const handleFilterChange = useCallback((filters: FilterState) => {
-    setSelectedGu(filters.selectedGu)
-    setSelectedGuCode(filters.selectedGuCode)
-    setSelectedDong(filters.selectedDong)
-    setSelectedDongCode(filters.selectedDongCode)
-    
-    if (filters.selectedGu) {
-      handleDistrictZoom(filters.selectedGu, filters.selectedDong)
     }
   }, [handleDistrictZoom])
   
@@ -284,7 +197,7 @@ export default function CardSalesDistrictMap() {
     setSelectedDong(null)
     setSelectedDongCode(null)
     setHoveredDistrict(null)
-    
+
     isProgrammaticUpdateRef.current = true
     setViewState({
       ...DEFAULT_SEOUL_VIEW,
@@ -296,98 +209,50 @@ export default function CardSalesDistrictMap() {
     } as any)
   }, [])
   
-  // Handle 3D mode toggle
-  const handle3DModeToggle = useCallback((enabled: boolean) => {
-    setIs3DMode(enabled)
-    
-    isProgrammaticUpdateRef.current = true
-    setViewState(prev => ({
-      ...prev,
-      pitch: enabled ? 45 : 0,
-      bearing: enabled ? -10 : 0,
-      transitionDuration: ANIMATION_CONFIG.TRANSITION_DURATION,
-      transitionInterpolator: new LinearInterpolator(['pitch', 'bearing']),
-      onTransitionEnd: () => {
-        isProgrammaticUpdateRef.current = false
-      }
-    } as any))
-  }, [])
   
   // Create layers
   const layers = useMemo(() => {
     const allLayers = []
-    
-    // Mesh layer (2D only)
-    if (meshLayer && showMeshLayer && !is3DMode) {
+
+    // Mesh layer
+    if (meshLayer && showMeshLayer) {
       allLayers.push(meshLayer)
     }
-    
-    // District layers
-    if (is3DMode && dongData3D) {
-      // 3D polygon layers
-      const dong3DLayers = createDong3DPolygonLayers({
-        dongData3D,
-        layerConfig,
-        dongSalesMap,
-        heightScale: 1,
-        selectedGu,
-        selectedDong,
-        selectedGuCode,
-        selectedDongCode,
-        hoveredDistrict,
-        currentThemeKey,
-        timelineAnimationEnabled: false,
-        isTimelinePlaying: false,
-        getDistrictCode: getDistrictCodeHelper,
-        getDistrictName: getDistrictNameHelper,
-        getGuName: getGuNameHelper
-      })
-      allLayers.push(...dong3DLayers)
-    } else {
-      // 2D unified layers
-      const unifiedLayers = createUnifiedDeckGLLayers({
-        sggData,
-        dongData,
-        jibData,
-        dongData3D,
-        seoulBoundaryData,
-        is3DMode,
-        isDragging,
-        viewState,
-        selectedGu,
-        selectedDong,
-        hoveredDistrict,
-        sggVisible: true,
-        dongVisible: true,
-        jibVisible: viewState.zoom > 14,
-        showBoundary,
-        dongSalesMap,
-        heightScale: 1,
-        currentThemeKey
-      })
-      allLayers.push(...unifiedLayers)
-    }
+
+    // Boundary layers (simplified - only boundary lines if needed)
+    const unifiedLayers = createUnifiedDeckGLLayers({
+      seoulBoundaryData,
+      isDragging,
+      viewState: { ...viewState, pitch: viewState.pitch ?? 0, bearing: viewState.bearing ?? 0 },
+      showBoundary,
+      onHover: handleHover,
+      onClick: handleClick
+    })
+    allLayers.push(...unifiedLayers)
     
     // Label layers
     if (showDistrictLabels && viewState.zoom >= 10) {
       allLayers.push(createDistrictLabelsTextLayer({
         visible: true,
-        onClick: (info: PickingInfo) => {
-          if (info.object?.nameKr) {
-            handleDistrictSelect(info.object.nameKr, null)
-          }
+        viewState,
+        selectedGu,
+        selectedDong,
+        hoveredDistrict,
+        onClick: (districtName: string) => {
+          handleDistrictSelect(districtName, null)
         }
       }))
     }
     
     if (showDongLabels && viewState.zoom >= 12) {
       allLayers.push(createDongLabelsTextLayer({
-        visible: true,
-        onClick: (info: PickingInfo) => {
-          if (info.object?.name) {
-            const guName = getGuNameHelper(info.object)
-            handleDistrictSelect(guName, info.object.name)
-          }
+        dongData: dongData?.features || [],
+        viewState,
+        selectedGu,
+        selectedDong,
+        onClick: (districtName: string) => {
+          const [gu, dong] = districtName.split(' ')
+          handleDistrictSelect(gu, dong)
         }
       }))
     }
@@ -396,8 +261,6 @@ export default function CardSalesDistrictMap() {
   }, [
     meshLayer,
     showMeshLayer,
-    is3DMode,
-    dongData3D,
     sggData,
     dongData,
     jibData,
@@ -504,14 +367,12 @@ export default function CardSalesDistrictMap() {
           viewState={viewState}
           layers={layers}
           onViewStateChange={handleViewStateChange}
-          effects={is3DMode ? [LIGHTING_EFFECT] : []}
-          mapRef={mapRef}
+          effects={[]}
+          mapRef={mapRef as any}
         />
       </InteractionHandler>
       
       <UIControls
-        is3DMode={is3DMode}
-        onToggle3D={handle3DModeToggle}
         showMeshLayer={showMeshLayer}
         showBoundary={showBoundary}
         showDistrictLabels={showDistrictLabels}
@@ -521,72 +382,8 @@ export default function CardSalesDistrictMap() {
         onToggleDistrictLabels={setShowDistrictLabels}
         onToggleDongLabels={setShowDongLabels}
         layerConfig={layerConfig}
-        onLayerConfigChange={setLayerConfig}
-        selectedGu={selectedGu}
-        selectedDong={selectedDong}
-        selectedBusinessType={null}
-        selectedDate={null}
-        onFilterChange={handleFilterChange}
-        dongSalesMap={dongSalesMap}
-        dongSalesByTypeMap={dongSalesByTypeMap}
-        onReset={handleReset}
+        onLayerConfigChange={updateConfig}
       />
-      
-      {/* Progressive rendering: Only show charts after delay */}
-      {showChartsDelayed && (
-        <div 
-          className="absolute top-0 right-0 h-full"
-          style={{
-            animation: 'slideInFromRight 0.5s ease-out',
-            opacity: chartsReady ? 1 : 0,
-            transition: 'opacity 0.3s ease-in-out'
-          }}
-        >
-          <Suspense fallback={
-            <div className="absolute bottom-4 right-4 bg-gray-800/90 p-4 rounded-lg shadow-lg">
-              <div className="flex items-center space-x-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-300 border-t-white"></div>
-                <span className="text-white text-sm">Loading charts...</span>
-              </div>
-            </div>
-          }>
-            <ResizablePanel
-              initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
-              minWidth={300}
-              maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
-              className="h-full bg-black/80"
-            >
-              <div className="h-full p-4">
-                <DefaultChartsPanel />
-              </div>
-            </ResizablePanel>
-          </Suspense>
-        </div>
-      )}
-      
-      {/* Show countdown indicator during delay */}
-      {showChartPanel && !showChartsDelayed && !meshLoading && (
-        <div className="absolute bottom-4 right-4 bg-gray-800/90 p-4 rounded-lg shadow-lg">
-          <div className="flex items-center space-x-2">
-            <div className="animate-pulse w-2 h-2 bg-blue-500 rounded-full"></div>
-            <span className="text-white text-sm">Initializing charts...</span>
-          </div>
-        </div>
-      )}
-      
-      {/* CSS Animation Keyframes */}
-      <style jsx>{`
-        @keyframes slideInFromRight {
-          from {
-            transform: translateX(100%);
-            opacity: 0;
-          }
-          to {
-            transform: translateX(0);
-            opacity: 1;
-          }
-        }
-      `}</style>
     </div>
   )
 }

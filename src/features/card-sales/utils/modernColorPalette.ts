@@ -423,8 +423,10 @@ export function getSalesBasedColor(
   applyThemeAdjustments: boolean = true,
   themeKey: string = 'blue'
 ): [number, number, number, number] {
-  // Use the simple 20-step gradient approach
-  const [r, g, b, alpha] = getSimpleSalesGradient(themeKey, totalSales, baseAlpha);
+  // Simple gradient based on sales
+  const normalizedSales = Math.min(totalSales / 1000000000, 1) // Normalize to 0-1 based on 1B max
+  const [r, g, b] = [100 + normalizedSales * 155, 50 + normalizedSales * 100, 200 - normalizedSales * 100]
+  const alpha = baseAlpha
   
   // Apply theme adjustments if requested
   if (applyThemeAdjustments) {

@@ -1,0 +1,563 @@
+/**
+ * EDA District Map Component
+ *
+ * Main map visualization for exploratory data analysis of Seoul districts.
+ * Enhanced with card sales filters and charts.
+ */
+
+"use client"
+
+import React, { useState, useMemo, useCallback, useRef, useEffect, lazy, Suspense } from 'react'
+import { throttle } from 'lodash-es'
+import type { MapViewState, PickingInfo } from '@deck.gl/core'
+import { FlyToInterpolator } from '@deck.gl/core'
+import type { MapRef } from 'react-map-gl'
+import { motion } from 'framer-motion'
+
+// Components
+import { MapContainer } from './MapContainer'
+import LocalEconomyFilterPanel from '@/src/features/card-sales/components/LocalEconomyFilterPanel'
+import type { FilterState } from '@/src/features/card-sales/components/LocalEconomyFilterPanel'
+
+// Lazy load heavy components
+const DefaultChartsPanel = lazy(() => import('@/src/features/card-sales/components/charts/DefaultChartsPanel'))
+const ResizablePanel = lazy(() => import('@/src/shared/components/ResizablePanel'))
+
+// Hooks
+import { useDistrictData } from '../hooks/useDistrictData'
+
+// Data and utilities
+import { getDistrictCode, getDongCode } from '@/src/features/card-sales/data/districtCodeMappings'
+
+// Constants
+import { DEFAULT_SEOUL_VIEW } from '../constants/mapConfig'
+
+// Layers
+import { createDistrictBoundaryLayers } from './layers/DistrictBoundaryLayers'
+import type { ThemeKey } from '../utils/edaColorPalette'
+
+// Ambient effects
+import { DEFAULT_AMBIENT_CONFIG } from '../utils/ambientEffects'
+
+export default function EDADistrictMap() {
+  // Core refs
+  const mapRef = useRef<MapRef>(null)
+
+  // Track panel and window dimensions for dynamic centering
+  const [chartPanelWidth, setChartPanelWidth] = useState<number>(
+    typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600
+  )
+  const [windowWidth, setWindowWidth] = useState<number>(
+    typeof window !== 'undefined' ? window.innerWidth : 1920
+  )
+
+  // Calculate adjusted map center based on available space
+  const calculateAdjustedCenter = useCallback((showPanel: boolean) => {
+    if (!showPanel) {
+      // If no chart panel, use default center
+      return DEFAULT_SEOUL_VIEW.longitude
+    }
+
+    // Calculate the center of the available map area
+    const mapAreaWidth = windowWidth - chartPanelWidth
+    const mapCenterX = mapAreaWidth / 2
+
+    // Move Seoul away from the chart panel for better spacing
+    const pixelOffset = chartPanelWidth * 0.25  // 25% of chart width for spacing
+
+    // Convert pixel offset to longitude degrees at zoom level
+    const zoom = DEFAULT_SEOUL_VIEW.zoom || 10.5
+    const degreesPerPixel = 360 / (256 * Math.pow(2, zoom))
+    const longitudeOffset = pixelOffset * degreesPerPixel
+
+    // Add to move right (toward the chart side for better balance)
+    return 126.9780 + longitudeOffset
+  }, [chartPanelWidth, windowWidth])
+
+  // UI state - moved up to use in initial calculation
+  const [showChartPanel, setShowChartPanel] = useState(true) // Track chart panel visibility
+
+  // View state with dynamic center
+  const [viewState, setViewState] = useState<MapViewState>({
+    ...DEFAULT_SEOUL_VIEW,
+    longitude: calculateAdjustedCenter(true) // Pass initial showChartPanel value
+  })
+  const [isDragging, setIsDragging] = useState(false)
+
+  // Selection state
+  const [selectedGu, setSelectedGu] = useState<string | null>(null)
+  const [selectedGuCode, setSelectedGuCode] = useState<number | null>(null)
+  const [selectedDong, setSelectedDong] = useState<string | null>(null)
+  const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
+  const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
+  const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
+
+  // Theme & interaction state
+  const [currentTheme, setCurrentTheme] = useState<ThemeKey>('pastelBlue')
+  const useUniqueColors = currentTheme === 'modern' // Only use unique colors for modern theme
+
+  // Derive selection mode from current selection state
+  const selectionMode = useMemo(() => {
+    return selectedDong ? 'dong' : 'gu'
+  }, [selectedDong])
+
+  // Ambient effects configuration
+  const [enableAmbientEffects, setEnableAmbientEffects] = useState(true)
+
+  // Simplified ambient config without animations to prevent loops
+  const ambientConfig = useMemo(() => ({
+    ...DEFAULT_AMBIENT_CONFIG,
+    intensity: 1.0, // Fixed intensity
+    glowRadius: 25, // Fixed radius
+    enableAnimation: false // Disable animations to prevent loops
+  }), [])
+
+  // Animation temporarily disabled to fix infinite loop
+  // TODO: Re-implement with CSS animations or deck.gl transitions
+  const animationState = {
+    timestamp: 0,
+    breathingOpacity: 1.0,
+    expansionRadius: 25,
+    shimmerColor: null,
+    isAnimating: false
+  }
+
+  // UI state - Gu boundaries always shown for colors, dong boundaries when a gu is selected
+  const showGuBoundaries = true  // Always show gu boundaries for consistent colors
+  const showDongBoundaries = selectedGu !== null  // Show dong boundaries when a gu is selected
+  const showLabels = true
+  // showChartPanel is already defined above
+
+  // Load district data
+  const { guData, dongData, isLoading, error } = useDistrictData()
+
+  // Helper functions
+  const getDistrictName = useCallback((properties: any): string | null => {
+    return properties?.ADM_DR_NM ||
+           properties?.dongName ||
+           properties?.dong_name ||
+           properties?.DONG_NM ||
+           properties?.H_DONG_NM ||
+           properties?.['행정동'] ||
+           null
+  }, [])
+
+  const getGuName = useCallback((properties: any): string | null => {
+    return properties?.guName ||
+           properties?.SGG_NM ||
+           properties?.SIG_KOR_NM ||
+           properties?.SIGUNGU_NM ||
+           properties?.['자치구'] ||
+           null
+  }, [])
+
+  // Handle hover
+  const handleHover = useCallback((info: PickingInfo) => {
+    if (info.object) {
+      const properties = info.object.properties || info.object
+      if (selectionMode === 'gu') {
+        const guName = getGuName(properties)
+        setHoveredDistrict(guName)
+      } else {
+        const districtName = getDistrictName(properties)
+        setHoveredDistrict(districtName)
+      }
+    } else {
+      setHoveredDistrict(null)
+    }
+  }, [getDistrictName, getGuName, selectionMode])
+
+  // Handle filter changes from LocalEconomyFilterPanel
+  const handleFilterChange = useCallback((filters: FilterState) => {
+    setSelectedGu(filters.selectedGu)
+    setSelectedGuCode(filters.selectedGuCode)
+    setSelectedDong(filters.selectedDong)
+    setSelectedDongCode(filters.selectedDongCode)
+    setSelectedBusinessType(filters.selectedBusinessType)
+  }, [])
+
+  // Apply preset filters
+  const applyPresetFilter = useCallback((preset: 'vulnerable' | 'culture') => {
+    if (preset === 'vulnerable') {
+      // 폭염/한파에 취약한 전통상권: 종로구 창신1동 음/식료품
+      handleFilterChange({
+        selectedGu: '종로구',
+        selectedGuCode: getDistrictCode('종로구') || null,
+        selectedDong: '창신1동',
+        selectedDongCode: getDongCode('종로구', '창신1동') || null,
+        selectedBusinessType: '음/식료품'
+      })
+    } else {
+      // 폭염 속에서 찾는 예술 문화: 지역 전체, 오락/공연/서점
+      handleFilterChange({
+        selectedGu: null,
+        selectedGuCode: null,
+        selectedDong: null,
+        selectedDongCode: null,
+        selectedBusinessType: '오락/공연/서점'
+      })
+    }
+  }, [handleFilterChange])
+
+  // Handle click with district code mapping - unified with filter logic
+  const handleClick = useCallback((info: PickingInfo) => {
+    if (info.object) {
+      const properties = info.object.properties || info.object
+      const guName = getGuName(properties)
+      const dongName = getDistrictName(properties)
+
+      // Build FilterState object to pass to handleFilterChange
+      const filterState: FilterState = {
+        selectedGu: null,
+        selectedGuCode: null,
+        selectedDong: null,
+        selectedDongCode: null,
+        selectedBusinessType: selectedBusinessType  // Preserve current business type
+      }
+
+      if (selectionMode === 'gu') {
+        // In gu mode, only select gu and clear dong
+        if (guName) {
+          filterState.selectedGu = guName
+          filterState.selectedGuCode = getDistrictCode(guName) || null
+        }
+      } else {
+        // In dong mode, select both gu and dong if available
+        if (dongName && guName) {
+          filterState.selectedGu = guName
+          filterState.selectedGuCode = getDistrictCode(guName) || null
+          filterState.selectedDong = dongName
+          filterState.selectedDongCode = getDongCode(guName, dongName) || null
+        } else if (guName) {
+          // If only gu is available (clicked on gu boundary), select just gu
+          filterState.selectedGu = guName
+          filterState.selectedGuCode = getDistrictCode(guName) || null
+        }
+      }
+
+      // Use the same filter change handler as the filter panel
+      handleFilterChange(filterState)
+    }
+  }, [getGuName, getDistrictName, selectionMode, selectedBusinessType, handleFilterChange])
+
+  // Handle theme change
+  const handleThemeChange = useCallback((theme: string) => {
+    setCurrentTheme(theme as ThemeKey)
+  }, [])
+
+
+  // Handle chart panel resize
+  const handleChartPanelResize = useCallback((newWidth: number) => {
+    setChartPanelWidth(newWidth)
+  }, [])
+
+  // Update map center when panel width or window size changes
+  useEffect(() => {
+    const newLongitude = calculateAdjustedCenter(showChartPanel)
+    setViewState(prev => ({
+      ...prev,
+      longitude: newLongitude
+    }))
+  }, [calculateAdjustedCenter, showChartPanel])
+
+  // Handle window resize
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setWindowWidth(window.innerWidth)
+      // Also update max chart panel width
+      const newMaxWidth = window.innerWidth * 0.6
+      if (chartPanelWidth > newMaxWidth) {
+        setChartPanelWidth(newMaxWidth)
+      }
+    }
+
+    window.addEventListener('resize', handleWindowResize)
+    return () => window.removeEventListener('resize', handleWindowResize)
+  }, [chartPanelWidth])
+
+  // Reset selection and view
+  const handleReset = useCallback(() => {
+    // Reset selections
+    setSelectedGu(null)
+    setSelectedGuCode(null)
+    setSelectedDong(null)
+    setSelectedDongCode(null)
+    setSelectedBusinessType(null)
+
+    // Reset view to initial state with calculated center
+    const initialLongitude = calculateAdjustedCenter(showChartPanel)
+
+    // Smooth transition to initial view
+    setViewState({
+      ...DEFAULT_SEOUL_VIEW,
+      longitude: initialLongitude,
+      transitionDuration: 800,  // 800ms smooth transition
+      transitionInterpolator: new FlyToInterpolator()
+    })
+  }, [calculateAdjustedCenter, showChartPanel])
+
+  // Create layers
+  const layers = useMemo(() => {
+    const allLayers = []
+
+    // District boundary layers with sophisticated ambient effects
+    const boundaryLayers = createDistrictBoundaryLayers({
+      guData,
+      dongData,
+      showGuBoundaries,
+      showDongBoundaries,
+      showLabels,
+      selectedGu,
+      selectedDong,
+      hoveredDistrict,
+      viewState,
+      onHover: handleHover,
+      onClick: handleClick,
+      theme: currentTheme,
+      useUniqueColors,
+      selectionMode,  // Use actual selection mode for proper interaction
+      fillEnabled: true,
+      ambientConfig,
+      animationTimestamp: 0, // Use static value to prevent re-renders
+      enableAmbientEffects
+    })
+
+    allLayers.push(...boundaryLayers)
+
+    return allLayers
+  }, [
+    guData,
+    dongData,
+    showGuBoundaries,
+    showDongBoundaries,
+    showLabels,
+    selectedGu,
+    selectedDong,
+    hoveredDistrict,
+    viewState,
+    handleHover,
+    handleClick,
+    currentTheme,
+    useUniqueColors,
+    selectionMode,
+    ambientConfig,
+    // Remove animationState.timestamp to prevent continuous re-renders
+    enableAmbientEffects
+  ])
+
+  // Handle view state changes
+  const handleViewStateChange = useMemo(() =>
+    throttle(({ viewState: newViewState }: { viewState: MapViewState }) => {
+      setViewState(newViewState)
+    }, 16), // 60fps
+    []
+  )
+
+  // Handle drag events
+  const handleDragStart = useCallback(() => setIsDragging(true), [])
+  const handleDragEnd = useCallback(() => setIsDragging(false), [])
+
+  // Tooltip
+  const getTooltip = useCallback((info: PickingInfo) => {
+    if (!info.object) return null
+
+    const properties = info.object.properties || info.object
+    if (selectionMode === 'gu') {
+      const guName = getGuName(properties)
+      if (!guName) return null
+      return {
+        text: guName,
+        style: {
+          backgroundColor: 'rgba(255, 255, 255, 0.95)',
+          color: '#333',
+          padding: '8px 12px',
+          borderRadius: '4px',
+          fontSize: '14px',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }
+      }
+    }
+
+    const districtName = getDistrictName(properties)
+
+    if (!districtName) return null
+
+    return {
+      text: districtName,
+      style: {
+        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+        color: '#333',
+        padding: '8px 12px',
+        borderRadius: '4px',
+        fontSize: '14px',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      }
+    }
+  }, [getDistrictName, getGuName, selectionMode])
+
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-gray-50">
+        <div className="text-gray-700">지도 데이터 로딩 중...</div>
+      </div>
+    )
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="h-full w-full flex items-center justify-center bg-gray-50">
+        <div className="text-red-600">데이터 로드 오류: {error.message}</div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="relative h-full w-full">
+      <MapContainer
+        viewState={viewState}
+        layers={layers}
+        onViewStateChange={handleViewStateChange}
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onHover={handleHover}
+        onClick={handleClick}
+        getTooltip={getTooltip}
+        mapRef={mapRef}
+        isDragging={isDragging}
+      />
+
+      {/* Preset Filter Buttons */}
+      <div className="fixed z-50 flex flex-col gap-2" style={{ top: '76px', left: '26px' }}>
+        <motion.button
+          onClick={() => applyPresetFilter('vulnerable')}
+          className="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 backdrop-blur-sm
+                     rounded-lg shadow-lg hover:shadow-xl hover:scale-105 hover:bg-gray-200
+                     transition-all duration-200"
+          whileHover={{ x: 2 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <span className="text-lg">🌡️</span>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-gray-900">
+              폭염/한파에 취약한 전통상권
+            </div>
+          </div>
+        </motion.button>
+
+        <motion.button
+          onClick={() => applyPresetFilter('culture')}
+          className="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 backdrop-blur-sm
+                     rounded-lg shadow-lg hover:shadow-xl hover:scale-105 hover:bg-gray-200
+                     transition-all duration-200"
+          whileHover={{ x: 2 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <span className="text-lg">🎭</span>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-gray-900">
+              폭염 속에서 찾는 예술 문화
+            </div>
+          </div>
+        </motion.button>
+      </div>
+
+      {/* Filter panel */}
+      <LocalEconomyFilterPanel
+        onFilterChange={handleFilterChange}
+        onThemeChange={handleThemeChange}
+        currentTheme={currentTheme}
+        externalSelectedGu={selectedGu}
+        externalSelectedDong={selectedDong}
+        externalSelectedBusinessType={selectedBusinessType}
+        className="fixed bottom-4 left-4 z-50"
+      />
+
+      {/* Info Panel */}
+      {(selectedGu || selectedDong) && (
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-4 py-2 z-30">
+          <div className="flex items-center gap-3">
+            {selectedGu && (
+              <div className="font-semibold text-gray-800">{selectedGu}</div>
+            )}
+            {selectedDong && (
+              <div className="font-semibold text-gray-800">{selectedDong}</div>
+            )}
+            {selectedBusinessType && (
+              <>
+                <span className="text-gray-400">•</span>
+                <div className="font-semibold text-gray-800">{selectedBusinessType}</div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Charts panel */}
+      {showChartPanel && (
+        <div
+          className="absolute top-16 right-0 bottom-0"
+          style={{
+            animation: 'slideInFromRight 0.5s ease-out'
+          }}
+        >
+          <Suspense fallback={
+            <div className="absolute bottom-4 right-4 bg-gray-100 p-4 rounded-lg shadow-lg">
+              <div className="flex items-center space-x-2">
+                <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-400 border-t-gray-700"></div>
+                <span className="text-gray-700 text-sm">차트 로딩 중...</span>
+              </div>
+            </div>
+          }>
+            <ResizablePanel
+              initialWidth={chartPanelWidth}
+              minWidth={300}
+              maxWidth={windowWidth * 0.6}
+              onResize={handleChartPanelResize}
+              className="h-full bg-transparent shadow-lg"
+            >
+              <div className="h-full p-4 overflow-y-auto">
+                <DefaultChartsPanel
+                  selectedGu={selectedGu}
+                  selectedGuCode={selectedGuCode}
+                  selectedDong={selectedDong}
+                  selectedDongCode={selectedDongCode}
+                  selectedBusinessType={selectedBusinessType}
+                />
+              </div>
+            </ResizablePanel>
+          </Suspense>
+        </div>
+      )}
+
+      {/* Map Reset Button - Always visible */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30">
+        <button
+          onClick={handleReset}
+          className="flex items-center gap-2 px-4 py-2 bg-white/95 hover:bg-blue-50/95 text-slate-700 hover:text-blue-700 rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-blue-100/50 hover:border-blue-200/70 font-medium"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span>지도 초기화</span>
+        </button>
+      </div>
+
+      {/* CSS Animation Keyframes */}
+      <style jsx>{`
+        @keyframes slideInFromRight {
+          from {
+            transform: translateX(100%);
+            opacity: 0;
+          }
+          to {
+            transform: translateX(0);
+            opacity: 1;
+          }
+        }
+      `}</style>
+    </div>
+  )
+}

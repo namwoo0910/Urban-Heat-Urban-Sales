@@ -150,14 +150,7 @@ export {
   ZAxis
 } from "recharts"
 
-// Extended ChartConfig type for better TypeScript support
-export interface ChartConfig {
-  [key: string]: {
-    label?: string
-    color?: string
-    icon?: React.ComponentType<{ className?: string }>
-  }
-}
+// ChartConfig already defined above
 
 // Utility function to format chart values
 export const formatChartValue = (value: number, format?: string): string => {

@@ -6,7 +6,7 @@
  */
 
 import { useMemo, useEffect, useState } from 'react'
-import { useOptimizedMonthlyData } from './useOptimizedMonthlyData'
+// import { useOptimizedMonthlyData } from './useOptimizedMonthlyData' // Removed - optimized data deleted
 // import { useBinaryOptimizedData } from './useBinaryOptimizedData' // Moved to del
 import { useHeightInterpolation } from './useHeightInterpolation'
 import { loadDistrictData } from '@/src/shared/utils/districtUtils'
@@ -42,13 +42,14 @@ export function useDataProcessor(filters?: FilterState): UseDataProcessorReturn 
   const [isLoadingBoundaries, setIsLoadingBoundaries] = useState(true)
   const [boundaryError, setBoundaryError] = useState<Error | null>(null)
   
-  // Sales data
-  const { 
-    dongSalesMap, 
-    dongSalesByTypeMap,
-    isLoading: isSalesLoading,
-    error: salesError 
-  } = useOptimizedMonthlyData(filters)
+  // Sales data - removed optimized data loading
+  const data = null
+  const isSalesLoading = false
+  const salesError = null
+
+  // Create empty maps for now since polygon layers are removed
+  const dongSalesMap = new Map<number, number>()
+  const dongSalesByTypeMap = new Map<number, Map<string, number>>()
   
   // Binary optimized data - commented out (moved to del)
   // const { 
@@ -63,8 +64,8 @@ export function useDataProcessor(filters?: FilterState): UseDataProcessorReturn 
   const isBinaryLoading = false
   const binaryError = null
   
-  // Height interpolation
-  const heightInterpolation = useHeightInterpolation(dongSalesMap)
+  // Height interpolation - disabled since polygon layers are removed
+  const heightInterpolation = null
   
   // Load district boundary data
   useEffect(() => {
@@ -103,43 +104,12 @@ export function useDataProcessor(filters?: FilterState): UseDataProcessorReturn 
     loadBoundaries()
   }, [])
   
-  // Process dong data with 3D heights
-  const dongData3D = useMemo(() => {
-    if (!dongData || !dongSalesMap || dongSalesMap.size === 0) {
-      return null
-    }
-    
-    // Add height and sales data to each dong feature
-    const features = dongData.features.map((feature: any) => {
-      const dongCode = feature.properties?.ADM_DR_CD || 
-                      feature.properties?.dongCode || 
-                      feature.properties?.dong_code ||
-                      feature.properties?.['행정동코드'] ||
-                      feature.properties?.DONG_CD
-      
-      const sales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : 0
-      const height = heightInterpolation?.getInterpolatedHeight(Number(dongCode)) || 0
-      
-      return {
-        ...feature,
-        properties: {
-          ...feature.properties,
-          height,
-          sales,
-          dongCode: Number(dongCode)
-        }
-      }
-    })
-    
-    return {
-      ...dongData,
-      features
-    } as FeatureCollection
-  }, [dongData, dongSalesMap, heightInterpolation])
+  // dongData3D removed - no longer needed without polygon layers
+  const dongData3D = null
   
   // Combine loading states
   const isLoading = isLoadingBoundaries || isSalesLoading || isBinaryLoading
-  const error = boundaryError || salesError || binaryError
+  const error = boundaryError || (salesError ? new Error(salesError) : null) || binaryError
   
   return {
     // District data

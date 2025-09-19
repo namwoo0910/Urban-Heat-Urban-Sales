@@ -3,7 +3,6 @@ import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
 import { Header } from "@/src/shared/components/layout/AppHeader"
-import { Footer } from "@/src/shared/components/layout/AppFooter"
 import { GsapProvider } from "@/src/shared/providers/GSAPProvider"
 import { TransitionProvider } from "@/src/shared/providers/TransitionProvider"
 
@@ -46,7 +45,6 @@ export default function RootLayout({
           <TransitionProvider>
             <Header />
             <main>{children}</main>
-            <Footer />
           </TransitionProvider>
         </GsapProvider>
       </body>

@@ -24,14 +24,10 @@ slw_vis/
 │   ├── layout.tsx                   # 최상위 레이아웃
 │   ├── page.tsx                     # 홈페이지 (/)
 │   ├── globals.css                  # 전역 CSS
-│   ├── 📁 eda-visualization/        # EDA 시각화 페이지
 │   ├── 📁 research/                 # 연구 섹션
 │   │   ├── 📁 eda/                  # EDA 분석 페이지
-│   │   ├── 📁 floating-population/  # 유동인구 페이지
 │   │   └── 📁 local-economy/        # 지역경제 페이지
-│   ├── 📁 research-section/         # 연구 섹션 메인
-│   ├── 📁 urbanmountain/            # 3D 도시 시각화
-│   └── 📁 contact/                  # 연락처 페이지
+│   └── 📁 research-section/         # 연구 섹션 메인
 │
 ├── 📁 src/                          # 🎨 소스 코드
 │   ├── 📁 features/                 # 기능별 모듈
@@ -39,14 +35,11 @@ slw_vis/
 │   │   │   ├── 📁 components/       # UI 컴포넌트
 │   │   │   ├── 📁 hooks/            # 커스텀 Hook
 │   │   │   └── 📁 utils/            # 유틸리티 함수
-│   │   ├── 📁 admin-districts/      # 행정구역 지도
 │   │   ├── 📁 card-sales/           # 카드 매출 시각화
-│   │   ├── 📁 floating-pop/         # 유동인구 시각화
 │   │   └── 📁 data-portal/          # 데이터 포털
 │   │
 │   ├── 📁 shared/                   # 🔗 공유 모듈
 │   │   ├── 📁 components/           # 공통 컴포넌트
-│   │   │   ├── 📁 charts/           # 재사용 가능한 차트 컴포넌트
 │   │   │   ├── 📁 layout/           # Header, Footer
 │   │   │   ├── 📁 navigation/       # 네비게이션
 │   │   │   └── 📁 ui/               # 기본 UI (버튼, 카드 등)
@@ -57,12 +50,10 @@ slw_vis/
 │   │   └── 📁 utils/                # 공통 유틸리티
 │   │
 │   └── 📁 workers/                  # 🔧 Web Worker
-│       ├── geoJSONWorker.ts         # GeoJSON 처리
 │       └── particleWorker.ts        # 파티클 계산
 │
 ├── 📁 public/                       # 📦 정적 파일
 │   ├── 📁 data/                     # 데이터 파일
-│   │   ├── 📁 eda/                  # 지도 데이터 (GeoJSON)
 │   │   ├── particles-*.json         # 파티클 데이터
 │   │   └── 📁 processed_data/       # 전처리 데이터
 │   ├── 📁 images/                   # 이미지 파일
@@ -133,15 +124,10 @@ slw_vis/
 - **역할**: 홈페이지 진입점
 - **연결**: HomePage 컴포넌트 렌더링
 
-#### **app/eda-visualization/page.tsx**
-- **역할**: EDA 데이터 시각화 페이지
-- **연결**: AdminDistrictsPage 컴포넌트
-
 #### **app/research/[하위]/page.tsx**
 - **역할**: 연구 섹션 각 페이지
 - **페이지들**:
   - eda: EDA 분석
-  - floating-population: 유동인구
   - local-economy: 지역경제
 
 ---
@@ -165,15 +151,6 @@ slw_vis/
 **utils/**
 - `particleGenerator.ts`: 파티클 생성 로직
 - `particleOptimizer.ts`: 파티클 최적화
-
-#### **📁 admin-districts/ - 행정구역 지도**
-
-**components/**
-- `AdminDistrictsPage.tsx`: 행정구역 페이지 메인
-- `EDAMapVisualization.tsx`: Mapbox 지도 시각화
-
-**utils/**
-- `boundaryProcessor.ts`: 경계 데이터 처리
 
 #### **📁 card-sales/ - 카드 매출 시각화**
 
@@ -202,19 +179,9 @@ slw_vis/
 **utils/**
 - `premiumColors.ts`: 프리미엄 색상 팔레트
 
-#### **📁 floating-pop/ - 유동인구 시각화**
-
-**components/**
-- `FloatingPopPage.tsx`: 유동인구 페이지 메인
-- `UrbanMountain3D.tsx`: 3D 도시 시각화
-
-**utils/**
-- `urbanMountainLoader.ts`: 3D 데이터 로더
-
 #### **📁 data-portal/ - 데이터 포털**
 
 **components/**
-- `DataFeatureCard.tsx`: 데이터 기능 카드
 - `PortalNavigation.tsx`: 포털 네비게이션
 - `ResearchHeader.tsx`: 연구 헤더
 - `ResearchSection.tsx`: 연구 섹션
@@ -223,20 +190,9 @@ slw_vis/
 
 ### 🔗 공유 모듈 (src/shared/)
 
-#### **📁 components/charts/ - 재사용 가능한 차트 컴포넌트**
-- `LineChart.tsx`: 선 그래프 컴포넌트
-- `AreaChart.tsx`: 영역 차트 컴포넌트
-- `BarChart.tsx`: 막대 차트 컴포넌트
-- `PieChart.tsx`: 파이 차트 컴포넌트
-- `RadarChart.tsx`: 레이더 차트 컴포넌트
-- `RadialBarChart.tsx`: 방사형 막대 차트
-- `ComposedChart.tsx`: 복합 차트 컴포넌트
-- `ScatterChart.tsx`: 산점도 차트
-- `FunnelChart.tsx`: 깔때기 차트
-- `TreemapChart.tsx`: 트리맵 차트
-- `HeatmapChart.tsx`: 히트맵 차트
-- `index.ts`: 차트 컴포넌트 내보내기
-- `types.ts`: 차트 타입 정의
+#### **📁 components/ui/chart - Recharts 재노출 래퍼**
+- `chart.tsx`: Recharts 컴포넌트와 툴팁, 컨테이너 재노출
+  - `LineChart`, `BarChart`, `AreaChart`, `ComposedChart` 등 Recharts 기본 컴포넌트를 그대로 import 가능
 
 #### **📁 components/ui/ - UI 컴포넌트**
 - `button.tsx`: 버튼 컴포넌트
@@ -251,7 +207,6 @@ slw_vis/
 
 #### **📁 components/layout/**
 - `AppHeader.tsx`: 헤더 컴포넌트
-- `AppFooter.tsx`: 푸터 컴포넌트
 
 #### **📁 components/navigation/**
 - `TransitionLink.tsx`: 페이지 전환 링크
@@ -374,25 +329,27 @@ slw_vis/
 
 ### 📈 차트 컴포넌트 추가하기
 
-**새로운 차트 타입 추가:**
-1. **src/shared/components/charts/**에 기본 차트 컴포넌트 활용
+**Recharts 기본 컴포넌트 사용:**
+1. `src/shared/components/ui/chart`에서 Recharts 컴포넌트를 재노출합니다.
    ```typescript
-   import { LineChart } from '@/src/shared/components/charts'
-   
+   import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from '@/src/shared/components/ui/chart'
+
    export function MyChart() {
      return (
-       <LineChart
-         data={myData}
-         xDataKey="date"
-         yDataKey="value"
-         strokeColor="#3b82f6"
-         height={300}
-       />
+       <ResponsiveContainer width="100%" height={300}>
+         <LineChart data={myData}>
+           <CartesianGrid strokeDasharray="3 3" />
+           <XAxis dataKey="date" />
+           <YAxis />
+           <Tooltip />
+           <Line type="monotone" dataKey="value" stroke="#3b82f6" />
+         </LineChart>
+       </ResponsiveContainer>
      )
    }
    ```
 
-2. **차트 패널 생성 (탭 형식):**
+2. 차트 패널 생성 (탭 형식):
    ```typescript
    import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/src/shared/components/ui/tabs'
    import { MyChart1, MyChart2 } from './charts'
@@ -584,8 +541,7 @@ npm run generate-optimized-data
 
 **GeoJSON 데이터:**
 1. **public/data/eda/**에 .geojson 파일 추가
-2. **src/shared/hooks/useGeoJSONWorker.ts** 사용하여 로드
-3. **src/workers/geoJSONWorker.ts**에서 처리 로직 수정
+2. 컴포넌트 내에서 `fetch('/data/...')`로 로드 후 파싱하여 사용 (필요 시 메인 스레드에서 간단 처리)
 
 ### 🚦 상태 관리하기
 

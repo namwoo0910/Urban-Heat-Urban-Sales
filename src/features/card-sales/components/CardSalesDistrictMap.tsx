@@ -6,54 +6,30 @@ import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL } from 'react-map-gl'
 import type { MapRef } from 'react-map-gl'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
-import { LightingEffect, AmbientLight, DirectionalLight, FlyToInterpolator, LinearInterpolator } from '@deck.gl/core'
-import { PolygonLayer } from '@deck.gl/layers'
-// Removed createDong3DPolygonLayers import - using local optimized versions instead
+import { FlyToInterpolator, LightingEffect, AmbientLight, DirectionalLight } from '@deck.gl/core'
 import UnifiedControls from "./SalesDataControls"
+import DualLayerControls from "./DualLayerControls"
 import { formatTooltip, formatScatterplotTooltip } from "./LayerManager"
-import { usePreGeneratedSeoulMeshLayer } from "./SeoulMeshLayer"
+import { usePreGeneratedSeoulMeshLayer, usePredictionMeshLayer } from "./SeoulMeshLayer"
 import { useLayerState } from "../hooks/useCardSalesData"
-import { useOptimizedMonthlyData } from "../hooks/useOptimizedMonthlyData"
-// import { useBinaryOptimizedData } from "../hooks/useBinaryOptimizedData" // Moved to del
-import { DefaultChartsPanel } from "./charts/DefaultChartsPanel"
 import { formatKoreanCurrency } from '@/src/shared/utils/salesFormatter'
-import LocalEconomyFilterPanel from "./LocalEconomyFilterPanel"
-import type { FilterState } from "./LocalEconomyFilterPanel"
 import { getDistrictCode as getDistrictCodeFromMapping, getDongCode as getDongCodeFromMapping } from "../data/districtCodeMappings"
-import { SelectedAreaSalesInfo } from "./SelectedAreaSalesInfo"
 import { createDistrictLabelsTextLayer, createDongLabelsTextLayer } from "./DistrictLabelsTextLayer"
-// Removed MeshLoadingOverlay import
 import { MAPBOX_TOKEN } from "@/src/shared/constants/mapConfig"
 import { useDistrictSelection } from "@/src/shared/hooks/useDistrictSelection"
 import { loadDistrictData, getCurrentTheme, getCurrentThemeKey } from "@/src/shared/utils/districtUtils"
 import { getDistrictCenter } from "../data/districtCenters"
-import { 
-  getDistrictHeight,
-  getDongHeight,
-  getDongHeightBySales,
-  CAMERA_3D_CONFIG, 
-  CAMERA_2D_CONFIG,
-  DEFAULT_SEOUL_VIEW
-} from "@/src/shared/utils/district3DUtils"
-// RotateCcw removed - replay button removed for performance
+import { DEFAULT_SEOUL_VIEW } from "@/src/shared/utils/district3DUtils"
 import { getModernDistrictColor, getModernEdgeColor, getModernMaterial, getDimmedColor, getSimpleSalesColor, applyColorAdjustments } from "../utils/modernColorPalette"
-import { ResizablePanel } from "@/src/shared/components/ResizablePanel"
 import * as turf from '@turf/turf'
 import { useUnifiedDeckGLLayers } from "./DeckGLUnifiedLayers"
+import { InlineMeshMonthToggle } from "./MeshMonthToggle"
+import { getTemperatureMeshHexColor } from "../utils/temperaturePalette"
+import { getAvailableDailyDates } from "../utils/loadStaticMesh"
 import type { FeatureCollection } from 'geojson'
 import "../styles/CardSalesDistrictMap.css"
 import "@/src/shared/styles/districtEffects.css"
 
-// Common GPU optimization parameters for all layers
-const COMMON_GPU_PARAMS = {
-  depthTest: true,
-  depthFunc: 0x0203, // GL.LEQUAL
-  blend: true,
-  blendFunc: [0x0302, 0x0303], // [GL.SRC_ALPHA, GL.ONE_MINUS_SRC_ALPHA]
-  cullFace: 0x0405, // GL.BACK
-  cullFaceMode: true,
-  polygonOffsetFill: true // Prevent z-fighting
-}
 
 // Simple color function for sales-based visualization
 const convertColorExpressionToRGB = (
@@ -94,25 +70,20 @@ const convertColorExpressionToRGB = (
   return applyColorAdjustments(r, g, b, baseAlpha);
 }
 
-// 줌 설정 통합 관리
-const ZOOM_SETTINGS = {
-  DONG: 12.5,              // 동 선택시 줌 레벨 (한 단계 멀리)
-  GU: 12,                  // 구 선택시 줌 레벨
-  PITCH_DONG: 50,          // 동 선택시 카메라 각도 (match initial)
-  PITCH_GU: 50,            // 구 선택시 카메라 각도 (match initial)
-  TRANSITION_DURATION: 1500,
-  TRANSITION_SPEED: 1.2
-} as const
 
 export default function CardSalesDistrictMap() {
   const mapRef = useRef<MapRef>(null)
+  const mapRefRight = useRef<MapRef>(null)  // Second map ref for AI prediction map
   const cleanupRef = useRef<(() => void)[]>([])
-  const [showChartPanel, setShowChartPanel] = useState(false)
   const [currentThemeState, setCurrentThemeState] = useState(getCurrentTheme)
   const [currentThemeKey, setCurrentThemeKey] = useState('blue') // Default to blue theme for districts
-  const [is3DMode, setIs3DMode] = useState(false) // 3D 모드는 기본적으로 OFF (사용자가 토글해야 활성화)
   const [themeAdjustments, setThemeAdjustments] = useState({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })
-  
+
+  // AI Prediction Mode State
+  const [isAIPredictionMode, setIsAIPredictionMode] = useState(false)
+  const [predictionDate, setPredictionDate] = useState('20240701') // Default July 1, 2024
+  const [temperatureScenario, setTemperatureScenario] = useState('t050') // Default T+5°C
+
   // Listen for theme adjustment changes
   useEffect(() => {
     const handleThemeAdjustments = (event: CustomEvent) => {
@@ -165,8 +136,6 @@ export default function CardSalesDistrictMap() {
     setSelectedSubCategory,
     
     // Date filter
-    selectedDate,
-    setSelectedDate,
     
     
   } = useLayerState()
@@ -174,7 +143,7 @@ export default function CardSalesDistrictMap() {
   // 기본 지도 상태
   const [currentLayer, setCurrentLayer] = useState("very-dark")
   const [currentTime, setCurrentTime] = useState(100)
-  const [showBoundary, setShowBoundary] = useState(false)
+  const [showBoundary, setShowBoundary] = useState(true)  // Always show Seoul boundary
   const [showDistrictLabels, setShowDistrictLabels] = useState(false) // 구 이름 표시 (기본값: 꺼짐)
   const [showDongLabels, setShowDongLabels] = useState(false) // 동 이름 표시
   
@@ -187,13 +156,19 @@ export default function CardSalesDistrictMap() {
   // 드래그 상태 추가 - 성능 최적화용
   const [isDragging, setIsDragging] = useState(false)
   
-  // Removed initial camera animation states
-  
   
 
   // 서울 좌표
   const SEOUL_COORDINATES: [number, number] = [126.978, 37.5665]
-  
+
+  // Shared throttled handler for viewport changes - used by both maps
+  // This MUST be defined at the top level to follow React's Rules of Hooks
+  const handleViewStateChange = useMemo(() =>
+    throttle(({ viewState: newViewState }) => {
+      setViewState(newViewState as MapViewState)
+    }, 16), // 60fps
+  [setViewState])
+
   // 기본 뷰로 리셋하는 재사용 함수
   const resetToDefaultView = useCallback(() => {
     setViewState({
@@ -204,46 +179,28 @@ export default function CardSalesDistrictMap() {
     
   }, [])
   
-  // 통합 줌 처리 함수 - 3D 폴리곤 클릭과 필터 패널 선택 모두에서 사용
+  // 통합 줌 처리 함수 - 필터 패널 선택에서 사용
   const handleDistrictZoom = useCallback((guName: string, dongName?: string | null) => {
     // 동 중심점 우선 사용
     const dongCenter = dongName ? getDistrictCenter('동', dongName) : null
     const center = dongCenter || getDistrictCenter('구', guName)
     
     if (center) {
-        setViewState(prev => ({
-        ...prev,
-        longitude: center[0],
-        latitude: center[1],
-        zoom: dongCenter ? ZOOM_SETTINGS.DONG : ZOOM_SETTINGS.GU,
-        pitch: dongCenter ? ZOOM_SETTINGS.PITCH_DONG : ZOOM_SETTINGS.PITCH_GU,
-        bearing: prev.bearing || 0,
-        transitionInterpolator: new FlyToInterpolator({speed: 1.5}),
-        transitionDuration: 'auto'
-      } as MapViewState))
+        // 줌 기능 제거 - 카메라 이동 없이 선택만 유지
+        // setViewState(prev => ({
+        //   ...prev,
+        //   longitude: center[0],
+        //   latitude: center[1],
+        //   zoom: dongCenter ? ZOOM_SETTINGS.DONG : ZOOM_SETTINGS.GU,
+        //   pitch: dongCenter ? ZOOM_SETTINGS.PITCH_DONG : ZOOM_SETTINGS.PITCH_GU,
+        //   bearing: prev.bearing || 0,
+        //   transitionInterpolator: new FlyToInterpolator({speed: 1.5}),
+        //   transitionDuration: 'auto'
+        // } as MapViewState))
       
     }
   }, [setViewState])
   
-  // Handle filter panel changes - simplified to prevent loops
-  const handleFilterChange = useCallback((filters: FilterState) => {
-    // Directly update states without checking current values
-    // This prevents unnecessary re-renders and loops
-    setSelectedGu(filters.selectedGu)
-    setSelectedGuCode(filters.selectedGuCode)
-    setSelectedDong(filters.selectedDong)
-    setSelectedDongCode(filters.selectedDongCode)
-    setSelectedBusinessType(filters.selectedBusinessType)
-    setSelectedDate(filters.selectedDate)
-    
-    // 필터에서 행정동 선택시 통합 줌 함수 사용
-    if (filters.selectedDong && filters.selectedGu) {
-      handleDistrictZoom(filters.selectedGu, filters.selectedDong)
-    } else if (filters.selectedGu && !filters.selectedDong) {
-      // 구만 선택시: 서울 전체 뷰 유지, 하이라이트만 표시
-      // 뷰포트 변경하지 않음 - 하이라이트만 표시됨
-    }
-  }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode, setSelectedBusinessType, setSelectedDate, handleDistrictZoom])
   
   // Hover state for districts
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
@@ -255,53 +212,595 @@ export default function CardSalesDistrictMap() {
     onDistrictSelect: (districtName, feature) => {
       
       // Update filter panel when map is clicked
-      if (feature?.layer?.id === 'sgg-fill') {
-        setSelectedGu(districtName)
-        setSelectedDong(null)  // Clear dong when gu is selected
-      } else if (feature?.layer?.id === 'dong-fill') {
+      // REMOVED: sgg-fill layer handling - sgg data not needed
+      if (feature?.layer?.id === 'dong-fill') {
         setSelectedDong(districtName)
         // Don't change gu when dong is selected (dong belongs to current gu)
       }
     }
   })
   
-  // District GeoJSON data
-  const [sggData, setSggData] = useState<any>(null)
+  // District GeoJSON data - REMOVED: sggData not needed
   const [dongData, setDongData] = useState<any>(null)
-  
-  // 3D용 분리된 폴리곤 데이터
-  const [sggData3D, setSggData3D] = useState<any>(null)
-  const [dongData3D, setDongData3D] = useState<any>(null)
+
+  // Separate animation states for actual and prediction layers
+  // Actual data animation
+  const [isActualAnimating, setIsActualAnimating] = useState(false)
+  const [actualAnimationType, setActualAnimationType] = useState<'7days' | '31days' | null>(null)
+  const [actualAnimationDay, setActualAnimationDay] = useState(1)
+  const [actualDate, setActualDate] = useState('20240701') // Actual data date
+  const actualAnimationRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Prediction data animation
+  const [isPredictionAnimating, setIsPredictionAnimating] = useState(false)
+  const [predictionAnimationType, setPredictionAnimationType] = useState<'7days' | '31days' | null>(null)
+  const [predictionAnimationDay, setPredictionAnimationDay] = useState(1)
+  const predictionAnimationRef = useRef<NodeJS.Timeout | null>(null)
+
+  // REMOVED: 3D polygon data states - 3D polygon layers not used
   
   // 동별 매출 데이터 Map (dongCode -> totalSales)
   const [dongSalesMap, setDongSalesMap] = useState<Map<number, number>>(new Map())
   // 동별 업종별 매출 데이터 Map (dongCode -> (businessType -> sales))
   const [dongSalesByTypeMap, setDongSalesByTypeMap] = useState<Map<number, Map<string, number>>>(new Map())
   
-  // 3D 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
-  const [heightScale, setHeightScale] = useState<number>(500000000) // 5억원 단위로 증가 (높이 감소)
+  // 높이 스케일 조정값 (기본값: 1억원 = 1 단위)
+  const [heightScale, setHeightScale] = useState<number>(1000000000) // 10억원(1B) 단위로 증가 (높이 감소)
   
   
-  // Mesh layer states
-  const [showMeshLayer, setShowMeshLayer] = useState<boolean>(true)  // Default to showing mesh layer
+  // Mesh layer is always on
+  const showMeshLayer = true
   
-  // Wrapper functions to make 3D Polygon Layer and 3D Mesh Layer mutually exclusive
+  // Layer configuration
   const handlePolygonLayerToggle = useCallback((visible: boolean) => {
     setVisible(visible)
-    if (visible) {
-      setShowMeshLayer(false) // Turn off mesh layer when polygon layer is turned on
-    }
+    // Mesh layer always stays on
   }, [setVisible])
   
-  const handleMeshLayerToggle = useCallback((visible: boolean) => {
-    setShowMeshLayer(visible)
-    if (visible) {
-      setVisible(false) // Turn off polygon layer when mesh layer is turned on
-    }
-  }, [setVisible])
+  // Mesh layer is always on, no toggle needed
   // Wireframe always true - removed state
   const [meshResolution, setMeshResolution] = useState<number>(120)  // Ultra high resolution 120x120 grid for detailed visualization
-  const [meshColor, setMeshColor] = useState<string>('#FFFFFF')  // Default white color
+  // Separate color states for actual and prediction layers
+  const [actualMeshColor, setActualMeshColor] = useState<string>('#FFFFFF')  // Actual data mesh color
+  const [predictionMeshColor, setPredictionMeshColor] = useState<string>('#FFD700')  // Prediction mesh color (yellow)
+  const [useActualTemperatureColor, setUseActualTemperatureColor] = useState<boolean>(false)  // Temperature color for actual
+  const [usePredictionTemperatureColor, setUsePredictionTemperatureColor] = useState<boolean>(false)  // Temperature color for prediction
+  const [timelineMode, setTimelineMode] = useState<'monthly'|'daily'>('daily')
+  const [availableDailyDates, setAvailableDailyDates] = useState<string[]>([])
+  const [selectedDailyIndex, setSelectedDailyIndex] = useState<number>(0)
+  const [dailyAutoPlay, setDailyAutoPlay] = useState<boolean>(false)
+  const [dailyPlaySpeed, setDailyPlaySpeed] = useState<number>(0.8)
+  const [transitionMs, setTransitionMs] = useState<number>(400)
+  const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(1)  // Default to January (1-12)
+
+  // Top-center overlay: date + average temperature + total sales
+  const [overlayDateLabel, setOverlayDateLabel] = useState<string>('')
+  const [overlayAvgTemp, setOverlayAvgTemp] = useState<number | null>(null)
+  const [overlayTotalSales, setOverlayTotalSales] = useState<number | null>(null)
+  const [overlayLoading, setOverlayLoading] = useState<boolean>(false)
+  const [overlayHeight, setOverlayHeight] = useState<number>(80)
+
+  // Prediction overlay states
+  const [predictionOverlayDateLabel, setPredictionOverlayDateLabel] = useState<string>('')
+  const [predictionOverlayTemp, setPredictionOverlayTemp] = useState<number | null>(null)
+  const [predictionOverlaySales, setPredictionOverlaySales] = useState<number | null>(null)
+
+  // Full year temperature data (365 days)
+  const [yearTempData, setYearTempData] = useState<Array<{date: string, temp: number | null}>>([])
+  const [isLoadingYearData, setIsLoadingYearData] = useState(true)
+
+  // Monthly sales data map (month -> total sales in KRW)
+  const [monthlySalesMap, setMonthlySalesMap] = useState<Map<number, number>>(new Map())
+
+  // Daily aggregated data map (dateCode -> {temp, sales})
+  const [dailyAggregatesMap, setDailyAggregatesMap] = useState<Map<string, {avgTemperature: number | null, totalSalesHundredMillion: number}>>(new Map())
+
+  // Prediction daily aggregated data map (dateCode -> prediction data)
+  const [predictionAggregatesMap, setPredictionAggregatesMap] = useState<Map<string, any>>(new Map())
+
+  // Load monthly sales data
+  const loadMonthlySalesData = useCallback(async () => {
+    try {
+      const response = await fetch('/data/charts/monthly_sales.csv')
+      const text = await response.text()
+      const lines = text.split('\n').filter(line => line.trim())
+
+      const salesMap = new Map<number, number>()
+
+      // Skip header row and process data rows
+      for (let i = 1; i < lines.length; i++) {
+        const columns = lines[i].split(',')
+        if (columns.length >= 2) {
+          const month = parseInt(columns[0].replace('월', ''))
+          const totalSales = parseFloat(columns[1])
+
+          if (!isNaN(month) && !isNaN(totalSales)) {
+            salesMap.set(month, totalSales)
+          }
+        }
+      }
+
+      setMonthlySalesMap(salesMap)
+    } catch (error) {
+      console.error('Failed to load monthly sales data:', error)
+    }
+  }, [])
+
+  // Load daily aggregated data
+  const loadDailyAggregates = useCallback(async () => {
+    try {
+      const response = await fetch('/data/daily_aggregates.json')
+      const data = await response.json()
+
+      const aggregatesMap = new Map<string, {avgTemperature: number | null, totalSalesHundredMillion: number}>()
+
+      data.forEach((item: any) => {
+        aggregatesMap.set(item.dateCode, {
+          avgTemperature: item.avgTemperature,
+          totalSalesHundredMillion: item.totalSalesHundredMillion
+        })
+      })
+
+      setDailyAggregatesMap(aggregatesMap)
+      console.log('Loaded daily aggregates:', aggregatesMap.size, 'days')
+    } catch (error) {
+      console.error('Failed to load daily aggregates:', error)
+    }
+  }, [])
+
+  // Load prediction daily aggregated data
+  const loadPredictionAggregates = useCallback(async () => {
+    try {
+      const response = await fetch('/data/prediction_daily_aggregates.json')
+      const data = await response.json()
+
+      const aggregatesMap = new Map<string, any>()
+
+      data.forEach((item: any) => {
+        aggregatesMap.set(item.dateCode, item)
+      })
+
+      setPredictionAggregatesMap(aggregatesMap)
+      console.log('Loaded prediction aggregates:', aggregatesMap.size, 'days')
+    } catch (error) {
+      console.error('Failed to load prediction aggregates:', error)
+    }
+  }, [])
+
+  // AI Prediction Toggle Handler (defined after state declarations to avoid initialization errors)
+  const handleAIPredictionToggle = useCallback(() => {
+    setIsAIPredictionMode(prev => {
+      const newValue = !prev
+      if (newValue) {
+        // AI 모드 진입 시 7월 1일로 초기화
+        setPredictionDate('20240701')
+        setSelectedMeshMonth(7)
+        setTimelineMode('daily')
+
+        // 7월 1일 인덱스 찾기 (availableDailyDates가 로드된 경우)
+        if (availableDailyDates.length > 0) {
+          const july1Index = availableDailyDates.findIndex(d => d === '20240701' || d.includes('0701'))
+          if (july1Index !== -1) {
+            setSelectedDailyIndex(july1Index)
+          }
+        }
+
+        // AI 모드 진입 시 한 단계 줌아웃
+        setViewState(prev => ({
+          ...prev,
+          zoom: Math.max(prev.zoom - 0.3, 8), // 0.3 단계 줌아웃, 최소 줌 레벨 8
+          transitionInterpolator: new FlyToInterpolator({ speed: 1.5 }),
+          transitionDuration: 800
+        } as MapViewState))
+      }
+      return newValue
+    })
+  }, [availableDailyDates])
+
+  // Manual date change handler - syncs both left and right layers
+  const handlePredictionDateChange = useCallback((dateStr: string) => {
+    // Update right layer (prediction)
+    setPredictionDate(dateStr)
+
+    // Sync left layer (actual data) to the same date
+    const day = parseInt(dateStr.slice(-2))
+    setSelectedMeshMonth(7) // July
+    setTimelineMode('daily') // Switch to daily mode for precise sync
+
+    // Find and set the corresponding daily index
+    if (availableDailyDates.length > 0) {
+      const dayIndex = availableDailyDates.findIndex(d =>
+        d === dateStr || d.includes(`07${day.toString().padStart(2, '0')}`)
+      )
+      if (dayIndex !== -1) {
+        setSelectedDailyIndex(dayIndex)
+      }
+    }
+  }, [availableDailyDates])
+
+  // Load full year temperature data on mount
+  useEffect(() => {
+    const loadYearData = async () => {
+      setIsLoadingYearData(true)
+      const allData: Array<{date: string, temp: number | null}> = []
+
+      // Load all 12 months
+      for (let month = 1; month <= 12; month++) {
+        const monthStr = month.toString().padStart(2, '0')
+        try {
+          const res = await fetch(`/data/local_economy/monthly/2024-${monthStr}.json`)
+          if (res.ok) {
+            const monthData = await res.json()
+
+            // Group by date and calculate daily average
+            const dailyTemps: Record<string, {sum: number, count: number}> = {}
+
+            for (const item of monthData) {
+              const date = item['기준일자']
+              const temp = item['일평균기온']
+
+              if (date && typeof temp === 'number' && !isNaN(temp)) {
+                if (!dailyTemps[date]) {
+                  dailyTemps[date] = { sum: 0, count: 0 }
+                }
+                dailyTemps[date].sum += temp
+                dailyTemps[date].count++
+              }
+            }
+
+            // Convert to array format
+            Object.entries(dailyTemps).forEach(([date, data]) => {
+              allData.push({
+                date,
+                temp: data.count > 0 ? data.sum / data.count : null
+              })
+            })
+          }
+        } catch (e) {
+          // Failed to load month data
+        }
+      }
+
+      // Sort by date
+      allData.sort((a, b) => a.date.localeCompare(b.date))
+      setYearTempData(allData)
+      setIsLoadingYearData(false)
+    }
+
+    loadYearData()
+  }, [])
+
+  // Create year temperature graph path
+  const yearTempGraphPath = useMemo(() => {
+    if (yearTempData.length < 2) return ''
+
+    const width = 200
+    const height = 40
+    const padding = 2
+    const min = -15
+    const max = 35
+
+    const xStep = (width - padding * 2) / Math.max(1, yearTempData.length - 1)
+
+    const points = yearTempData.map((d, i) => {
+      const x = padding + i * xStep
+      const y = d.temp !== null
+        ? height - padding - ((d.temp - min) / (max - min)) * (height - padding * 2)
+        : height / 2
+      return `${x},${y}`
+    })
+
+    return `M ${points.join(' L ')}`
+  }, [yearTempData])
+
+  // Find current date position in year data
+  const currentDateIndex = useMemo(() => {
+    if (!overlayDateLabel || yearTempData.length === 0) return -1
+    return yearTempData.findIndex(d => d.date === overlayDateLabel)
+  }, [overlayDateLabel, yearTempData])
+
+  // Get color for temperature (5-degree intervals)
+  const getTemperatureColor = (temp: number | null) => {
+    if (temp === null) return '#9ca3af' // gray
+    if (temp <= 0) return '#60a5fa' // blue - Freezing
+    if (temp <= 5) return '#38bdf8' // light blue - Very Cold
+    if (temp <= 10) return '#22d3ee' // cyan - Cold
+    if (temp <= 15) return '#34d399' // green - Cool
+    if (temp <= 20) return '#facc15' // yellow - Mild
+    if (temp <= 25) return '#f59e0b' // orange - Warm
+    if (temp <= 30) return '#ef4444' // red - Hot
+    return '#dc2626' // dark red - Very Hot
+  }
+
+  // Match overlay height to info panel height
+  useEffect(() => {
+    const measure = () => {
+      const el = document.getElementById('selected-area-info-panel')
+      if (el) {
+        setOverlayHeight(el.clientHeight)
+      }
+    }
+    measure()
+    window.addEventListener('resize', measure)
+    // Observe mutations to adjust on content changes (e.g., chart toggle)
+    const el = document.getElementById('selected-area-info-panel')
+    let observer: MutationObserver | null = null
+    if (el && 'MutationObserver' in window) {
+      observer = new MutationObserver(() => {
+        setOverlayHeight(el.clientHeight)
+      })
+      observer.observe(el, { childList: true, subtree: true, attributes: true })
+    }
+    return () => window.removeEventListener('resize', measure)
+  }, [])
+
+  // Re-measure when content likely changes
+  useEffect(() => {
+    const el = document.getElementById('selected-area-info-panel')
+    if (el) setOverlayHeight(el.clientHeight)
+  }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex])
+
+  // Load daily dates index
+  useEffect(() => {
+    getAvailableDailyDates()
+      .then(list => {
+        const sorted = (list || []).sort()
+        setAvailableDailyDates(sorted)
+        setSelectedDailyIndex(0)
+      })
+      .catch(() => {})
+  }, [])
+
+  // Load temperature index (daily + monthly) once
+  const [tempIndex, setTempIndex] = useState<{ daily: Record<string, number>; monthly: Record<string, number> } | null>(null)
+  useEffect(() => {
+    fetch('/data/indices/daily-avg-temp-2024.json')
+      .then(res => (res.ok ? res.json() : null))
+      .then(json => {
+        if (json && json.daily && json.monthly) {
+          setTempIndex({ daily: json.daily, monthly: json.monthly })
+        }
+      })
+      .catch(() => {})
+  }, [])
+
+  // Fallback temperature loaders (when index is missing)
+  const fetchMonthlyAverageTemp = useCallback(async (yearMonth: string) => {
+    try {
+      setOverlayLoading(true)
+      const res = await fetch(`/data/local_economy/monthly/${yearMonth}.json`)
+      if (!res.ok) throw new Error(`Failed to load ${yearMonth}`)
+      const arr = await res.json()
+      let sum = 0, cnt = 0
+      for (const item of arr) {
+        const t = item['일평균기온']
+        if (typeof t === 'number' && !isNaN(t)) { sum += t; cnt++ }
+      }
+      setOverlayAvgTemp(cnt > 0 ? sum / cnt : null)
+    } catch (e) {
+      // Monthly avg temp load failed
+      setOverlayAvgTemp(null)
+    } finally {
+      setOverlayLoading(false)
+    }
+  }, [])
+
+  const fetchDailyAverageTemp = useCallback(async (dateStr: string) => {
+    try {
+      setOverlayLoading(true)
+      const ym = dateStr.slice(0,7)
+      const res = await fetch(`/data/local_economy/monthly/${ym}.json`)
+      if (!res.ok) throw new Error(`Failed to load ${ym}`)
+      const arr = await res.json()
+      let sum = 0, cnt = 0
+      for (const item of arr) {
+        if (item['기준일자'] === dateStr) {
+          const t = item['일평균기온']
+          if (typeof t === 'number' && !isNaN(t)) { sum += t; cnt++ }
+        }
+      }
+      setOverlayAvgTemp(cnt > 0 ? sum / cnt : null)
+    } catch (e) {
+      // Daily avg temp load failed
+      setOverlayAvgTemp(null)
+    } finally {
+      setOverlayLoading(false)
+    }
+  }, [])
+
+
+  // Chain scheduling for daily autoplay (align transition to tick)
+  const dailyTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  const clearDailyTimer = useCallback(() => {
+    if (dailyTimeoutRef.current) {
+      clearTimeout(dailyTimeoutRef.current)
+      dailyTimeoutRef.current = null
+    }
+  }, [])
+
+  const scheduleNextDailyTick = useCallback(() => {
+    clearDailyTimer()
+    if (timelineMode !== 'daily' || !dailyAutoPlay || availableDailyDates.length === 0) return
+    const budget = Math.floor(dailyPlaySpeed * 1000 - transitionMs)
+    if (budget <= 0) {
+      // No idle gap: wait one frame to avoid back-to-back frame contention
+      dailyTimeoutRef.current = setTimeout(() => {
+        requestAnimationFrame(() => {
+          setSelectedDailyIndex(prev => {
+            const nextIndex = (prev + 1) % availableDailyDates.length
+            // Sync dates in AI mode during autoplay
+            if (isAIPredictionMode && availableDailyDates[nextIndex]) {
+              const dateStr = availableDailyDates[nextIndex]
+              setPredictionDate(dateStr)
+              setActualDate(dateStr)
+            }
+            return nextIndex
+          })
+        })
+      }, 0)
+    } else {
+      const restDelay = Math.max(16, budget) // at least one frame of breathing room
+      dailyTimeoutRef.current = setTimeout(() => {
+        setSelectedDailyIndex(prev => {
+          const nextIndex = (prev + 1) % availableDailyDates.length
+          // Sync dates in AI mode during autoplay
+          if (isAIPredictionMode && availableDailyDates[nextIndex]) {
+            const dateStr = availableDailyDates[nextIndex]
+            setPredictionDate(dateStr)
+            setActualDate(dateStr)
+          }
+          return nextIndex
+        })
+      }, restDelay)
+    }
+  }, [timelineMode, dailyAutoPlay, availableDailyDates, dailyPlaySpeed, transitionMs, clearDailyTimer, isAIPredictionMode])
+
+  // When toggling autoplay or changing params, restart schedule
+  useEffect(() => {
+    scheduleNextDailyTick()
+    return clearDailyTimer
+  }, [timelineMode, dailyAutoPlay, dailyPlaySpeed, transitionMs, availableDailyDates.length, scheduleNextDailyTick, clearDailyTimer])
+
+  // After each index change during autoplay, schedule the next tick
+  useEffect(() => {
+    if (dailyAutoPlay && timelineMode === 'daily') {
+      scheduleNextDailyTick()
+    }
+  }, [selectedDailyIndex, dailyAutoPlay, timelineMode, scheduleNextDailyTick])
+
+  // Daily playback control handlers
+  const handleDailyPlayPause = useCallback(() => {
+    setDailyAutoPlay(prev => !prev)
+  }, [])
+
+  const handleDailyIndexChange = useCallback((index: number) => {
+    if (index >= 0 && index < availableDailyDates.length) {
+      setSelectedDailyIndex(index)
+
+      // Sync with AI prediction when in AI mode
+      if (isAIPredictionMode && availableDailyDates[index]) {
+        const dateStr = availableDailyDates[index]
+        setPredictionDate(dateStr)
+        setActualDate(dateStr)
+      }
+    }
+  }, [availableDailyDates, isAIPredictionMode])
+
+  const handleDailySkipToStart = useCallback(() => {
+    setSelectedDailyIndex(0)
+
+    // Sync with AI prediction when in AI mode
+    if (isAIPredictionMode && availableDailyDates.length > 0) {
+      const dateStr = availableDailyDates[0]
+      setPredictionDate(dateStr)
+      setActualDate(dateStr)
+    }
+  }, [isAIPredictionMode, availableDailyDates])
+
+  const handleDailySkipToEnd = useCallback(() => {
+    if (availableDailyDates.length > 0) {
+      const lastIndex = availableDailyDates.length - 1
+      setSelectedDailyIndex(lastIndex)
+
+      // Sync with AI prediction when in AI mode
+      if (isAIPredictionMode) {
+        const dateStr = availableDailyDates[lastIndex]
+        setPredictionDate(dateStr)
+        setActualDate(dateStr)
+      }
+    }
+  }, [availableDailyDates, isAIPredictionMode])
+
+  // Load monthly sales, daily aggregates, and prediction aggregates on mount
+  useEffect(() => {
+    loadMonthlySalesData()
+    loadDailyAggregates()
+    loadPredictionAggregates()
+  }, [loadMonthlySalesData, loadDailyAggregates, loadPredictionAggregates])
+
+  // Update overlay (date label + avg temp + total sales) using prebuilt index (fast, no fetch per step)
+
+  // Update overlay (date label + avg temp + total sales) when timeline changes (index first, fallback to fetch)
+  useEffect(() => {
+    if (timelineMode === 'monthly') {
+      const mm = selectedMeshMonth.toString().padStart(2, '0')
+      const yearMonth = `2024-${mm}`
+      setOverlayDateLabel(yearMonth)
+      const key = `2024${mm}`
+      const v = tempIndex?.monthly ? tempIndex.monthly[key] : undefined
+      if (typeof v === 'number') {
+        setOverlayAvgTemp(v)
+        setOverlayLoading(false)
+      } else {
+        fetchMonthlyAverageTemp(yearMonth)
+      }
+
+      // Set total sales for the selected month
+      const sales = monthlySalesMap.get(selectedMeshMonth)
+      setOverlayTotalSales(sales !== undefined ? sales : null)
+    } else if (timelineMode === 'daily' && availableDailyDates.length > 0) {
+      const code = availableDailyDates[selectedDailyIndex]
+      if (code && code.length === 8) {
+        const label = `${code.slice(0,4)}-${code.slice(4,6)}-${code.slice(6,8)}`
+        setOverlayDateLabel(label)
+
+        // Get daily aggregated data
+        const dailyData = dailyAggregatesMap.get(code)
+        if (dailyData) {
+          // Use aggregated temperature and sales
+          setOverlayAvgTemp(dailyData.avgTemperature)
+          setOverlayTotalSales(dailyData.totalSalesHundredMillion * 100000000) // Convert back to won for existing display logic
+          setOverlayLoading(false)
+        } else {
+          // Fallback to existing logic if no aggregated data
+          const v = tempIndex?.daily ? tempIndex.daily[code] : undefined
+          if (typeof v === 'number') {
+            setOverlayAvgTemp(v)
+            setOverlayLoading(false)
+          } else {
+            fetchDailyAverageTemp(label)
+          }
+
+          // For daily mode, use the month from the date code
+          const month = parseInt(code.slice(4, 6))
+          const sales = monthlySalesMap.get(month)
+          setOverlayTotalSales(sales !== undefined ? sales : null)
+        }
+      }
+    } else {
+      setOverlayDateLabel('')
+      setOverlayAvgTemp(null)
+      setOverlayTotalSales(null)
+    }
+  }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex, tempIndex, fetchMonthlyAverageTemp, fetchDailyAverageTemp, monthlySalesMap, dailyAggregatesMap])
+
+  // Update prediction overlay when in AI mode
+  useEffect(() => {
+    if (isAIPredictionMode && predictionDate) {
+      // Format date label
+      if (predictionDate.length === 8) {
+        const label = `${predictionDate.slice(0,4)}-${predictionDate.slice(4,6)}-${predictionDate.slice(6,8)}`
+        setPredictionOverlayDateLabel(label)
+      }
+
+      // Get prediction data for the selected date
+      const predictionData = predictionAggregatesMap.get(predictionDate)
+      if (predictionData && predictionData.scenarios && predictionData.scenarios[temperatureScenario]) {
+        const scenario = predictionData.scenarios[temperatureScenario]
+        setPredictionOverlayTemp(scenario.temperature)
+        setPredictionOverlaySales(scenario.salesHundredMillion * 100000000) // Convert to won for display
+      } else {
+        setPredictionOverlayTemp(null)
+        setPredictionOverlaySales(null)
+      }
+    } else if (!isAIPredictionMode) {
+      // Clear prediction overlay when not in AI mode
+      setPredictionOverlayDateLabel('')
+      setPredictionOverlayTemp(null)
+      setPredictionOverlaySales(null)
+    }
+  }, [isAIPredictionMode, predictionDate, temperatureScenario, predictionAggregatesMap])
   
   // Remove progressive rendering states - not needed with optimized loading
   // All layers now load on demand based on visibility settings
@@ -382,13 +881,7 @@ export default function CardSalesDistrictMap() {
     resetToDefaultView()
   }, [resetConfig, setSelectedGu, setSelectedDong, setSelectedSubCategory, resetToDefaultView])
 
-  // 3D 모드 전환 핸들러
-  const handle3DModeToggle = useCallback((enabled: boolean) => {
-    setIs3DMode(enabled)
-    
-    // View state is not changed when toggling between mesh and polygon layers
-    // Both layers use the same camera angle for consistency
-  }, [])
+  // 3D 모드 전환 핸들러 - REMOVED: 3D polygon layers not used
 
   
   useEffect(() => {
@@ -507,7 +1000,7 @@ export default function CardSalesDistrictMap() {
         }
       } 
       // Handle district polygon hover (from unified layers)
-      else if (info.layer?.id?.includes('unified-sgg') || info.layer?.id?.includes('unified-dong')) {
+      else if (info.layer?.id?.includes('unified-dong')) {
         const feature = info.object
         if (feature && feature.properties) {
           const districtName = feature.properties?.SIGUNGU_NM || 
@@ -539,31 +1032,21 @@ export default function CardSalesDistrictMap() {
         const calculatedGuCode = guCode || getDistrictCodeFromMapping(guName)
         const calculatedDongCode = dongCode || getDongCodeFromMapping(guName, dongName)
         
-        setSelectedGuCode(calculatedGuCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
         setSelectedDong(dongName)
-        setSelectedDongCode(calculatedDongCode)
+        setSelectedDongCode(calculatedDongCode ?? null)
         
           } else if (guName) {
         // 구 클릭시: 구만 설정 (서울 전체 뷰 유지)
         setSelectedGu(guName)
         const calculatedGuCode = guCode || getDistrictCodeFromMapping(guName)
-        setSelectedGuCode(calculatedGuCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
         setSelectedDong(null)
         setSelectedDongCode(null)
         
           }
     }
-    // Handle district polygon click (from unified layers)
-    else if (info.layer?.id?.includes('unified-sgg') && info.object && info.object.properties) {
-      const guName = getGuName(info.object.properties)
-      if (guName) {
-        setSelectedGu(guName)
-        const calculatedGuCode = getDistrictCodeFromMapping(guName)
-        setSelectedGuCode(calculatedGuCode)
-        setSelectedDong(null)
-        setSelectedDongCode(null)
-          }
-    }
+    // REMOVED: sgg district click handling - sgg data not needed
     else if (info.layer?.id?.includes('unified-dong') && info.object && info.object.properties) {
       const dongName = getDistrictName(info.object.properties)
       const guName = getGuName(info.object.properties)
@@ -572,8 +1055,8 @@ export default function CardSalesDistrictMap() {
         setSelectedDong(dongName)
         const calculatedGuCode = getDistrictCodeFromMapping(guName)
         const calculatedDongCode = getDongCodeFromMapping(guName, dongName)
-        setSelectedGuCode(calculatedGuCode)
-        setSelectedDongCode(calculatedDongCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
+        setSelectedDongCode(calculatedDongCode ?? null)
           }
     }
     // Handle district labels click
@@ -582,7 +1065,7 @@ export default function CardSalesDistrictMap() {
       if (guName) {
         setSelectedGu(guName)
         const calculatedGuCode = getDistrictCodeFromMapping(guName)
-        setSelectedGuCode(calculatedGuCode)
+        setSelectedGuCode(calculatedGuCode ?? null)
         setSelectedDong(null)
         setSelectedDongCode(null)
           }
@@ -590,246 +1073,7 @@ export default function CardSalesDistrictMap() {
   }, [setSelectedGu, setSelectedGuCode, setSelectedDong, setSelectedDongCode])
 
   
-  // Create 3D polygon layers for dong visualization
-  const createDong3DPolygonLayersOptimized = useCallback(() => {
-    // Skip layer creation if polygon layer is off
-    if (!layerConfig.visible) return []
-    if (!dongData3D || !dongData3D.features) return []
-    
-    return [
-      new PolygonLayer({
-        id: `dong-3d-polygon-${JSON.stringify(themeAdjustments)}`,  // Unique ID to force recreation
-        data: dongData3D.features,
-        pickable: true,
-        extruded: true,
-        wireframe: false,
-        filled: true,
-        autoHighlight: true,
-        highlightColor: [255, 255, 255, 60],
-        
-        // GPU Optimization Parameters
-        parameters: COMMON_GPU_PARAMS,
-        
-        // Geometry
-        getPolygon: (d: any) => {
-          // Handle both Polygon and MultiPolygon
-          if (d.geometry.type === 'MultiPolygon') {
-            // Return the first polygon for MultiPolygon
-            return d.geometry.coordinates[0][0]
-          }
-          return d.geometry.coordinates[0]
-        },
-        
-        // Height - 사전 계산된 높이 사용
-        getElevation: (d: any) => {
-          const guName = getGuName(d.properties)
-          const dongCode = getDistrictCode(d.properties)
-          
-          // Use pre-calculated height from properties (will be updated after optimizedDongMap is available)
-          const height = d.properties.height || 0
-          
-          // 동 선택 시: 선택된 구의 동만 원래 높이
-          if (selectedDong) {
-            if (guName === selectedGu) {
-              return height
-            }
-            return 10 // 다른 구의 동들은 낮은 높이
-          }
-          
-          // 구 선택 시: 선택된 구의 동만 표시
-          if (selectedGu && guName !== selectedGu) {
-            return 0 // 숨김
-          }
-          
-          // Add elevation boost when gu is hovered for 3D pop-out effect
-          if (hoveredDistrict === guName) {
-            return height * 1.2  // 20% elevation boost for better visibility
-          }
-          
-          return height
-        },
-        
-        elevationScale: 1,
-        
-        // 사전 계산된 색상 사용
-        getFillColor: (d: any) => {
-          const dongName = getDistrictName(d.properties)
-          const guName = getGuName(d.properties)
-          
-          // Try multiple ways to get dongCode
-          const dongCode = getDistrictCode(d.properties);
-          
-          // Use existing calculation (will be replaced after optimizedDongMap is available)
-          const height = d.properties.height || 0
-          const totalSales = dongCode ? dongSalesMap.get(Number(dongCode)) || 0 : 0
-          
-          // Debug logging for 40-step gradient
-          if (!(window as any)._firstLogDone || Math.random() < 0.005) {
-            const step = 125000000; // 1.25억
-            const colorIndex = Math.min(Math.floor(totalSales / step), 39);
-            //   dongName,
-            //   totalSales: totalSales ? `${(totalSales / 100000000).toFixed(1)}억` : '0',
-            //   colorIndex: `${colorIndex}/39`,
-            //   theme: currentThemeKey
-            // })
-            if (!(window as any)._firstLogDone) {
-              (window as any)._firstLogDone = true;
-            }
-          }
-          
-          // Use modern color system for 'modern' and 'adjacent' themes
-          if (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') {
-            // Check if this dong is selected
-            const isThisDongSelected = selectedDong && dongName === selectedDong
-            // Check if this dong is in selected gu
-            const isInSelectedGu = selectedGu && guName === selectedGu
-            // Check if this dong is being hovered directly OR if its gu is being hovered
-            const isHovered = hoveredDistrict === dongName || hoveredDistrict === guName
-            
-            // Special strong highlighting when gu is hovered
-            if (hoveredDistrict === guName) {
-              // Use bright yellow-gold highlight for entire gu
-              return applyColorAdjustments(255, 230, 100, 255)
-            }
-            
-            // Dimmed color for non-selected areas when something is selected
-            if ((selectedGu || selectedDong) && !isInSelectedGu) {
-              return getDimmedColor()
-            }
-            
-            return getModernDistrictColor(
-              guName,
-              dongName,
-              height,
-              currentThemeKey,
-              isThisDongSelected,
-              isHovered
-            )
-          }
-          
-          // Fallback to legacy color system with sales-based intensity
-          if (selectedDong && dongName === selectedDong) {
-            return convertColorExpressionToRGB(height, 'bright', guName, dongName, true, false, totalSales)
-          }
-          // Strong highlight if gu is hovered (show district boundary effect)
-          if (hoveredDistrict === guName) {
-            // Use bright golden highlight for entire gu
-            return applyColorAdjustments(255, 215, 0, 255)  // Gold color with full opacity
-          }
-          if (selectedGu && guName === selectedGu) {
-            return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
-          }
-          if (selectedGu || selectedDong) {
-            return applyColorAdjustments(51, 51, 51, 200)
-          }
-          return convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
-        },
-        
-        // Modern edge rendering with district-based colors
-        getLineColor: (d: any) => {
-          const guName = getGuName(d.properties)
-          const dongName = getDistrictName(d.properties)
-          
-          if (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') {
-            const isHighlighted = (selectedDong && dongName === selectedDong) || 
-                                 hoveredDistrict === dongName ||
-                                 hoveredDistrict === guName  // Highlight edges when gu is hovered
-            return getModernEdgeColor(guName, isHighlighted, currentThemeKey)
-          }
-          
-          // Strong highlight edges when gu is hovered
-          if (hoveredDistrict === guName) {
-            return applyColorAdjustments(255, 255, 0, 255)  // Bright pure yellow edges with full opacity for hovered gu
-          }
-          
-          // Fallback to simple white edges
-          return applyColorAdjustments(255, 255, 255, 30)
-        },
-        // Dynamic line width based on hover state
-        getLineWidth: (d: any) => {
-          const guName = getGuName(d.properties)
-          if (hoveredDistrict === guName) {
-            return 3  // Thicker lines for hovered gu
-          }
-          return 1  // Default line width
-        },
-        lineWidthMinPixels: 1.5,
-        lineWidthMaxPixels: 4,
-        
-        // Modern material properties for sophisticated 3D effect - brighter settings
-        material: (currentThemeKey.startsWith('modern') || currentThemeKey === 'modern' || currentThemeKey === 'adjacent') 
-          ? getModernMaterial(currentThemeKey)
-          : {
-              ambient: 0.6,   // Increased from 0.35
-              diffuse: 0.9,   // Increased from 0.6
-              shininess: 48,  // Increased from 32
-              specularColor: [100, 110, 120]  // Brighter specular
-            },
-        
-        // Events
-        onHover: (info: any) => {
-          if (info.object) {
-            const properties = info.object.properties
-            setHoveredDistrict(getDistrictName(properties))
-          } else {
-            setHoveredDistrict(null)
-          }
-        },
-        
-        onClick: (info: any) => {
-          if (info.object) {
-            const props = info.object.properties
-            const dongName = getDistrictName(props)
-            const guName = getGuName(props)
-            const dongCode = getDistrictCode(props)
-            const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
-            
-            // 선택 상태 업데이트
-            if (dongName && guName) {
-              setSelectedDong(dongName)
-              setSelectedGu(guName)
-              setSelectedDongCode(dongCode || getDongCodeFromMapping(guName, dongName))
-              setSelectedGuCode(guCode || getDistrictCodeFromMapping(guName))
-              
-              // 통합 줌 함수 사용
-              handleDistrictZoom(guName, dongName)
-            }
-          }
-        },
-        
-        // Transitions for smooth animations
-        transitions: {
-          getElevation: 0,  // No animation
-          getFillColor: 0,  // No animation
-          getLineWidth: 0   // No animation
-        },
-        
-        // Update triggers for reactive updates - optimized based on layer visibility
-        updateTriggers: layerConfig.visible ? {
-          getElevation: [dongSalesMap, heightScale],  // Only essential dependencies
-          getFillColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments, hoveredDistrict],  // Include theme adjustments and hover
-          getLineColor: [selectedGu, selectedDong, currentThemeKey, themeAdjustments, hoveredDistrict]  // Include theme adjustments
-        } : {}
-      })
-    ]
-  }, [
-    dongData3D, 
-    selectedGu, 
-    selectedDong, 
-    selectedBusinessType, 
-    currentThemeKey, 
-    dongSalesMap,
-    heightScale,
-    setSelectedDong,
-    setSelectedGu,
-    setSelectedDongCode,
-    setSelectedGuCode,
-    setHoveredDistrict,
-    setViewState,
-    hoveredDistrict,
-    themeAdjustments,
-    layerConfig  // Added to ensure recreation when layer config changes
-  ])
+  // REMOVED: createDong3DPolygonLayersOptimized function - 3D polygon layers not used
   
   // Create lighting configuration for 3D mesh rendering
   const lightingEffect = useMemo(() => {
@@ -853,25 +1097,57 @@ export default function CardSalesDistrictMap() {
     })
   }, [])  // Lighting configuration is constant
   
-  // Use pre-generated mesh layer for better performance with real sales data
+  // Separate dynamic colors for actual and prediction mesh layers
+  const dynamicActualMeshColor = useMemo(() => {
+    // Use temperature-based color only if toggle is enabled
+    if (useActualTemperatureColor && overlayAvgTemp !== null) {
+      return getTemperatureMeshHexColor(overlayAvgTemp)
+    }
+    // Otherwise use user-selected color
+    return actualMeshColor
+  }, [useActualTemperatureColor, overlayAvgTemp, actualMeshColor])
+
+  const dynamicPredictionMeshColor = useMemo(() => {
+    // Use temperature-based color only if toggle is enabled
+    if (usePredictionTemperatureColor && overlayAvgTemp !== null) {
+      return getTemperatureMeshHexColor(overlayAvgTemp)
+    }
+    // Otherwise use user-selected color
+    return predictionMeshColor
+  }, [usePredictionTemperatureColor, overlayAvgTemp, predictionMeshColor])
+
   const { layer: preGeneratedMeshLayer, isLoading: isMeshLoading } = usePreGeneratedSeoulMeshLayer({
     resolution: meshResolution,
     visible: showMeshLayer,
     wireframe: true,  // Always wireframe
     opacity: 1,  // Wireframe opacity
     animatedOpacity: 0.8,  // Fixed opacity
+    month: timelineMode === 'monthly' ? (selectedMeshMonth < 10 ? `20240${selectedMeshMonth}` : `2024${selectedMeshMonth}`) : undefined,
+    date: isAIPredictionMode ? actualDate : (timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : undefined),
     pickable: false,  // Disabled to prevent tooltips and highlighting
     useMask: true,  // Enable masking to clip wireframe at Seoul boundaries
-    color: meshColor,  // Pass the mesh color
-    dongBoundaries: dongData3D?.features,  // Pass dong boundaries for sales mapping
+    color: dynamicActualMeshColor,  // Temperature-based sleek color for actual data
+    transitionMs: transitionMs,
+    // REMOVED: dongBoundaries parameter - no 3D polygon data needed
     dongSalesMap: dongSalesMap,  // Pass sales data map
     salesHeightScale: heightScale  // Use the same height scale as polygon layer
     // onHover and onClick removed - mesh layer is purely visual
-  }, dongData3D?.features)
+  }, undefined)  // REMOVED: dongData3D dependency
+
+  // AI Prediction Mesh Layer
+  const { layer: predictionMeshLayer, isLoading: isPredictionLoading } = usePredictionMeshLayer({
+    predictionDate,
+    temperatureScenario,
+    visible: isAIPredictionMode,
+    wireframe: true,
+    opacity: 1,
+    color: dynamicPredictionMeshColor, // Separate color for prediction layer
+    salesHeightScale: heightScale,
+    transitionMs: transitionMs,  // Add transition duration for smooth animations
+    pickable: false  // Disabled to prevent tooltips and highlighting - mesh layer is purely visual
+    // No onHover handler needed
+  })
   
-  // Removed initial camera animation
-  
-  // 자동 회전 기능 제거 - 성능 최적화를 위해 비활성화
   
   // Load Seoul boundary data for unified layers
   const [seoulBoundaryData, setSeoulBoundaryData] = useState<FeatureCollection | null>(null)
@@ -886,68 +1162,16 @@ export default function CardSalesDistrictMap() {
 
   // Create unified Deck.gl layers to replace Mapbox native layers
   const unifiedLayers = useUnifiedDeckGLLayers({
-    sggData,
-    dongData,
-    dongData3D,
     seoulBoundaryData,
-    is3DMode,
     isDragging,
-    viewState,
-    selectedGu,
-    selectedDong,
-    hoveredDistrict,
-    sggVisible: districtSelection.sggVisible,
-    dongVisible: districtSelection.dongVisible,
-    jibVisible: districtSelection.jibVisible,
-    showBoundary,
-    dongSalesMap,
-    heightScale,
-    currentThemeKey,
-    onHover: (info: PickingInfo) => {
-      if (info.object) {
-        const feature = info.object
-        const name = feature.properties?.SIGUNGU_NM || 
-                    feature.properties?.ADM_DR_NM || 
-                    feature.properties?.DONG_NM
-        setHoveredDistrict(name)
-      } else {
-        setHoveredDistrict(null)
-      }
+    viewState: {
+      ...viewState,
+      pitch: viewState.pitch ?? 0,
+      bearing: viewState.bearing ?? 0
     },
-    onClick: (info: PickingInfo) => {
-      if (info.object) {
-        const feature = info.object
-        const props = feature.properties
-        
-        // 동 클릭 처리
-        if (props.ADM_DR_NM || props.DONG_NM) {
-          const dongName = getDistrictName(props)
-          const guName = props.guName || props['자치구']
-          const dongCode = getDistrictCode(props)
-          const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD
-          
-          if (dongName && guName) {
-            setSelectedDong(dongName)
-            setSelectedGu(guName)
-            setSelectedDongCode(dongCode || getDongCodeFromMapping(guName, dongName))
-            setSelectedGuCode(guCode || getDistrictCode(guName))
-            handleDistrictZoom(guName, dongName)
-          }
-        }
-        // 구 클릭 처리
-        else if (props.SIGUNGU_NM || props.GU_NM) {
-          const guName = getGuName(props)
-          setSelectedGu(guName)
-          setSelectedGuCode(getDistrictCodeFromMapping(guName))
-          setSelectedDong(null)
-          setSelectedDongCode(null)
-        }
-      }
-    }
+    showBoundary
   })
   
-  // Remove unnecessary progressive loading - all layers load immediately now
-  // Layer loading state is managed directly in the render logic
   
   // Combine all deck.gl layers - Using conditional rendering for better performance (no cloning)
   const deckLayers = useMemo(() => {
@@ -963,16 +1187,11 @@ export default function CardSalesDistrictMap() {
     }
     
     // Include unified 2D layers only in 2D mode (conditional rendering instead of cloning)
-    if (unifiedLayers && unifiedLayers.length > 0 && !is3DMode) {
+    if (unifiedLayers && unifiedLayers.length > 0) {
       layers.push(...unifiedLayers)
     }
     
-    // Include 3D polygon layers only in 3D mode (conditional rendering instead of cloning)
-    if (dongData3D && is3DMode) {
-      // Always use the optimized layers function
-      const dong3DLayers = createDong3DPolygonLayersOptimized()
-      layers.push(...dong3DLayers)
-    }
+    // REMOVED: 3D polygon layer rendering - 3D polygon layers not used
     
     
     // Add District Labels TextLayer (LAST - renders on top of everything)
@@ -995,8 +1214,8 @@ export default function CardSalesDistrictMap() {
       layers.push(...districtTextLayers)
       
       // Add dong labels when a gu is selected
-      if (selectedGu && dongData3D) {
-        const dongLabelData = dongData3D.features?.filter((feature: any) => {
+      if (selectedGu && dongData) {
+        const dongLabelData = dongData.features?.filter((feature: any) => {
           const guName = getGuName(feature.properties)
           return guName === selectedGu
         }).map((feature: any) => ({
@@ -1029,10 +1248,126 @@ export default function CardSalesDistrictMap() {
     }
     
     return layers
-  }, [is3DMode, dongData3D, showDistrictLabels, showDongLabels, viewState.zoom, 
-      selectedGu, selectedDong, hoveredDistrict, showMeshLayer, preGeneratedMeshLayer, 
-      unifiedLayers, createDong3DPolygonLayersOptimized, layerConfig])  // Added function and layerConfig dependencies
+  }, [showDistrictLabels, showDongLabels, viewState.zoom,
+      selectedGu, selectedDong, hoveredDistrict, showMeshLayer, preGeneratedMeshLayer,
+      unifiedLayers, layerConfig, dongData])  // REMOVED: is3DMode, dongData3D, createDong3DPolygonLayersOptimized dependencies
   
+  // Separate animation control functions for actual and prediction layers
+  const startActualAnimation = useCallback((type: '7days' | '31days') => {
+    setIsActualAnimating(true)
+    setActualAnimationType(type)
+    setActualAnimationDay(1)
+
+    const maxDays = type === '7days' ? 7 : 31
+    let currentDay = 1
+
+    const animate = () => {
+      // Update actual data date
+      const dayStr = currentDay.toString().padStart(2, '0')
+      const dateStr = `202407${dayStr}`
+      setActualAnimationDay(currentDay)
+      setActualDate(dateStr)  // Update the actual date for mesh layer
+
+      // Update actual data layer to the corresponding date
+      if (availableDailyDates.length > 0) {
+        const dayIndex = availableDailyDates.findIndex(d => d === dateStr || d.includes(`07${dayStr}`))
+        if (dayIndex !== -1) {
+          setSelectedDailyIndex(dayIndex)
+        }
+      }
+      // Also update month for monthly mode fallback
+      setSelectedMeshMonth(7)
+
+      // Move to next frame
+      currentDay++
+      if (currentDay > maxDays) {
+        // Animation complete - stop instead of looping
+        if (actualAnimationRef.current) {
+          clearTimeout(actualAnimationRef.current)
+          actualAnimationRef.current = null
+        }
+        setIsActualAnimating(false)
+        setActualAnimationType(null)
+        setActualAnimationDay(1)
+        return
+      }
+
+      // Continue animation
+      actualAnimationRef.current = setTimeout(animate, 500) // 500ms per frame
+    }
+
+    animate()
+  }, [availableDailyDates, setSelectedDailyIndex, setSelectedMeshMonth])
+
+  const startPredictionAnimation = useCallback((type: '7days' | '31days') => {
+    setIsPredictionAnimating(true)
+    setPredictionAnimationType(type)
+    setPredictionAnimationDay(1)
+
+    const maxDays = type === '7days' ? 7 : 31
+    let currentDay = 1
+
+    const animate = () => {
+      // Update prediction date
+      const dayStr = currentDay.toString().padStart(2, '0')
+      const dateStr = `202407${dayStr}`
+      setPredictionDate(dateStr)
+      // Keep the current temperature scenario - don't change it
+      setPredictionAnimationDay(currentDay)
+
+      // Move to next frame
+      currentDay++
+      if (currentDay > maxDays) {
+        // Animation complete - stop instead of looping
+        if (predictionAnimationRef.current) {
+          clearTimeout(predictionAnimationRef.current)
+          predictionAnimationRef.current = null
+        }
+        setIsPredictionAnimating(false)
+        setPredictionAnimationType(null)
+        setPredictionAnimationDay(1)
+        return
+      }
+
+      // Continue animation
+      predictionAnimationRef.current = setTimeout(animate, 500) // 500ms per frame
+    }
+
+    animate()
+  }, [setPredictionDate])
+
+  const stopActualAnimation = useCallback(() => {
+    if (actualAnimationRef.current) {
+      clearTimeout(actualAnimationRef.current)
+      actualAnimationRef.current = null
+    }
+    setIsActualAnimating(false)
+    setActualAnimationType(null)
+    setActualAnimationDay(1)
+  }, [])
+
+  const stopPredictionAnimation = useCallback(() => {
+    if (predictionAnimationRef.current) {
+      clearTimeout(predictionAnimationRef.current)
+      predictionAnimationRef.current = null
+    }
+    setIsPredictionAnimating(false)
+    setPredictionAnimationType(null)
+    setPredictionAnimationDay(1)
+  }, [])
+
+  // Clean up animations on unmount
+  useEffect(() => {
+    return () => {
+      if (actualAnimationRef.current) {
+        clearTimeout(actualAnimationRef.current)
+      }
+      if (predictionAnimationRef.current) {
+        clearTimeout(predictionAnimationRef.current)
+      }
+    }
+  }, [])
+
   // 기존 HexagonLayer 코드 (주석 처리)
   // 툴팁 핸들러 (Context7 권장 패턴)
   const getTooltip = (info: PickingInfo) => {
@@ -1042,11 +1377,11 @@ export default function CardSalesDistrictMap() {
     
     try {
       // 디버깅: 실제 레이어 ID 확인
-      console.log('[Tooltip Debug] Layer ID:', info.layer?.id, 'Object keys:', Object.keys(info.object))
+      // Debug: Layer tooltip info
       
-      // dong-3d-polygon 레이어 처리 (3D 행정동 폴리곤)
-      // 실제로는 다양한 레이어 ID가 올 수 있으므로 properties 존재 여부로 판단
-      if (info.object && (info.layer?.id === 'dong-3d-polygon' || info.object.properties)) {
+      // District layer tooltip handling
+      // Check for properties existence to determine if it's a district feature
+      if (info.object && info.object.properties) {
         const properties = info.object.properties
         
         // 한글과 영문 속성명 모두 체크
@@ -1079,8 +1414,10 @@ export default function CardSalesDistrictMap() {
         
         const salesInTenMillion = Math.round(totalSales / 10000000)
         
-        // 날짜 정보 (selectedDate 사용)
-        const date = selectedDate || '202401'
+        // 날짜 정보
+        const date = timelineMode === 'monthly'
+          ? (selectedMeshMonth < 10 ? `20240${selectedMeshMonth}` : `2024${selectedMeshMonth}`)
+          : (timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : '202401')
         
         // 선택된 업종이 있으면 해당 업종 매출, 없으면 전체 업종 표시
         let businessTypeHtml = ''
@@ -1147,7 +1484,7 @@ export default function CardSalesDistrictMap() {
       
       
       // 기존 HexagonLayer의 경우 (폴백) - dongSalesMap 사용하도록 개선
-      console.log('[Tooltip Debug] Using fallback logic, dongSalesMap size:', dongSalesMap.size)
+      // Using fallback tooltip logic
       
       // dongSalesMap에서 데이터가 있으면 기본 툴팁 생성
       if (dongSalesMap.size > 0 && info.object.coordinates) {
@@ -1157,7 +1494,9 @@ export default function CardSalesDistrictMap() {
           const tooltipHtml = `
 📍 위치: ${position[1].toFixed(4)}, ${position[0].toFixed(4)}
 💰 데이터: ${dongSalesMap.size}개 동 로딩됨
-📅 날짜: ${selectedDate || '정보 없음'}
+📅 날짜: ${timelineMode === 'monthly'
+  ? (selectedMeshMonth < 10 ? `2024년 ${selectedMeshMonth}월` : `2024년 ${selectedMeshMonth}월`)
+  : (timelineMode === 'daily' ? availableDailyDates[selectedDailyIndex] : '정보 없음')}
           `.trim()
           
           return {
@@ -1227,16 +1566,8 @@ export default function CardSalesDistrictMap() {
   // Load district data
   useEffect(() => {
     const loadData = async () => {
-      const [sgg, dong] = await Promise.all([
-        loadDistrictData('sgg'),
-        loadDistrictData('dong')
-      ])
-      
-      if (sgg) {
-        setSggData(sgg)
-        if (sgg.features?.[0]) {
-        }
-      }
+      const dong = await loadDistrictData('dong')
+      // REMOVED: sgg data loading - not needed
       if (dong) {
         setDongData(dong)
         if (dong.features?.[0]) {
@@ -1246,10 +1577,6 @@ export default function CardSalesDistrictMap() {
     
     loadData()
   }, [])
-  
-  // 최적화된 일별 데이터 사용 (selectedDate는 이미 YYYY-MM-DD 형식)
-  const formatSelectedDate = selectedDate || '2024-01-01'
-  
   // Binary 형식 사용 여부 (환경변수 또는 기본값 true)
   const USE_BINARY_FORMAT = process.env.NEXT_PUBLIC_USE_BINARY_FORMAT !== 'false'
   
@@ -1264,30 +1591,13 @@ export default function CardSalesDistrictMap() {
   //   useBinary: true
   // })
   
-  // JSON 형식 데이터 로딩만 사용
-  const jsonDataResult = useOptimizedMonthlyData({ 
-    selectedDate: formatSelectedDate,
-    enabled: true // Always use JSON format now
-  })
+  // Optimized data removed - initialize with empty values
+  const optimizedFeatures = null
+  const optimizedDongMap = new Map()
+  const isOptimizedLoading = false
+  const optimizedError = null
   
-  // JSON 데이터만 사용
-  const { 
-    features: optimizedFeatures, 
-    dongMap: optimizedDongMap,
-    isLoading: isOptimizedLoading,
-    error: optimizedError 
-  } = jsonDataResult // Only use JSON data now
-  
-  // 추가 디버깅: useOptimizedMonthlyData 상태 모니터링
-  console.log('[DEBUG] useOptimizedMonthlyData Result:', {
-    formatSelectedDate,
-    hasFeatures: !!optimizedFeatures,
-    featuresLength: optimizedFeatures?.length,
-    hasDongMap: !!optimizedDongMap,
-    dongMapSize: optimizedDongMap?.size,
-    isLoading: isOptimizedLoading,
-    error: optimizedError
-  })
+  // Optimized data debugging removed
   
   // 성능 로깅 - 주석 처리 (binary data removed)
   useEffect(() => {
@@ -1295,66 +1605,22 @@ export default function CardSalesDistrictMap() {
     }
   }, []) // Removed dependencies since binary data is removed
 
-  // Load sales data from optimized data
+  // Sales data loading removed - optimized data deleted
   useEffect(() => {
-    console.log('[DEBUG] Data loading status:', {
-      features: optimizedFeatures?.length,
-      dongMap: optimizedDongMap?.size,
-      isLoading: isOptimizedLoading,
-      error: optimizedError,
-      selectedDate: formatSelectedDate
-    })
-    
-    if (!optimizedFeatures || !optimizedDongMap) {
-      return
-    }
-    
-    // 디버깅: optimizedDongMap 확인
-    const firstThree = Array.from(optimizedDongMap.entries()).slice(0, 3)
-    firstThree.forEach(([dongCode, feature]) => {
-      console.log(`[DEBUG] DongCode ${dongCode}: sales=${feature.totalSales}`)
-    })
-
-    
-    // Convert optimized data to existing map format for compatibility
+    // Initialize empty maps since optimized data is removed
     const salesByDong = new Map<number, number>()
     const salesByDongAndType = new Map<number, Map<string, number>>()
-    
-    optimizedFeatures.forEach(feature => {
-      salesByDong.set(feature.dongCode, feature.totalSales)
-      
-      if (feature.salesByType && Object.keys(feature.salesByType).length > 0) {
-        const typeMap = new Map<string, number>()
-        Object.entries(feature.salesByType).forEach(([type, amount]) => {
-          typeMap.set(type, amount)
-        })
-        salesByDongAndType.set(feature.dongCode, typeMap)
-      }
-    })
-    
-    
-    // Log min/max for reference
-    const salesValues = optimizedFeatures.map(f => f.totalSales)
-    if (salesValues.length > 0) {
-      const minSales = Math.min(...salesValues)
-      const maxSales = Math.max(...salesValues)
-    }
-    
+
     setDongSalesMap(salesByDong)
     setDongSalesByTypeMap(salesByDongAndType)
-    
-    console.log('[DEBUG] Maps created:', {
-      dongSalesMap: salesByDong.size,
-      dongSalesByTypeMap: salesByDongAndType.size
-    })
-  }, [optimizedFeatures, optimizedDongMap])
+  }, [])
   
   // Memoize dong colors for performance
   const dongColorMap = useMemo(() => {
-    if (!dongData3D || !dongData3D.features) return new Map()
-    
+    if (!dongData || !dongData.features) return new Map()
+
     const colorMap = new Map()
-    dongData3D.features.forEach((feature: any) => {
+    dongData.features.forEach((feature: any) => {
       const dongCode = getDistrictCode(feature.properties)
       
       if (dongCode) {
@@ -1364,20 +1630,8 @@ export default function CardSalesDistrictMap() {
         const dongName = getDistrictName(feature.properties)
         const totalSales = dongSalesMap.get(Number(dongCode)) || 0
         
-        // Use optimized data if available
-        const optimizedFeature = optimizedDongMap?.get(Number(dongCode))
-        let baseColor
-        
-        if (optimizedFeature?.fillColorRGB) {
-          const themeKey = currentThemeKey === 'modern' || currentThemeKey === 'adjacent' ? 'blue' : 
-                          currentThemeKey === 'bright' ? 'bright' :
-                          currentThemeKey === 'green' ? 'green' :
-                          currentThemeKey === 'purple' ? 'purple' :
-                          currentThemeKey === 'orange' ? 'orange' : 'blue'
-          baseColor = optimizedFeature.fillColorRGB[themeKey as keyof typeof optimizedFeature.fillColorRGB]
-        } else {
-          baseColor = convertColorExpressionToRGB(height, currentThemeKey, guName, dongName, false, false, totalSales)
-        }
+        // Calculate base color without optimized data
+        const baseColor = convertColorExpressionToRGB(height, currentThemeKey, guName || undefined, dongName || undefined, false, false, totalSales)
         
         colorMap.set(dongCode, {
           baseColor,
@@ -1388,94 +1642,10 @@ export default function CardSalesDistrictMap() {
     })
     
     return colorMap
-  }, [dongData3D, dongSalesMap, optimizedDongMap, currentThemeKey])
+  }, [dongData, dongSalesMap, currentThemeKey])
 
   
-  // 3D 모드용 데이터 전처리
-  useEffect(() => {
-    // Skip processing if layers are off
-    if (!showMeshLayer && !layerConfig.visible) return
-    if (!sggData || !dongData || dongSalesMap.size === 0 || !dongSalesByTypeMap) return
-    
-    // 3D 효과를 위한 데이터 처리 (갈라짐 없이)
-    const process3DData = () => {
-      // Log sales statistics for debugging
-      const salesValues = Array.from(dongSalesMap.values())
-      const minSales = Math.min(...salesValues)
-      const maxSales = Math.max(...salesValues)
-      const avgSales = salesValues.reduce((a, b) => a + b, 0) / salesValues.length
-      
-      // 구 데이터 3D 처리
-      const sgg3D = {
-        ...sggData,
-        features: sggData.features.map((feature: any) => {
-          const guName = feature.properties.SIGUNGU_NM || feature.properties.SGG_NM || 
-                        feature.properties.SIG_KOR_NM || feature.properties.GU_NM || 
-                        feature.properties.nm || '자치구'
-          return {
-            ...feature,
-            properties: {
-              ...feature.properties,
-              height: getDistrictHeight(guName),
-              guName: guName  // 구 이름 명시적으로 추가
-            }
-          }
-        })
-      }
-      setSggData3D(sgg3D)
-      
-      // 동 데이터 3D 처리  
-      const dong3D = {
-        ...dongData,
-        features: dongData.features.map((feature: any, index: number) => {
-          // Use Korean property names from the actual GeoJSON data
-          const guName = feature.properties['자치구'] || feature.properties.SGG_NM || feature.properties.SIGUNGU_NM || feature.properties.SIG_KOR_NM
-          const dongName = getDistrictName(feature.properties)
-          const dongCode = getDistrictCode(feature.properties) || 0
-          
-          // Debug first few dong codes
-          if (index < 3) {
-            //   guName,
-            //   dongName,
-            //   dongCode,
-            //   allProperties: Object.keys(feature.properties)
-            // })
-          }
-          
-          // Calculate height directly from sales data
-          let dongSales = dongSalesMap.get(Number(dongCode)) || 0
-          if (selectedBusinessType && dongSalesByTypeMap?.has(Number(dongCode))) {
-            const typeMap = dongSalesByTypeMap.get(Number(dongCode))
-            dongSales = typeMap?.get(selectedBusinessType) || 0
-          }
-          const height = getDongHeightBySales(dongSales, heightScale)
-          
-          // Log first and last dong for debugging
-          if (index === 0 || index === dongData.features.length - 1) {
-            //   guName, 
-            //   dongName, 
-            //   dongCode,
-            //   height: Math.round(height),
-            //   dongIndex: index 
-            // })
-          }
-          
-          return {
-            ...feature,
-            properties: {
-              ...feature.properties,
-              height: height, // Use sales-based height
-              dongIndex: index, // 인덱스 추가 (색상 구분용)
-              guName: guName // 자치구 이름 명시적으로 추가
-            }
-          }
-        })
-      }
-      setDongData3D(dong3D)
-    }
-    
-    process3DData()
-  }, [sggData, dongData, dongSalesMap, dongSalesByTypeMap, selectedBusinessType, heightScale])
+  // REMOVED: 3D data preprocessing useEffect - 3D polygon layers not used
   
   
   // Lighting for 3D mode handled by DeckGL lighting effects
@@ -1512,39 +1682,7 @@ export default function CardSalesDistrictMap() {
   // District selection data for separate layers
   const [selectedDistrictData, setSelectedDistrictData] = useState<any>(null)
 
-  // Create fast lookup indices for districts
-  const sggIndex = useMemo(() => {
-    if (!sggData?.features) {
-      return new Map()
-    }
-    
-    const index = new Map()
-    
-    sggData.features.forEach((f: any) => {
-      const props = f.properties || {}
-      // 구 코드로 인덱싱 - 다양한 속성명 지원 (한글 속성명 포함)
-      const guCode = props.SIG_CD || props.SGG_CD || props.GU_CD || props.SIGUNGU_CD || props['시군구코드'] || props['구코드']
-      const guName = props.SIGUNGU_NM || props.SIG_KOR_NM || props.GU_NM || props['구명']
-      
-      if (guCode) {
-        // 코드를 숫자로 변환하여 저장
-        const codeNumber = Number(guCode)
-        index.set(codeNumber, f)
-        // 디버깅용 - 첫 5개 항목 로깅
-        if (index.size <= 5) {
-        }
-      }
-      
-      // 이름으로도 인덱싱 (폴백용)
-      if (guName) {
-        index.set(guName, f)
-        if (index.size <= 10) {
-        }
-      }
-    })
-    
-    return index
-  }, [sggData])
+  // REMOVED: sggIndex - sgg data not needed
 
   const dongIndex = useMemo(() => {
     if (!dongData?.features) {
@@ -1615,34 +1753,13 @@ export default function CardSalesDistrictMap() {
         if (dongFeature) {
           foundFeature = dongFeature
           
-          // 동 선택시 해당 구 경계도 찾기
-          if (selectedGuCode || selectedGu) {
-            let sggFeature = selectedGuCode ? sggIndex.get(selectedGuCode) : null
-            if (!sggFeature && selectedGu) {
-              sggFeature = sggIndex.get(selectedGu)
-            }
-            if (sggFeature) {
-              foundGuFeature = sggFeature
-            }
-          }
+          // REMOVED: sgg feature lookup - sgg data not needed
         } else {
         }
       }
       // 구만 선택된 경우 구 경계를 하이라이트  
       else if (selectedGuCode || selectedGu) {
-        
-        // Try code first
-        let sggFeature = selectedGuCode ? sggIndex.get(selectedGuCode) : null
-        
-        // If code doesn't work, try name as fallback
-        if (!sggFeature && selectedGu) {
-          sggFeature = sggIndex.get(selectedGu)
-        }
-        
-        if (sggFeature) {
-          foundFeature = sggFeature
-        } else {
-        }
+        // REMOVED: sgg feature lookup - sgg data not needed
       }
       
       if (foundFeature) {
@@ -1671,7 +1788,7 @@ export default function CardSalesDistrictMap() {
       // Return to default Seoul view (재사용 함수 사용)
       resetToDefaultView()
     }
-  }, [selectedGuCode, selectedDongCode, selectedGu, selectedDong, districtSelection.selectedDistrict, sggIndex, dongIndex, resetToDefaultView]) // Use both codes and names
+  }, [selectedGuCode, selectedDongCode, selectedGu, selectedDong, districtSelection.selectedDistrict, dongIndex, resetToDefaultView]) // Use both codes and names
 
   // Memory cleanup effect
   useEffect(() => {
@@ -1688,11 +1805,11 @@ export default function CardSalesDistrictMap() {
   }, [])
 
   // Layer filter for performance optimization during interaction
-  const layerFilter = useCallback(({ layer, viewport }) => {
+  const layerFilter = useCallback(({ layer, viewport }: any) => {
     // During drag, only render essential layers
     if (isDragging) {
-      // Always render mesh and essential 3D layers
-      if (layer.id.includes('mesh') || layer.id.includes('3d-polygon')) {
+      // Always render mesh and essential layers
+      if (layer.id.includes('mesh')) {
         return true
       }
       // Skip text layers and other overlays during drag
@@ -1710,16 +1827,36 @@ export default function CardSalesDistrictMap() {
     <div className="relative w-full h-screen flex">
       {/* Mesh Loading Overlay */}
       {/* Removed MeshLoadingOverlay */}
-      
-      {/* Map Section - Flexible Width */}
-      <div className={`relative flex-1 transition-all duration-300`}>
-        {/* 애니메이션 버튼 제거 - 성능 최적화 */}
-        
-        {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
-        <DeckGL
+
+      {/* Split View Container - Shows two maps when AI Prediction mode is active */}
+      <div className={`relative flex w-full h-full ${isAIPredictionMode ? 'gap-1' : ''}`}>
+        {/* Left Map (Current Sales) */}
+        <div className={`relative transition-all duration-500 ${isAIPredictionMode ? 'w-1/2' : 'w-full'}`}>
+          {/* Label for actual values - centered */}
+          {isAIPredictionMode && (
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 bg-gradient-to-r from-blue-600/80 to-cyan-600/80 backdrop-blur-sm rounded-lg px-4 py-2.5 border border-blue-500/30 shadow-lg text-center">
+              <div className="text-white text-sm font-bold tracking-wide">실제 값</div>
+              <div className="text-[10px] text-blue-200 mt-0.5">2024년 실측 데이터</div>
+            </div>
+          )}
+
+          {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
+          <DeckGL
         viewState={viewState}
-        controller={true}
-        layers={deckLayers} // PolygonLayer for 3D visualization
+        controller={{
+          scrollZoom: {
+            speed: 0.005,  // 기본값(0.01)의 절반 - 더 세밀한 줌 컨트롤
+            smooth: true    // 부드러운 줌 전환 효과
+          },
+          // 다른 controller 옵션은 기본값 유지
+          dragPan: true,
+          dragRotate: true,
+          doubleClickZoom: true,
+          touchZoom: true,
+          touchRotate: true,
+          keyboard: true
+        }}
+        layers={deckLayers} // Deck.gl layers for visualization
         effects={[lightingEffect]} // Add lighting for solid mesh rendering
         getTooltip={isDragging ? undefined : getTooltip} // 드래그 중 툴팁 비활성화로 성능 최적화
         layerFilter={layerFilter} // Performance optimization during interaction
@@ -1729,12 +1866,13 @@ export default function CardSalesDistrictMap() {
           if (isHovering) return 'pointer'
           return 'grab'
         }}
-        // GPU Optimization Parameters  
+        // GPU Optimization Parameters
         parameters={{
-          ...COMMON_GPU_PARAMS,
-          blendFunc: [0x0302, 0x0303, 0x0001, 0x0303], // Extended blend for DeckGL main canvas
-          blendEquation: 0x8006, // GL.FUNC_ADD
-        }}
+          blend: true,
+          blendFunc: [770, 771, 1, 771], // [GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE_MINUS_SRC_ALPHA]
+          depthTest: true,
+          depthFunc: 513, // GL_LEQUAL
+        } as any}
         _typedArrayManagerProps={{
           overAlloc: 1.2,  // Reduce over-allocation (default 2.0)
           poolSize: 100    // Limit pool size for memory efficiency
@@ -1747,14 +1885,7 @@ export default function CardSalesDistrictMap() {
         onDragEnd={() => {
           setIsDragging(false) // 드래그 상태 해제
         }}
-        onViewStateChange={useMemo(() => 
-          throttle(({ viewState: newViewState }) => {
-            
-            // Update the viewState - DeckGL and MapGL sync automatically
-            setViewState(newViewState as MapViewState)
-            
-          }, 16), // 60fps
-        [setViewState])}
+        onViewStateChange={handleViewStateChange}
       >
         <MapGL
           ref={mapRef}
@@ -1778,7 +1909,7 @@ export default function CardSalesDistrictMap() {
           {/* All layers are now rendered by Deck.gl for better performance */}
           
           {/* District Labels Layer - Now handled by Deck.gl TextLayer in deckLayers */}
-          {/* Old Mapbox implementation commented out - replaced with Deck.gl TextLayer for proper 3D rendering
+          {/* Old Mapbox implementation commented out - replaced with Deck.gl TextLayer
           {showDistrictLabels && (
             <DistrictLabelsLayer 
               visible={viewState.zoom >= 10}
@@ -1800,92 +1931,290 @@ export default function CardSalesDistrictMap() {
           )}
         </MapGL>
       </DeckGL>
-      
+        </div>
 
-      {/* LocalEconomy Filter Panel - Positioned properly above map */}
-      <LocalEconomyFilterPanel
-        onFilterChange={handleFilterChange}
-        // External sync props for bidirectional updates
-        externalSelectedGu={selectedGu}
-        externalSelectedDong={selectedDong}
-        externalSelectedBusinessType={selectedBusinessType}
-        externalSelectedDate={selectedDate}
-        // Timeline animation state
-      />
+        {/* Right Map (AI Prediction) - Only shown when AI mode is active */}
+        {isAIPredictionMode && (
+          <div className="relative w-1/2 transition-all duration-500">
+            {/* Label for AI prediction map with temperature scenario - centered */}
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm rounded-lg px-4 py-2.5 border border-purple-500/30 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="text-center">
+                  <div className="text-white text-sm font-bold tracking-wide">AI 예측 값</div>
+                  <div className="text-[10px] text-purple-200 mt-0.5">온도 변화 시뮬레이션</div>
+                </div>
+                <div className="text-xl font-bold text-white animate-pulse">
+                  {temperatureScenario === 't050' && '+5°C'}
+                  {temperatureScenario === 't100' && '+10°C'}
+                  {temperatureScenario === 't150' && '+15°C'}
+                  {temperatureScenario === 't200' && '+20°C'}
+                </div>
+              </div>
+            </div>
 
-      {/* 선택된 지역 매출액 정보 */}
-      <SelectedAreaSalesInfo
-        selectedGu={selectedGu}
-        selectedDong={selectedDong}
-        hexagonData={hexagonData}
-        climateData={climateData}
-        visible={true}
-        selectedDate={selectedDate}
-      />
+            {/* Prediction overlay: date + temperature + sales */}
+            <div
+              className="absolute z-10"
+              style={{
+                top: '86px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                transition: 'left 0.3s ease-in-out'
+              }}
+            >
+              <div
+                className="rounded-xl px-6 py-4"
+                style={{ margin: '5px' }}
+              >
+                {/* Date, Temperature and Total Sales for Prediction */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-white text-3xl font-bold">
+                    {predictionOverlayDateLabel || '—'}
+                  </div>
+                  <div
+                    className="text-3xl font-bold"
+                    style={{ color: getTemperatureColor(predictionOverlayTemp) }}
+                  >
+                    {predictionOverlayTemp !== null ? `${predictionOverlayTemp.toFixed(1)}°C` : '—'}
+                  </div>
+                  {/* Prediction Sales in billions KRW */}
+                  <div className="text-purple-300 text-3xl font-bold mt-2">
+                    {predictionOverlaySales !== null
+                      ? `${(predictionOverlaySales / 100000000).toLocaleString('ko-KR', {
+                          maximumFractionDigits: 0,
+                          minimumFractionDigits: 0
+                        })}억원`
+                      : '—'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Second DeckGL instance for AI predictions */}
+            <DeckGL
+              viewState={viewState}
+              controller={{
+                scrollZoom: {
+                  speed: 0.005,
+                  smooth: true
+                },
+                dragPan: true,
+                dragRotate: true,
+                doubleClickZoom: true,
+                touchZoom: true,
+                touchRotate: true,
+                keyboard: true
+              }}
+              layers={predictionMeshLayer ? [predictionMeshLayer] : []} // AI prediction mesh layer
+              effects={[lightingEffect]}
+              getCursor={({isDragging: dragging, isHovering}) => {
+                if (dragging) return 'grabbing'
+                if (isHovering) return 'pointer'
+                return 'grab'
+              }}
+              parameters={{
+                blend: true,
+                blendFunc: [770, 771, 1, 771],
+                depthTest: true,
+                depthFunc: 513,
+              } as any}
+              _typedArrayManagerProps={{
+                overAlloc: 1.2,
+                poolSize: 100
+              }}
+              onViewStateChange={handleViewStateChange}
+            >
+              <MapGL
+                mapboxAccessToken={MAPBOX_TOKEN}
+                mapStyle={currentLayer === 'black' ? {
+                  version: 8,
+                  sources: {},
+                  layers: [{
+                    id: 'background',
+                    type: 'background',
+                    paint: {
+                      'background-color': '#000000'
+                    }
+                  }],
+                } : currentLayer === 'very-dark' ? 'mapbox://styles/mapbox/dark-v11' : currentLayer}
+                {...viewState}
+                reuseMaps
+                style={{ width: '100%', height: '100%' }}
+              >
+                {/* Semi-transparent overlay for very-dark mode */}
+                {currentLayer === 'very-dark' && (
+                  <div
+                    className="absolute inset-0 bg-black/70 pointer-events-none"
+                    style={{ mixBlendMode: 'multiply' }}
+                  />
+                )}
+              </MapGL>
+            </DeckGL>
+
+            {/* Dual Layer Controls - Show instead of unified panel when AI prediction is active */}
+            <DualLayerControls
+              // Actual layer props
+              isActualAnimating={isActualAnimating}
+              actualAnimationType={actualAnimationType}
+              actualAnimationDay={actualAnimationDay}
+              onStartActualAnimation={startActualAnimation}
+              onStopActualAnimation={stopActualAnimation}
+              actualMeshColor={actualMeshColor}
+              onActualMeshColorChange={setActualMeshColor}
+              useActualTemperatureColor={useActualTemperatureColor}
+              onUseActualTemperatureColorChange={setUseActualTemperatureColor}
+              actualDate={actualDate}
+              onActualDateChange={(date) => {
+                setActualDate(date)
+                // Also update prediction date to keep them in sync
+                setPredictionDate(date)
+
+                // Update daily index if in daily mode
+                if (timelineMode === 'daily' && availableDailyDates.length > 0) {
+                  const index = availableDailyDates.findIndex(d => d === date)
+                  if (index !== -1) {
+                    setSelectedDailyIndex(index)
+                  }
+                }
+              }}
+
+              // Prediction layer props
+              isPredictionAnimating={isPredictionAnimating}
+              predictionAnimationType={predictionAnimationType}
+              predictionAnimationDay={predictionAnimationDay}
+              onStartPredictionAnimation={startPredictionAnimation}
+              onStopPredictionAnimation={stopPredictionAnimation}
+              predictionMeshColor={predictionMeshColor}
+              onPredictionMeshColorChange={setPredictionMeshColor}
+              usePredictionTemperatureColor={usePredictionTemperatureColor}
+              onUsePredictionTemperatureColorChange={setUsePredictionTemperatureColor}
+
+              // Prediction-specific props
+              predictionDate={predictionDate}
+              onPredictionDateChange={(date) => {
+                setPredictionDate(date)
+                // Also update actual date to keep them in sync
+                setActualDate(date)
+
+                // Update daily index if in daily mode
+                if (timelineMode === 'daily' && availableDailyDates.length > 0) {
+                  const index = availableDailyDates.findIndex(d => d === date)
+                  if (index !== -1) {
+                    setSelectedDailyIndex(index)
+                  }
+                }
+              }}
+              temperatureScenario={temperatureScenario}
+              onTemperatureScenarioChange={setTemperatureScenario}
+            />
+
+          </div>
+        )}
+
+        {/* Center Divider Line - Only shown in AI prediction mode */}
+        {isAIPredictionMode && (
+          <div className="absolute left-1/2 top-0 bottom-0 w-[1px] -translate-x-1/2 z-30 pointer-events-none bg-gray-400/70"></div>
+        )}
+      </div>
+
+      {/* Left-top overlay: date + average temperature + total sales */}
+      <div
+        className="absolute z-10"
+        style={{
+          top: '86px',
+          left: isAIPredictionMode ? '25%' : '50%',
+          transform: 'translateX(-50%)',
+          transition: 'left 0.3s ease-in-out'
+        }}
+      >
+        <div
+          className={isAIPredictionMode ? "rounded-xl px-6 py-4" : "rounded-xl px-8 py-6"}
+          style={{ margin: '5px' }}
+        >
+          {/* Date, Temperature and Total Sales */}
+          <div className="flex flex-col items-center gap-2">
+            <div className={isAIPredictionMode ? "text-white text-3xl font-bold" : "text-white text-5xl font-bold"}>
+              {overlayDateLabel || '—'}
+            </div>
+            <div
+              className={isAIPredictionMode ? "text-3xl font-bold" : "text-5xl font-bold"}
+              style={{ color: getTemperatureColor(overlayAvgTemp) }}
+            >
+              {overlayLoading ? '…' : (overlayAvgTemp !== null ? `${overlayAvgTemp.toFixed(1)}°C` : '—')}
+            </div>
+            {/* Total Sales in billions KRW */}
+            <div className={isAIPredictionMode ? "text-yellow-300 text-3xl font-bold mt-2" : "text-yellow-300 text-5xl font-bold mt-2"}>
+              {overlayTotalSales !== null
+                ? `${(overlayTotalSales / 100000000).toLocaleString('ko-KR', {
+                    maximumFractionDigits: 0,
+                    minimumFractionDigits: 0
+                  })}억원`
+                : '—'}
+            </div>
+          </div>
+        </div>
+      </div>
 
 
-      {/* 통합 컨트롤 패널 */}
+      {/* 통합 컨트롤 패널 - Always show for AI button and basic controls */}
       <UnifiedControls
-        // 지도 컨트롤 props
-        showBoundary={showBoundary}
-        // District visibility props
-        dongVisible={districtSelection.dongVisible}
-        onDongVisibleChange={(visible) => districtSelection.setDongVisible(visible)}
-        // Additional display options
-        showDistrictLabels={showDistrictLabels}
-        showDongLabels={showDongLabels}
-        onDistrictLabelsToggle={(visible: boolean) => setShowDistrictLabels(visible)}
-        onDongLabelsToggle={(visible: boolean) => setShowDongLabels(visible)}
-        onBoundaryToggle={(show) => {
-          setShowBoundary(show)
-          // Boundary visibility now controlled through Deck.gl layer props
-        }}
-        onSeoulBaseToggle={(show) => {
-          // Seoul base is now removed, this toggle can be deprecated or repurposed
-        }}
-        // 3D 모드 props
-        is3DMode={is3DMode}
-        onIs3DModeChange={handle3DModeToggle}
         // 높이 스케일 props
         heightScale={heightScale}
         onHeightScaleChange={setHeightScale}
-        // 레이어 컨트롤 props
-        visible={layerConfig.visible}
-        coverage={layerConfig.coverage}
-        upperPercentile={layerConfig.upperPercentile}
-        isDataLoading={isDataLoading}
-        dataError={dataError}
-        onVisibleChange={handlePolygonLayerToggle}
-        onCoverageChange={setCoverage}
-        onUpperPercentileChange={setUpperPercentile}
-        onReset={resetConfig}
-        // 색상 모드 props
-        colorMode={colorMode === 'alert' ? 'sales' : colorMode}
-        onColorModeChange={setColorMode}
-        selectedHour={selectedHour}
-        onSelectedHourChange={setSelectedHour}
-        // 애니메이션 props
-        animationSpeed={layerConfig.animationSpeed}
-        waveAmplitude={layerConfig.waveAmplitude}
-        onAnimationEnabledChange={setAnimationEnabled}
-        onAnimationSpeedChange={setAnimationSpeed}
-        onWaveAmplitudeChange={setWaveAmplitude}
-        
-        
-        // Mesh layer props
-        showMeshLayer={showMeshLayer}
-        onShowMeshLayerChange={handleMeshLayerToggle}
+
+
+        // Mesh layer props (always on, no toggle)
         // Wireframe always true - props removed
-        meshResolution={meshResolution}
-        onMeshResolutionChange={setMeshResolution}
-        meshColor={meshColor}
-        onMeshColorChange={setMeshColor}
-        />
+        // Mesh resolution fixed at 120 - props removed
+        meshColor={actualMeshColor}
+        onMeshColorChange={setActualMeshColor}
+        useTemperatureColor={useActualTemperatureColor}
+        onUseTemperatureColorChange={setUseActualTemperatureColor}
+        timelineMode={timelineMode}
+        onTimelineModeChange={setTimelineMode}
+        selectedMeshMonth={selectedMeshMonth}
+        onMeshMonthChange={setSelectedMeshMonth}
+        // Daily playback props
+        isDailyPlaybackActive={dailyAutoPlay}
+        currentDayIndex={selectedDailyIndex}
+        totalDays={availableDailyDates.length}
+        currentDate={availableDailyDates[selectedDailyIndex] || ''}
+        onPlayPause={handleDailyPlayPause}
+        onDayChange={handleDailyIndexChange}
+        onSkipToStart={handleDailySkipToStart}
+        onSkipToEnd={handleDailySkipToEnd}
+        // AI Prediction mode - only pass the state for conditional UI
+        isAIPredictionMode={isAIPredictionMode}
+      />
+
+      {/* AI 예측 활성화 버튼 - 지도 초기화 버튼 위 */}
+      <button
+        onClick={handleAIPredictionToggle}
+        className={`absolute z-30 transition-all duration-300 px-4 py-2 rounded-lg shadow-2xl backdrop-blur-md text-sm font-medium ${
+          isAIPredictionMode
+            ? 'bg-purple-900/50 hover:bg-purple-900/60 text-purple-200 border border-purple-500/30'
+            : 'bg-black/90 hover:bg-gray-900/90 text-gray-200 border border-gray-800/50'
+        }`}
+        style={{
+          bottom: '70px',
+          left: '50%',
+          transform: 'translateX(-50%)'
+        }}
+      >
+        <span className="flex items-center gap-2 pointer-events-none">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+            <path d="M9 12l2 2 4-4"/>
+          </svg>
+          <span>AI 예측</span>
+          {isAIPredictionMode && <span className="text-xs opacity-75">(활성화)</span>}
+        </span>
+      </button>
 
       {/* 지도 초기화 버튼 */}
       <button
         onClick={handleFullReset}
-        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-10 bg-black/90 hover:bg-gray-900/50 backdrop-blur-md text-gray-200 text-sm font-medium px-4 py-2 rounded-lg border border-gray-800/50 transition-all duration-200 shadow-2xl"
+        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[31] bg-black/90 hover:bg-gray-900/50 backdrop-blur-md text-gray-200 text-sm font-medium px-4 py-2 rounded-lg border border-gray-800/50 transition-all duration-200 shadow-2xl"
       >
         지도 초기화
       </button>
@@ -1910,130 +2239,6 @@ export default function CardSalesDistrictMap() {
           <div className="text-sm">{dataError}</div>
         </div>
       )}
-
-      </div>
-      
-      {/* Chart Open Button - Always visible at right edge */}
-      {!showChartPanel && (
-        <button
-          onClick={() => setShowChartPanel(true)}
-          className="fixed top-4 right-0 bg-black/90 backdrop-blur-md border-l border-t border-b border-gray-800/50 rounded-l-lg shadow-2xl hover:bg-gray-900/50 transition-all duration-300 z-40 group hover:pl-1"
-        >
-          <div className="py-6 px-3 flex flex-col items-center justify-center space-y-3">
-            {/* Icon */}
-            <svg 
-              className="w-5 h-5 text-blue-400 transition-transform duration-300"
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            
-            {/* Vertical Text */}
-            <div 
-              className="text-gray-200 font-bold text-sm tracking-wider"
-              style={{ 
-                writingMode: 'vertical-rl',
-                textOrientation: 'mixed'
-              }}
-            >
-              차트열기
-            </div>
-            
-            {/* Arrow Indicator */}
-            <svg 
-              className="w-4 h-4 text-gray-400 transition-transform duration-300 rotate-180"
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
-      )}
-      
-      {/* Chart Panel with Wing Button */}
-      <div 
-        className={`fixed top-0 right-0 h-full flex transition-all duration-500 z-40 ${
-          showChartPanel ? 'translate-x-0' : 'translate-x-full'
-        }`}
-      >
-        {/* Wing Button - Vertical Tab */}
-        <button
-          onClick={() => setShowChartPanel(!showChartPanel)}
-          className="absolute top-4 -left-12 bg-black/90 backdrop-blur-md border-l border-t border-b border-gray-800/50 rounded-l-lg shadow-2xl hover:bg-gray-900/50 transition-all duration-300 group hover:pr-1"
-        >
-          <div className="py-6 px-3 flex flex-col items-center justify-center space-y-3">
-            {/* Icon */}
-            <svg 
-              className={`w-5 h-5 text-blue-400 transition-transform duration-300 ${
-                showChartPanel ? 'rotate-180' : ''
-              }`} 
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path 
-                strokeLinecap="round" 
-                strokeLinejoin="round" 
-                strokeWidth={2} 
-                d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-              />
-            </svg>
-            
-            {/* Vertical Text */}
-            <div 
-              className="text-gray-200 font-bold text-sm tracking-wider"
-              style={{ 
-                writingMode: 'vertical-rl',
-                textOrientation: 'mixed'
-              }}
-            >
-              {showChartPanel ? '차트닫기' : '차트열기'}
-            </div>
-            
-            {/* Arrow Indicator */}
-            <svg 
-              className={`w-4 h-4 text-gray-400 transition-transform duration-300 ${
-                showChartPanel ? 'rotate-0' : 'rotate-180'
-              }`}
-              fill="none" 
-              stroke="currentColor" 
-              viewBox="0 0 24 24"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </div>
-        </button>
-        
-        {/* Chart Panel */}
-        {showChartPanel && (
-          <ResizablePanel
-            initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
-            minWidth={300}
-            maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
-            className="h-screen bg-black/80 border-l border-gray-800/50"
-          >
-            <div className="h-full p-4 overflow-y-auto">
-              <DefaultChartsPanel 
-                selectedGu={selectedGu}
-                selectedGuCode={selectedGuCode}
-                selectedDong={selectedDong}
-                selectedDongCode={selectedDongCode}
-                selectedBusinessType={selectedBusinessType}
-                selectedDate={selectedDate}
-              />
-            </div>
-          </ResizablePanel>
-        )}
-      </div>
     </div>
   )
 }
