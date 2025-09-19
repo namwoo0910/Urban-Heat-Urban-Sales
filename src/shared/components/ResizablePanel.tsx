@@ -139,25 +139,9 @@ export function ResizablePanel({
         onMouseDown={handleMouseDown}
       >
         {/* Wider hit area for easier dragging */}
-        <div className="absolute inset-y-0 -left-3 w-6 flex items-center justify-center">
-          {/* Handle bar */}
-          <div
-            className={`w-1 h-full relative
-              ${isResizing
-                ? 'bg-blue-500 shadow-[0_0_10px_rgba(59,130,246,0.5)]'
-                : 'bg-transparent hover:bg-blue-500/50 hover:shadow-[0_0_8px_rgba(59,130,246,0.3)]'
-              }
-              transition-all duration-200`}
-          >
-            {/* Grip dots in center */}
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1.5">
-              <div className={`w-1.5 h-1.5 rounded-full ${isResizing ? 'bg-white' : 'bg-gray-400'} transition-colors`} />
-              <div className={`w-1.5 h-1.5 rounded-full ${isResizing ? 'bg-white' : 'bg-gray-400'} transition-colors`} />
-              <div className={`w-1.5 h-1.5 rounded-full ${isResizing ? 'bg-white' : 'bg-gray-400'} transition-colors`} />
-              <div className={`w-1.5 h-1.5 rounded-full ${isResizing ? 'bg-white' : 'bg-gray-400'} transition-colors`} />
-              <div className={`w-1.5 h-1.5 rounded-full ${isResizing ? 'bg-white' : 'bg-gray-400'} transition-colors`} />
-            </div>
-          </div>
+        <div className="absolute inset-y-0 -left-3 w-6">
+          {/* Invisible handle - only for dragging functionality */}
+          <div className="w-1 h-full bg-transparent" />
         </div>
       </div>
 

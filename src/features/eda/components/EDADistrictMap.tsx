@@ -12,6 +12,7 @@ import { throttle } from 'lodash-es'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
 import { FlyToInterpolator } from '@deck.gl/core'
 import type { MapRef } from 'react-map-gl'
+import { motion } from 'framer-motion'
 
 // Components
 import { MapContainer } from './MapContainer'
@@ -174,6 +175,29 @@ export default function EDADistrictMap() {
     setSelectedDongCode(filters.selectedDongCode)
     setSelectedBusinessType(filters.selectedBusinessType)
   }, [])
+
+  // Apply preset filters
+  const applyPresetFilter = useCallback((preset: 'vulnerable' | 'culture') => {
+    if (preset === 'vulnerable') {
+      // 폭염/한파에 취약한 전통상권: 종로구 창신1동 음/식료품
+      handleFilterChange({
+        selectedGu: '종로구',
+        selectedGuCode: getDistrictCode('종로구') || null,
+        selectedDong: '창신1동',
+        selectedDongCode: getDongCode('종로구', '창신1동') || null,
+        selectedBusinessType: '음/식료품'
+      })
+    } else {
+      // 폭염 속에서 찾는 예술 문화: 지역 전체, 오락/공연/서점
+      handleFilterChange({
+        selectedGu: null,
+        selectedGuCode: null,
+        selectedDong: null,
+        selectedDongCode: null,
+        selectedBusinessType: '오락/공연/서점'
+      })
+    }
+  }, [handleFilterChange])
 
   // Handle click with district code mapping - unified with filter logic
   const handleClick = useCallback((info: PickingInfo) => {
@@ -405,6 +429,41 @@ export default function EDADistrictMap() {
         isDragging={isDragging}
       />
 
+      {/* Preset Filter Buttons */}
+      <div className="fixed z-50 flex flex-col gap-2" style={{ top: '76px', left: '26px' }}>
+        <motion.button
+          onClick={() => applyPresetFilter('vulnerable')}
+          className="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 backdrop-blur-sm
+                     rounded-lg shadow-lg hover:shadow-xl hover:scale-105 hover:bg-gray-200
+                     transition-all duration-200"
+          whileHover={{ x: 2 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <span className="text-lg">🌡️</span>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-gray-900">
+              폭염/한파에 취약한 전통상권
+            </div>
+          </div>
+        </motion.button>
+
+        <motion.button
+          onClick={() => applyPresetFilter('culture')}
+          className="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 backdrop-blur-sm
+                     rounded-lg shadow-lg hover:shadow-xl hover:scale-105 hover:bg-gray-200
+                     transition-all duration-200"
+          whileHover={{ x: 2 }}
+          whileTap={{ scale: 0.98 }}
+        >
+          <span className="text-lg">🎭</span>
+          <div className="text-left">
+            <div className="text-sm font-semibold text-gray-900">
+              폭염 속에서 찾는 예술 문화
+            </div>
+          </div>
+        </motion.button>
+      </div>
+
       {/* Filter panel */}
       <LocalEconomyFilterPanel
         onFilterChange={handleFilterChange}
@@ -418,25 +477,19 @@ export default function EDADistrictMap() {
 
       {/* Info Panel */}
       {(selectedGu || selectedDong) && (
-        <div className="absolute top-4 left-4 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-4 max-w-xs">
-          <div className="space-y-2">
+        <div className="absolute top-4 left-1/2 transform -translate-x-1/2 bg-white/95 backdrop-blur-sm rounded-lg shadow-lg px-4 py-2 z-30">
+          <div className="flex items-center gap-3">
             {selectedGu && (
-              <div>
-                <span className="text-xs text-gray-500">선택된 구:</span>
-                <div className="font-semibold text-gray-800">{selectedGu}</div>
-              </div>
+              <div className="font-semibold text-gray-800">{selectedGu}</div>
             )}
             {selectedDong && (
-              <div>
-                <span className="text-xs text-gray-500">선택된 동:</span>
-                <div className="font-semibold text-gray-800">{selectedDong}</div>
-              </div>
+              <div className="font-semibold text-gray-800">{selectedDong}</div>
             )}
             {selectedBusinessType && (
-              <div>
-                <span className="text-xs text-gray-500">선택된 업종:</span>
+              <>
+                <span className="text-gray-400">•</span>
                 <div className="font-semibold text-gray-800">{selectedBusinessType}</div>
-              </div>
+              </>
             )}
           </div>
         </div>

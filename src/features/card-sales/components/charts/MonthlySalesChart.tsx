@@ -127,23 +127,23 @@ export function MonthlySalesChart({
       {/* 선택된 업종 또는 행정동/자치구 표시 (레이어 컨트롤에서 선택) */}
       <div className="absolute top-0 right-2 z-10 flex flex-col items-end gap-1">
         {isDongMode && selectedDongName && activeCategory !== '전체' ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {selectedGuName} {selectedDongName} - {activeCategory}
           </div>
         ) : isDongMode && selectedDongName ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {selectedGuName} {selectedDongName} (전체 업종)
           </div>
         ) : isGuMode && selectedGuName && activeCategory !== '전체' ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {selectedGuName} - {activeCategory}
           </div>
         ) : isGuMode && selectedGuName ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {selectedGuName} (전체 업종)
           </div>
         ) : activeCategory !== '전체' ? (
-          <div className="text-xs text-blue-400">
+          <div className="text-xs text-blue-600 font-medium">
             {activeCategory}
           </div>
         ) : null}

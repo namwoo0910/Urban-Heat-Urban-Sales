@@ -82,7 +82,7 @@ export default function CardSalesDistrictMap() {
   // AI Prediction Mode State
   const [isAIPredictionMode, setIsAIPredictionMode] = useState(false)
   const [predictionDate, setPredictionDate] = useState('20240701') // Default July 1, 2024
-  const [temperatureScenario, setTemperatureScenario] = useState('t001') // Default T+0.1°C
+  const [temperatureScenario, setTemperatureScenario] = useState('t050') // Default T+5°C
 
   // Listen for theme adjustment changes
   useEffect(() => {
@@ -273,15 +273,99 @@ export default function CardSalesDistrictMap() {
   const [transitionMs, setTransitionMs] = useState<number>(400)
   const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(1)  // Default to January (1-12)
 
-  // Top-center overlay: date + average temperature
+  // Top-center overlay: date + average temperature + total sales
   const [overlayDateLabel, setOverlayDateLabel] = useState<string>('')
   const [overlayAvgTemp, setOverlayAvgTemp] = useState<number | null>(null)
+  const [overlayTotalSales, setOverlayTotalSales] = useState<number | null>(null)
   const [overlayLoading, setOverlayLoading] = useState<boolean>(false)
   const [overlayHeight, setOverlayHeight] = useState<number>(80)
+
+  // Prediction overlay states
+  const [predictionOverlayDateLabel, setPredictionOverlayDateLabel] = useState<string>('')
+  const [predictionOverlayTemp, setPredictionOverlayTemp] = useState<number | null>(null)
+  const [predictionOverlaySales, setPredictionOverlaySales] = useState<number | null>(null)
 
   // Full year temperature data (365 days)
   const [yearTempData, setYearTempData] = useState<Array<{date: string, temp: number | null}>>([])
   const [isLoadingYearData, setIsLoadingYearData] = useState(true)
+
+  // Monthly sales data map (month -> total sales in KRW)
+  const [monthlySalesMap, setMonthlySalesMap] = useState<Map<number, number>>(new Map())
+
+  // Daily aggregated data map (dateCode -> {temp, sales})
+  const [dailyAggregatesMap, setDailyAggregatesMap] = useState<Map<string, {avgTemperature: number | null, totalSalesHundredMillion: number}>>(new Map())
+
+  // Prediction daily aggregated data map (dateCode -> prediction data)
+  const [predictionAggregatesMap, setPredictionAggregatesMap] = useState<Map<string, any>>(new Map())
+
+  // Load monthly sales data
+  const loadMonthlySalesData = useCallback(async () => {
+    try {
+      const response = await fetch('/data/charts/monthly_sales.csv')
+      const text = await response.text()
+      const lines = text.split('\n').filter(line => line.trim())
+
+      const salesMap = new Map<number, number>()
+
+      // Skip header row and process data rows
+      for (let i = 1; i < lines.length; i++) {
+        const columns = lines[i].split(',')
+        if (columns.length >= 2) {
+          const month = parseInt(columns[0].replace('월', ''))
+          const totalSales = parseFloat(columns[1])
+
+          if (!isNaN(month) && !isNaN(totalSales)) {
+            salesMap.set(month, totalSales)
+          }
+        }
+      }
+
+      setMonthlySalesMap(salesMap)
+    } catch (error) {
+      console.error('Failed to load monthly sales data:', error)
+    }
+  }, [])
+
+  // Load daily aggregated data
+  const loadDailyAggregates = useCallback(async () => {
+    try {
+      const response = await fetch('/data/daily_aggregates.json')
+      const data = await response.json()
+
+      const aggregatesMap = new Map<string, {avgTemperature: number | null, totalSalesHundredMillion: number}>()
+
+      data.forEach((item: any) => {
+        aggregatesMap.set(item.dateCode, {
+          avgTemperature: item.avgTemperature,
+          totalSalesHundredMillion: item.totalSalesHundredMillion
+        })
+      })
+
+      setDailyAggregatesMap(aggregatesMap)
+      console.log('Loaded daily aggregates:', aggregatesMap.size, 'days')
+    } catch (error) {
+      console.error('Failed to load daily aggregates:', error)
+    }
+  }, [])
+
+  // Load prediction daily aggregated data
+  const loadPredictionAggregates = useCallback(async () => {
+    try {
+      const response = await fetch('/data/prediction_daily_aggregates.json')
+      const data = await response.json()
+
+      const aggregatesMap = new Map<string, any>()
+
+      data.forEach((item: any) => {
+        aggregatesMap.set(item.dateCode, item)
+      })
+
+      setPredictionAggregatesMap(aggregatesMap)
+      console.log('Loaded prediction aggregates:', aggregatesMap.size, 'days')
+    } catch (error) {
+      console.error('Failed to load prediction aggregates:', error)
+    }
+  }, [])
 
   // AI Prediction Toggle Handler (defined after state declarations to avoid initialization errors)
   const handleAIPredictionToggle = useCallback(() => {
@@ -628,9 +712,16 @@ export default function CardSalesDistrictMap() {
     }
   }, [availableDailyDates, isAIPredictionMode])
 
-  // Update overlay (date label + avg temp) using prebuilt index (fast, no fetch per step)
+  // Load monthly sales, daily aggregates, and prediction aggregates on mount
+  useEffect(() => {
+    loadMonthlySalesData()
+    loadDailyAggregates()
+    loadPredictionAggregates()
+  }, [loadMonthlySalesData, loadDailyAggregates, loadPredictionAggregates])
 
-  // Update overlay (date label + avg temp) when timeline changes (index first, fallback to fetch)
+  // Update overlay (date label + avg temp + total sales) using prebuilt index (fast, no fetch per step)
+
+  // Update overlay (date label + avg temp + total sales) when timeline changes (index first, fallback to fetch)
   useEffect(() => {
     if (timelineMode === 'monthly') {
       const mm = selectedMeshMonth.toString().padStart(2, '0')
@@ -644,24 +735,72 @@ export default function CardSalesDistrictMap() {
       } else {
         fetchMonthlyAverageTemp(yearMonth)
       }
+
+      // Set total sales for the selected month
+      const sales = monthlySalesMap.get(selectedMeshMonth)
+      setOverlayTotalSales(sales !== undefined ? sales : null)
     } else if (timelineMode === 'daily' && availableDailyDates.length > 0) {
       const code = availableDailyDates[selectedDailyIndex]
       if (code && code.length === 8) {
         const label = `${code.slice(0,4)}-${code.slice(4,6)}-${code.slice(6,8)}`
         setOverlayDateLabel(label)
-        const v = tempIndex?.daily ? tempIndex.daily[code] : undefined
-        if (typeof v === 'number') {
-          setOverlayAvgTemp(v)
+
+        // Get daily aggregated data
+        const dailyData = dailyAggregatesMap.get(code)
+        if (dailyData) {
+          // Use aggregated temperature and sales
+          setOverlayAvgTemp(dailyData.avgTemperature)
+          setOverlayTotalSales(dailyData.totalSalesHundredMillion * 100000000) // Convert back to won for existing display logic
           setOverlayLoading(false)
         } else {
-          fetchDailyAverageTemp(label)
+          // Fallback to existing logic if no aggregated data
+          const v = tempIndex?.daily ? tempIndex.daily[code] : undefined
+          if (typeof v === 'number') {
+            setOverlayAvgTemp(v)
+            setOverlayLoading(false)
+          } else {
+            fetchDailyAverageTemp(label)
+          }
+
+          // For daily mode, use the month from the date code
+          const month = parseInt(code.slice(4, 6))
+          const sales = monthlySalesMap.get(month)
+          setOverlayTotalSales(sales !== undefined ? sales : null)
         }
       }
     } else {
       setOverlayDateLabel('')
       setOverlayAvgTemp(null)
+      setOverlayTotalSales(null)
     }
-  }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex, tempIndex, fetchMonthlyAverageTemp, fetchDailyAverageTemp])
+  }, [timelineMode, selectedMeshMonth, availableDailyDates, selectedDailyIndex, tempIndex, fetchMonthlyAverageTemp, fetchDailyAverageTemp, monthlySalesMap, dailyAggregatesMap])
+
+  // Update prediction overlay when in AI mode
+  useEffect(() => {
+    if (isAIPredictionMode && predictionDate) {
+      // Format date label
+      if (predictionDate.length === 8) {
+        const label = `${predictionDate.slice(0,4)}-${predictionDate.slice(4,6)}-${predictionDate.slice(6,8)}`
+        setPredictionOverlayDateLabel(label)
+      }
+
+      // Get prediction data for the selected date
+      const predictionData = predictionAggregatesMap.get(predictionDate)
+      if (predictionData && predictionData.scenarios && predictionData.scenarios[temperatureScenario]) {
+        const scenario = predictionData.scenarios[temperatureScenario]
+        setPredictionOverlayTemp(scenario.temperature)
+        setPredictionOverlaySales(scenario.salesHundredMillion * 100000000) // Convert to won for display
+      } else {
+        setPredictionOverlayTemp(null)
+        setPredictionOverlaySales(null)
+      }
+    } else if (!isAIPredictionMode) {
+      // Clear prediction overlay when not in AI mode
+      setPredictionOverlayDateLabel('')
+      setPredictionOverlayTemp(null)
+      setPredictionOverlaySales(null)
+    }
+  }, [isAIPredictionMode, predictionDate, temperatureScenario, predictionAggregatesMap])
   
   // Remove progressive rendering states - not needed with optimized loading
   // All layers now load on demand based on visibility settings
@@ -1797,24 +1936,55 @@ export default function CardSalesDistrictMap() {
         {/* Right Map (AI Prediction) - Only shown when AI mode is active */}
         {isAIPredictionMode && (
           <div className="relative w-1/2 transition-all duration-500">
-            {/* Label for AI prediction map - centered */}
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm rounded-lg px-4 py-2.5 border border-purple-500/30 shadow-lg text-center">
-              <div className="text-white text-sm font-bold tracking-wide">AI 예측 값</div>
-              <div className="text-[10px] text-purple-200 mt-0.5">온도 변화 시뮬레이션</div>
+            {/* Label for AI prediction map with temperature scenario - centered */}
+            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm rounded-lg px-4 py-2.5 border border-purple-500/30 shadow-lg">
+              <div className="flex items-center gap-3">
+                <div className="text-center">
+                  <div className="text-white text-sm font-bold tracking-wide">AI 예측 값</div>
+                  <div className="text-[10px] text-purple-200 mt-0.5">온도 변화 시뮬레이션</div>
+                </div>
+                <div className="text-xl font-bold text-white animate-pulse">
+                  {temperatureScenario === 't050' && '+5°C'}
+                  {temperatureScenario === 't100' && '+10°C'}
+                  {temperatureScenario === 't150' && '+15°C'}
+                  {temperatureScenario === 't200' && '+20°C'}
+                </div>
+              </div>
             </div>
 
-            {/* Temperature Scenario Indicator - centered in right layer */}
-            <div className="absolute left-1/2 transform -translate-x-1/2 z-20" style={{ top: '90px' }}>
-              <div className="bg-gradient-to-r from-purple-600 via-pink-600 to-purple-600 p-[2px] rounded-xl shadow-2xl animate-pulse">
-                <div className="bg-black/90 backdrop-blur-md rounded-xl px-4 py-1">
-                  <div className="text-lg font-bold bg-gradient-to-r from-purple-400 to-pink-400 bg-clip-text text-transparent text-center">
-                    {temperatureScenario === 't001' && '+0.1°C'}
-                    {temperatureScenario === 't005' && '+0.5°C'}
-                    {temperatureScenario === 't010' && '+1.0°C'}
-                    {temperatureScenario === 't050' && '+5°C'}
-                    {temperatureScenario === 't100' && '+10°C'}
-                    {temperatureScenario === 't150' && '+15°C'}
-                    {temperatureScenario === 't200' && '+20°C'}
+            {/* Prediction overlay: date + temperature + sales */}
+            <div
+              className="absolute z-10"
+              style={{
+                top: '86px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                transition: 'left 0.3s ease-in-out'
+              }}
+            >
+              <div
+                className="rounded-xl px-6 py-4"
+                style={{ margin: '5px' }}
+              >
+                {/* Date, Temperature and Total Sales for Prediction */}
+                <div className="flex flex-col items-center gap-2">
+                  <div className="text-white text-3xl font-bold">
+                    {predictionOverlayDateLabel || '—'}
+                  </div>
+                  <div
+                    className="text-3xl font-bold"
+                    style={{ color: getTemperatureColor(predictionOverlayTemp) }}
+                  >
+                    {predictionOverlayTemp !== null ? `${predictionOverlayTemp.toFixed(1)}°C` : '—'}
+                  </div>
+                  {/* Prediction Sales in billions KRW */}
+                  <div className="text-purple-300 text-3xl font-bold mt-2">
+                    {predictionOverlaySales !== null
+                      ? `${(predictionOverlaySales / 100000000).toLocaleString('ko-KR', {
+                          maximumFractionDigits: 0,
+                          minimumFractionDigits: 0
+                        })}억원`
+                      : '—'}
                   </div>
                 </div>
               </div>
@@ -1947,7 +2117,7 @@ export default function CardSalesDistrictMap() {
         )}
       </div>
 
-      {/* Left-top overlay: date + average temperature */}
+      {/* Left-top overlay: date + average temperature + total sales */}
       <div
         className="absolute z-10"
         style={{
@@ -1958,19 +2128,28 @@ export default function CardSalesDistrictMap() {
         }}
       >
         <div
-          className="backdrop-blur-md rounded-lg px-3 py-2 flex items-center gap-4 shadow-lg"
+          className={isAIPredictionMode ? "rounded-xl px-6 py-4" : "rounded-xl px-8 py-6"}
           style={{ margin: '5px' }}
         >
-          {/* Date and Temperature */}
-          <div className="flex items-center gap-3">
-            <div className="text-white text-lg font-bold">
+          {/* Date, Temperature and Total Sales */}
+          <div className="flex flex-col items-center gap-2">
+            <div className={isAIPredictionMode ? "text-white text-3xl font-bold" : "text-white text-5xl font-bold"}>
               {overlayDateLabel || '—'}
             </div>
             <div
-              className="text-lg font-bold"
+              className={isAIPredictionMode ? "text-3xl font-bold" : "text-5xl font-bold"}
               style={{ color: getTemperatureColor(overlayAvgTemp) }}
             >
               {overlayLoading ? '…' : (overlayAvgTemp !== null ? `${overlayAvgTemp.toFixed(1)}°C` : '—')}
+            </div>
+            {/* Total Sales in billions KRW */}
+            <div className={isAIPredictionMode ? "text-yellow-300 text-3xl font-bold mt-2" : "text-yellow-300 text-5xl font-bold mt-2"}>
+              {overlayTotalSales !== null
+                ? `${(overlayTotalSales / 100000000).toLocaleString('ko-KR', {
+                    maximumFractionDigits: 0,
+                    minimumFractionDigits: 0
+                  })}억원`
+                : '—'}
             </div>
           </div>
         </div>

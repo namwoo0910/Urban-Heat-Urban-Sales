@@ -74,9 +74,6 @@ function LayerControls({
       {showTemperatureScenarios && (
         <div className="flex divide-x divide-purple-500/20 border-b border-purple-500/20">
           {[
-            { value: 't001', label: '+0.1°C' },
-            { value: 't005', label: '+0.5°C' },
-            { value: 't010', label: '+1.0°C' },
             { value: 't050', label: '+5°C' },
             { value: 't100', label: '+10°C' },
             { value: 't150', label: '+15°C' },
