@@ -13,17 +13,10 @@ import {
 } from '@/src/shared/components/ui/chart'
 import { getWeatherEventsForChart } from '@/src/features/card-sales/data/weatherEventsData'
 import { useFilteredMonthlySales } from '@/src/features/card-sales/hooks/useFilteredMonthlySales'
+import { formatSimpleCurrency } from '@/src/shared/utils/salesFormatter'
 
 // 금액 포맷터 (억원 단위)
-const formatCurrency = (value: number) => {
-  if (value >= 100000000) {
-    return `${(value / 100000000).toFixed(0)}억원`
-  }
-  if (value >= 10000) {
-    return `${(value / 10000).toFixed(0)}만원`
-  }
-  return `${value.toLocaleString()}원`
-}
+const formatCurrency = (value: number) => formatSimpleCurrency(value)
 
 // 커스텀 툴팁
 const CustomTooltip = ({ active, payload, label }: any) => {

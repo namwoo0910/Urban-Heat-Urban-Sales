@@ -3,6 +3,8 @@
  * 모든 컴포넌트에서 일관된 매출 계산을 보장
  */
 
+import { formatSimpleCurrency } from '@/src/shared/utils/salesFormatter'
+
 /**
  * 업종별 매출 데이터에서 총 매출액 계산
  * @param salesByCategory 업종별 매출 객체
@@ -81,15 +83,8 @@ export function getTopBusinessTypes(
  * 금액을 읽기 쉬운 형식으로 변환
  * @param value 금액 (원)
  * @returns 포맷된 문자열
+ * @deprecated Use formatSimpleCurrency from @/src/shared/utils/salesFormatter instead
  */
 export function formatCurrency(value: number): string {
-  if (value >= 100000000) {  // 1억 이상
-    return `${(value / 100000000).toFixed(1)}억원`
-  } else if (value >= 10000000) {  // 1천만원 이상
-    return `${(value / 10000000).toFixed(1)}천만원`
-  } else if (value >= 10000) {  // 1만원 이상
-    return `${(value / 10000).toFixed(0)}만원`
-  } else {
-    return `${value.toLocaleString()}원`
-  }
+  return formatSimpleCurrency(value)
 }

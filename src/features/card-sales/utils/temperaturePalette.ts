@@ -4,7 +4,8 @@
  * - Designed for dark maps with vivid yet refined tones
  */
 
-export type RGBA = [number, number, number, number]
+import type { RGBAColor } from '@deck.gl/core'
+import { rgbToHex } from '@/src/shared/utils/colorUtils'
 
 interface Stop { t: number; rgb: [number, number, number] }
 
@@ -46,15 +47,9 @@ function interpolateColor(tC: number): [number, number, number] {
 }
 
 /** Map temperature (°C) to mesh RGBA color */
-export function getTemperatureMeshColor(tempC: number | null | undefined, alpha: number = 255): RGBA {
+export function getTemperatureMeshColor(tempC: number | null | undefined, alpha: number = 255): RGBAColor {
   const [r, g, b] = interpolateColor(typeof tempC === 'number' ? tempC : 0)
   return [r, g, b, alpha]
-}
-
-/** Convert RGB/RGBA to hex string '#RRGGBB' */
-export function rgbToHex(r: number, g: number, b: number): string {
-  const toHex = (v: number) => v.toString(16).padStart(2, '0')
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
 }
 
 /** Returns temperature-based color as hex string (alpha ignored) */

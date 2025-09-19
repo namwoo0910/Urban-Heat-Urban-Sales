@@ -543,16 +543,34 @@ export default function CardSalesDistrictMap() {
       // No idle gap: wait one frame to avoid back-to-back frame contention
       dailyTimeoutRef.current = setTimeout(() => {
         requestAnimationFrame(() => {
-          setSelectedDailyIndex(prev => (prev + 1) % availableDailyDates.length)
+          setSelectedDailyIndex(prev => {
+            const nextIndex = (prev + 1) % availableDailyDates.length
+            // Sync dates in AI mode during autoplay
+            if (isAIPredictionMode && availableDailyDates[nextIndex]) {
+              const dateStr = availableDailyDates[nextIndex]
+              setPredictionDate(dateStr)
+              setActualDate(dateStr)
+            }
+            return nextIndex
+          })
         })
       }, 0)
     } else {
       const restDelay = Math.max(16, budget) // at least one frame of breathing room
       dailyTimeoutRef.current = setTimeout(() => {
-        setSelectedDailyIndex(prev => (prev + 1) % availableDailyDates.length)
+        setSelectedDailyIndex(prev => {
+          const nextIndex = (prev + 1) % availableDailyDates.length
+          // Sync dates in AI mode during autoplay
+          if (isAIPredictionMode && availableDailyDates[nextIndex]) {
+            const dateStr = availableDailyDates[nextIndex]
+            setPredictionDate(dateStr)
+            setActualDate(dateStr)
+          }
+          return nextIndex
+        })
       }, restDelay)
     }
-  }, [timelineMode, dailyAutoPlay, availableDailyDates.length, dailyPlaySpeed, transitionMs, clearDailyTimer])
+  }, [timelineMode, dailyAutoPlay, availableDailyDates, dailyPlaySpeed, transitionMs, clearDailyTimer, isAIPredictionMode])
 
   // When toggling autoplay or changing params, restart schedule
   useEffect(() => {
@@ -575,18 +593,40 @@ export default function CardSalesDistrictMap() {
   const handleDailyIndexChange = useCallback((index: number) => {
     if (index >= 0 && index < availableDailyDates.length) {
       setSelectedDailyIndex(index)
+
+      // Sync with AI prediction when in AI mode
+      if (isAIPredictionMode && availableDailyDates[index]) {
+        const dateStr = availableDailyDates[index]
+        setPredictionDate(dateStr)
+        setActualDate(dateStr)
+      }
     }
-  }, [availableDailyDates.length])
+  }, [availableDailyDates, isAIPredictionMode])
 
   const handleDailySkipToStart = useCallback(() => {
     setSelectedDailyIndex(0)
-  }, [])
+
+    // Sync with AI prediction when in AI mode
+    if (isAIPredictionMode && availableDailyDates.length > 0) {
+      const dateStr = availableDailyDates[0]
+      setPredictionDate(dateStr)
+      setActualDate(dateStr)
+    }
+  }, [isAIPredictionMode, availableDailyDates])
 
   const handleDailySkipToEnd = useCallback(() => {
     if (availableDailyDates.length > 0) {
-      setSelectedDailyIndex(availableDailyDates.length - 1)
+      const lastIndex = availableDailyDates.length - 1
+      setSelectedDailyIndex(lastIndex)
+
+      // Sync with AI prediction when in AI mode
+      if (isAIPredictionMode) {
+        const dateStr = availableDailyDates[lastIndex]
+        setPredictionDate(dateStr)
+        setActualDate(dateStr)
+      }
     }
-  }, [availableDailyDates.length])
+  }, [availableDailyDates, isAIPredictionMode])
 
   // Update overlay (date label + avg temp) using prebuilt index (fast, no fetch per step)
 
@@ -1086,6 +1126,7 @@ export default function CardSalesDistrictMap() {
       const dayStr = currentDay.toString().padStart(2, '0')
       const dateStr = `202407${dayStr}`
       setActualAnimationDay(currentDay)
+      setActualDate(dateStr)  // Update the actual date for mesh layer
 
       // Update actual data layer to the corresponding date
       if (availableDailyDates.length > 0) {
@@ -1100,7 +1141,15 @@ export default function CardSalesDistrictMap() {
       // Move to next frame
       currentDay++
       if (currentDay > maxDays) {
-        currentDay = 1
+        // Animation complete - stop instead of looping
+        if (actualAnimationRef.current) {
+          clearTimeout(actualAnimationRef.current)
+          actualAnimationRef.current = null
+        }
+        setIsActualAnimating(false)
+        setActualAnimationType(null)
+        setActualAnimationDay(1)
+        return
       }
 
       // Continue animation
@@ -1116,23 +1165,28 @@ export default function CardSalesDistrictMap() {
     setPredictionAnimationDay(1)
 
     const maxDays = type === '7days' ? 7 : 31
-    const scenarios = ['t001', 't005', 't010', 't100']
     let currentDay = 1
-    let currentScenarioIndex = 0
 
     const animate = () => {
       // Update prediction date
       const dayStr = currentDay.toString().padStart(2, '0')
       const dateStr = `202407${dayStr}`
       setPredictionDate(dateStr)
-      setTemperatureScenario(scenarios[currentScenarioIndex])
+      // Keep the current temperature scenario - don't change it
       setPredictionAnimationDay(currentDay)
 
       // Move to next frame
       currentDay++
       if (currentDay > maxDays) {
-        currentDay = 1
-        currentScenarioIndex = (currentScenarioIndex + 1) % scenarios.length
+        // Animation complete - stop instead of looping
+        if (predictionAnimationRef.current) {
+          clearTimeout(predictionAnimationRef.current)
+          predictionAnimationRef.current = null
+        }
+        setIsPredictionAnimating(false)
+        setPredictionAnimationType(null)
+        setPredictionAnimationDay(1)
+        return
       }
 
       // Continue animation
@@ -1140,7 +1194,7 @@ export default function CardSalesDistrictMap() {
     }
 
     animate()
-  }, [setPredictionDate, setTemperatureScenario])
+  }, [setPredictionDate])
 
   const stopActualAnimation = useCallback(() => {
     if (actualAnimationRef.current) {
@@ -1839,7 +1893,19 @@ export default function CardSalesDistrictMap() {
               useActualTemperatureColor={useActualTemperatureColor}
               onUseActualTemperatureColorChange={setUseActualTemperatureColor}
               actualDate={actualDate}
-              onActualDateChange={setActualDate}
+              onActualDateChange={(date) => {
+                setActualDate(date)
+                // Also update prediction date to keep them in sync
+                setPredictionDate(date)
+
+                // Update daily index if in daily mode
+                if (timelineMode === 'daily' && availableDailyDates.length > 0) {
+                  const index = availableDailyDates.findIndex(d => d === date)
+                  if (index !== -1) {
+                    setSelectedDailyIndex(index)
+                  }
+                }
+              }}
 
               // Prediction layer props
               isPredictionAnimating={isPredictionAnimating}
@@ -1854,7 +1920,19 @@ export default function CardSalesDistrictMap() {
 
               // Prediction-specific props
               predictionDate={predictionDate}
-              onPredictionDateChange={setPredictionDate}
+              onPredictionDateChange={(date) => {
+                setPredictionDate(date)
+                // Also update actual date to keep them in sync
+                setActualDate(date)
+
+                // Update daily index if in daily mode
+                if (timelineMode === 'daily' && availableDailyDates.length > 0) {
+                  const index = availableDailyDates.findIndex(d => d === date)
+                  if (index !== -1) {
+                    setSelectedDailyIndex(index)
+                  }
+                }
+              }}
               temperatureScenario={temperatureScenario}
               onTemperatureScenarioChange={setTemperatureScenario}
             />

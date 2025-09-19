@@ -1,17 +1,15 @@
 "use client"
 
 import { useState, useEffect, useMemo } from 'react'
-import { 
-  ComposedChart, 
-  Bar, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Legend, 
+import {
+  ComposedChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Legend,
   ResponsiveContainer,
   ErrorBar,
-  Scatter,
-  Cell,
   Line,
   Tooltip
 } from '@/src/shared/components/ui/chart'

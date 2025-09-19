@@ -3,7 +3,8 @@
  * Q1: Jan–Mar, Q2: Apr–Jun, Q3: Jul–Sep, Q4: Oct–Dec
  */
 
-export type RGBA = [number, number, number, number]
+import type { RGBAColor } from '@deck.gl/core'
+import { rgbaToHex } from '@/src/shared/utils/colorUtils'
 
 // Seasonal colors with characteristic tones for a dark map
 // Quarter mapping used in this app:
@@ -11,7 +12,7 @@ export type RGBA = [number, number, number, number]
 // - 4~6월: 봄 (Spring)    → 화사한 핑크/파스텔
 // - 7~9월: 여름 (Summer)  → 뜨거운 레드/오렌지
 // - 10~12월: 가을 (Autumn) → 낙엽색(번트 오렌지/브라운)
-const SEASONAL_COLORS: Record<'Q1' | 'Q2' | 'Q3' | 'Q4', RGBA> = {
+const SEASONAL_COLORS: Record<'Q1' | 'Q2' | 'Q3' | 'Q4', RGBAColor> = {
   Q1: [145, 200, 255, 255],  // Winter: Cool ice blue (#91C8FF)
   Q2: [255, 154, 213, 255],  // Spring: Bright blossom pink (#FF9AD5)
   Q3: [255, 69, 0, 255],     // Summer: Hot orange-red (#FF4500)
@@ -22,7 +23,7 @@ const SEASONAL_COLORS: Record<'Q1' | 'Q2' | 'Q3' | 'Q4', RGBA> = {
  * Returns seasonal RGBA color for a given month.
  * Accepts 'YYYYMM' or month number (1-12).
  */
-export function getSeasonalMeshColor(month: string | number): RGBA {
+export function getSeasonalMeshColor(month: string | number): RGBAColor {
   let m: number
   if (typeof month === 'string') {
     // Extract MM from YYYYMM or handle 'MM'
@@ -43,16 +44,10 @@ export function getSeasonalMeshColor(month: string | number): RGBA {
   return SEASONAL_COLORS.Q4                         // Autumn
 }
 
-/** Convert RGBA to hex string '#RRGGBB' (alpha ignored) */
-export function rgbaToHex([r, g, b]: [number, number, number, number] | [number, number, number]): string {
-  const toHex = (v: number) => v.toString(16).padStart(2, '0')
-  return `#${toHex(r)}${toHex(g)}${toHex(b)}`.toUpperCase()
-}
-
 /**
  * Returns seasonal color as hex string for use in components expecting hex (e.g., deck.gl layer props)
  */
 export function getSeasonalMeshHexColor(month: string | number): string {
   const rgba = getSeasonalMeshColor(month)
-  return rgbaToHex(rgba)
+  return rgbaToHex(rgba as [number, number, number, number])
 }
