@@ -721,6 +721,7 @@ export function usePredictionMeshLayer(
   props: SeoulMeshLayerProps & {
     predictionDate?: string  // YYYYMMDD format
     temperatureScenario?: string  // 't001', 't005', 't010', 't100'
+    transitionMs?: number  // Smooth transition duration
   } = {}
 ): { layer: SimpleMeshLayer | null; isLoading: boolean; error: Error | null } {
   const {
@@ -734,12 +735,25 @@ export function usePredictionMeshLayer(
     onClick,
     color = '#FF00E1',  // Magenta for predictions
     salesHeightScale = 100000000,
-    animatedOpacity
+    animatedOpacity,
+    transitionMs = 400  // Default 400ms for smooth transitions
   } = props
 
   const [meshData, setMeshData] = useState<MeshGeometry | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+
+  // Transition state for smooth animations
+  const [isTransitioning, setIsTransitioning] = useState(false)
+  const [animProgress, setAnimProgress] = useState(0)
+  const [overridePositions, setOverridePositions] = useState<Float32Array | null>(null)
+
+  // Refs for managing transitions
+  const lastMeshRef = useRef<MeshGeometry | null>(null)
+  const displayedPositionsRef = useRef<Float32Array | null>(null)
+  const animRef = useRef<number | null>(null)
+  const transitionStartRef = useRef<number>(0)
+  const TRANSITION_MS = transitionMs
 
   // Load prediction mesh when date or scenario changes
   useEffect(() => {
@@ -760,7 +774,68 @@ export function usePredictionMeshLayer(
         const data = await loadPredictionMesh(predictionDate, temperatureScenario)
 
         if (!cancelled) {
-          setMeshData(data)
+          // Cancel any ongoing transition
+          if (animRef.current) cancelAnimationFrame(animRef.current)
+
+          // Determine starting positions for smooth transition
+          const hasPrev = lastMeshRef.current && lastMeshRef.current.positions
+          const currentDisplayed = displayedPositionsRef.current
+          const canBlendFromDisplayed =
+            !!currentDisplayed && currentDisplayed.length === data.positions.length
+          const canBlendFromLast =
+            !!hasPrev && lastMeshRef.current!.positions.length === data.positions.length
+
+          if (canBlendFromDisplayed || canBlendFromLast) {
+            // Smooth transition from previous mesh to new mesh
+            const from = canBlendFromDisplayed
+              ? new Float32Array(currentDisplayed!) // copy current displayed
+              : lastMeshRef.current!.positions
+            const to = data.positions
+
+            setIsTransitioning(true)
+            setAnimProgress(0)
+            transitionStartRef.current = performance.now()
+
+            // Set initial override to avoid flicker
+            displayedPositionsRef.current = from
+            setOverridePositions(from)
+
+            const step = () => {
+              const elapsed = performance.now() - transitionStartRef.current
+              const p = Math.min(elapsed / TRANSITION_MS, 1)
+              // Cubic ease in-out
+              const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2
+
+              const out = new Float32Array(from.length)
+              for (let i = 0; i < from.length; i += 3) {
+                out[i] = from[i]  // X stays the same
+                out[i + 1] = from[i + 1]  // Y stays the same
+                out[i + 2] = from[i + 2] + (to[i + 2] - from[i + 2]) * e  // Z (height) interpolates
+              }
+              displayedPositionsRef.current = out
+              setOverridePositions(out)
+              setAnimProgress(e)
+
+              if (p < 1 && !cancelled) {
+                animRef.current = requestAnimationFrame(step)
+              } else {
+                setIsTransitioning(false)
+                setOverridePositions(null)
+                displayedPositionsRef.current = null
+                // Now swap to the new mesh geometry after smooth transition completes
+                setMeshData(data)
+                lastMeshRef.current = data
+              }
+            }
+
+            animRef.current = requestAnimationFrame(step)
+          } else {
+            // First load or mismatched vertices: direct set
+            setMeshData(data)
+            lastMeshRef.current = data
+            displayedPositionsRef.current = data.positions
+          }
+          setError(null)
         }
       } catch (err) {
         if (!cancelled) {
@@ -778,8 +853,9 @@ export function usePredictionMeshLayer(
 
     return () => {
       cancelled = true
+      if (animRef.current) cancelAnimationFrame(animRef.current)
     }
-  }, [predictionDate, temperatureScenario])
+  }, [predictionDate, temperatureScenario, TRANSITION_MS])
 
   // Create layer from mesh data
   const layer = useMemo(() => {
@@ -793,7 +869,9 @@ export function usePredictionMeshLayer(
       onHover,
       onClick,
       color,
-      salesHeightScale
+      salesHeightScale,
+      overridePositions: overridePositions || undefined,
+      updateKey: isTransitioning ? animProgress : (predictionDate + temperatureScenario)
     })
   }, [
     meshData,
@@ -805,7 +883,12 @@ export function usePredictionMeshLayer(
     onHover,
     onClick,
     color,
-    salesHeightScale
+    salesHeightScale,
+    overridePositions,
+    isTransitioning,
+    animProgress,
+    predictionDate,
+    temperatureScenario
   ])
 
   return { layer, isLoading: loading, error }

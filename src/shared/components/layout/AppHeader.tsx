@@ -60,7 +60,11 @@ export function Header() {
           <div className="ml-auto">
             <TransitionLink href="/research-section">
               <motion.button
-                className="font-['Montserrat'] font-semibold text-white text-sm py-1.5 px-4 transition-all duration-300 hover:text-gray-300 uppercase tracking-wider"
+                className={`font-['Montserrat'] font-semibold text-sm py-1.5 px-4 transition-all duration-300 uppercase tracking-wider ${
+                  pathname?.includes('/eda')
+                    ? 'text-gray-900 hover:text-gray-700'
+                    : 'text-white hover:text-gray-300'
+                }`}
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >

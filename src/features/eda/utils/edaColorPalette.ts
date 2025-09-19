@@ -73,11 +73,11 @@ export const DISTRICT_GRADIENTS = {
   pastelBlue: {
     name: 'Pastel Blue',
     colors: [
-      [173, 216, 230],    // Light blue
-      [176, 224, 230],    // Powder blue
-      [191, 239, 255],    // Alice blue
-      [135, 206, 235],    // Sky blue
-      [135, 206, 250]     // Light sky blue
+      [100, 181, 246],    // Medium blue (more saturated)
+      [79, 195, 247],     // Light blue (more saturated)
+      [129, 212, 250],    // Sky blue (more saturated)
+      [66, 165, 245],     // Bright blue (more saturated)
+      [144, 202, 249]     // Soft blue (more saturated)
     ] as RGBAColor[]
   },
   pastelPink: {
@@ -415,3 +415,185 @@ export const THEME_CONFIGS = {
 } as const
 
 export type ThemeConfig = typeof THEME_CONFIGS[keyof typeof THEME_CONFIGS]
+
+// Ambient effect color schemes for sophisticated highlighting
+export const AMBIENT_EFFECT_COLORS = {
+  azure: {
+    name: 'Azure Glow',
+    primary: [59, 130, 246, 255] as RGBAColor,
+    secondary: [147, 197, 253, 255] as RGBAColor,
+    accent: [37, 99, 235, 255] as RGBAColor,
+    shadow: [30, 64, 175, 180] as RGBAColor,
+    gradient: [
+      [59, 130, 246, 255],   // Primary blue
+      [96, 165, 250, 240],   // Light blue
+      [147, 197, 253, 220],  // Sky blue
+      [191, 219, 254, 200],  // Pale blue
+      [219, 234, 254, 180]   // Very light blue
+    ] as RGBAColor[]
+  },
+  emerald: {
+    name: 'Emerald Glow',
+    primary: [16, 185, 129, 255] as RGBAColor,
+    secondary: [110, 231, 183, 255] as RGBAColor,
+    accent: [5, 150, 105, 255] as RGBAColor,
+    shadow: [6, 120, 83, 180] as RGBAColor,
+    gradient: [
+      [16, 185, 129, 255],   // Primary emerald
+      [52, 211, 153, 240],   // Light emerald
+      [110, 231, 183, 220],  // Mint green
+      [167, 243, 208, 200],  // Pale mint
+      [209, 250, 229, 180]   // Very light mint
+    ] as RGBAColor[]
+  },
+  violet: {
+    name: 'Violet Glow',
+    primary: [139, 92, 246, 255] as RGBAColor,
+    secondary: [196, 181, 253, 255] as RGBAColor,
+    accent: [124, 58, 237, 255] as RGBAColor,
+    shadow: [109, 40, 217, 180] as RGBAColor,
+    gradient: [
+      [139, 92, 246, 255],   // Primary violet
+      [167, 139, 250, 240],  // Light violet
+      [196, 181, 253, 220],  // Lavender
+      [221, 214, 254, 200],  // Pale lavender
+      [237, 233, 254, 180]   // Very light lavender
+    ] as RGBAColor[]
+  },
+  rose: {
+    name: 'Rose Glow',
+    primary: [244, 63, 94, 255] as RGBAColor,
+    secondary: [251, 113, 133, 255] as RGBAColor,
+    accent: [225, 29, 72, 255] as RGBAColor,
+    shadow: [190, 18, 60, 180] as RGBAColor,
+    gradient: [
+      [244, 63, 94, 255],    // Primary rose
+      [251, 113, 133, 240],  // Light rose
+      [252, 165, 165, 220],  // Pink
+      [254, 205, 211, 200],  // Pale pink
+      [255, 228, 230, 180]   // Very light pink
+    ] as RGBAColor[]
+  },
+  amber: {
+    name: 'Amber Glow',
+    primary: [245, 158, 11, 255] as RGBAColor,
+    secondary: [251, 191, 36, 255] as RGBAColor,
+    accent: [217, 119, 6, 255] as RGBAColor,
+    shadow: [180, 83, 9, 180] as RGBAColor,
+    gradient: [
+      [245, 158, 11, 255],   // Primary amber
+      [251, 191, 36, 240],   // Light amber
+      [252, 211, 77, 220],   // Yellow
+      [254, 240, 138, 200],  // Pale yellow
+      [255, 251, 235, 180]   // Very light yellow
+    ] as RGBAColor[]
+  },
+  crystal: {
+    name: 'Crystal Glow',
+    primary: [168, 162, 158, 255] as RGBAColor,
+    secondary: [214, 211, 209, 255] as RGBAColor,
+    accent: [120, 113, 108, 255] as RGBAColor,
+    shadow: [87, 83, 78, 180] as RGBAColor,
+    gradient: [
+      [168, 162, 158, 255],  // Primary crystal
+      [196, 181, 253, 240],  // Light crystal
+      [214, 211, 209, 220],  // Silver
+      [231, 229, 228, 200],  // Pale silver
+      [250, 250, 249, 180]   // Very light silver
+    ] as RGBAColor[]
+  }
+} as const
+
+export type AmbientEffectKey = keyof typeof AMBIENT_EFFECT_COLORS
+
+/**
+ * Get ambient effect colors for a specific theme
+ */
+export function getAmbientEffectColors(
+  theme: ThemeKey,
+  effectKey: AmbientEffectKey = 'azure'
+): typeof AMBIENT_EFFECT_COLORS[AmbientEffectKey] {
+  // Map themes to appropriate ambient effects
+  const themeMapping: Record<ThemeKey, AmbientEffectKey> = {
+    ocean: 'azure',
+    pastelBlue: 'azure',
+    modern: 'azure',
+    aurora: 'violet',
+    pastelPurple: 'violet',
+    hologram: 'violet',
+    sunset: 'amber',
+    pastelYellow: 'amber',
+    pastelCoral: 'rose',
+    pastelPink: 'rose',
+    pastelGreen: 'emerald',
+    pastelMint: 'emerald',
+    cyberpunk: 'crystal',
+    pastelGray: 'crystal'
+  }
+
+  const mappedEffect = themeMapping[theme] || effectKey
+  return AMBIENT_EFFECT_COLORS[mappedEffect]
+}
+
+/**
+ * Create ambient glow color with custom opacity
+ */
+export function createAmbientGlowColor(
+  baseColor: RGBAColor,
+  opacity: number,
+  glowIntensity: number = 1.0
+): RGBAColor {
+  const [r, g, b] = baseColor
+
+  // Enhance color saturation for glow effect
+  const enhancedR = Math.min(255, Math.round(r * (1 + glowIntensity * 0.2)))
+  const enhancedG = Math.min(255, Math.round(g * (1 + glowIntensity * 0.2)))
+  const enhancedB = Math.min(255, Math.round(b * (1 + glowIntensity * 0.2)))
+
+  return [enhancedR, enhancedG, enhancedB, Math.round(opacity * 255)] as RGBAColor
+}
+
+/**
+ * Generate gradient colors for multi-layered ambient effects
+ */
+export function generateAmbientGradient(
+  baseColor: RGBAColor,
+  steps: number = 5,
+  maxOpacity: number = 1.0,
+  minOpacity: number = 0.1
+): RGBAColor[] {
+  const [r, g, b] = baseColor
+  const gradient: RGBAColor[] = []
+
+  for (let i = 0; i < steps; i++) {
+    const t = i / (steps - 1)
+    const opacity = maxOpacity - (maxOpacity - minOpacity) * t
+
+    // Gradually lighten the color for outer layers
+    const lightness = 1 + t * 0.3
+    const gradientR = Math.min(255, Math.round(r * lightness))
+    const gradientG = Math.min(255, Math.round(g * lightness))
+    const gradientB = Math.min(255, Math.round(b * lightness))
+
+    gradient.push([gradientR, gradientG, gradientB, Math.round(opacity * 255)] as RGBAColor)
+  }
+
+  return gradient
+}
+
+/**
+ * Get shadow color for ambient effects
+ */
+export function getAmbientShadowColor(
+  baseColor: RGBAColor,
+  opacity: number = 0.3
+): RGBAColor {
+  const [r, g, b] = baseColor
+
+  // Darken the base color for shadow
+  const shadowR = Math.round(r * 0.3)
+  const shadowG = Math.round(g * 0.3)
+  const shadowB = Math.round(b * 0.3)
+
+  return [shadowR, shadowG, shadowB, Math.round(opacity * 255)] as RGBAColor
+}

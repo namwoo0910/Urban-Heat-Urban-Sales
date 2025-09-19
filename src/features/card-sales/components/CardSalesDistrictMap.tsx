@@ -1004,6 +1004,7 @@ export default function CardSalesDistrictMap() {
     opacity: 1,
     color: dynamicPredictionMeshColor, // Separate color for prediction layer
     salesHeightScale: heightScale,
+    transitionMs: transitionMs,  // Add transition duration for smooth animations
     pickable: false  // Disabled to prevent tooltips and highlighting - mesh layer is purely visual
     // No onHover handler needed
   })

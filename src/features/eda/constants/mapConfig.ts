@@ -6,11 +6,11 @@ import type { MapViewState } from '@deck.gl/core'
 
 // Default Seoul view state for EDA
 export const DEFAULT_SEOUL_VIEW: MapViewState = {
-  longitude: 126.9780,
+  longitude: 126.9780,  // Default center, dynamically adjusted based on viewport
   latitude: 37.5665,
-  zoom: 10.5,
+  zoom: 10.8,
   pitch: 0,
-  bearing: 0,
+  bearing: 2,
   minZoom: 9,
   maxZoom: 16
 }

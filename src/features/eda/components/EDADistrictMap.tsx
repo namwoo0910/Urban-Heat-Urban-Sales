@@ -10,11 +10,11 @@
 import React, { useState, useMemo, useCallback, useRef, useEffect, lazy, Suspense } from 'react'
 import { throttle } from 'lodash-es'
 import type { MapViewState, PickingInfo } from '@deck.gl/core'
+import { FlyToInterpolator } from '@deck.gl/core'
 import type { MapRef } from 'react-map-gl'
 
 // Components
 import { MapContainer } from './MapContainer'
-import { UIControls } from './UIControls'
 import LocalEconomyFilterPanel from '@/src/features/card-sales/components/LocalEconomyFilterPanel'
 import type { FilterState } from '@/src/features/card-sales/components/LocalEconomyFilterPanel'
 
@@ -35,12 +35,52 @@ import { DEFAULT_SEOUL_VIEW } from '../constants/mapConfig'
 import { createDistrictBoundaryLayers } from './layers/DistrictBoundaryLayers'
 import type { ThemeKey } from '../utils/edaColorPalette'
 
+// Ambient effects
+import { DEFAULT_AMBIENT_CONFIG } from '../utils/ambientEffects'
+
 export default function EDADistrictMap() {
   // Core refs
   const mapRef = useRef<MapRef>(null)
 
-  // View state
-  const [viewState, setViewState] = useState<MapViewState>(DEFAULT_SEOUL_VIEW)
+  // Track panel and window dimensions for dynamic centering
+  const [chartPanelWidth, setChartPanelWidth] = useState<number>(
+    typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600
+  )
+  const [windowWidth, setWindowWidth] = useState<number>(
+    typeof window !== 'undefined' ? window.innerWidth : 1920
+  )
+
+  // Calculate adjusted map center based on available space
+  const calculateAdjustedCenter = useCallback((showPanel: boolean) => {
+    if (!showPanel) {
+      // If no chart panel, use default center
+      return DEFAULT_SEOUL_VIEW.longitude
+    }
+
+    // Calculate the center of the available map area
+    const mapAreaWidth = windowWidth - chartPanelWidth
+    const mapCenterX = mapAreaWidth / 2
+
+    // Move Seoul away from the chart panel for better spacing
+    const pixelOffset = chartPanelWidth * 0.25  // 25% of chart width for spacing
+
+    // Convert pixel offset to longitude degrees at zoom level
+    const zoom = DEFAULT_SEOUL_VIEW.zoom || 10.5
+    const degreesPerPixel = 360 / (256 * Math.pow(2, zoom))
+    const longitudeOffset = pixelOffset * degreesPerPixel
+
+    // Add to move right (toward the chart side for better balance)
+    return 126.9780 + longitudeOffset
+  }, [chartPanelWidth, windowWidth])
+
+  // UI state - moved up to use in initial calculation
+  const [showChartPanel, setShowChartPanel] = useState(true) // Track chart panel visibility
+
+  // View state with dynamic center
+  const [viewState, setViewState] = useState<MapViewState>({
+    ...DEFAULT_SEOUL_VIEW,
+    longitude: calculateAdjustedCenter(true) // Pass initial showChartPanel value
+  })
   const [isDragging, setIsDragging] = useState(false)
 
   // Selection state
@@ -52,15 +92,40 @@ export default function EDADistrictMap() {
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
 
   // Theme & interaction state
-  const [currentTheme, setCurrentTheme] = useState<ThemeKey>('ocean')
+  const [currentTheme, setCurrentTheme] = useState<ThemeKey>('pastelBlue')
   const useUniqueColors = currentTheme === 'modern' // Only use unique colors for modern theme
-  const [selectionMode, setSelectionMode] = useState<'gu' | 'dong'>('gu')
 
-  // UI state
-  const showGuBoundaries = selectionMode === 'gu'
-  const showDongBoundaries = selectionMode === 'dong'
+  // Derive selection mode from current selection state
+  const selectionMode = useMemo(() => {
+    return selectedDong ? 'dong' : 'gu'
+  }, [selectedDong])
+
+  // Ambient effects configuration
+  const [enableAmbientEffects, setEnableAmbientEffects] = useState(true)
+
+  // Simplified ambient config without animations to prevent loops
+  const ambientConfig = useMemo(() => ({
+    ...DEFAULT_AMBIENT_CONFIG,
+    intensity: 1.0, // Fixed intensity
+    glowRadius: 25, // Fixed radius
+    enableAnimation: false // Disable animations to prevent loops
+  }), [])
+
+  // Animation temporarily disabled to fix infinite loop
+  // TODO: Re-implement with CSS animations or deck.gl transitions
+  const animationState = {
+    timestamp: 0,
+    breathingOpacity: 1.0,
+    expansionRadius: 25,
+    shimmerColor: null,
+    isAnimating: false
+  }
+
+  // UI state - Gu boundaries always shown for colors, dong boundaries when a gu is selected
+  const showGuBoundaries = true  // Always show gu boundaries for consistent colors
+  const showDongBoundaries = selectedGu !== null  // Show dong boundaries when a gu is selected
   const showLabels = true
-  const showChartPanel = true // Always show chart panel
+  // showChartPanel is already defined above
 
   // Load district data
   const { guData, dongData, isLoading, error } = useDistrictData()
@@ -101,34 +166,6 @@ export default function EDADistrictMap() {
     }
   }, [getDistrictName, getGuName, selectionMode])
 
-  // Handle click with district code mapping
-  const handleClick = useCallback((info: PickingInfo) => {
-    if (info.object) {
-      const properties = info.object.properties || info.object
-      const guName = getGuName(properties)
-      const dongName = getDistrictName(properties)
-
-      if (selectionMode === 'gu') {
-        if (guName) {
-          setSelectedGu(guName)
-          setSelectedGuCode(getDistrictCode(guName) || null)
-          setSelectedDong(null)
-          setSelectedDongCode(null)
-        }
-      } else {
-        if (dongName && guName) {
-          setSelectedGu(guName)
-          setSelectedGuCode(getDistrictCode(guName) || null)
-          setSelectedDong(dongName)
-          setSelectedDongCode(getDongCode(guName, dongName) || null)
-        } else if (guName) {
-          setSelectedGu(guName)
-          setSelectedGuCode(getDistrictCode(guName) || null)
-        }
-      }
-    }
-  }, [getGuName, getDistrictName, selectionMode])
-
   // Handle filter changes from LocalEconomyFilterPanel
   const handleFilterChange = useCallback((filters: FilterState) => {
     setSelectedGu(filters.selectedGu)
@@ -138,35 +175,108 @@ export default function EDADistrictMap() {
     setSelectedBusinessType(filters.selectedBusinessType)
   }, [])
 
+  // Handle click with district code mapping - unified with filter logic
+  const handleClick = useCallback((info: PickingInfo) => {
+    if (info.object) {
+      const properties = info.object.properties || info.object
+      const guName = getGuName(properties)
+      const dongName = getDistrictName(properties)
+
+      // Build FilterState object to pass to handleFilterChange
+      const filterState: FilterState = {
+        selectedGu: null,
+        selectedGuCode: null,
+        selectedDong: null,
+        selectedDongCode: null,
+        selectedBusinessType: selectedBusinessType  // Preserve current business type
+      }
+
+      if (selectionMode === 'gu') {
+        // In gu mode, only select gu and clear dong
+        if (guName) {
+          filterState.selectedGu = guName
+          filterState.selectedGuCode = getDistrictCode(guName) || null
+        }
+      } else {
+        // In dong mode, select both gu and dong if available
+        if (dongName && guName) {
+          filterState.selectedGu = guName
+          filterState.selectedGuCode = getDistrictCode(guName) || null
+          filterState.selectedDong = dongName
+          filterState.selectedDongCode = getDongCode(guName, dongName) || null
+        } else if (guName) {
+          // If only gu is available (clicked on gu boundary), select just gu
+          filterState.selectedGu = guName
+          filterState.selectedGuCode = getDistrictCode(guName) || null
+        }
+      }
+
+      // Use the same filter change handler as the filter panel
+      handleFilterChange(filterState)
+    }
+  }, [getGuName, getDistrictName, selectionMode, selectedBusinessType, handleFilterChange])
+
   // Handle theme change
   const handleThemeChange = useCallback((theme: string) => {
     setCurrentTheme(theme as ThemeKey)
   }, [])
 
-  // Handle selection mode change
-  const handleSelectionModeChange = useCallback((mode: 'gu' | 'dong') => {
-    setSelectionMode(mode)
-    // Clear dong selection when switching to gu mode
-    if (mode === 'gu') {
-      setSelectedDong(null)
-      setSelectedDongCode(null)
-    }
+
+  // Handle chart panel resize
+  const handleChartPanelResize = useCallback((newWidth: number) => {
+    setChartPanelWidth(newWidth)
   }, [])
 
-  // Reset selection
+  // Update map center when panel width or window size changes
+  useEffect(() => {
+    const newLongitude = calculateAdjustedCenter(showChartPanel)
+    setViewState(prev => ({
+      ...prev,
+      longitude: newLongitude
+    }))
+  }, [calculateAdjustedCenter, showChartPanel])
+
+  // Handle window resize
+  useEffect(() => {
+    const handleWindowResize = () => {
+      setWindowWidth(window.innerWidth)
+      // Also update max chart panel width
+      const newMaxWidth = window.innerWidth * 0.6
+      if (chartPanelWidth > newMaxWidth) {
+        setChartPanelWidth(newMaxWidth)
+      }
+    }
+
+    window.addEventListener('resize', handleWindowResize)
+    return () => window.removeEventListener('resize', handleWindowResize)
+  }, [chartPanelWidth])
+
+  // Reset selection and view
   const handleReset = useCallback(() => {
+    // Reset selections
     setSelectedGu(null)
     setSelectedGuCode(null)
     setSelectedDong(null)
     setSelectedDongCode(null)
     setSelectedBusinessType(null)
-  }, [])
+
+    // Reset view to initial state with calculated center
+    const initialLongitude = calculateAdjustedCenter(showChartPanel)
+
+    // Smooth transition to initial view
+    setViewState({
+      ...DEFAULT_SEOUL_VIEW,
+      longitude: initialLongitude,
+      transitionDuration: 800,  // 800ms smooth transition
+      transitionInterpolator: new FlyToInterpolator()
+    })
+  }, [calculateAdjustedCenter, showChartPanel])
 
   // Create layers
   const layers = useMemo(() => {
     const allLayers = []
 
-    // District boundary layers with theme support
+    // District boundary layers with sophisticated ambient effects
     const boundaryLayers = createDistrictBoundaryLayers({
       guData,
       dongData,
@@ -181,8 +291,11 @@ export default function EDADistrictMap() {
       onClick: handleClick,
       theme: currentTheme,
       useUniqueColors,
-      selectionMode,
-      fillEnabled: true
+      selectionMode,  // Use actual selection mode for proper interaction
+      fillEnabled: true,
+      ambientConfig,
+      animationTimestamp: 0, // Use static value to prevent re-renders
+      enableAmbientEffects
     })
 
     allLayers.push(...boundaryLayers)
@@ -202,7 +315,10 @@ export default function EDADistrictMap() {
     handleClick,
     currentTheme,
     useUniqueColors,
-    selectionMode
+    selectionMode,
+    ambientConfig,
+    // Remove animationState.timestamp to prevent continuous re-renders
+    enableAmbientEffects
   ])
 
   // Handle view state changes
@@ -255,13 +371,6 @@ export default function EDADistrictMap() {
     }
   }, [getDistrictName, getGuName, selectionMode])
 
-  useEffect(() => {
-    setHoveredDistrict(null)
-    if (selectionMode === 'gu') {
-      setSelectedDong(null)
-      setSelectedDongCode(null)
-    }
-  }, [selectionMode])
 
   // Loading state
   if (isLoading) {
@@ -294,11 +403,6 @@ export default function EDADistrictMap() {
         getTooltip={getTooltip}
         mapRef={mapRef}
         isDragging={isDragging}
-      />
-
-      <UIControls
-        selectionMode={selectionMode}
-        onSelectionModeChange={handleSelectionModeChange}
       />
 
       {/* Filter panel */}
@@ -341,7 +445,7 @@ export default function EDADistrictMap() {
       {/* Charts panel */}
       {showChartPanel && (
         <div
-          className="absolute top-0 right-0 h-full"
+          className="absolute top-16 right-0 bottom-0"
           style={{
             animation: 'slideInFromRight 0.5s ease-out'
           }}
@@ -355,9 +459,10 @@ export default function EDADistrictMap() {
             </div>
           }>
             <ResizablePanel
-              initialWidth={typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600}
+              initialWidth={chartPanelWidth}
               minWidth={300}
-              maxWidth={typeof window !== 'undefined' ? window.innerWidth * 0.6 : 800}
+              maxWidth={windowWidth * 0.6}
+              onResize={handleChartPanelResize}
               className="h-full bg-transparent shadow-lg"
             >
               <div className="h-full p-4 overflow-y-auto">
