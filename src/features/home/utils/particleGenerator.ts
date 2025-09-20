@@ -533,9 +533,171 @@ export function updateParticleColors(
   }))
 }
 
+// Interpolate particles between two patterns (for transitions)
+export function interpolateParticlePatterns(
+  fromParticles: ParticleData[],
+  toParticles: ParticleData[],
+  progress: number // 0 to 1
+): any[] {
+  const count = Math.min(fromParticles.length, toParticles.length)
+  const interpolated: any[] = []
+
+  // Use easing function for smooth transition
+  const easedProgress = easeInOutCubic(progress)
+
+  for (let i = 0; i < count; i++) {
+    const from = fromParticles[i % fromParticles.length]
+    const to = toParticles[i % toParticles.length]
+
+    // Interpolate position
+    const x = from.x + (to.x - from.x) * easedProgress
+    const y = from.y + (to.y - from.y) * easedProgress
+
+    // Interpolate color (blend RGB values)
+    const fromRGB = parseColorToRGB(from.color)
+    const toRGB = parseColorToRGB(to.color)
+    const r = Math.round(fromRGB.r + (toRGB.r - fromRGB.r) * easedProgress)
+    const g = Math.round(fromRGB.g + (toRGB.g - fromRGB.g) * easedProgress)
+    const b = Math.round(fromRGB.b + (toRGB.b - fromRGB.b) * easedProgress)
+    const a = fromRGB.a + (toRGB.a - fromRGB.a) * easedProgress
+
+    // Interpolate size
+    const size = from.size! + (to.size! - from.size!) * easedProgress
+
+    interpolated.push({
+      position: [x, y],
+      color: [r, g, b],
+      size: size,
+      opacity: a
+    })
+  }
+
+  return interpolated
+}
+
+// Helper function for easing
+function easeInOutCubic(t: number): number {
+  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+}
+
+// Helper function to parse color string to RGB
+function parseColorToRGB(color: string): { r: number; g: number; b: number; a: number } {
+  // Handle rgba format
+  const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/)
+  if (match) {
+    return {
+      r: parseInt(match[1]),
+      g: parseInt(match[2]),
+      b: parseInt(match[3]),
+      a: match[4] ? parseFloat(match[4]) : 1
+    }
+  }
+  // Default to white if parsing fails
+  return { r: 255, g: 255, b: 255, a: 1 }
+}
+
+// Generate Damien Hirst style circular dot pattern
+export function generateDamienHirstPattern(
+  particleCount: number,
+  colorTheme: keyof typeof COLOR_THEMES = 'current'
+): ParticleData[] {
+  const particles: ParticleData[] = []
+  const colors = COLOR_THEMES[colorTheme]
+  const colorCount = colors.length
+
+  // Seoul center coordinates
+  const centerLon = 126.978
+  const centerLat = 37.5665
+
+  // Latitude correction factor for perfect circle at Seoul's latitude
+  // At 37.5665°N, longitude distances are compressed by cos(37.5665°)
+  const latitudeCorrection = 1.0 / Math.cos(centerLat * Math.PI / 180) // ≈ 1.26
+
+  // Calculate ring configuration - exactly 15 rings as requested
+  const totalRings = 15 // Exactly 15 distinct ring layers
+  const minRadius = 0.02 // Start further from center for clear first ring
+  const maxRadius = 0.15 // Outer boundary
+
+  let particlesPlaced = 0
+
+  for (let ring = 0; ring < totalRings && particlesPlaced < particleCount; ring++) {
+    // Calculate radius for this ring with even spacing for clear gaps
+    const ringProgress = ring / (totalRings - 1)
+    const radius = minRadius + (maxRadius - minRadius) * ringProgress // Linear spacing for even gaps
+
+    // Calculate number of dots in this ring based on circumference
+    const circumference = 2 * Math.PI * radius
+    const baseDotSpacing = 0.0015 // Ultra-dense spacing for solid rings
+    const dotsInRing = Math.max(20, Math.floor(circumference / baseDotSpacing))
+
+    for (let i = 0; i < dotsInRing && particlesPlaced < particleCount; i++) {
+      // Calculate angle for this dot - no randomization for clean pattern
+      const baseAngle = (i / dotsInRing) * TWO_PI
+      const angle = baseAngle // Clean, evenly spaced dots
+
+      // No position variation for clean concentric circles
+      const radiusVariation = radius
+
+      // Calculate position with latitude correction for perfect circle
+      const lng = centerLon + fastCos(angle) * radiusVariation * latitudeCorrection
+      const lat = centerLat + fastSin(angle) * radiusVariation
+
+      // Mix multiple colors for vibrant Damien Hirst style
+      // Use different color selection methods for variety
+      const colorSelectionMethod = (ring + i) % 3
+      let colorIndex: number
+
+      if (colorSelectionMethod === 0) {
+        // Method 1: Based on position in ring
+        colorIndex = i % colorCount
+      } else if (colorSelectionMethod === 1) {
+        // Method 2: Based on angle
+        colorIndex = Math.floor((angle / TWO_PI) * colorCount)
+      } else {
+        // Method 3: Semi-random but deterministic
+        colorIndex = ((ring * 7) + (i * 11)) % colorCount
+      }
+
+      const color = colors[colorIndex]
+
+      // Size varies by ring (inner rings have larger dots, like Damien Hirst style)
+      // Adjust size to be proportional to spacing for solid ring appearance
+      const baseSize = 25 // Smaller base for ultra-dense packing
+      const sizeMultiplier = 2.0 - ringProgress * 1.3 // 2.0x to 0.7x (larger to smaller)
+      const size = baseSize * sizeMultiplier
+
+      particles.push({
+        x: lng,
+        y: lat,
+        vx: 0,
+        vy: 0,
+        charge: 0.5 + Math.random() * 0.5,
+        color: color,
+        position: [lng, lat],
+        size: size,
+        speed: 0.0001 + Math.random() * 0.0002, // Slower speed for circular pattern
+        phase: Math.random() * TWO_PI,
+        amplitude: 0.0002 + Math.random() * 0.0003, // Smaller amplitude for subtle movement
+        district: `ring_${ring}_dot_${i}`,
+        // Store original circular position for animation
+        targetX: lng,
+        targetY: lat
+      } as ParticleData)
+
+      particlesPlaced++
+    }
+  }
+
+  // Don't fill with random particles - only use ring particles for clean pattern
+
+  return particles
+}
+
 export default {
   generateParticlesOptimized,
   createParticleBuffers,
   animateParticlesSuperFast,
-  generateInitialParticles
+  generateInitialParticles,
+  generateDamienHirstPattern,
+  interpolateParticlePatterns
 }

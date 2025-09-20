@@ -1,12 +1,12 @@
 "use client"
 
-import { useRef } from "react"
+import { useRef, useState } from "react"
 import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { TransitionLink } from "@/src/shared/components/navigation/TransitionLink"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, Circle, Map } from "lucide-react"
 
 // 동적으로 파티클 맵 로드 (SSR 비활성화) - 최적화된 버전 사용
 const SeoulMapOptimized = dynamic(
@@ -59,9 +59,21 @@ const FIXED_ANIMATION_CONFIG = {
 
 export function Hero() {
   const container = useRef(null)
+  const [displayMode, setDisplayMode] = useState<'circular' | 'transitioning' | 'map'>('circular')
+  const [hasExplored, setHasExplored] = useState(false)
 
   // Map style set to pure black background
   const mapStyle = "mapbox://styles/mapbox/dark-v11"
+
+  // Handle explore button click
+  const handleExploreClick = () => {
+    if (displayMode === 'circular') {
+      setDisplayMode('transitioning')
+      setHasExplored(true)
+      // The ParticleMapSeoul component will handle the actual transition
+      // once map particles are loaded
+    }
+  }
 
   useGSAP(
     () => {
@@ -114,6 +126,8 @@ export function Hero() {
           animationConfig={FIXED_ANIMATION_CONFIG as any}
           onAnimationConfigChange={() => {}}
           mapStyle={mapStyle}
+          displayMode={displayMode}
+          onDisplayModeChange={setDisplayMode}
         />
       </div>
       
@@ -145,15 +159,41 @@ export function Hero() {
       
       {/* Bottom button */}
       <div className="absolute left-0 right-0 z-10 flex justify-center px-4" style={{ bottom: 'calc(5rem - 5px)' }}>
-        <TransitionLink href="/research-section">
+        {!hasExplored ? (
           <motion.button
+            onClick={handleExploreClick}
             className="hero-button flex items-center gap-2 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-2 px-4 rounded-full transition-all duration-300 text-sm uppercase tracking-wide border border-white/20"
             whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
             whileTap={{ scale: 0.95 }}
+            disabled={displayMode === 'transitioning'}
           >
-            EXPLORE SEOUL <ArrowRight size={16} />
+            {displayMode === 'circular' && (
+              <>
+                <Circle size={16} className="animate-pulse" />
+                EXPLORE SEOUL
+                <ArrowRight size={16} />
+              </>
+            )}
+            {displayMode === 'transitioning' && (
+              <>
+                TRANSITIONING...
+                <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin ml-2" />
+              </>
+            )}
           </motion.button>
-        </TransitionLink>
+        ) : (
+          <TransitionLink href="/research-section">
+            <motion.button
+              className="hero-button flex items-center gap-2 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-2 px-4 rounded-full transition-all duration-300 text-sm uppercase tracking-wide border border-white/20"
+              whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Map size={16} />
+              VIEW ANALYTICS
+              <ArrowRight size={16} />
+            </motion.button>
+          </TransitionLink>
+        )}
       </div>
 
       {/* 애니메이션 스타일 */}
