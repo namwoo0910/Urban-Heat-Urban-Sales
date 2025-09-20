@@ -93,13 +93,14 @@ export default function EDADistrictMap() {
   const [hoveredDistrict, setHoveredDistrict] = useState<string | null>(null)
 
   // Theme & interaction state
-  const [currentTheme, setCurrentTheme] = useState<ThemeKey>('pastelBlue')
+  const [currentTheme, setCurrentTheme] = useState<ThemeKey>('pastelGray')
   const useUniqueColors = currentTheme === 'modern' // Only use unique colors for modern theme
 
   // Derive selection mode from current selection state
   const selectionMode = useMemo(() => {
-    return selectedDong ? 'dong' : 'gu'
-  }, [selectedDong])
+    // When a gu is selected, enable dong mode for hover/click interactions
+    return selectedGu ? 'dong' : 'gu'
+  }, [selectedGu])
 
   // Ambient effects configuration
   const [enableAmbientEffects, setEnableAmbientEffects] = useState(true)
@@ -130,6 +131,8 @@ export default function EDADistrictMap() {
 
   // Load district data
   const { guData, dongData, isLoading, error } = useDistrictData()
+
+  // Initial state is correctly set with selectedGu as null
 
   // Helper functions
   const getDistrictName = useCallback((properties: any): string | null => {
@@ -166,6 +169,36 @@ export default function EDADistrictMap() {
       setHoveredDistrict(null)
     }
   }, [getDistrictName, getGuName, selectionMode])
+
+  // Utility function to get bounds from geometry
+  const getBounds = useCallback((geometry: any) => {
+    if (!geometry || !geometry.coordinates) return null
+
+    let minLng = Infinity, minLat = Infinity
+    let maxLng = -Infinity, maxLat = -Infinity
+
+    const processCoords = (coords: any): void => {
+      if (Array.isArray(coords[0])) {
+        coords.forEach(processCoords)
+      } else {
+        const [lng, lat] = coords
+        minLng = Math.min(minLng, lng)
+        maxLng = Math.max(maxLng, lng)
+        minLat = Math.min(minLat, lat)
+        maxLat = Math.max(maxLat, lat)
+      }
+    }
+
+    processCoords(geometry.coordinates)
+
+    return {
+      minLng,
+      minLat,
+      maxLng,
+      maxLat,
+      center: [(minLng + maxLng) / 2, (minLat + maxLat) / 2]
+    }
+  }, [])
 
   // Handle filter changes from LocalEconomyFilterPanel
   const handleFilterChange = useCallback((filters: FilterState) => {
@@ -241,7 +274,15 @@ export default function EDADistrictMap() {
   }, [getGuName, getDistrictName, selectionMode, selectedBusinessType, handleFilterChange])
 
   // Handle theme change
-  const handleThemeChange = useCallback((theme: string) => {
+  const [customThemeColor, setCustomThemeColor] = useState<string>('#2980B9')
+  const [saturationScale, setSaturationScale] = useState<number>(1.0)
+  const handleThemeChange = useCallback((theme: string, customColor?: string, saturationScale?: number) => {
+    if (customColor) {
+      setCustomThemeColor(customColor)
+    }
+    if (saturationScale !== undefined) {
+      setSaturationScale(saturationScale)
+    }
     setCurrentTheme(theme as ThemeKey)
   }, [])
 
@@ -251,14 +292,64 @@ export default function EDADistrictMap() {
     setChartPanelWidth(newWidth)
   }, [])
 
+  // Zoom to selected district when selectedGu changes
+  useEffect(() => {
+    if (selectedGu && guData) {
+      // Find the selected district feature
+      const selectedFeature = guData.features.find((feature: any) => {
+        const name = getGuName(feature.properties)
+        return name === selectedGu
+      })
+
+      if (selectedFeature) {
+        const bounds = getBounds(selectedFeature.geometry)
+        if (bounds) {
+          // Calculate appropriate zoom level based on district size
+          const latDiff = bounds.maxLat - bounds.minLat
+          const lngDiff = bounds.maxLng - bounds.minLng
+          const maxDiff = Math.max(latDiff, lngDiff)
+
+          // Adjust zoom based on district size (Seoul districts vary in size)
+          let zoom = 12.5
+          if (maxDiff > 0.15) zoom = 11.5
+          else if (maxDiff > 0.1) zoom = 12
+          else if (maxDiff < 0.05) zoom = 13
+
+          setViewState(prev => ({
+            ...prev,
+            longitude: bounds.center[0],
+            latitude: bounds.center[1],
+            zoom: zoom,
+            pitch: 0,
+            bearing: 0,
+            transitionDuration: 1000,
+            transitionInterpolator: new FlyToInterpolator()
+          }))
+        }
+      }
+    } else if (!selectedGu) {
+      // Reset to Seoul overview when no district is selected
+      const adjustedLongitude = calculateAdjustedCenter(showChartPanel)
+      setViewState(prev => ({
+        ...DEFAULT_SEOUL_VIEW,
+        longitude: adjustedLongitude,
+        transitionDuration: 800,
+        transitionInterpolator: new FlyToInterpolator()
+      }))
+    }
+  }, [selectedGu, guData, getGuName, getBounds, calculateAdjustedCenter, showChartPanel])
+
   // Update map center when panel width or window size changes
   useEffect(() => {
-    const newLongitude = calculateAdjustedCenter(showChartPanel)
-    setViewState(prev => ({
-      ...prev,
-      longitude: newLongitude
-    }))
-  }, [calculateAdjustedCenter, showChartPanel])
+    // Only adjust center if no district is selected (in overview mode)
+    if (!selectedGu) {
+      const newLongitude = calculateAdjustedCenter(showChartPanel)
+      setViewState(prev => ({
+        ...prev,
+        longitude: newLongitude
+      }))
+    }
+  }, [calculateAdjustedCenter, showChartPanel, selectedGu])
 
   // Handle window resize
   useEffect(() => {
@@ -308,6 +399,7 @@ export default function EDADistrictMap() {
       showDongBoundaries,
       showLabels,
       selectedGu,
+      selectedGuCode,
       selectedDong,
       hoveredDistrict,
       viewState,
@@ -319,7 +411,10 @@ export default function EDADistrictMap() {
       fillEnabled: true,
       ambientConfig,
       animationTimestamp: 0, // Use static value to prevent re-renders
-      enableAmbientEffects
+      enableAmbientEffects,
+      customThemeColor: currentTheme === 'custom' ? customThemeColor : undefined,
+      isBoosted: saturationScale !== 1.0,
+      saturationScale: saturationScale
     })
 
     allLayers.push(...boundaryLayers)
@@ -332,6 +427,7 @@ export default function EDADistrictMap() {
     showDongBoundaries,
     showLabels,
     selectedGu,
+    selectedGuCode,
     selectedDong,
     hoveredDistrict,
     viewState,
@@ -342,7 +438,8 @@ export default function EDADistrictMap() {
     selectionMode,
     ambientConfig,
     // Remove animationState.timestamp to prevent continuous re-renders
-    enableAmbientEffects
+    enableAmbientEffects,
+    saturationScale
   ])
 
   // Handle view state changes

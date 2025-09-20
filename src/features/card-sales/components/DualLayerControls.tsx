@@ -2,7 +2,7 @@
 
 import React from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { Palette, Play, Pause } from "lucide-react"
+import { Palette, Play, Pause, Pipette } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Label } from "@/src/shared/components/ui/label"
 import { Slider } from "@/src/shared/components/ui/slider"
@@ -63,6 +63,8 @@ function LayerControls({
   showDate = false,
   dateLabel = '날짜 (7월)'
 }: LayerControlsProps) {
+  // Reference for hidden color input
+  const colorInputRef = React.useRef<HTMLInputElement>(null)
   return (
     <div className="bg-black/85 backdrop-blur-md rounded-xl border border-purple-500/20 shadow-2xl overflow-hidden">
       {/* Layer Label */}
@@ -192,6 +194,31 @@ function LayerControls({
               title={name}
             />
           ))}
+          {/* Custom Color Picker Button */}
+          <button
+            onClick={() => colorInputRef.current?.click()}
+            className={`w-3.5 h-3.5 rounded border border-gray-700 hover:scale-110 transition-transform flex items-center justify-center ${
+              !PRESET_MESH_COLORS.some(c => c.color === meshColor) && !useTemperatureColor
+                ? 'ring-1 ring-cyan-400'
+                : ''
+            }`}
+            style={{
+              backgroundColor: !PRESET_MESH_COLORS.some(c => c.color === meshColor) ? meshColor : '#4B5563'
+            }}
+            title="커스텀 색상 선택"
+          >
+            {PRESET_MESH_COLORS.some(c => c.color === meshColor) && (
+              <Pipette size={8} className="text-gray-300" />
+            )}
+          </button>
+          {/* Hidden Color Input */}
+          <input
+            ref={colorInputRef}
+            type="color"
+            value={meshColor}
+            onChange={(e) => onMeshColorChange(e.target.value)}
+            className="hidden"
+          />
           <button
             onClick={() => onUseTemperatureColorChange(!useTemperatureColor)}
             className={`ml-auto text-[9px] px-1.5 py-0.5 rounded transition-colors ${

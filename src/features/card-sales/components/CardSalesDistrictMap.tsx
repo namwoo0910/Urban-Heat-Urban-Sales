@@ -2121,10 +2121,10 @@ export default function CardSalesDistrictMap() {
       <div
         className="absolute z-10"
         style={{
-          top: '86px',
+          top: isAIPredictionMode ? '86px' : '36px',
           left: isAIPredictionMode ? '25%' : '50%',
           transform: 'translateX(-50%)',
-          transition: 'left 0.3s ease-in-out'
+          transition: 'left 0.3s ease-in-out, top 0.3s ease-in-out'
         }}
       >
         <div

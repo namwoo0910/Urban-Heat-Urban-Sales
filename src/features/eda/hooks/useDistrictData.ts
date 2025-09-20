@@ -24,27 +24,31 @@ export function useDistrictData(): UseDistrictDataResult {
         setIsLoading(true)
         setError(null)
 
-        // Load district boundary data
-        // First try to load the dong data which includes both gu and dong boundaries
+        // Load district boundary data separately
+        // Load gu boundaries from seoul_boundary.geojson
+        const guResponse = await fetch('/seoul_boundary.geojson')
+
+        if (!guResponse.ok) {
+          throw new Error(`Failed to load gu data: ${guResponse.status}`)
+        }
+
+        const guGeoJson = await guResponse.json() as FeatureCollection
+
+        // Load dong boundaries from local_economy_dong.geojson
         const dongResponse = await fetch('/data/local_economy/local_economy_dong.geojson')
 
         if (!dongResponse.ok) {
-          throw new Error(`Failed to load district data: ${dongResponse.status}`)
+          throw new Error(`Failed to load dong data: ${dongResponse.status}`)
         }
 
         const dongGeoJson = await dongResponse.json() as FeatureCollection
 
         // Normalize property keys so deck.gl layers can access names consistently
+        const normalizedGuGeoJson = normalizeGuFeatures(guGeoJson)
         const normalizedDongGeoJson = normalizeDongFeatures(dongGeoJson)
 
-        // Extract gu boundaries from dong data (aggregated)
-        const guFeatures = extractGuBoundaries(normalizedDongGeoJson)
-
+        setGuData(normalizedGuGeoJson)
         setDongData(normalizedDongGeoJson)
-        setGuData({
-          type: 'FeatureCollection',
-          features: guFeatures
-        })
 
       } catch (err) {
         console.error('Failed to load district data:', err)
@@ -66,35 +70,40 @@ export function useDistrictData(): UseDistrictDataResult {
 }
 
 /**
- * Extract gu (district) boundaries from dong-level data
+ * Normalize gu features to have consistent property names
  */
-function extractGuBoundaries(dongData: FeatureCollection): any[] {
-  const guMap = new Map<string, any[]>()
+function normalizeGuFeatures(guData: FeatureCollection): FeatureCollection {
+  const normalizedFeatures = guData.features.map((feature: any) => {
+    const properties = feature.properties || {}
 
-  // Group dong features by gu
-  dongData.features.forEach((feature: any) => {
-    const guName = getGuName(feature.properties)
+    // Extract gu name from various possible property keys
+    const guName = properties.SGG_NM?.replace('서울특별시 ', '') ||
+                   properties.SIG_KOR_NM ||
+                   properties.guName ||
+                   properties['자치구'] ||
+                   ''
 
-    if (guName) {
-      if (!guMap.has(guName)) {
-        guMap.set(guName, [])
+    // Extract gu code
+    const guCode = properties.ADM_SECT_C ? parseInt(properties.ADM_SECT_C) : null
+
+    return {
+      ...feature,
+      properties: {
+        ...properties,
+        guName,
+        guCode,
+        SGG_NM: guName,
+        SIG_KOR_NM: guName,
+        ['자치구']: guName,
+        ['자치구코드']: guCode
       }
-      guMap.get(guName)?.push(feature)
     }
   })
 
-  // Create simplified gu boundaries (for now, just use first dong as representative)
-  const guFeatures: any[] = []
-  guMap.forEach((dongFeatures, guName) => {
-    if (dongFeatures.length === 0) return
-
-    const mergedFeature = mergeGuGeometry(dongFeatures, guName)
-    if (mergedFeature) {
-      guFeatures.push(mergedFeature)
-    }
-  })
-
-  return guFeatures
+  return {
+    type: 'FeatureCollection',
+    features: normalizedFeatures
+  }
 }
 
 function normalizeDongFeatures(dongData: FeatureCollection): FeatureCollection {
@@ -103,15 +112,20 @@ function normalizeDongFeatures(dongData: FeatureCollection): FeatureCollection {
     const guName = getGuName(properties)
     const dongName = getDongName(properties)
 
+    // Extract gu code
+    const guCode = properties['자치구코드'] || null
+
     return {
       ...feature,
       properties: {
         ...properties,
         ...(guName ? {
           guName,
+          guCode,
           SGG_NM: properties?.SGG_NM ?? guName,
           SIG_KOR_NM: properties?.SIG_KOR_NM ?? guName,
-          ['자치구']: properties?.['자치구'] ?? guName
+          ['자치구']: properties?.['자치구'] ?? guName,
+          ['자치구코드']: guCode
         } : {}),
         ...(dongName ? {
           dongName,
@@ -145,41 +159,4 @@ function getDongName(properties: any): string | null {
          null
 }
 
-type PolygonFeature = Feature<Polygon | MultiPolygon>
-
-function mergeGuGeometry(features: PolygonFeature[], guName: string): PolygonFeature | null {
-  const polygons: number[][][][] = []
-
-  for (const feature of features) {
-    const geometry = feature.geometry
-    if (!geometry) continue
-
-    if (geometry.type === 'Polygon') {
-      polygons.push(geometry.coordinates)
-    } else if (geometry.type === 'MultiPolygon') {
-      polygons.push(...geometry.coordinates)
-    }
-  }
-
-  if (polygons.length === 0) {
-    return null
-  }
-
-  const baseFeature = features[0]
-  const geometry = polygons.length === 1
-    ? { type: 'Polygon', coordinates: polygons[0] as number[][][] }
-    : { type: 'MultiPolygon', coordinates: polygons as number[][][][] }
-
-  return {
-    type: 'Feature',
-    geometry,
-    properties: {
-      ...baseFeature.properties,
-      guName,
-      SGG_NM: baseFeature.properties?.SGG_NM ?? guName,
-      SIG_KOR_NM: baseFeature.properties?.SIG_KOR_NM ?? guName,
-      ['자치구']: baseFeature.properties?.['자치구'] ?? guName,
-      dongCount: features.length
-    }
-  }
-}
+// Removed mergeGuGeometry function as we now load gu boundaries directly from seoul_boundary.geojson
