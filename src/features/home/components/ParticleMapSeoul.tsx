@@ -432,7 +432,7 @@ export function SeoulMapOptimized({
 
         // Step 1: Generate unified particles with both circular and map positions
         setLoadingPhase('Generating unified particles...')
-        const unified = await generateUnifiedParticles(animationConfig.colorTheme)
+        const unified = await generateUnifiedParticles() // Uses damienHirst theme by default
         setUnifiedParticles(unified)
 
         // Start with circular positions
@@ -458,7 +458,7 @@ export function SeoulMapOptimized({
 
         // Fallback to original circular pattern at least
         try {
-          const fallbackCircular = generateDamienHirstPattern(config.particleCount, animationConfig.colorTheme)
+          const fallbackCircular = generateDamienHirstPattern(config.particleCount) // Uses damienHirst theme by default
           setParticles(fallbackCircular)
           const fallbackAnimatedData = animateParticlesBatch(fallbackCircular, 0)
           setAnimatedData(fallbackAnimatedData)
@@ -475,22 +475,10 @@ export function SeoulMapOptimized({
     
     // Start the loading process
     loadDataOptimized()
-  }, [config.particleCount, maxRetries, cacheReady, loadCachedParticles, saveCachedParticles, animationConfig.colorTheme, unifiedParticles.length, displayMode])
+  }, [config.particleCount, maxRetries, cacheReady, loadCachedParticles, saveCachedParticles, unifiedParticles.length, displayMode])
 
-  // Separate effect for color theme changes - only update colors, don't reload data
-  const previousColorThemeRef = useRef(animationConfig.colorTheme)
-  useEffect(() => {
-    // Only update if color theme actually changed (not on every render)
-    if (previousColorThemeRef.current !== animationConfig.colorTheme && 
-        particles.length > 0) {
-      const updatedParticles = updateParticleColors(particles, animationConfig.colorTheme)
-      setParticles(updatedParticles)
-      previousColorThemeRef.current = animationConfig.colorTheme
-      // Note: animatedData will be updated automatically by the animation loop
-      // which will pick up the new particles with updated colors
-      console.log(`[ColorTheme] Updated particle colors to ${animationConfig.colorTheme} theme`)
-    }
-  }, [animationConfig.colorTheme, particles])
+  // Color theme is now forced to damienHirst for optimal vibrancy
+  // Dynamic color switching logic removed to ensure consistent vibrant colors
 
   // Connection pooling for optimized line generation
   const connectionPoolRef = useRef<{

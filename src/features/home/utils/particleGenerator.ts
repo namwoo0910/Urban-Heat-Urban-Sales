@@ -133,6 +133,18 @@ export const COLOR_THEMES = {
     'rgba(255, 0, 255, 0.5)',    // Magenta
     'rgba(255, 255, 0, 0.8)',    // Yellow
     'rgba(0, 128, 255, 0.7)',    // Sky blue
+  ],
+  damienHirst: [
+    'rgba(147, 51, 234, 0.8)',  // Purple - quantile 0-10%
+    'rgba(59, 130, 246, 0.8)',  // Blue - quantile 10-20%
+    'rgba(14, 165, 233, 0.8)',  // Sky Blue - quantile 20-30%
+    'rgba(6, 182, 212, 0.8)',   // Cyan - quantile 30-40%
+    'rgba(20, 184, 166, 0.8)',  // Teal - quantile 40-50%
+    'rgba(34, 197, 94, 0.8)',   // Green - quantile 50-60%
+    'rgba(132, 204, 22, 0.8)',  // Lime - quantile 60-70%
+    'rgba(234, 179, 8, 0.8)',   // Yellow - quantile 70-80%
+    'rgba(251, 146, 60, 0.8)',  // Orange - quantile 80-90%
+    'rgba(239, 68, 68, 0.8)',   // Red - quantile 90-100%
   ]
 }
 import type { BoundaryGrid } from './boundaryProcessor'
@@ -739,13 +751,61 @@ export function interpolateParticlePatternWithScatter(
   return interpolated
 }
 
+// Damien Hirst style color distribution logic
+function getDamienHirstColorIndex(
+  ringIndex: number,
+  particleIndex: number,
+  totalRings: number = 15,
+  colorsCount: number = 10
+): number {
+  // Color distribution strategy based on ring position
+  if (ringIndex < 5) {
+    // Inner rings: favor cool colors (0-5) with some warm accents
+    const colorMethod = (ringIndex + particleIndex) % 4
+    if (colorMethod < 3) {
+      // 75% cool colors
+      return (particleIndex * 3 + ringIndex) % 6 // Colors 0-5 (purple to green)
+    } else {
+      // 25% warm accents
+      return 6 + ((particleIndex + ringIndex * 2) % 4) // Colors 6-9 (lime to red)
+    }
+  } else if (ringIndex < 10) {
+    // Middle rings: balanced distribution
+    const colorMethod = (ringIndex * 7 + particleIndex * 11) % 3
+    if (colorMethod === 0) {
+      // Method 1: Sequential progression
+      return particleIndex % colorsCount
+    } else if (colorMethod === 1) {
+      // Method 2: Angle-based color
+      const angle = (particleIndex / 100) * TWO_PI // Approximate angle calculation
+      return Math.floor((angle / TWO_PI) * colorsCount) % colorsCount
+    } else {
+      // Method 3: Pseudo-random but deterministic
+      return ((ringIndex * 13) + (particleIndex * 17)) % colorsCount
+    }
+  } else {
+    // Outer rings: favor warm colors (5-9) with some cool accents
+    const colorMethod = (ringIndex + particleIndex) % 4
+    if (colorMethod < 3) {
+      // 75% warm colors
+      return 5 + ((particleIndex * 2 + ringIndex) % 5) // Colors 5-9 (green to red)
+    } else {
+      // 25% cool accents
+      return (particleIndex + ringIndex * 3) % 5 // Colors 0-4 (purple to teal)
+    }
+  }
+}
+
 // Generate Damien Hirst style circular dot pattern
 export function generateDamienHirstPattern(
   particleCount: number,
-  colorTheme: keyof typeof COLOR_THEMES = 'current'
+  colorTheme: keyof typeof COLOR_THEMES = 'damienHirst'
 ): ParticleData[] {
   const particles: ParticleData[] = []
-  const colors = COLOR_THEMES[colorTheme]
+
+  // Always use vibrant damienHirst theme for optimal visual appearance
+  // This matches the original "ring rendering complete" behavior
+  const colors = COLOR_THEMES['damienHirst']
   const colorCount = colors.length
 
   // Seoul center coordinates
@@ -763,20 +823,6 @@ export function generateDamienHirstPattern(
 
   let particlesPlaced = 0
   const targetParticleCount = Math.min(particleCount, 15000) // Cap at 15,000
-
-  // Damien Hirst style color palette - vibrant 10-color gradient
-  const damienHirstColors = [
-    'rgba(147, 51, 234, 0.8)',  // 보라
-    'rgba(59, 130, 246, 0.8)',  // 파랑
-    'rgba(14, 165, 233, 0.8)',  // 하늘색
-    'rgba(6, 182, 212, 0.8)',   // 청록
-    'rgba(20, 184, 166, 0.8)',  // 틸
-    'rgba(34, 197, 94, 0.8)',   // 녹색
-    'rgba(132, 204, 22, 0.8)',  // 라임
-    'rgba(234, 179, 8, 0.8)',   // 노랑
-    'rgba(251, 146, 60, 0.8)',  // 주황
-    'rgba(239, 68, 68, 0.8)',   // 빨강
-  ]
 
   for (let ring = 0; ring < totalRings && particlesPlaced < targetParticleCount; ring++) {
     // Calculate radius for this ring with even spacing for clear gaps
@@ -802,56 +848,19 @@ export function generateDamienHirstPattern(
       const lng = centerLon + fastCos(angle) * radiusVariation * latitudeCorrection
       const lat = centerLat + fastSin(angle) * radiusVariation
 
-      // Damien Hirst style color assignment - varied colors within each ring
-      let colorIndex: number
+      // Use the extracted color distribution logic for consistent Damien Hirst style
+      let colorIndex = getDamienHirstColorIndex(ring, i, totalRings, colorCount)
 
-      // Color distribution strategy based on ring position
-      if (ring < 5) {
-        // Inner rings: favor cool colors (0-5) with some warm accents
-        const colorMethod = (ring + i) % 4
-        if (colorMethod < 3) {
-          // 75% cool colors
-          colorIndex = (i * 3 + ring) % 6 // Colors 0-5 (purple to green)
-        } else {
-          // 25% warm accents
-          colorIndex = 6 + ((i + ring * 2) % 4) // Colors 6-9 (lime to red)
-        }
-      } else if (ring < 10) {
-        // Middle rings: balanced distribution
-        const colorMethod = (ring * 7 + i * 11) % 3
-        if (colorMethod === 0) {
-          // Method 1: Sequential progression
-          colorIndex = i % 10
-        } else if (colorMethod === 1) {
-          // Method 2: Angle-based color
-          colorIndex = Math.floor((angle / TWO_PI) * 10) % 10
-        } else {
-          // Method 3: Pseudo-random but deterministic
-          colorIndex = ((ring * 13) + (i * 17)) % 10
-        }
-      } else {
-        // Outer rings: favor warm colors (5-9) with some cool accents
-        const colorMethod = (ring + i) % 4
-        if (colorMethod < 3) {
-          // 75% warm colors
-          colorIndex = 5 + ((i * 2 + ring) % 5) // Colors 5-9 (green to red)
-        } else {
-          // 25% cool accents
-          colorIndex = (i + ring * 3) % 5 // Colors 0-4 (purple to teal)
-        }
-      }
-
-      // Ensure adjacent particles have different colors
+      // Ensure adjacent particles have different colors for visual variety
       if (i > 0 && particlesPlaced > 0) {
-        const prevColorIndex = particles[particlesPlaced - 1].color
-          ? damienHirstColors.indexOf(particles[particlesPlaced - 1].color)
-          : -1
+        const prevColor = particles[particlesPlaced - 1].color
+        const prevColorIndex = prevColor ? colors.indexOf(prevColor) : -1
         if (colorIndex === prevColorIndex) {
-          colorIndex = (colorIndex + 3) % 10 // Shift by 3 for visual variety
+          colorIndex = (colorIndex + 3) % colorCount // Shift by 3 for visual variety
         }
       }
 
-      const particleColor = damienHirstColors[colorIndex]
+      const particleColor = colors[colorIndex]
 
       // Size varies by ring (inner rings have larger dots, like Damien Hirst style)
       // Adjust size to be proportional to spacing for solid ring appearance
@@ -915,7 +924,7 @@ export function generateDamienHirstPattern(
 
 // Generate unified particles with both circular and map positions
 export async function generateUnifiedParticles(
-  colorTheme: keyof typeof COLOR_THEMES = 'current'
+  colorTheme: keyof typeof COLOR_THEMES = 'damienHirst'
 ): Promise<ParticleData[]> {
   // Use 15,000 particles from particles-high.json
   const count = 15000
