@@ -131,19 +131,6 @@ export function Hero() {
         />
       </div>
       
-      {/* 그라데이션 오버레이 */}
-      <div 
-        className="absolute inset-0 z-5 pointer-events-none"
-        style={{
-          background: `
-            radial-gradient(circle at 50% 50%, 
-              transparent 30%, 
-              rgba(0, 0, 0, 0.3) 60%,
-              rgba(0, 0, 0, 0.7) 100%
-            )
-          `,
-        }}
-      />
       {/* Top text elements */}
       <div className="absolute left-0 right-0 z-10 flex flex-col items-center text-white text-center px-4" style={{ top: 'calc(7rem - 10px)' }}>
         <h1 className="hero-title font-['Montserrat'] font-bold tracking-wider text-3xl md:text-4xl lg:text-5xl mb-4">{splitTitle}</h1>

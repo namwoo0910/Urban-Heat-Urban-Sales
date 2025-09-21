@@ -450,17 +450,41 @@ export function animateParticlesSuperFast(
         const fireflyPhase = time * fireflySpeed + (particle.phase || 0) * 3
         const twinkle = fastSin(fireflyPhase)
         const fireflyIntensity = 0.8
-        
+
         opacity *= (0.7 + twinkle * 0.3 * fireflyIntensity)
-        
+
         // 더 활발한 랜덤 움직임
         const randomX = fastSin(fireflyPhase * 3.7) * 0.0005 * fireflyIntensity
         const randomY = fastCos(fireflyPhase * 2.3) * 0.0005 * fireflyIntensity
-        
+
         x += randomX
         y += randomY
       }
-      
+
+      // Gentle breathing animation applied to all particles
+      // time is already in seconds (converted from ms in ParticleMapSeoul)
+      const breathPhase = time * 0.6  // 초 단위로 조정 (기존 0.0006 * 1000)
+      const breathWave = fastSin(breathPhase)
+      const sizeBreathFactor = 0.94 + breathWave * 0.06
+      const opacityBreathFactor = 0.9 + breathWave * 0.08
+
+      size *= sizeBreathFactor
+      opacity *= opacityBreathFactor
+
+      // 파티클 전체가 심장박동처럼 확장/수축 (위치 기반 스케일링)
+      const centerLon = 126.978  // 서울 중심 경도
+      const centerLat = 37.5665  // 서울 중심 위도
+      const heartbeatScale = 0.98 + breathWave * 0.02  // 2% 확장/수축
+
+      // 중심점으로부터의 거리 계산 후 스케일 적용
+      const dx = x - centerLon
+      const dy = y - centerLat
+      x = centerLon + dx * heartbeatScale
+      y = centerLat + dy * heartbeatScale
+
+      // Clamp opacity after breathing modulation
+      opacity = Math.max(0, Math.min(255, opacity))
+
       // Parse color for result  
       let colorArray: [number, number, number, number]
       const colorMatch = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/)

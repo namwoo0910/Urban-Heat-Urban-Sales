@@ -800,7 +800,12 @@ export function SeoulMapOptimized({
   // 레이어 생성 (성능 레벨에 따라 조정)
   const layers = useMemo(() => {
     const baseLayers = []
-    
+
+    // 심장박동 효과를 위한 scale 계산
+    const breathPhase = animationState.time * 0.0006  // 호흡과 동일한 속도 (밀리초 단위)
+    const breathWave = Math.sin(breathPhase)
+    const heartbeatScale = 0.97 + breathWave * 0.03  // 3% 확장/수축으로 더 부드러운 심장박동
+
     // Dark overlay layer - renders below particles but above map (controlled by blackBackgroundEnabled)
     if (animationConfig.blackBackgroundEnabled) {
       baseLayers.push(
@@ -824,7 +829,7 @@ export function SeoulMapOptimized({
         })
       )
     }
-    
+
     // 연결선 레이어 (원형 모드에서는 항상 표시, 맵 모드에서는 성능 설정에 따라)
     if (displayMode === 'circular' || config.connectionCount > 0) {
       baseLayers.push(
@@ -845,7 +850,7 @@ export function SeoulMapOptimized({
         })
       )
     }
-    
+
     // 메인 파티클 레이어
     baseLayers.push(
       new ScatterplotLayer({
@@ -855,7 +860,7 @@ export function SeoulMapOptimized({
         opacity: 0.9, // Increased opacity for better visibility
         stroked: false,
         filled: true,
-        radiusScale: 1,
+        radiusScale: heartbeatScale,  // 심장박동 효과 적용
         radiusMinPixels: 2, // Increased for better visibility in pure black mode
         radiusMaxPixels: performanceLevel === 'high' ? 8 : 6,
         getPosition: (d: any) => d.position,
@@ -887,7 +892,7 @@ export function SeoulMapOptimized({
           opacity: 0.1,
           stroked: false,
           filled: true,
-          radiusScale: 1.5,
+          radiusScale: heartbeatScale * 1.5,  // 글로우 레이어에도 심장박동 효과 적용
           radiusMinPixels: 1,
           radiusMaxPixels: 8,
           getPosition: (d: any) => d.position,
@@ -903,7 +908,7 @@ export function SeoulMapOptimized({
     }
     
     return baseLayers
-  }, [animatedData, connections, config.connectionCount, config.glowLayers, performanceLevel, boundaryData, animationConfig.blackBackgroundEnabled])
+  }, [animatedData, connections, config.connectionCount, config.glowLayers, performanceLevel, boundaryData, animationConfig.blackBackgroundEnabled, animationState.time, displayMode])
 
   // 뷰 상태 변경 핸들러 (디바운싱 적용)
   const handleViewStateChange = useCallback(({ viewState }: any) => {
@@ -1026,40 +1031,36 @@ export function SeoulMapOptimized({
 
   return (
     <div className="relative w-full h-full" id="seoul-map-container" style={{ marginTop: '-10px' }}>
-      {/* Particle layer rendering */}
-      <DeckGL
-        viewState={viewState}
-        controller={false}  // Disable user interaction
-        layers={layers}
-        parameters={{
-          // Parameters for rendering optimization
-        }}
-        // 성능 최적화 옵션
-        getCursor={() => 'default'}  // Default cursor (no grab)
-        getTooltip={() => null}
-      >
-        {/* Render Map with fixed dark theme */}
-        {typeof window !== 'undefined' && MAPBOX_TOKEN && (
-          <Map
+      {/* 1. 지도 레이어 (최하단) */}
+      {typeof window !== 'undefined' && MAPBOX_TOKEN && (
+        <Map
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyle}
-          style={{ width: '100%', height: '100%' }}
+          viewState={viewState}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 1
+          }}
           interactive={false}  // Disable Mapbox interaction
           reuseMaps={true}
           preserveDrawingBuffer={false}
           attributionControl={false}
           onError={(evt: any) => {
-            console.error('Map error in particle layer:', evt)
+            console.error('Map error:', evt)
           }}
           onLoad={(evt: any) => {
             const map = evt.target
-            
+
             // Ensure the map has initialized properly
             if (!map || !map.getStyle) {
               console.warn('Map not properly initialized')
               return
             }
-            
+
             try {
               // 더 어둡게 스타일 조정
               const layers = map.getStyle()?.layers
@@ -1082,18 +1083,44 @@ export function SeoulMapOptimized({
             }
           }}
         />
-        )}
-        
-      </DeckGL>
+      )}
 
-      {/* 간단한 그라데이션 오버레이 */}
-      <div 
+      {/* 2. 어두운 배경 오버레이 (중간) */}
+      <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: `radial-gradient(circle at 50% 50%, transparent 40%, rgba(0, 0, 20, 0.4) 100%)`,
+          background: `
+            radial-gradient(circle at 50% 50%,
+              transparent 30%,
+              rgba(0, 0, 0, 0.3) 60%,
+              rgba(0, 0, 0, 0.7) 100%
+            )
+          `,
+          zIndex: 2
         }}
       />
-      
+
+      {/* 3. 파티클 레이어 (최상단) */}
+      <DeckGL
+        viewState={viewState}
+        controller={false}  // Disable user interaction
+        layers={layers}
+        parameters={{
+          // Parameters for rendering optimization
+        }}
+        // 성능 최적화 옵션
+        getCursor={() => 'default'}  // Default cursor (no grab)
+        getTooltip={() => null}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 3
+        }}
+      />
+
     </div>
   )
 }
