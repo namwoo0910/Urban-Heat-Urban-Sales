@@ -1122,20 +1122,25 @@ export function interpolateUnifiedParticles(
         brightnessBoost = 12
       } else {
         // Phase 3: Convergence to Seoul with diminishing float
-        const convergeProgress = (progress - 0.4) / 0.6
-        const convergeEased = easeInOutCubic(Math.min(convergeProgress * 0.8, 1))
+        const convergeProgress = Math.min(Math.max((progress - 0.4) / 0.6, 0), 1)
+        const convergeEased = easeInOutCubic(convergeProgress)
+        const driftEased = 1 - convergeEased
 
-        const floatIntensity = 1 - convergeEased
-        const floatX = Math.sin(timeSeconds * 2 + i * 0.1) * 0.02 * floatIntensity
-        const floatY = Math.cos(timeSeconds * 2 + i * 0.15) * 0.02 * floatIntensity
+        // Gradually reduce expansion and floating intensity toward zero
+        const expansionFactor = 1 + 0.2 * driftEased
+        const expandedX = fromX + scatterOffset.x * expansionFactor
+        const expandedY = fromY + scatterOffset.y * expansionFactor
 
-        const finalDrift = 0.2
-        const scatteredX = fromX + scatterOffset.x * (1 + finalDrift) + floatX
-        const scatteredY = fromY + scatterOffset.y * (1 + finalDrift) + floatY
+        const floatAmplitude = 0.02 * driftEased
+        const floatX = Math.sin(timeSeconds * 2 + i * 0.1) * floatAmplitude
+        const floatY = Math.cos(timeSeconds * 2 + i * 0.15) * floatAmplitude
+
+        const scatteredX = expandedX + floatX
+        const scatteredY = expandedY + floatY
 
         x = scatteredX + (toX - scatteredX) * convergeEased
         y = scatteredY + (toY - scatteredY) * convergeEased
-        brightnessBoost = 12 * (1 - convergeEased)
+        brightnessBoost = 12 * driftEased
       }
 
       if (progress >= 1.0) {

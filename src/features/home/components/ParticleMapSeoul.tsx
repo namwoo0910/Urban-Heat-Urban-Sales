@@ -661,15 +661,8 @@ export function SeoulMapOptimized({
               // Check if transition is complete
               if (progress >= 1.0) {
                 setDisplayMode('map')
-                // Set particles to final map positions
-                const finalMapParticles = unifiedParticles.map(p => ({
-                  ...p,
-                  x: p.mapPos![0],
-                  y: p.mapPos![1],
-                  position: p.mapPos,  // Update position array to match x,y coordinates
-                  size: p.size || 20
-                }))
-                setParticles(finalMapParticles)
+                setParticles(interpolatedParticles)
+                transitionStartTimeRef.current = null
                 amplitudeAnimationRef.current = 0.2 // Maintain small amplitude for continuous movement
                 // No need to reset animationStartTimeRef since we're not using scatter in map mode
                 if (onDisplayModeChange) {
