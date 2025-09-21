@@ -37,19 +37,19 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 // 성능 설정 - 파티클 개수 1.5배 증가
 const PERFORMANCE_CONFIG = {
   high: {
-    particleCount: 15000,
+    particleCount: 15000,  // 원래 값으로 복원
     connectionCount: 300,
     fps: 60,
     glowLayers: 1,
   },
   medium: {
-    particleCount: 10500,
+    particleCount: 10500,  // 원래 값으로 복원
     connectionCount: 150,
     fps: 30,
     glowLayers: 1,
   },
   low: {
-    particleCount: 6000,
+    particleCount: 6000,  // 원래 값으로 복원
     connectionCount: 50,
     fps: 24,
     glowLayers: 1,
@@ -652,7 +652,11 @@ export function SeoulMapOptimized({
             // Interpolate between circular and map positions using unified particles
             if (unifiedParticles.length > 0) {
               // Use unified interpolation function with explosion phases
-              updated = interpolateUnifiedParticles(unifiedParticles, progress)
+              const timeInSeconds = animationState.time * 0.001
+              const interpolatedParticles = interpolateUnifiedParticles(unifiedParticles, progress, {
+                time: timeInSeconds,
+              })
+              updated = animateParticlesBatch(interpolatedParticles, timeInSeconds)
 
               // Check if transition is complete
               if (progress >= 1.0) {
@@ -662,7 +666,8 @@ export function SeoulMapOptimized({
                   ...p,
                   x: p.mapPos![0],
                   y: p.mapPos![1],
-                  position: p.mapPos  // Update position array to match x,y coordinates
+                  position: p.mapPos,  // Update position array to match x,y coordinates
+                  size: p.size || 20
                 }))
                 setParticles(finalMapParticles)
                 amplitudeAnimationRef.current = 0.2 // Maintain small amplitude for continuous movement
@@ -857,12 +862,12 @@ export function SeoulMapOptimized({
         id: "particle-layer",
         data: animatedData,
         pickable: false,
-        opacity: 0.9, // Increased opacity for better visibility
+        opacity: 1.0, // 100% 불투명도로 더 강렬한 색상
         stroked: false,
         filled: true,
-        radiusScale: heartbeatScale,  // 심장박동 효과 적용
-        radiusMinPixels: 2, // Increased for better visibility in pure black mode
-        radiusMaxPixels: performanceLevel === 'high' ? 8 : 6,
+        radiusScale: heartbeatScale * 0.78,  // 심장박동 효과 적용 + 78% 크기 (30% 증가)
+        radiusMinPixels: 1.3, // 30% 증가에 맞춰 조정
+        radiusMaxPixels: performanceLevel === 'high' ? 6.5 : 5.2,  // 30% 증가에 맞춰 조정
         getPosition: (d: any) => d.position,
         getRadius: (d: any) => d.size,
         getFillColor: (d: any) => {
@@ -889,15 +894,15 @@ export function SeoulMapOptimized({
           id: "particle-glow",
           data: animatedData.filter((_, i) => i % 3 === 0),
           pickable: false,
-          opacity: 0.1,
+          opacity: 0.15,  // 글로우 효과도 살짝 강화
           stroked: false,
           filled: true,
-          radiusScale: heartbeatScale * 1.5,  // 글로우 레이어에도 심장박동 효과 적용
-          radiusMinPixels: 1,
-          radiusMaxPixels: 8,
+          radiusScale: heartbeatScale * 1.17,  // 글로우 레이어도 78% 크기로 조정 (1.5 * 0.78)
+          radiusMinPixels: 0.65,
+          radiusMaxPixels: 6.5,  // 30% 증가에 맞춰 조정
           getPosition: (d: any) => d.position,
           getRadius: (d: any) => d.size * 1.2,
-          getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 40],
+          getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 60],  // 글로우 색상도 더 강하게
           parameters: {
             depthTest: false,
             blend: true,

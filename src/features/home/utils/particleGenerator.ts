@@ -4,7 +4,7 @@
  */
 
 // Unified particle count for seamless transitions
-export const UNIFIED_PARTICLE_COUNT = 10000
+export const UNIFIED_PARTICLE_COUNT = 10000  // 원래 값으로 복원
 
 // Define types and constants locally since original files were removed
 export interface ParticleData {
@@ -46,60 +46,60 @@ export async function loadSeoulBoundaries(): Promise<SeoulBoundaryData> {
 
 export const COLOR_THEMES = {
   current: [
-    'rgba(88, 166, 255, 0.8)',   // Seoul Blue
-    'rgba(147, 197, 253, 0.7)',  // Light blue
-    'rgba(129, 140, 248, 0.6)',  // Indigo
-    'rgba(196, 181, 253, 0.5)',  // Purple
-    'rgba(251, 191, 36, 0.7)',   // Amber
-    'rgba(252, 211, 77, 0.6)',   // Yellow
+    'rgba(110, 200, 255, 0.95)',   // Bright Seoul Blue - 더 밝고 강렬
+    'rgba(180, 220, 255, 0.9)',   // Bright Light blue - 채도와 밝기 증가
+    'rgba(160, 170, 255, 0.85)',  // Bright Indigo - 더 생생한 색상
+    'rgba(220, 200, 255, 0.8)',   // Bright Purple - 밝기 증가
+    'rgba(255, 210, 50, 0.9)',    // Bright Amber - 더 강렬한 노란색
+    'rgba(255, 230, 100, 0.85)',  // Bright Yellow - 생동감 있는 노란색
   ],
   ocean: [
-    'rgba(59, 130, 246, 0.8)',   // Blue
-    'rgba(147, 197, 253, 0.7)',  // Light blue
-    'rgba(99, 102, 241, 0.6)',   // Indigo
-    'rgba(139, 92, 246, 0.5)',   // Violet
-    'rgba(168, 85, 247, 0.8)',   // Purple
-    'rgba(217, 70, 239, 0.7)',   // Magenta
+    'rgba(80, 160, 255, 0.95)',   // Bright Blue - 더 선명한 파란색
+    'rgba(170, 210, 255, 0.9)',   // Bright Light blue
+    'rgba(130, 140, 255, 0.85)',  // Bright Indigo
+    'rgba(180, 130, 255, 0.8)',   // Bright Violet
+    'rgba(200, 120, 255, 0.95)',  // Bright Purple
+    'rgba(240, 100, 255, 0.9)',   // Bright Magenta
   ],
   sunset: [
-    'rgba(251, 146, 60, 0.8)',   // Orange
-    'rgba(252, 211, 77, 0.7)',   // Yellow
-    'rgba(254, 215, 170, 0.6)',  // Peach
-    'rgba(254, 240, 138, 0.5)',  // Light yellow
-    'rgba(249, 115, 22, 0.8)',   // Dark orange
-    'rgba(251, 191, 36, 0.7)',   // Amber
+    'rgba(255, 170, 80, 0.95)',   // Bright Orange - 더 강렬한 주황색
+    'rgba(255, 230, 100, 0.9)',   // Bright Yellow
+    'rgba(255, 230, 190, 0.85)',  // Bright Peach
+    'rgba(255, 245, 160, 0.8)',   // Bright Light yellow
+    'rgba(255, 140, 40, 0.95)',   // Bright Dark orange
+    'rgba(255, 210, 60, 0.9)',    // Bright Amber
   ],
   forest: [
-    'rgba(34, 197, 94, 0.8)',    // Green
-    'rgba(74, 222, 128, 0.7)',   // Light green
-    'rgba(134, 239, 172, 0.6)',  // Pale green
-    'rgba(187, 247, 208, 0.5)',  // Very light green
-    'rgba(16, 185, 129, 0.8)',   // Emerald
-    'rgba(52, 211, 153, 0.7)',   // Teal
+    'rgba(60, 220, 120, 0.95)',   // Bright Green - 더 선명한 초록색
+    'rgba(100, 240, 160, 0.9)',   // Bright Light green
+    'rgba(160, 250, 200, 0.85)',  // Bright Pale green
+    'rgba(200, 255, 220, 0.8)',   // Bright Very light green
+    'rgba(40, 210, 150, 0.95)',   // Bright Emerald
+    'rgba(80, 230, 180, 0.9)',    // Bright Teal
   ],
   aurora: [
-    'rgba(147, 197, 253, 0.8)',  // Light blue
-    'rgba(196, 181, 253, 0.7)',  // Purple
-    'rgba(167, 243, 208, 0.6)',  // Mint
-    'rgba(254, 215, 170, 0.5)',  // Peach
-    'rgba(252, 211, 77, 0.8)',   // Yellow
-    'rgba(251, 146, 60, 0.7)',   // Orange
+    'rgba(170, 220, 255, 0.95)',  // Bright Light blue - 오로라 효과
+    'rgba(220, 200, 255, 0.9)',   // Bright Purple
+    'rgba(190, 255, 230, 0.85)',  // Bright Mint
+    'rgba(255, 230, 190, 0.8)',   // Bright Peach
+    'rgba(255, 230, 100, 0.95)',  // Bright Yellow
+    'rgba(255, 170, 80, 0.9)',    // Bright Orange
   ],
   galaxy: [
-    'rgba(139, 92, 246, 0.8)',   // Violet
-    'rgba(168, 85, 247, 0.7)',   // Purple
-    'rgba(217, 70, 239, 0.6)',   // Magenta
-    'rgba(244, 114, 182, 0.5)',  // Pink
-    'rgba(251, 146, 60, 0.8)',   // Orange
-    'rgba(252, 211, 77, 0.7)',   // Yellow
+    'rgba(180, 130, 255, 0.95)',  // Bright Violet - 더 화려한 보라색
+    'rgba(200, 120, 255, 0.9)',   // Bright Purple
+    'rgba(240, 100, 255, 0.85)',  // Bright Magenta
+    'rgba(255, 150, 210, 0.8)',   // Bright Pink
+    'rgba(255, 170, 80, 0.95)',   // Bright Orange
+    'rgba(255, 230, 100, 0.9)',   // Bright Yellow
   ],
   cyberpunk: [
-    'rgba(255, 0, 128, 0.8)',    // Neon pink
-    'rgba(0, 255, 255, 0.7)',    // Cyan
-    'rgba(128, 255, 0, 0.6)',    // Lime
-    'rgba(255, 0, 255, 0.5)',    // Magenta
-    'rgba(255, 255, 0, 0.8)',    // Yellow
-    'rgba(0, 128, 255, 0.7)',    // Sky blue
+    'rgba(255, 50, 180, 0.95)',   // Neon Pink - 네온 사이버펑크
+    'rgba(50, 255, 255, 0.9)',    // Neon Cyan
+    'rgba(180, 255, 50, 0.85)',   // Neon Lime
+    'rgba(255, 50, 255, 0.8)',    // Neon Magenta
+    'rgba(255, 255, 50, 0.95)',   // Neon Yellow
+    'rgba(50, 180, 255, 0.9)',    // Neon Sky blue
   ],
   // Keep these for backward compatibility
   warm: [
@@ -163,6 +163,7 @@ import {
 
 // Pre-computed constants for performance
 const TWO_PI = Math.PI * 2
+const GLOBAL_PARTICLE_SIZE_SCALE = 1.2
 const HIGH_DENSITY_AREAS_OPTIMIZED = new Map([
   ['강남', { center: [127.0276, 37.4979], radius: 0.02, density: 0.84 }],
   ['명동', { center: [126.9861, 37.5636], radius: 0.015, density: 0.7 }],
@@ -373,6 +374,7 @@ export function animateParticlesSuperFast(
   
   // 3단계: 결과 배열 생성 (메모리 할당 최소화)
   const result = new Array(count)
+  const baseSizeScale = 0.78 * GLOBAL_PARTICLE_SIZE_SCALE
   
   // 4단계: 64개씩 묶어서 최종 처리 (CPU 캐시 최적화)
   for (let chunk = 0; chunk < count; chunk += 64) {
@@ -383,7 +385,8 @@ export function animateParticlesSuperFast(
       const pos = particle.position || [particle.x, particle.y]
       let x = pos[0]
       let y = pos[1]
-      let size = particle.size || 50
+      const baseSize = (particle.size || 50) * baseSizeScale
+      let size = baseSize
       let color = particle.color
       let opacity = 255
       
@@ -414,7 +417,7 @@ export function animateParticlesSuperFast(
         const sizeFactor = 1 + pulse * 0.5 // 원래 강도로 복원
         const opacityFactor = 0.7 + pulse * 0.3
         
-        size = (particle.size || 50) * sizeFactor
+        size = baseSize * sizeFactor  // Global 20% scale applied via baseSize
         opacity = Math.floor(255 * opacityFactor)
       }
       
@@ -612,7 +615,7 @@ export function interpolateParticlePatterns(
     interpolated.push({
       position: [x, y],
       color: [r, g, b],
-      size: size,
+      size: size * GLOBAL_PARTICLE_SIZE_SCALE,
       opacity: a
     })
   }
@@ -697,8 +700,8 @@ export function interpolateParticlePatternWithScatter(
       x = from.x + offset.x * scatterAmount
       y = from.y + offset.y * scatterAmount
 
-      // Particles grow and brighten during explosion
-      sizeMultiplier = 1.0 + scatterAmount * 0.5
+      // Particles stay at 1.5 size from the beginning
+      sizeMultiplier = 1.5
       brightnessBoost = scatterAmount * 30
 
     } else if (progress < 0.7) {
@@ -719,8 +722,8 @@ export function interpolateParticlePatternWithScatter(
       x = scatteredX + (midX - scatteredX) * floatEased + floatWave
       y = scatteredY + (midY - scatteredY) * floatEased + floatWave2
 
-      // Size normalizes, brightness remains high
-      sizeMultiplier = 1.5 - floatEased * 0.3
+      // Size stays at 1.5 during float phase
+      sizeMultiplier = 1.5  // 플로팅 단계에서도 1.5배 유지
       brightnessBoost = 30 - floatEased * 10
 
     } else {
@@ -742,8 +745,8 @@ export function interpolateParticlePatternWithScatter(
       x = midX + (to.x - midX) * convergeEased + spiralX
       y = midY + (to.y - midY) * convergeEased + spiralY
 
-      // Size returns to normal
-      sizeMultiplier = 1.2 - convergeEased * 0.2
+      // Size stays at 1.5 during convergence
+      sizeMultiplier = 1.5  // 수렴 단계에서도 1.5배 유지
       brightnessBoost = 20 * (1 - convergeEased)
     }
 
@@ -846,7 +849,7 @@ export function generateDamienHirstPattern(
   const maxRadius = 0.14 // Increased to double the ring spacing
 
   let particlesPlaced = 0
-  const targetParticleCount = Math.min(particleCount, 15000) // Cap at 15,000
+  const targetParticleCount = Math.min(particleCount, 15000) // Cap at 15,000 (원래 값)
 
   for (let ring = 0; ring < totalRings && particlesPlaced < targetParticleCount; ring++) {
     // Calculate radius for this ring with even spacing for clear gaps
@@ -1061,14 +1064,17 @@ const scatterOffsetsCache: Map<number, {x: number, y: number}> = new Map()
 export function interpolateUnifiedParticles(
   particles: ParticleData[],
   progress: number,
-  useScatter: boolean = true
-): any[] {
+  options: { useScatter?: boolean; time?: number } = {}
+): ParticleData[] {
+  const { useScatter = true, time } = options
+  const timeSeconds = time ?? performance.now() * 0.001
+
   return particles.map((particle, i) => {
     if (!particle.circularPos || !particle.mapPos) {
       return {
+        ...particle,
         position: particle.position || [particle.x, particle.y],
-        color: particle.color,
-        size: particle.size || 20
+        size: particle.size || 20,
       }
     }
 
@@ -1078,15 +1084,18 @@ export function interpolateUnifiedParticles(
     const toY = particle.mapPos[1]
 
     let x: number, y: number
-    let sizeMultiplier = 1.0
     let brightnessBoost = 0
+
+    // Base size multiplier keeps subtle emphasis without large jumps
+    const maxSizeBoost = 0.1
+    let sizeMultiplier = 1 + maxSizeBoost * (1 - Math.min(progress, 1))
 
     if (useScatter) {
       // Get or create scatter offset for this particle (increased range for full screen)
       if (!scatterOffsetsCache.has(i)) {
         scatterOffsetsCache.set(i, {
-          x: (Math.random() - 0.5) * 0.6,  // Set to 0.6 for balanced spread
-          y: (Math.random() - 0.5) * 0.6
+          x: (Math.random() - 0.5) * 0.6,
+          y: (Math.random() - 0.5) * 0.6,
         })
       }
       const scatterOffset = scatterOffsetsCache.get(i)!
@@ -1098,52 +1107,37 @@ export function interpolateUnifiedParticles(
 
         x = fromX + scatterOffset.x * scatterAmount
         y = fromY + scatterOffset.y * scatterAmount
-        sizeMultiplier = 1.0 + scatterAmount * 0.5
-        brightnessBoost = scatterAmount * 30
-
+        brightnessBoost = scatterAmount * 15
       } else if (progress < 0.4) {
         // Phase 2: Strong expansion with floating while camera moves
         const driftProgress = (progress - 0.3) / 0.1
-        const additionalDrift = driftProgress * 0.2  // 20% additional expansion (increased from 5%)
+        const additionalDrift = driftProgress * 0.2
 
-        // Add floating animation
-        const floatTime = Date.now() * 0.001  // Current time in seconds
-        const floatX = Math.sin(floatTime * 2 + i * 0.1) * 0.02
-        const floatY = Math.cos(floatTime * 2 + i * 0.15) * 0.02
+        const floatStrength = driftProgress
+        const floatX = Math.sin(timeSeconds * 2 + i * 0.1) * 0.02 * floatStrength
+        const floatY = Math.cos(timeSeconds * 2 + i * 0.15) * 0.02 * floatStrength
 
-        // Continue drifting outward with floating
         x = fromX + scatterOffset.x * (1 + additionalDrift) + floatX
         y = fromY + scatterOffset.y * (1 + additionalDrift) + floatY
-
-        sizeMultiplier = 1.5
-        brightnessBoost = 25
-
+        brightnessBoost = 12
       } else {
         // Phase 3: Convergence to Seoul with diminishing float
         const convergeProgress = (progress - 0.4) / 0.6
-        // Use gentler easing for slower convergence
-        const convergeEased = easeInOutCubic(convergeProgress * 0.8)  // Slow down by 20%
+        const convergeEased = easeInOutCubic(Math.min(convergeProgress * 0.8, 1))
 
-        // Floating animation that diminishes as particles converge
-        const floatTime = Date.now() * 0.001
-        const floatIntensity = 1 - convergeEased  // Decreases from 1 to 0 as convergence progresses
-        const floatX = Math.sin(floatTime * 2 + i * 0.1) * 0.02 * floatIntensity
-        const floatY = Math.cos(floatTime * 2 + i * 0.15) * 0.02 * floatIntensity
+        const floatIntensity = 1 - convergeEased
+        const floatX = Math.sin(timeSeconds * 2 + i * 0.1) * 0.02 * floatIntensity
+        const floatY = Math.cos(timeSeconds * 2 + i * 0.15) * 0.02 * floatIntensity
 
-        // Account for the maximum drift from Phase 2
-        const finalDrift = 0.2  // Maximum drift from Phase 2 (matches 20% expansion)
+        const finalDrift = 0.2
         const scatteredX = fromX + scatterOffset.x * (1 + finalDrift) + floatX
         const scatteredY = fromY + scatterOffset.y * (1 + finalDrift) + floatY
 
-        // Interpolate from fully expanded position to Seoul position
         x = scatteredX + (toX - scatteredX) * convergeEased
         y = scatteredY + (toY - scatteredY) * convergeEased
-
-        sizeMultiplier = 1.5 - convergeEased * 0.5
-        brightnessBoost = 25 * (1 - convergeEased)
+        brightnessBoost = 12 * (1 - convergeEased)
       }
 
-      // Clear cache when animation completes
       if (progress >= 1.0) {
         scatterOffsetsCache.clear()
       }
@@ -1156,18 +1150,18 @@ export function interpolateUnifiedParticles(
 
     // Parse and enhance color
     const rgb = parseColorToRGB(particle.color)
-    const r = Math.min(255, rgb.r + brightnessBoost)
-    const g = Math.min(255, rgb.g + brightnessBoost)
-    const b = Math.min(255, rgb.b + brightnessBoost)
+    const r = Math.min(255, Math.round(rgb.r + brightnessBoost))
+    const g = Math.min(255, Math.round(rgb.g + brightnessBoost))
+    const b = Math.min(255, Math.round(rgb.b + brightnessBoost))
+    const colorString = `rgba(${r}, ${g}, ${b}, ${rgb.a})`
 
     return {
+      ...particle,
+      x,
+      y,
       position: [x, y],
-      color: [r, g, b],
+      color: colorString,
       size: (particle.size || 20) * sizeMultiplier,
-      opacity: rgb.a,
-      id: particle.id,
-      ringIndex: particle.ringIndex,
-      ringPosition: particle.ringPosition
     }
   })
 }
