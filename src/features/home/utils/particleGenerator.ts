@@ -22,6 +22,8 @@ export interface ParticleData {
   amplitude?: number
   size?: number
   district?: string
+  ringIndex?: number
+  ringPosition?: number
 }
 
 import type { SeoulBoundaryData } from './boundaryProcessor'
@@ -615,10 +617,24 @@ export function generateDamienHirstPattern(
 
   // Calculate ring configuration - exactly 15 rings as requested
   const totalRings = 15 // Exactly 15 distinct ring layers
-  const minRadius = 0.02 // Start further from center for clear first ring
-  const maxRadius = 0.15 // Outer boundary
+  const minRadius = 0.06 // Even larger center hole for better visual balance
+  const maxRadius = 0.14 // Increased to double the ring spacing
 
   let particlesPlaced = 0
+
+  // Damien Hirst style color palette - vibrant 10-color gradient
+  const damienHirstColors = [
+    'rgba(147, 51, 234, 0.8)',  // 보라
+    'rgba(59, 130, 246, 0.8)',  // 파랑
+    'rgba(14, 165, 233, 0.8)',  // 하늘색
+    'rgba(6, 182, 212, 0.8)',   // 청록
+    'rgba(20, 184, 166, 0.8)',  // 틸
+    'rgba(34, 197, 94, 0.8)',   // 녹색
+    'rgba(132, 204, 22, 0.8)',  // 라임
+    'rgba(234, 179, 8, 0.8)',   // 노랑
+    'rgba(251, 146, 60, 0.8)',  // 주황
+    'rgba(239, 68, 68, 0.8)',   // 빨강
+  ]
 
   for (let ring = 0; ring < totalRings && particlesPlaced < particleCount; ring++) {
     // Calculate radius for this ring with even spacing for clear gaps
@@ -627,8 +643,8 @@ export function generateDamienHirstPattern(
 
     // Calculate number of dots in this ring based on circumference
     const circumference = 2 * Math.PI * radius
-    const baseDotSpacing = 0.0015 // Ultra-dense spacing for solid rings
-    const dotsInRing = Math.max(20, Math.floor(circumference / baseDotSpacing))
+    const baseDotSpacing = 0.001 // More dense spacing for smaller particles
+    const dotsInRing = Math.max(30, Math.floor(circumference / baseDotSpacing))
 
     for (let i = 0; i < dotsInRing && particlesPlaced < particleCount; i++) {
       // Calculate angle for this dot - no randomization for clean pattern
@@ -642,28 +658,61 @@ export function generateDamienHirstPattern(
       const lng = centerLon + fastCos(angle) * radiusVariation * latitudeCorrection
       const lat = centerLat + fastSin(angle) * radiusVariation
 
-      // Mix multiple colors for vibrant Damien Hirst style
-      // Use different color selection methods for variety
-      const colorSelectionMethod = (ring + i) % 3
+      // Damien Hirst style color assignment - varied colors within each ring
       let colorIndex: number
 
-      if (colorSelectionMethod === 0) {
-        // Method 1: Based on position in ring
-        colorIndex = i % colorCount
-      } else if (colorSelectionMethod === 1) {
-        // Method 2: Based on angle
-        colorIndex = Math.floor((angle / TWO_PI) * colorCount)
+      // Color distribution strategy based on ring position
+      if (ring < 5) {
+        // Inner rings: favor cool colors (0-5) with some warm accents
+        const colorMethod = (ring + i) % 4
+        if (colorMethod < 3) {
+          // 75% cool colors
+          colorIndex = (i * 3 + ring) % 6 // Colors 0-5 (purple to green)
+        } else {
+          // 25% warm accents
+          colorIndex = 6 + ((i + ring * 2) % 4) // Colors 6-9 (lime to red)
+        }
+      } else if (ring < 10) {
+        // Middle rings: balanced distribution
+        const colorMethod = (ring * 7 + i * 11) % 3
+        if (colorMethod === 0) {
+          // Method 1: Sequential progression
+          colorIndex = i % 10
+        } else if (colorMethod === 1) {
+          // Method 2: Angle-based color
+          colorIndex = Math.floor((angle / TWO_PI) * 10) % 10
+        } else {
+          // Method 3: Pseudo-random but deterministic
+          colorIndex = ((ring * 13) + (i * 17)) % 10
+        }
       } else {
-        // Method 3: Semi-random but deterministic
-        colorIndex = ((ring * 7) + (i * 11)) % colorCount
+        // Outer rings: favor warm colors (5-9) with some cool accents
+        const colorMethod = (ring + i) % 4
+        if (colorMethod < 3) {
+          // 75% warm colors
+          colorIndex = 5 + ((i * 2 + ring) % 5) // Colors 5-9 (green to red)
+        } else {
+          // 25% cool accents
+          colorIndex = (i + ring * 3) % 5 // Colors 0-4 (purple to teal)
+        }
       }
 
-      const color = colors[colorIndex]
+      // Ensure adjacent particles have different colors
+      if (i > 0 && particlesPlaced > 0) {
+        const prevColorIndex = particles[particlesPlaced - 1].color
+          ? damienHirstColors.indexOf(particles[particlesPlaced - 1].color)
+          : -1
+        if (colorIndex === prevColorIndex) {
+          colorIndex = (colorIndex + 3) % 10 // Shift by 3 for visual variety
+        }
+      }
+
+      const particleColor = damienHirstColors[colorIndex]
 
       // Size varies by ring (inner rings have larger dots, like Damien Hirst style)
       // Adjust size to be proportional to spacing for solid ring appearance
-      const baseSize = 25 // Smaller base for ultra-dense packing
-      const sizeMultiplier = 2.0 - ringProgress * 1.3 // 2.0x to 0.7x (larger to smaller)
+      const baseSize = 15 // Reduced base size for more delicate appearance
+      const sizeMultiplier = 1.8 - ringProgress * 1.0 // 1.8x to 0.8x (less dramatic size variation)
       const size = baseSize * sizeMultiplier
 
       particles.push({
@@ -672,7 +721,7 @@ export function generateDamienHirstPattern(
         vx: 0,
         vy: 0,
         charge: 0.5 + Math.random() * 0.5,
-        color: color,
+        color: particleColor, // Use varied colors per particle
         position: [lng, lat],
         size: size,
         speed: 0.0001 + Math.random() * 0.0002, // Slower speed for circular pattern
@@ -681,7 +730,10 @@ export function generateDamienHirstPattern(
         district: `ring_${ring}_dot_${i}`,
         // Store original circular position for animation
         targetX: lng,
-        targetY: lat
+        targetY: lat,
+        // Add ring metadata
+        ringIndex: ring,
+        ringPosition: i
       } as ParticleData)
 
       particlesPlaced++

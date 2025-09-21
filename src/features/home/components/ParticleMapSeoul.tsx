@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
-import Map from "react-map-gl"
+import { Map } from "react-map-gl"
 import { DeckGL } from "@deck.gl/react"
 import { ScatterplotLayer, LineLayer, SolidPolygonLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
@@ -544,6 +544,54 @@ export function SeoulMapOptimized({
     poolIndex: 0
   })
   
+  // 링 기반 연결선 생성 함수 (원형 패턴용)
+  const createRingConnections = useCallback(
+    (particles: any[]) => {
+      const connections: any[] = []
+
+      // Group particles by ring
+      const rings: Map<number, any[]> = new Map()
+
+      particles.forEach(particle => {
+        if (particle.ringIndex !== undefined) {
+          if (!rings.has(particle.ringIndex)) {
+            rings.set(particle.ringIndex, [])
+          }
+          rings.get(particle.ringIndex)!.push(particle)
+        }
+      })
+
+      // Create connections for each ring
+      rings.forEach((ring, ringIndex) => {
+        // Sort particles by ringPosition to ensure proper ordering
+        ring.sort((a, b) => (a.ringPosition || 0) - (b.ringPosition || 0))
+
+        for (let i = 0; i < ring.length; i++) {
+          const current = ring[i]
+          const next = ring[(i + 1) % ring.length] // Connect last to first
+
+          // Convert color to array format if needed
+          let colorArray: [number, number, number, number]
+          if (Array.isArray(current.color)) {
+            colorArray = [current.color[0], current.color[1], current.color[2], 150] // Higher opacity for ring lines
+          } else {
+            // Parse rgba string if needed (fallback)
+            colorArray = [88, 166, 255, 150] // Default blue with higher opacity
+          }
+
+          connections.push({
+            sourcePosition: [current.position[0], current.position[1]] as [number, number],
+            targetPosition: [next.position[0], next.position[1]] as [number, number],
+            color: colorArray
+          })
+        }
+      })
+
+      return connections
+    },
+    []
+  )
+
   // 연결선 생성 함수 (최적화된 오브젝트 풀링 포함)
   const createConnectionsOptimized = useCallback(
     (particles: any[], maxConnections: number) => {
@@ -709,11 +757,22 @@ export function SeoulMapOptimized({
           batchState.needsUpdate = false
           
           // 연결선 업데이트 (초기화 단계에서는 빈도 낮춤)
-          const baseConnectionUpdateFreq = adaptiveConfigRef.current.fps > 30 ? 10 : 20
-          const connectionUpdateFreq = isInitPhase ? baseConnectionUpdateFreq * 3 : baseConnectionUpdateFreq
-          if (frameCount % connectionUpdateFreq === 0 && adaptiveConfigRef.current.connectionCount > 0) {
-            const nearbyParticles = updated.slice(0, Math.min(100, updated.length))
-            setConnections(createConnectionsOptimized(nearbyParticles, adaptiveConfigRef.current.connectionCount))
+          // Reduced frequency to prevent excessive setState calls
+          const baseConnectionUpdateFreq = adaptiveConfigRef.current.fps > 30 ? 30 : 60
+          const connectionUpdateFreq = isInitPhase ? baseConnectionUpdateFreq * 2 : baseConnectionUpdateFreq
+
+          if (frameCount % connectionUpdateFreq === 0) {
+            // Use ring connections for circular mode, optimized connections for map mode
+            if (displayMode === 'circular') {
+              // Only update if particles have ringIndex
+              const hasRingData = updated.some(p => p.ringIndex !== undefined)
+              if (hasRingData) {
+                setConnections(createRingConnections(updated))
+              }
+            } else if (adaptiveConfigRef.current.connectionCount > 0) {
+              const nearbyParticles = updated.slice(0, Math.min(100, updated.length))
+              setConnections(createConnectionsOptimized(nearbyParticles, adaptiveConfigRef.current.connectionCount))
+            }
           }
           
           // 자동 회전 (초기화 단계에서는 빈도 낮춤)
@@ -728,15 +787,19 @@ export function SeoulMapOptimized({
           }
 
           // Breathing effect - subtle zoom animation (지도가 숨쉬는 효과)
-          const breathingSpeed = 0.3 // Slow breathing rate
-          const breathingAmplitude = 0.15 // Subtle zoom change
-          const baseZoom = 10.8 // Updated to match new initial zoom
-          const timeInSecondsForBreathing = animationState.time * 0.001 // Convert ms to seconds
-          const breathingOffset = Math.sin(timeInSecondsForBreathing * breathingSpeed) * breathingAmplitude
-          const newZoom = baseZoom + breathingOffset
+          // DISABLED to prevent infinite setState calls
+          // Breathing effect can cause performance issues and infinite loops
+          // Only enable for specific display modes and reduce frequency
+          const enableBreathing = false // Temporarily disabled
 
-          // Apply breathing effect every few frames for smooth animation
-          if (frameCount % 2 === 0) {
+          if (enableBreathing && displayMode === 'map' && frameCount % 60 === 0) {
+            const breathingSpeed = 0.3
+            const breathingAmplitude = 0.15
+            const baseZoom = 10.8
+            const timeInSecondsForBreathing = animationState.time * 0.001
+            const breathingOffset = Math.sin(timeInSecondsForBreathing * breathingSpeed) * breathingAmplitude
+            const newZoom = baseZoom + breathingOffset
+
             setViewState((prev: any) => ({
               ...prev,
               zoom: newZoom
@@ -770,6 +833,12 @@ export function SeoulMapOptimized({
         animationFrameRef.current = undefined
       }
       
+      // Clear batch state to prevent pending updates
+      if (batchStateRef.current) {
+        batchStateRef.current.needsUpdate = false
+        batchStateRef.current.lastBatchTime = 0
+      }
+
       // Clear animation pools and state when layer changes
       animationPoolRef.current = {
         positions: new Float32Array(0),
@@ -817,8 +886,8 @@ export function SeoulMapOptimized({
       )
     }
     
-    // 연결선 레이어 (중간 이상 성능에서만)
-    if (config.connectionCount > 0) {
+    // 연결선 레이어 (원형 모드에서는 항상 표시, 맵 모드에서는 성능 설정에 따라)
+    if (displayMode === 'circular' || config.connectionCount > 0) {
       baseLayers.push(
         new LineLayer({
           id: "connection-layer",
@@ -827,8 +896,8 @@ export function SeoulMapOptimized({
           getSourcePosition: (d: any) => d.sourcePosition,
           getTargetPosition: (d: any) => d.targetPosition,
           getColor: (d: any) => d.color,
-          getWidth: 1,
-          opacity: 0.3,
+          getWidth: displayMode === 'circular' ? 2 : 1, // Thicker lines for circular mode
+          opacity: displayMode === 'circular' ? 0.6 : 0.3, // Higher opacity for circular mode
           parameters: {
             depthTest: false,
             blend: true,
