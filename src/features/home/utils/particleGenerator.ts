@@ -688,9 +688,10 @@ export function interpolateParticlePatternWithScatter(
       brightnessBoost = 30 - floatEased * 10
 
     } else {
-      // Phase 3: Converge (0.7-1.0) - particles rapidly converge to final positions
+      // Phase 3: Converge (0.7-1.0) - particles slowly converge to final positions
       const convergeProgress = (progress - 0.7) / 0.3
-      const convergeEased = easeOutBounce(convergeProgress)
+      // Slow down convergence by reducing the easing progression
+      const convergeEased = easeOutBounce(convergeProgress * 0.8) // Slower by 20%
 
       // From midpoint to final position
       const midX = (from.x + offset.x + to.x) / 2
@@ -1048,11 +1049,11 @@ export function interpolateUnifiedParticles(
     let brightnessBoost = 0
 
     if (useScatter) {
-      // Get or create scatter offset for this particle
+      // Get or create scatter offset for this particle (increased range for full screen)
       if (!scatterOffsetsCache.has(i)) {
         scatterOffsetsCache.set(i, {
-          x: (Math.random() - 0.5) * 0.3,
-          y: (Math.random() - 0.5) * 0.3
+          x: (Math.random() - 0.5) * 0.6,  // Set to 0.6 for balanced spread
+          y: (Math.random() - 0.5) * 0.6
         })
       }
       const scatterOffset = scatterOffsetsCache.get(i)!
@@ -1068,21 +1069,40 @@ export function interpolateUnifiedParticles(
         brightnessBoost = scatterAmount * 30
 
       } else if (progress < 0.4) {
-        // Phase 2: Hold explosion position while camera moves
-        x = fromX + scatterOffset.x
-        y = fromY + scatterOffset.y
+        // Phase 2: Strong expansion with floating while camera moves
+        const driftProgress = (progress - 0.3) / 0.1
+        const additionalDrift = driftProgress * 0.2  // 20% additional expansion (increased from 5%)
+
+        // Add floating animation
+        const floatTime = Date.now() * 0.001  // Current time in seconds
+        const floatX = Math.sin(floatTime * 2 + i * 0.1) * 0.02
+        const floatY = Math.cos(floatTime * 2 + i * 0.15) * 0.02
+
+        // Continue drifting outward with floating
+        x = fromX + scatterOffset.x * (1 + additionalDrift) + floatX
+        y = fromY + scatterOffset.y * (1 + additionalDrift) + floatY
+
         sizeMultiplier = 1.5
         brightnessBoost = 25
 
       } else {
-        // Phase 3: Direct convergence to Seoul position
+        // Phase 3: Convergence to Seoul with diminishing float
         const convergeProgress = (progress - 0.4) / 0.6
-        const convergeEased = easeInOutCubic(convergeProgress)
+        // Use gentler easing for slower convergence
+        const convergeEased = easeInOutCubic(convergeProgress * 0.8)  // Slow down by 20%
 
-        // Interpolate from scattered position to Seoul position
-        const scatteredX = fromX + scatterOffset.x
-        const scatteredY = fromY + scatterOffset.y
+        // Floating animation that diminishes as particles converge
+        const floatTime = Date.now() * 0.001
+        const floatIntensity = 1 - convergeEased  // Decreases from 1 to 0 as convergence progresses
+        const floatX = Math.sin(floatTime * 2 + i * 0.1) * 0.02 * floatIntensity
+        const floatY = Math.cos(floatTime * 2 + i * 0.15) * 0.02 * floatIntensity
 
+        // Account for the maximum drift from Phase 2
+        const finalDrift = 0.2  // Maximum drift from Phase 2 (matches 20% expansion)
+        const scatteredX = fromX + scatterOffset.x * (1 + finalDrift) + floatX
+        const scatteredY = fromY + scatterOffset.y * (1 + finalDrift) + floatY
+
+        // Interpolate from fully expanded position to Seoul position
         x = scatteredX + (toX - scatteredX) * convergeEased
         y = scatteredY + (toY - scatteredY) * convergeEased
 

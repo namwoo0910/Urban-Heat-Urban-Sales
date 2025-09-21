@@ -191,7 +191,7 @@ export function SeoulMapOptimized({
   const [displayMode, setDisplayMode] = useState<'circular' | 'transitioning' | 'map'>(propDisplayMode)
   const [unifiedParticles, setUnifiedParticles] = useState<ParticleData[]>([]) // Unified particles with both positions
   const transitionStartTimeRef = useRef<number | null>(null)
-  const transitionDurationRef = useRef<number>(8000) // 8 seconds transition
+  const transitionDurationRef = useRef<number>(10000) // 10 seconds transition for slower convergence
   const scatterOffsetsRef = useRef<{ x: number; y: number }[] | null>(null)
   
   // 애니메이션 제어
@@ -285,7 +285,7 @@ export function SeoulMapOptimized({
           transitionStartTimeRef.current = Date.now()
           amplitudeAnimationRef.current = 0.2 // Start from low amplitude for circular
           animationStartTimeRef.current = Date.now()
-          animationDurationRef.current = 8000 // 8 seconds for transition
+          animationDurationRef.current = 10000 // 10 seconds for slower transition
         } else {
           console.warn('Unified particles not ready for transition, waiting...')
           // Will retry when unifiedParticles are loaded
@@ -335,30 +335,35 @@ export function SeoulMapOptimized({
     } else if (displayMode === 'transitioning') {
       // Enhanced camera animation during transition
       const startTime = Date.now()
-      const duration = 8000 // Match transition duration
+      const duration = 10000 // Match extended transition duration
 
       const animateCamera = () => {
         const elapsed = Date.now() - startTime
         const progress = Math.min(elapsed / duration, 1)
 
+        // Easing function for smooth camera movement
+        const easeInOutCubic = (t: number) => {
+          return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+        }
+
         let zoom: number, pitch: number, bearing: number
 
-        if (progress < 0.3) {
-          // Phase 1: Keep camera stable during explosion
+        if (progress < 0.15) {
+          // Phase 1: Keep camera stable during initial explosion
           zoom = 11.2
           pitch = 0
           bearing = 0
 
-        } else if (progress < 0.4) {
-          // Phase 2: Quick camera transition right after explosion
-          const cameraProgress = (progress - 0.3) / 0.1
-          const eased = 1 - Math.pow(1 - cameraProgress, 3) // Cubic ease-out
+        } else if (progress < 0.6) {
+          // Phase 2: Slow gradual camera movement during scatter
+          const cameraProgress = (progress - 0.15) / 0.45  // 45% of total time (3.6 seconds)
+          const eased = easeInOutCubic(cameraProgress)     // Smooth acceleration/deceleration
 
           const targetPitch = performanceLevel === 'high' ? 55 : 45
 
-          zoom = 11.2 + (10.8 - 11.2) * eased     // Quick zoom adjustment
-          pitch = 0 + targetPitch * eased         // Quick pitch adjustment
-          bearing = 0 + 15 * eased                // Quick rotation
+          zoom = 11.2 + (10.8 - 11.2) * eased     // Gradual zoom adjustment
+          pitch = 0 + targetPitch * eased         // Gradual pitch adjustment
+          bearing = 0 + 15 * eased                // Gradual rotation
 
         } else {
           // Phase 3: Camera fixed, particles converging to Seoul
