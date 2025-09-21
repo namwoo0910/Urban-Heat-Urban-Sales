@@ -3,6 +3,9 @@
  * Enhanced with math acceleration and memory pooling
  */
 
+// Unified particle count for seamless transitions
+export const UNIFIED_PARTICLE_COUNT = 10000
+
 // Define types and constants locally since original files were removed
 export interface ParticleData {
   x: number
@@ -24,6 +27,10 @@ export interface ParticleData {
   district?: string
   ringIndex?: number
   ringPosition?: number
+  // Unified particle system fields
+  id?: number
+  circularPos?: [number, number]
+  mapPos?: [number, number]
 }
 
 import type { SeoulBoundaryData } from './boundaryProcessor'
@@ -582,6 +589,27 @@ function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
 }
 
+// Easing function for explosion effect
+function easeOutQuad(t: number): number {
+  return t * (2 - t)
+}
+
+// Easing function for bounce effect
+function easeOutBounce(t: number): number {
+  if (t < 1 / 2.75) {
+    return 7.5625 * t * t
+  } else if (t < 2 / 2.75) {
+    t -= 1.5 / 2.75
+    return 7.5625 * t * t + 0.75
+  } else if (t < 2.5 / 2.75) {
+    t -= 2.25 / 2.75
+    return 7.5625 * t * t + 0.9375
+  } else {
+    t -= 2.625 / 2.75
+    return 7.5625 * t * t + 0.984375
+  }
+}
+
 // Helper function to parse color string to RGB
 function parseColorToRGB(color: string): { r: number; g: number; b: number; a: number } {
   // Handle rgba format
@@ -596,6 +624,118 @@ function parseColorToRGB(color: string): { r: number; g: number; b: number; a: n
   }
   // Default to white if parsing fails
   return { r: 255, g: 255, b: 255, a: 1 }
+}
+
+// Interpolate particles with scatter/explosion effect
+export function interpolateParticlePatternWithScatter(
+  fromParticles: ParticleData[],
+  toParticles: ParticleData[],
+  progress: number, // 0 to 1
+  scatterOffsets?: { x: number; y: number }[] // Pre-calculated random offsets
+): any[] {
+  const count = Math.min(fromParticles.length, toParticles.length)
+  const interpolated: any[] = []
+
+  // Generate scatter offsets if not provided
+  const offsets = scatterOffsets || Array.from({ length: count }, () => ({
+    x: (Math.random() - 0.5) * 0.4, // Random offset in range [-0.2, 0.2]
+    y: (Math.random() - 0.5) * 0.4
+  }))
+
+  for (let i = 0; i < count; i++) {
+    const from = fromParticles[i % fromParticles.length]
+    const to = toParticles[i % toParticles.length]
+    const offset = offsets[i]
+
+    let x: number, y: number
+    let sizeMultiplier = 1.0
+    let brightnessBoost = 0
+
+    // Three-phase animation
+    if (progress < 0.3) {
+      // Phase 1: Explosion (0-0.3) - particles scatter outward
+      const scatterProgress = progress / 0.3
+      const scatterAmount = easeOutQuad(scatterProgress)
+
+      // Move from original position outward with random direction
+      x = from.x + offset.x * scatterAmount
+      y = from.y + offset.y * scatterAmount
+
+      // Particles grow and brighten during explosion
+      sizeMultiplier = 1.0 + scatterAmount * 0.5
+      brightnessBoost = scatterAmount * 30
+
+    } else if (progress < 0.7) {
+      // Phase 2: Float (0.3-0.7) - particles float in space with slight movement
+      const floatProgress = (progress - 0.3) / 0.4
+      const floatEased = easeInOutCubic(floatProgress)
+
+      // From scattered position to midpoint
+      const scatteredX = from.x + offset.x
+      const scatteredY = from.y + offset.y
+      const midX = (scatteredX + to.x) / 2
+      const midY = (scatteredY + to.y) / 2
+
+      // Add floating motion
+      const floatWave = Math.sin(floatProgress * Math.PI * 2) * 0.01
+      const floatWave2 = Math.cos(floatProgress * Math.PI * 3) * 0.01
+
+      x = scatteredX + (midX - scatteredX) * floatEased + floatWave
+      y = scatteredY + (midY - scatteredY) * floatEased + floatWave2
+
+      // Size normalizes, brightness remains high
+      sizeMultiplier = 1.5 - floatEased * 0.3
+      brightnessBoost = 30 - floatEased * 10
+
+    } else {
+      // Phase 3: Converge (0.7-1.0) - particles rapidly converge to final positions
+      const convergeProgress = (progress - 0.7) / 0.3
+      const convergeEased = easeOutBounce(convergeProgress)
+
+      // From midpoint to final position
+      const midX = (from.x + offset.x + to.x) / 2
+      const midY = (from.y + offset.y + to.y) / 2
+
+      // Spiral motion during convergence
+      const spiralAngle = convergeProgress * Math.PI * 2
+      const spiralRadius = 0.02 * (1 - convergeProgress)
+      const spiralX = Math.cos(spiralAngle) * spiralRadius
+      const spiralY = Math.sin(spiralAngle) * spiralRadius
+
+      x = midX + (to.x - midX) * convergeEased + spiralX
+      y = midY + (to.y - midY) * convergeEased + spiralY
+
+      // Size returns to normal
+      sizeMultiplier = 1.2 - convergeEased * 0.2
+      brightnessBoost = 20 * (1 - convergeEased)
+    }
+
+    // Interpolate color with brightness boost
+    const fromRGB = parseColorToRGB(from.color)
+    const toRGB = parseColorToRGB(to.color)
+
+    const r = Math.min(255, Math.round(fromRGB.r + (toRGB.r - fromRGB.r) * progress + brightnessBoost))
+    const g = Math.min(255, Math.round(fromRGB.g + (toRGB.g - fromRGB.g) * progress + brightnessBoost))
+    const b = Math.min(255, Math.round(fromRGB.b + (toRGB.b - fromRGB.b) * progress + brightnessBoost))
+    const a = fromRGB.a + (toRGB.a - fromRGB.a) * progress
+
+    // Interpolate size with multiplier
+    const baseSize = from.size! + (to.size! - from.size!) * progress
+    const size = baseSize * sizeMultiplier
+
+    interpolated.push({
+      position: [x, y],
+      color: [r, g, b],
+      size: size,
+      opacity: a,
+      // Store metadata for special effects
+      phase: progress < 0.3 ? 'scatter' : progress < 0.7 ? 'float' : 'converge',
+      ringIndex: from.ringIndex,
+      ringPosition: from.ringPosition
+    })
+  }
+
+  return interpolated
 }
 
 // Generate Damien Hirst style circular dot pattern
@@ -615,12 +755,13 @@ export function generateDamienHirstPattern(
   // At 37.5665°N, longitude distances are compressed by cos(37.5665°)
   const latitudeCorrection = 1.0 / Math.cos(centerLat * Math.PI / 180) // ≈ 1.26
 
-  // Calculate ring configuration - exactly 15 rings as requested
+  // Calculate ring configuration - exactly 15 rings for 15,000 particles
   const totalRings = 15 // Exactly 15 distinct ring layers
   const minRadius = 0.06 // Even larger center hole for better visual balance
   const maxRadius = 0.14 // Increased to double the ring spacing
 
   let particlesPlaced = 0
+  const targetParticleCount = Math.min(particleCount, 15000) // Cap at 15,000
 
   // Damien Hirst style color palette - vibrant 10-color gradient
   const damienHirstColors = [
@@ -636,17 +777,19 @@ export function generateDamienHirstPattern(
     'rgba(239, 68, 68, 0.8)',   // 빨강
   ]
 
-  for (let ring = 0; ring < totalRings && particlesPlaced < particleCount; ring++) {
+  for (let ring = 0; ring < totalRings && particlesPlaced < targetParticleCount; ring++) {
     // Calculate radius for this ring with even spacing for clear gaps
     const ringProgress = ring / (totalRings - 1)
     const radius = minRadius + (maxRadius - minRadius) * ringProgress // Linear spacing for even gaps
 
     // Calculate number of dots in this ring based on circumference
+    // For 15,000 particles across 15 rings, we need ~1000 per ring
+    // But outer rings should have more particles due to larger circumference
     const circumference = 2 * Math.PI * radius
-    const baseDotSpacing = 0.001 // More dense spacing for smaller particles
+    const baseDotSpacing = 0.0008 // Adjusted for 15,000 particles
     const dotsInRing = Math.max(30, Math.floor(circumference / baseDotSpacing))
 
-    for (let i = 0; i < dotsInRing && particlesPlaced < particleCount; i++) {
+    for (let i = 0; i < dotsInRing && particlesPlaced < targetParticleCount; i++) {
       // Calculate angle for this dot - no randomization for clean pattern
       const baseAngle = (i / dotsInRing) * TWO_PI
       const angle = baseAngle // Clean, evenly spaced dots
@@ -740,9 +883,240 @@ export function generateDamienHirstPattern(
     }
   }
 
-  // Don't fill with random particles - only use ring particles for clean pattern
+  // Fill remaining particles if we haven't reached the target count
+  // This ensures we always return exactly the requested number of particles
+  if (particlesPlaced < targetParticleCount) {
+    console.log(`Ring pattern only generated ${particlesPlaced} particles, filling remaining ${targetParticleCount - particlesPlaced}`)
 
+    // Fill remaining by repeating the ring pattern with slight variations
+    const remainingCount = targetParticleCount - particlesPlaced
+    const existingCount = particles.length
+
+    for (let i = 0; i < remainingCount && particles.length < targetParticleCount; i++) {
+      const sourceParticle = particles[i % existingCount]
+      if (sourceParticle) {
+        particles.push({
+          ...sourceParticle,
+          // Add tiny random offset to avoid exact overlap
+          x: sourceParticle.x + (Math.random() - 0.5) * 0.0001,
+          y: sourceParticle.y + (Math.random() - 0.5) * 0.0001,
+          // Keep other properties the same
+          ringIndex: sourceParticle.ringIndex,
+          ringPosition: existingCount + i
+        })
+      }
+    }
+  }
+
+  console.log(`Generated ${particles.length} ring particles`)
   return particles
+}
+
+// Generate unified particles with both circular and map positions
+export async function generateUnifiedParticles(
+  colorTheme: keyof typeof COLOR_THEMES = 'current'
+): Promise<ParticleData[]> {
+  // Use 15,000 particles from particles-high.json
+  const count = 15000
+
+  // Load Seoul particles from static file
+  let seoulParticles: any[] = []
+  try {
+    const response = await fetch(`/data/particles-high.json`)
+    if (response.ok) {
+      const data = await response.json()
+      // Transform the data format from particles-high.json
+      seoulParticles = data.slice(0, count).map((p: any) => ({
+        x: p.position[0],  // Extract longitude
+        y: p.position[1],  // Extract latitude
+        position: p.position,
+        size: p.size || 20,
+        speed: p.speed || 0.0005,
+        phase: p.phase || 0,
+        amplitude: p.amplitude || 0.001,
+        density: p.density || 0.3
+      }))
+      console.log(`Loaded ${seoulParticles.length} particles from particles-high.json`)
+    } else {
+      throw new Error('Failed to load particles-high.json')
+    }
+  } catch (error) {
+    console.error('Failed to load Seoul particles:', error)
+    // Fallback: generate particles
+    const boundaries = await loadSeoulBoundaries()
+    const grid = await precomputeBoundaryGrid(boundaries)
+    seoulParticles = await generateParticlesOptimized(count, grid, colorTheme)
+  }
+
+  // Generate ring positions for the same particles
+  const ringPattern = generateDamienHirstPattern(count, colorTheme)
+
+  // Ensure we have enough ring particles
+  console.log(`Ring pattern: ${ringPattern.length}, Seoul particles: ${seoulParticles.length}`)
+
+  // Combine into unified particles - same particles with dual positions
+  const unifiedParticles: ParticleData[] = seoulParticles.map((sParticle, i) => {
+    // Handle case where ring pattern has fewer particles
+    const ringParticle = ringPattern[i % ringPattern.length] || ringPattern[0]
+
+    if (!ringParticle) {
+      console.error(`No ring particle at index ${i}`)
+      // Fallback: use Seoul position for both
+      return {
+        ...sParticle,
+        id: i,
+        circularPos: [sParticle.x, sParticle.y],
+        mapPos: [sParticle.x, sParticle.y],
+        x: sParticle.x,
+        y: sParticle.y,
+        position: [sParticle.x, sParticle.y],
+        targetX: sParticle.x,
+        targetY: sParticle.y,
+        color: COLOR_THEMES[colorTheme][i % COLOR_THEMES[colorTheme].length],
+        size: sParticle.size || 20,
+        opacity: 1,
+        vx: 0,
+        vy: 0,
+        charge: 0,
+        district: `particle_${i}`
+      }
+    }
+
+    // Apply color theme
+    const colors = COLOR_THEMES[colorTheme]
+    const colorIndex = i % colors.length
+    const color = colors[colorIndex]
+
+    return {
+      // Use Seoul particle as base
+      ...sParticle,
+      id: i,
+      // Dual positions
+      circularPos: [ringParticle.x, ringParticle.y],  // Ring position
+      mapPos: [sParticle.x, sParticle.y],  // Seoul map position
+      // Start with circular position
+      x: ringParticle.x,
+      y: ringParticle.y,
+      position: [ringParticle.x, ringParticle.y],
+      // Seoul position stored as target
+      targetX: sParticle.x,
+      targetY: sParticle.y,
+      // Visual properties
+      color: color,
+      size: sParticle.size || ringParticle.size || 20,
+      opacity: 1,
+      // Ring metadata from circular pattern
+      ringIndex: ringParticle?.ringIndex,
+      ringPosition: ringParticle?.ringPosition,
+      // Other properties
+      vx: 0,
+      vy: 0,
+      charge: 0,
+      district: `particle_${i}`
+    }
+  })
+
+  console.log(`Generated ${unifiedParticles.length} unified particles with dual positions`)
+  return unifiedParticles
+}
+
+// Store scatter offsets to maintain consistency across frames
+const scatterOffsetsCache: Map<number, {x: number, y: number}> = new Map()
+
+// Simplified interpolation for unified particles
+export function interpolateUnifiedParticles(
+  particles: ParticleData[],
+  progress: number,
+  useScatter: boolean = true
+): any[] {
+  return particles.map((particle, i) => {
+    if (!particle.circularPos || !particle.mapPos) {
+      return {
+        position: particle.position || [particle.x, particle.y],
+        color: particle.color,
+        size: particle.size || 20
+      }
+    }
+
+    const fromX = particle.circularPos[0]
+    const fromY = particle.circularPos[1]
+    const toX = particle.mapPos[0]
+    const toY = particle.mapPos[1]
+
+    let x: number, y: number
+    let sizeMultiplier = 1.0
+    let brightnessBoost = 0
+
+    if (useScatter) {
+      // Get or create scatter offset for this particle
+      if (!scatterOffsetsCache.has(i)) {
+        scatterOffsetsCache.set(i, {
+          x: (Math.random() - 0.5) * 0.3,
+          y: (Math.random() - 0.5) * 0.3
+        })
+      }
+      const scatterOffset = scatterOffsetsCache.get(i)!
+
+      if (progress < 0.3) {
+        // Phase 1: Explosion
+        const scatterProgress = progress / 0.3
+        const scatterAmount = easeOutQuad(scatterProgress)
+
+        x = fromX + scatterOffset.x * scatterAmount
+        y = fromY + scatterOffset.y * scatterAmount
+        sizeMultiplier = 1.0 + scatterAmount * 0.5
+        brightnessBoost = scatterAmount * 30
+
+      } else if (progress < 0.4) {
+        // Phase 2: Hold explosion position while camera moves
+        x = fromX + scatterOffset.x
+        y = fromY + scatterOffset.y
+        sizeMultiplier = 1.5
+        brightnessBoost = 25
+
+      } else {
+        // Phase 3: Direct convergence to Seoul position
+        const convergeProgress = (progress - 0.4) / 0.6
+        const convergeEased = easeInOutCubic(convergeProgress)
+
+        // Interpolate from scattered position to Seoul position
+        const scatteredX = fromX + scatterOffset.x
+        const scatteredY = fromY + scatterOffset.y
+
+        x = scatteredX + (toX - scatteredX) * convergeEased
+        y = scatteredY + (toY - scatteredY) * convergeEased
+
+        sizeMultiplier = 1.5 - convergeEased * 0.5
+        brightnessBoost = 25 * (1 - convergeEased)
+      }
+
+      // Clear cache when animation completes
+      if (progress >= 1.0) {
+        scatterOffsetsCache.clear()
+      }
+    } else {
+      // Simple linear interpolation
+      const eased = easeInOutCubic(progress)
+      x = fromX + (toX - fromX) * eased
+      y = fromY + (toY - fromY) * eased
+    }
+
+    // Parse and enhance color
+    const rgb = parseColorToRGB(particle.color)
+    const r = Math.min(255, rgb.r + brightnessBoost)
+    const g = Math.min(255, rgb.g + brightnessBoost)
+    const b = Math.min(255, rgb.b + brightnessBoost)
+
+    return {
+      position: [x, y],
+      color: [r, g, b],
+      size: (particle.size || 20) * sizeMultiplier,
+      opacity: rgb.a,
+      id: particle.id,
+      ringIndex: particle.ringIndex,
+      ringPosition: particle.ringPosition
+    }
+  })
 }
 
 export default {
@@ -751,5 +1125,8 @@ export default {
   animateParticlesSuperFast,
   generateInitialParticles,
   generateDamienHirstPattern,
-  interpolateParticlePatterns
+  interpolateParticlePatterns,
+  interpolateParticlePatternWithScatter,
+  generateUnifiedParticles,
+  interpolateUnifiedParticles
 }
