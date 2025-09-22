@@ -44,6 +44,8 @@ export interface SeoulMeshLayerProps {
   transitionMs?: number // Height interpolation duration in ms (for smooth swaps)
   // Optional: override base positions for smooth height interpolation (unscaled)
   overridePositions?: Float32Array
+  // Optional: override vertex colors during transitions
+  overrideColors?: Float32Array
   // Optional: key for triggering updates during animation
   updateKey?: any
 }
@@ -108,6 +110,7 @@ export function createStaticSeoulMeshLayer(
     color = '#00FFE1',  // Default cyan
     salesHeightScale = 100000000,  // Default to 100M (1억원) for normal height
     overridePositions,
+    overrideColors,
     updateKey
   } = props
 
@@ -151,9 +154,10 @@ export function createStaticSeoulMeshLayer(
   }
   
   // Add vertex colors if available
-  if (meshGeometry.colors) {
+  const colorAttribute = overrideColors ?? meshGeometry.colors
+  if (colorAttribute) {
     meshObject.attributes.COLOR_0 = {
-      value: meshGeometry.colors,
+      value: colorAttribute,
       size: 4
     }
   }
@@ -483,7 +487,9 @@ export function usePreGeneratedSeoulMeshLayer(
   const lastMeshRef = useRef<MeshGeometry | null>(null)
   // Tracks the positions currently displayed (override during transition or final mesh positions)
   const displayedPositionsRef = useRef<Float32Array | null>(null)
+  const displayedColorsRef = useRef<Float32Array | null>(null)
   const [overridePositions, setOverridePositions] = useState<Float32Array | null>(null)
+  const [overrideColors, setOverrideColors] = useState<Float32Array | null>(null)
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [animProgress, setAnimProgress] = useState(0)
   const animRef = useRef<number | null>(null)
@@ -536,10 +542,17 @@ export function usePreGeneratedSeoulMeshLayer(
           // - Else use the last mesh positions
           const hasPrev = lastMeshRef.current && lastMeshRef.current.positions
           const currentDisplayed = displayedPositionsRef.current
+          const currentDisplayedColors = displayedColorsRef.current
+          const nextColors = data.colors
+          const prevColors = lastMeshRef.current?.colors ?? null
           const canBlendFromDisplayed =
             !!currentDisplayed && currentDisplayed.length === data.positions.length
           const canBlendFromLast =
             !!hasPrev && lastMeshRef.current!.positions.length === data.positions.length
+          const canBlendColors =
+            !!nextColors &&
+            ((currentDisplayedColors && currentDisplayedColors.length === nextColors.length) ||
+             (prevColors && prevColors.length === nextColors.length))
 
           if (canBlendFromDisplayed || canBlendFromLast) {
             // Keep rendering with previous mesh during transition to avoid rebinding flicker
@@ -548,14 +561,31 @@ export function usePreGeneratedSeoulMeshLayer(
               : lastMeshRef.current!.positions
             const to = data.positions
 
+            const colorFrom = canBlendColors
+              ? (currentDisplayedColors && currentDisplayedColors.length === nextColors!.length
+                ? new Float32Array(currentDisplayedColors)
+                : prevColors
+                  ? new Float32Array(prevColors)
+                  : null)
+              : null
+            const colorTo = canBlendColors ? nextColors! : null
+
             setIsTransitioning(true)
             setAnimProgress(0)
             transitionStartRef.current = performance.now()
 
-            // IMPORTANT: set initial override to 'from' so the first frame after setMeshData
-            // still renders the previous shape (avoids one-frame jump/flicker)
+            // IMPORTANT: set initial overrides so the first frame after setMeshData
+            // still renders the previous state (avoids one-frame jump/flicker)
             displayedPositionsRef.current = from
             setOverridePositions(from)
+
+            if (colorFrom && colorTo) {
+              displayedColorsRef.current = colorFrom
+              setOverrideColors(colorFrom)
+            } else {
+              displayedColorsRef.current = null
+              setOverrideColors(null)
+            }
 
             const step = () => {
               const elapsed = performance.now() - transitionStartRef.current
@@ -570,6 +600,16 @@ export function usePreGeneratedSeoulMeshLayer(
               }
               displayedPositionsRef.current = out
               setOverridePositions(out)
+
+              if (colorFrom && colorTo) {
+                const outColors = new Float32Array(colorFrom.length)
+                for (let i = 0; i < colorFrom.length; i++) {
+                  outColors[i] = colorFrom[i] + (colorTo[i] - colorFrom[i]) * e
+                }
+                displayedColorsRef.current = outColors
+                setOverrideColors(outColors)
+              }
+
               setAnimProgress(e)
 
               if (p < 1 && !cancelled) {
@@ -577,7 +617,9 @@ export function usePreGeneratedSeoulMeshLayer(
               } else {
                 setIsTransitioning(false)
                 setOverridePositions(null)
+                setOverrideColors(null)
                 displayedPositionsRef.current = null
+                displayedColorsRef.current = null
                 // Now swap to the new mesh geometry after smooth transition completes
                 setMeshData(data)
                 lastMeshRef.current = data
@@ -590,6 +632,9 @@ export function usePreGeneratedSeoulMeshLayer(
             setMeshData(data)
             lastMeshRef.current = data
             displayedPositionsRef.current = data.positions
+            displayedColorsRef.current = data.colors ?? null
+            setOverridePositions(null)
+            setOverrideColors(null)
           }
           setError(null)
         }
@@ -633,9 +678,10 @@ export function usePreGeneratedSeoulMeshLayer(
       color,
       salesHeightScale,  // Pass the height scale parameter
       overridePositions: overridePositions || undefined,
+      overrideColors: overrideColors || undefined,
       updateKey: isTransitioning ? animProgress : (loadedMonth || loadedResolution || date)
     })
-  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color, salesHeightScale, overridePositions, isTransitioning, animProgress, loadedMonth, loadedResolution, date])
+  }, [meshData, loading, visible, wireframe, opacity, animatedOpacity, pickable, onHover, onClick, color, salesHeightScale, overridePositions, overrideColors, isTransitioning, animProgress, loadedMonth, loadedResolution, date])
   
   // Return both layer and loading state
   return { layer, isLoading: loading }
@@ -747,10 +793,12 @@ export function usePredictionMeshLayer(
   const [isTransitioning, setIsTransitioning] = useState(false)
   const [animProgress, setAnimProgress] = useState(0)
   const [overridePositions, setOverridePositions] = useState<Float32Array | null>(null)
+  const [overrideColors, setOverrideColors] = useState<Float32Array | null>(null)
 
   // Refs for managing transitions
   const lastMeshRef = useRef<MeshGeometry | null>(null)
   const displayedPositionsRef = useRef<Float32Array | null>(null)
+  const displayedColorsRef = useRef<Float32Array | null>(null)
   const animRef = useRef<number | null>(null)
   const transitionStartRef = useRef<number>(0)
   const TRANSITION_MS = transitionMs
@@ -777,13 +825,20 @@ export function usePredictionMeshLayer(
           // Cancel any ongoing transition
           if (animRef.current) cancelAnimationFrame(animRef.current)
 
-          // Determine starting positions for smooth transition
+          // Determine starting attributes for smooth transition
           const hasPrev = lastMeshRef.current && lastMeshRef.current.positions
           const currentDisplayed = displayedPositionsRef.current
+          const currentDisplayedColors = displayedColorsRef.current
+          const nextColors = data.colors
+          const prevColors = lastMeshRef.current?.colors ?? null
           const canBlendFromDisplayed =
             !!currentDisplayed && currentDisplayed.length === data.positions.length
           const canBlendFromLast =
             !!hasPrev && lastMeshRef.current!.positions.length === data.positions.length
+          const canBlendColors =
+            !!nextColors &&
+            ((currentDisplayedColors && currentDisplayedColors.length === nextColors.length) ||
+             (prevColors && prevColors.length === nextColors.length))
 
           if (canBlendFromDisplayed || canBlendFromLast) {
             // Smooth transition from previous mesh to new mesh
@@ -792,13 +847,30 @@ export function usePredictionMeshLayer(
               : lastMeshRef.current!.positions
             const to = data.positions
 
+            const colorFrom = canBlendColors
+              ? (currentDisplayedColors && currentDisplayedColors.length === nextColors!.length
+                ? new Float32Array(currentDisplayedColors)
+                : prevColors
+                  ? new Float32Array(prevColors)
+                  : null)
+              : null
+            const colorTo = canBlendColors ? nextColors! : null
+
             setIsTransitioning(true)
             setAnimProgress(0)
             transitionStartRef.current = performance.now()
 
-            // Set initial override to avoid flicker
+            // Set initial overrides to avoid flicker
             displayedPositionsRef.current = from
             setOverridePositions(from)
+
+            if (colorFrom && colorTo) {
+              displayedColorsRef.current = colorFrom
+              setOverrideColors(colorFrom)
+            } else {
+              displayedColorsRef.current = null
+              setOverrideColors(null)
+            }
 
             const step = () => {
               const elapsed = performance.now() - transitionStartRef.current
@@ -809,11 +881,21 @@ export function usePredictionMeshLayer(
               const out = new Float32Array(from.length)
               for (let i = 0; i < from.length; i += 3) {
                 out[i] = from[i]  // X stays the same
-                out[i + 1] = from[i + 1]  // Y stays the same
-                out[i + 2] = from[i + 2] + (to[i + 2] - from[i + 2]) * e  // Z (height) interpolates
+                out[i + 1] = from[i + 1]
+                out[i + 2] = from[i + 2] + (to[i + 2] - from[i + 2]) * e
               }
               displayedPositionsRef.current = out
               setOverridePositions(out)
+
+              if (colorFrom && colorTo) {
+                const outColors = new Float32Array(colorFrom.length)
+                for (let i = 0; i < colorFrom.length; i++) {
+                  outColors[i] = colorFrom[i] + (colorTo[i] - colorFrom[i]) * e
+                }
+                displayedColorsRef.current = outColors
+                setOverrideColors(outColors)
+              }
+
               setAnimProgress(e)
 
               if (p < 1 && !cancelled) {
@@ -821,7 +903,9 @@ export function usePredictionMeshLayer(
               } else {
                 setIsTransitioning(false)
                 setOverridePositions(null)
+                setOverrideColors(null)
                 displayedPositionsRef.current = null
+                displayedColorsRef.current = null
                 // Now swap to the new mesh geometry after smooth transition completes
                 setMeshData(data)
                 lastMeshRef.current = data
@@ -834,6 +918,9 @@ export function usePredictionMeshLayer(
             setMeshData(data)
             lastMeshRef.current = data
             displayedPositionsRef.current = data.positions
+            displayedColorsRef.current = data.colors ?? null
+            setOverridePositions(null)
+            setOverrideColors(null)
           }
           setError(null)
         }
@@ -871,6 +958,7 @@ export function usePredictionMeshLayer(
       color,
       salesHeightScale,
       overridePositions: overridePositions || undefined,
+      overrideColors: overrideColors || undefined,
       updateKey: isTransitioning ? animProgress : (predictionDate + temperatureScenario)
     })
   }, [
@@ -885,6 +973,7 @@ export function usePredictionMeshLayer(
     color,
     salesHeightScale,
     overridePositions,
+    overrideColors,
     isTransitioning,
     animProgress,
     predictionDate,
