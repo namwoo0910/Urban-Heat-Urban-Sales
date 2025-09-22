@@ -24,35 +24,152 @@ export function useDistrictData(): UseDistrictDataResult {
         setIsLoading(true)
         setError(null)
 
+        // Check for cached data first
+        const cachedGuData = sessionStorage.getItem('seoul_gu_data')
+        const cachedDongData = sessionStorage.getItem('seoul_dong_data')
+
+        if (cachedGuData && cachedDongData) {
+          console.log('Loading district data from cache')
+          const guGeoJson = JSON.parse(cachedGuData) as FeatureCollection
+          const dongGeoJson = JSON.parse(cachedDongData) as FeatureCollection
+
+          const normalizedGuGeoJson = normalizeGuFeatures(guGeoJson)
+          const normalizedDongGeoJson = normalizeDongFeatures(dongGeoJson)
+
+          setGuData(normalizedGuGeoJson)
+          setDongData(normalizedDongGeoJson)
+          setIsLoading(false)
+          return
+        }
+
         // Load district boundary data separately
         // Load gu boundaries from seoul_boundary.geojson
-        const guResponse = await fetch('/seoul_boundary.geojson')
+        console.log('Fetching gu boundary data...')
+        const guResponse = await fetch('/seoul_boundary.geojson', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        })
 
         if (!guResponse.ok) {
-          throw new Error(`Failed to load gu data: ${guResponse.status}`)
+          throw new Error(`Failed to load gu data: ${guResponse.status} ${guResponse.statusText}`)
         }
 
-        const guGeoJson = await guResponse.json() as FeatureCollection
+        // Validate response before parsing
+        const guContentType = guResponse.headers.get('content-type')
+        const guContentLength = guResponse.headers.get('content-length')
+        console.log('Gu response headers:', {
+          contentType: guContentType,
+          contentLength: guContentLength,
+          status: guResponse.status
+        })
+
+        // Parse JSON with error handling
+        let guGeoJson: FeatureCollection
+        try {
+          const guText = await guResponse.text()
+          if (!guText || guText.trim() === '') {
+            throw new Error('Empty response body for gu data')
+          }
+          console.log(`Gu data loaded: ${guText.length} characters`)
+          guGeoJson = JSON.parse(guText) as FeatureCollection
+        } catch (parseError) {
+          console.error('Failed to parse gu JSON:', parseError)
+          throw new Error(`Failed to parse gu data as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`)
+        }
 
         // Load dong boundaries from local_economy_dong.geojson
-        const dongResponse = await fetch('/data/local_economy/local_economy_dong.geojson')
+        console.log('Fetching dong boundary data...')
+        const dongResponse = await fetch('/data/local_economy/local_economy_dong.geojson', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        })
 
         if (!dongResponse.ok) {
-          throw new Error(`Failed to load dong data: ${dongResponse.status}`)
+          throw new Error(`Failed to load dong data: ${dongResponse.status} ${dongResponse.statusText}`)
         }
 
-        const dongGeoJson = await dongResponse.json() as FeatureCollection
+        // Validate dong response before parsing
+        const dongContentType = dongResponse.headers.get('content-type')
+        const dongContentLength = dongResponse.headers.get('content-length')
+        console.log('Dong response headers:', {
+          contentType: dongContentType,
+          contentLength: dongContentLength,
+          status: dongResponse.status
+        })
+
+        // Parse JSON with error handling
+        let dongGeoJson: FeatureCollection
+        try {
+          const dongText = await dongResponse.text()
+          if (!dongText || dongText.trim() === '') {
+            throw new Error('Empty response body for dong data')
+          }
+          console.log(`Dong data loaded: ${dongText.length} characters`)
+          dongGeoJson = JSON.parse(dongText) as FeatureCollection
+        } catch (parseError) {
+          console.error('Failed to parse dong JSON:', parseError)
+          throw new Error(`Failed to parse dong data as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`)
+        }
 
         // Normalize property keys so deck.gl layers can access names consistently
         const normalizedGuGeoJson = normalizeGuFeatures(guGeoJson)
         const normalizedDongGeoJson = normalizeDongFeatures(dongGeoJson)
+
+        // Cache the data for future use
+        try {
+          sessionStorage.setItem('seoul_gu_data', JSON.stringify(guGeoJson))
+          sessionStorage.setItem('seoul_dong_data', JSON.stringify(dongGeoJson))
+          console.log('District data cached successfully')
+        } catch (cacheError) {
+          console.warn('Failed to cache district data:', cacheError)
+          // Continue even if caching fails
+        }
 
         setGuData(normalizedGuGeoJson)
         setDongData(normalizedDongGeoJson)
 
       } catch (err) {
         console.error('Failed to load district data:', err)
-        setError(err instanceof Error ? err : new Error('Unknown error'))
+
+        // Provide more detailed error information
+        let errorMessage = 'Failed to load district data'
+        if (err instanceof Error) {
+          errorMessage = err.message
+          if (err.name === 'AbortError') {
+            errorMessage = 'Request timed out while loading district data. Please check your network connection and try again.'
+          }
+        }
+
+        setError(new Error(errorMessage))
+
+        // Try to load from a fallback if main loading fails
+        console.log('Attempting to load fallback data...')
+        try {
+          // Try loading smaller test data or default boundaries
+          const fallbackGuResponse = await fetch('/data/eda/seoul_gu.geojson')
+          const fallbackDongResponse = await fetch('/data/eda/seoul_dong.geojson')
+
+          if (fallbackGuResponse.ok && fallbackDongResponse.ok) {
+            const fallbackGuData = await fallbackGuResponse.json() as FeatureCollection
+            const fallbackDongData = await fallbackDongResponse.json() as FeatureCollection
+
+            const normalizedGuGeoJson = normalizeGuFeatures(fallbackGuData)
+            const normalizedDongGeoJson = normalizeDongFeatures(fallbackDongData)
+
+            setGuData(normalizedGuGeoJson)
+            setDongData(normalizedDongGeoJson)
+            console.log('Loaded fallback district data successfully')
+            setError(null) // Clear error if fallback succeeds
+          }
+        } catch (fallbackErr) {
+          console.error('Fallback loading also failed:', fallbackErr)
+        }
       } finally {
         setIsLoading(false)
       }

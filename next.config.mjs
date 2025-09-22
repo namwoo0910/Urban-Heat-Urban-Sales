@@ -47,14 +47,6 @@ const nextConfig = {
             key: 'Cache-Control',
             value: 'public, max-age=3600, stale-while-revalidate=86400', // 1hr cache, 24hr stale
           },
-          {
-            key: 'Content-Encoding',
-            value: 'gzip',
-          },
-          {
-            key: 'Vary',
-            value: 'Accept-Encoding',
-          },
         ],
       },
       // Prediction data - long cache
@@ -64,14 +56,6 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=86400, stale-while-revalidate=604800',
-          },
-          {
-            key: 'Content-Encoding',
-            value: 'gzip',
-          },
-          {
-            key: 'Vary',
-            value: 'Accept-Encoding',
           },
         ],
       },
@@ -105,10 +89,6 @@ const nextConfig = {
             key: 'Cache-Control',
             value: 'public, max-age=86400',
           },
-          {
-            key: 'Content-Encoding',
-            value: 'gzip',
-          },
         ],
       },
       {
@@ -117,14 +97,6 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=86400, stale-while-revalidate=604800',
-          },
-          {
-            key: 'Content-Encoding',
-            value: 'gzip',
-          },
-          {
-            key: 'Vary',
-            value: 'Accept-Encoding',
           },
         ],
       },
