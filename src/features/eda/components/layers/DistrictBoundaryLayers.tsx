@@ -13,9 +13,12 @@ import {
   getBorderColor,
   getLineWidth,
   STATE_COLORS,
+  MODERN_BORDER_STYLES,
   boostSaturation,
   createCustomTheme,
   DISTRICT_GRADIENTS,
+  getModernBorderStyle,
+  getBorderGradientColor,
   type ThemeKey,
   type RGBAColor
 } from '../../utils/edaColorPalette'
@@ -205,30 +208,53 @@ export function createDistrictBoundaryLayers({
           return fillColor
         },
         getLineColor: (d: any) => {
-          // Get the base theme color for borders
-          const fillColor = getDistrictFillColor(
-            d.properties,
-            null,
-            null,
-            null,
-            actualTheme,
-            useUniqueColors
-          )
+          const guName = d.properties?.guName ||
+                         d.properties?.SGG_NM ||
+                         d.properties?.SIG_KOR_NM ||
+                         d.properties?.['자치구']
 
-          // Darken for border - subtle borders
-          const darkenFactor = 0.6
-          const borderColor = [
-            Math.round(fillColor[0] * darkenFactor),
-            Math.round(fillColor[1] * darkenFactor),
-            Math.round(fillColor[2] * darkenFactor),
-            200 // Slightly transparent borders
-          ]
+          const isSelected = selectedGuCode &&
+                            (d.properties?.guCode ||
+                             (d.properties?.ADM_SECT_C ? parseInt(d.properties.ADM_SECT_C) : null) ||
+                             d.properties?.['자치구코드']) === selectedGuCode
+          const isHovered = guName === hoveredDistrict
 
-          return borderColor as RGBAColor
+          // Use modern border styles
+          const borderStyle = getModernBorderStyle('gu', isSelected, isHovered, actualTheme)
+
+          // Apply gradient effect based on theme
+          if (!isSelected && !isHovered) {
+            const fillColor = getDistrictFillColor(
+              d.properties,
+              null,
+              null,
+              null,
+              actualTheme,
+              useUniqueColors
+            )
+            // Create subtle gradient border based on fill color
+            return getBorderGradientColor(fillColor as RGBAColor, actualTheme, 'start')
+          }
+
+          return borderStyle.color
         },
-        getLineWidth: 2.5, // Thick borders matching dong boundaries
-        lineWidthMinPixels: 2,
-        lineWidthMaxPixels: 4,
+        getLineWidth: (d: any) => {
+          const guName = d.properties?.guName ||
+                         d.properties?.SGG_NM ||
+                         d.properties?.SIG_KOR_NM ||
+                         d.properties?.['자치구']
+
+          const isSelected = selectedGuCode &&
+                            (d.properties?.guCode ||
+                             (d.properties?.ADM_SECT_C ? parseInt(d.properties.ADM_SECT_C) : null) ||
+                             d.properties?.['자치구코드']) === selectedGuCode
+          const isHovered = guName === hoveredDistrict
+
+          const borderStyle = getModernBorderStyle('gu', isSelected, isHovered)
+          return borderStyle.width
+        },
+        lineWidthMinPixels: 1,
+        lineWidthMaxPixels: 3,
         lineCapRounded: true,
         lineJointRounded: true,
         autoHighlight: selectionMode === 'gu',
@@ -241,9 +267,9 @@ export function createDistrictBoundaryLayers({
           getLineWidth: [selectedGu, selectedDong, fillEnabled]
         },
         transitions: {
-          getFillColor: { duration: 300, easing: x => x * x },
-          getLineColor: { duration: 200 },
-          getLineWidth: { duration: 200 }
+          getFillColor: { duration: 400, easing: x => x * x * (3 - 2 * x) }, // smoothstep
+          getLineColor: { duration: 300, easing: x => x * x },
+          getLineWidth: { duration: 250, easing: x => x }
         }
       })
     )
@@ -301,12 +327,44 @@ export function createDistrictBoundaryLayers({
           return fillColor
         },
         getLineColor: (d: any) => {
-          // Use thick gray borders for all dong boundaries
-          return [108, 117, 125, 255] as RGBAColor  // Darker gray with full opacity
+          const dongName = d.properties?.ADM_DR_NM ||
+                           d.properties?.dongName ||
+                           d.properties?.DONG_NM ||
+                           d.properties?.['행정동']
+
+          const isSelected = dongName && dongName === selectedDong
+          const isHovered = selectionMode === 'dong' && dongName && dongName === hoveredDistrict
+
+          // Use modern border styles for dong
+          const borderStyle = getModernBorderStyle('dong', isSelected, isHovered)
+          return borderStyle.color
         },
-        getLineWidth: 2.5, // Thick borders for all dong
-        lineWidthMinPixels: 2,
-        lineWidthMaxPixels: 4,
+        getLineWidth: (d: any) => {
+          const dongName = d.properties?.ADM_DR_NM ||
+                           d.properties?.dongName ||
+                           d.properties?.DONG_NM ||
+                           d.properties?.['행정동']
+
+          const isSelected = dongName && dongName === selectedDong
+          const isHovered = selectionMode === 'dong' && dongName && dongName === hoveredDistrict
+
+          const borderStyle = getModernBorderStyle('dong', isSelected, isHovered)
+          return borderStyle.width
+        },
+        getDashArray: (d: any) => {
+          const dongName = d.properties?.ADM_DR_NM ||
+                           d.properties?.dongName ||
+                           d.properties?.DONG_NM ||
+                           d.properties?.['행정동']
+
+          const isSelected = dongName && dongName === selectedDong
+          const isHovered = selectionMode === 'dong' && dongName && dongName === hoveredDistrict
+
+          const borderStyle = getModernBorderStyle('dong', isSelected, isHovered)
+          return borderStyle.dashArray || []
+        },
+        lineWidthMinPixels: 1,
+        lineWidthMaxPixels: 3,
         lineCapRounded: true,
         lineJointRounded: true,
         autoHighlight: selectionMode === 'dong',
@@ -316,12 +374,14 @@ export function createDistrictBoundaryLayers({
         updateTriggers: {
           getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors, fillEnabled],
           getLineColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors, fillEnabled],
-          getLineWidth: [selectedDong, fillEnabled]
+          getLineWidth: [selectedDong, hoveredDistrict, fillEnabled],
+          getDashArray: [selectedDong, hoveredDistrict]
         },
         transitions: {
-          getFillColor: { duration: 250, easing: x => x * x },
-          getLineColor: { duration: 200 },
-          getLineWidth: { duration: 150 }
+          getFillColor: { duration: 350, easing: x => x * x * (3 - 2 * x) },
+          getLineColor: { duration: 250, easing: x => x * x },
+          getLineWidth: { duration: 200, easing: x => x },
+          getDashArray: { duration: 300 }
         }
       })
     )
