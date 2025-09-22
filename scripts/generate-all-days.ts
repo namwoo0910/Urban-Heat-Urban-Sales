@@ -9,7 +9,7 @@
 
 import * as fs from 'fs'
 import * as path from 'path'
-import { generateGridMesh, type MeshGeometry, type MeshGeneratorOptions } from '../src/features/card-sales/utils/meshGenerator.js'
+import { generateGridMesh, type MeshGeometry, type MeshGeneratorOptions } from '../src/features/card-sales/utils/meshGenerator'
 
 // Defaults
 const DEFAULT_RESOLUTION = 120

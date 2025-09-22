@@ -7,8 +7,7 @@
     "dev": "next dev",
     "lint": "next lint",
     "start": "next start",
-    "generate-predictions": "ts-node scripts/generate-unified-prediction-meshes.ts",
-    "generate-predictions-legacy": "ts-node scripts/generate-prediction-meshes.ts"
+    "generate-predictions": "ts-node scripts/generate-unified-prediction-meshes.ts"
   },
   "dependencies": {
     "@deck.gl/aggregation-layers": "^9.1.14",

@@ -4,6 +4,12 @@
 
 ### Data Generation Scripts
 
+#### `generate-unified-prediction-meshes.ts`
+Unified prediction mesh generation script for temperature scenarios.
+- Generates mesh data for all temperature predictions (T+0, T+5, T+10, etc.)
+- Creates both JSON and binary formats
+- Usage: `npm run generate-predictions`
+
 #### `generate-mesh.ts`
 Main mesh generation script for Seoul district visualization.
 - Generates 3D mesh data from GeoJSON boundaries
@@ -36,14 +42,24 @@ Builds temperature index for weather-based visualizations.
 - Creates index for quick temperature lookups
 - Usage: `tsx scripts/build-temperature-index.ts`
 
+#### `verify-predictions.ts`
+Verifies prediction data integrity and consistency.
+- Checks prediction mesh files
+- Validates data format and values
+- Usage: `tsx scripts/verify-predictions.ts`
+
 ## Deprecated Scripts
 
-Unused and duplicate scripts have been moved to `deprecated/` folder for archival purposes.
-These scripts were used during initial development but are no longer needed:
+The following scripts have been moved to `deprecated/` folder:
 
-- One-time data generation scripts (district centers, code mappings)
-- Previous versions of mesh generation scripts (v1, v2, balanced)
-- Obsolete optimization scripts
+### Duplicate/Legacy Scripts
+- `generate-prediction-meshes.ts` - Original prediction mesh generator (replaced by unified version)
+- `generate-modified-prediction-meshes.ts` - Modified prediction generator (replaced by unified version)
+
+### Potentially Unused Scripts
+- `splitMonthlyData.js` - Monthly data splitting utility
+- `generate-daily-aggregates.js` - Daily aggregation script
+- `generate-prediction-daily-aggregates.js` - Prediction daily aggregation
 
 ## Notes
 
