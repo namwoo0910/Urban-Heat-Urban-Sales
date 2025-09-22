@@ -41,7 +41,7 @@ class GeoJSONLoader {
       try {
         const cache = await caches.open(CACHE_NAME);
         const cachedResponse = await cache.match(url);
-        
+
         if (cachedResponse) {
           const cacheTime = cachedResponse.headers.get('X-Cache-Time');
           if (cacheTime && Date.now() - parseInt(cacheTime) < CACHE_DURATION) {
@@ -58,11 +58,18 @@ class GeoJSONLoader {
       }
     }
 
-    // Fetch from network
+    // Fetch from network with Next.js caching strategies
+    // GeoJSON boundaries are static - use force-cache with tags for selective invalidation
     const response = await fetch(url, {
       headers: {
         'Accept-Encoding': 'gzip, deflate, br'
-      }
+      },
+      // @ts-ignore - Next.js specific fetch options
+      next: {
+        tags: ['geojson', `geojson-${url.split('/').pop()}`], // Tag for selective revalidation
+        revalidate: 86400 // 24 hours cache
+      },
+      cache: 'force-cache' // Static data - force caching
     });
 
     if (!response.ok) {

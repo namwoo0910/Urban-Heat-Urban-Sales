@@ -7,6 +7,12 @@ const nextConfig = {
   typescript: {
     ignoreBuildErrors: false, // Enable TypeScript error checking
   },
+  // Logging configuration for debugging data fetching
+  logging: {
+    fetches: {
+      fullUrl: true, // Show full URLs in fetch logs during development
+    },
+  },
   images: {
     formats: ['image/avif', 'image/webp'],
     deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
@@ -33,6 +39,56 @@ const nextConfig = {
   // Compression and caching headers
   async headers() {
     return [
+      // Large monthly sales data - aggressive caching with compression
+      {
+        source: '/data/local_economy/monthly/:path*.json',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=3600, stale-while-revalidate=86400', // 1hr cache, 24hr stale
+          },
+          {
+            key: 'Content-Encoding',
+            value: 'gzip',
+          },
+          {
+            key: 'Vary',
+            value: 'Accept-Encoding',
+          },
+        ],
+      },
+      // Prediction data - long cache
+      {
+        source: '/data/prediction/:path*.json',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+          {
+            key: 'Content-Encoding',
+            value: 'gzip',
+          },
+          {
+            key: 'Vary',
+            value: 'Accept-Encoding',
+          },
+        ],
+      },
+      // Binary mesh data - immutable
+      {
+        source: '/data/binary/:path*',
+        headers: [
+          {
+            key: 'Cache-Control',
+            value: 'public, max-age=31536000, immutable',
+          },
+          {
+            key: 'Content-Type',
+            value: 'application/octet-stream',
+          },
+        ],
+      },
       {
         source: '/urbanmountain/processed_data/:path*',
         headers: [
@@ -49,6 +105,10 @@ const nextConfig = {
             key: 'Cache-Control',
             value: 'public, max-age=86400',
           },
+          {
+            key: 'Content-Encoding',
+            value: 'gzip',
+          },
         ],
       },
       {
@@ -57,6 +117,10 @@ const nextConfig = {
           {
             key: 'Cache-Control',
             value: 'public, max-age=86400, stale-while-revalidate=604800',
+          },
+          {
+            key: 'Content-Encoding',
+            value: 'gzip',
           },
           {
             key: 'Vary',
