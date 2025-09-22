@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useMemo, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
-import { ChevronDown, Filter } from "lucide-react"
+import { ChevronDown, Filter, Pipette, Sparkles } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/src/shared/components/ui/select"
 import { Button } from "@/src/shared/components/ui/button"
+import { Slider } from "@/src/shared/components/ui/slider"
 import { 
   getAllDistricts, 
   getDongsByDistrict 
@@ -20,7 +21,7 @@ import {
 
 interface LocalEconomyFilterPanelProps {
   onFilterChange?: (filters: FilterState) => void
-  onThemeChange?: (theme: string) => void
+  onThemeChange?: (theme: string, customColor?: string, saturationScale?: number) => void
   currentTheme?: string
   className?: string
   // External filter state synchronization
@@ -61,6 +62,13 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [selectedDongCode, setSelectedDongCode] = useState<number | null>(null)
   const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null)
+
+  // Custom color and saturation states
+  const [customColor, setCustomColor] = useState<string>('#2980B9')
+  const [saturationBoost, setSaturationBoost] = useState(false)
+  const [saturationScale, setSaturationScale] = useState(1.0)
+  const [showSaturationSlider, setShowSaturationSlider] = useState(false)
+  const colorInputRef = useRef<HTMLInputElement>(null)
   
   // Get available options
   const availableDistricts = useMemo(() => getAllDistricts(), [])
@@ -378,12 +386,58 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
                       {themes.slice(0, 6).map(theme => (
                         <button
                           key={theme.id}
-                          onClick={() => onThemeChange?.(theme.id)}
-                          className={`w-4 h-4 rounded-full transition-all ${currentTheme === theme.id ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
+                          onClick={() => {
+                            onThemeChange?.(theme.id, undefined, 1.0)
+                            setSaturationBoost(false)
+                            setSaturationScale(1.0)
+                          }}
+                          className={`w-4 h-4 rounded-full transition-all ${currentTheme === theme.id && !saturationBoost ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
                           style={{ backgroundColor: theme.color }}
                           title={theme.label}
                         />
                       ))}
+                      {/* Custom Color Picker */}
+                      <button
+                        onClick={() => colorInputRef.current?.click()}
+                        className={`w-4 h-4 rounded border border-gray-400 transition-all flex items-center justify-center ${
+                          currentTheme === 'custom' && !saturationBoost ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'
+                        }`}
+                        style={{ backgroundColor: currentTheme === 'custom' ? customColor : '#ffffff' }}
+                        title="커스텀 색상"
+                      >
+                        {currentTheme !== 'custom' && <Pipette size={10} className="text-gray-600" />}
+                      </button>
+                      <input
+                        ref={colorInputRef}
+                        type="color"
+                        value={customColor}
+                        onChange={(e) => {
+                          setCustomColor(e.target.value)
+                          onThemeChange?.('custom', e.target.value)
+                          setSaturationBoost(false)
+                        }}
+                        className="hidden"
+                      />
+                      {/* Saturation Control Button */}
+                      <button
+                        onClick={() => {
+                          setShowSaturationSlider(!showSaturationSlider)
+                          if (!showSaturationSlider && saturationScale === 1.0) {
+                            // If opening for first time, set default boost
+                            setSaturationScale(1.5)
+                            setSaturationBoost(true)
+                            onThemeChange?.(currentTheme || 'ocean', customColor, 1.5)
+                          }
+                        }}
+                        className={`w-4 h-4 rounded border transition-all flex items-center justify-center ${
+                          saturationBoost
+                            ? 'bg-gradient-to-br from-yellow-400 to-orange-500 border-yellow-500 ring-2 ring-yellow-400 ring-offset-1'
+                            : 'bg-gray-100 border-gray-400 hover:scale-110'
+                        }`}
+                        title="채도 조절"
+                      >
+                        <Sparkles size={10} className={saturationBoost ? "text-white" : "text-gray-600"} />
+                      </button>
                     </div>
                   </div>
                   <div className="flex gap-1 items-center">
@@ -392,14 +446,57 @@ const LocalEconomyFilterPanel = React.memo(function LocalEconomyFilterPanel({
                       {themes.slice(6).map(theme => (
                         <button
                           key={theme.id}
-                          onClick={() => onThemeChange?.(theme.id)}
-                          className={`w-4 h-4 rounded-full transition-all ${currentTheme === theme.id ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
+                          onClick={() => {
+                            onThemeChange?.(theme.id, undefined, 1.0)
+                            setSaturationBoost(false)
+                            setSaturationScale(1.0)
+                          }}
+                          className={`w-4 h-4 rounded-full transition-all ${currentTheme === theme.id && !saturationBoost ? 'ring-2 ring-blue-400 ring-offset-1' : 'hover:scale-110'}`}
                           style={{ backgroundColor: theme.color }}
                           title={theme.label}
                         />
                       ))}
                     </div>
                   </div>
+
+                  {/* Saturation Scale Slider */}
+                  {showSaturationSlider && (
+                    <div className="pt-2 mt-2 border-t border-blue-100/50">
+                      <div className="flex items-center gap-2">
+                        <Sparkles size={10} className="text-yellow-500" />
+                        <span className="text-[10px] text-gray-600">채도:</span>
+                        <Slider
+                          value={[saturationScale]}
+                          onValueChange={(value) => {
+                            const scale = value[0]
+                            setSaturationScale(scale)
+                            setSaturationBoost(scale > 1.0)
+                            onThemeChange?.(currentTheme || 'ocean', customColor, scale)
+                          }}
+                          min={0.5}
+                          max={2.5}
+                          step={0.1}
+                          className="flex-1"
+                        />
+                        <span className="text-[10px] text-gray-600 font-mono w-8">
+                          {saturationScale.toFixed(1)}x
+                        </span>
+                        {saturationScale !== 1.0 && (
+                          <button
+                            onClick={() => {
+                              setSaturationScale(1.0)
+                              setSaturationBoost(false)
+                              onThemeChange?.(currentTheme || 'ocean', customColor, 1.0)
+                            }}
+                            className="text-[9px] px-1 py-0.5 bg-gray-200 hover:bg-gray-300 rounded text-gray-600"
+                            title="초기화"
+                          >
+                            초기화
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </motion.div>

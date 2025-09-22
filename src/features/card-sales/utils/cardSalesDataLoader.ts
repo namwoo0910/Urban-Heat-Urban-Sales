@@ -3,19 +3,21 @@
  * 서울시 구/동별 카드 매출 데이터를 로드하고 좌표와 매칭
  */
 
+import { cache } from 'react'
 import { CoordinateMapper } from './coordinateMapper'
 import { calculateTotalSales } from './salesCalculator'
-import type { 
-  ClimateCardSalesData, 
-  RawClimateCardSalesData, 
-  ClimateFilterOptions 
+import { salesDataCache } from '@/src/shared/utils/lruCacheManager'
+import { chunkedDataLoader } from './chunkedDataLoader'
+import type {
+  ClimateCardSalesData,
+  RawClimateCardSalesData,
+  ClimateFilterOptions
 } from '../types'
 
 export class CardSalesDataLoader {
   private static instance: CardSalesDataLoader
   private coordinateMapper: CoordinateMapper
-    private consolidatedData: RawClimateCardSalesData[] | null = null
-  private monthlyDataCache: Map<string, RawClimateCardSalesData[]> = new Map() // 월별 데이터 캐시
+  private consolidatedData: RawClimateCardSalesData[] | null = null
   private currentMonth: string | null = null // 현재 로드된 월
 
   private constructor() {
@@ -31,57 +33,85 @@ export class CardSalesDataLoader {
 
   /**
    * 월별 통합 데이터 로드 (개선된 캐싱)
+   * React cache()로 래핑하여 자동 request 중복 제거 및 메모이제이션
    */
-  private async loadMonthlyData(yearMonth: string): Promise<RawClimateCardSalesData[]> {
-    // 이미 캐시된 월 데이터가 있으면 재사용
-    if (this.monthlyDataCache.has(yearMonth)) {
-            this.currentMonth = yearMonth
-      this.consolidatedData = this.monthlyDataCache.get(yearMonth)!
-      return this.consolidatedData
-    }
-
+  private loadMonthlyDataInternal = cache(async (yearMonth: string): Promise<RawClimateCardSalesData[]> => {
     try {
-            
+      // 먼저 chunked 데이터가 있는지 확인
+      const hasChunks = await chunkedDataLoader.hasChunkedData()
+
+      if (hasChunks) {
+        // Chunked 데이터가 있으면 필요한 구만 로드 (더 효율적)
+        const districts = await chunkedDataLoader.getAvailableDistricts(yearMonth)
+        if (districts.length > 0) {
+          console.log(`[CardSalesDataLoader] Loading chunked data for ${yearMonth}`)
+          return await chunkedDataLoader.loadDistrictChunks(yearMonth, districts)
+        }
+      }
+
+      // Chunked 데이터가 없으면 기존 방식으로 전체 파일 로드
       // 월별 데이터 파일 로드 (예: 2024-01.json)
-      const response = await fetch(`/data/local_economy/monthly/${yearMonth}.json`)
-      
+      // Next.js 캐싱 전략: 1시간 revalidation으로 적절한 freshness 유지
+      const response = await fetch(`/data/local_economy/monthly/${yearMonth}.json`, {
+        next: {
+          revalidate: 3600, // 1시간 캐싱
+          tags: [`sales-${yearMonth}`] // 태그를 통한 선택적 캐시 무효화
+        }
+      })
+
       if (!response.ok) {
         // 월별 파일이 없으면 기존 통합 파일 시도
-                const fallbackResponse = await fetch('/data/local_economy/seoul_all_districts.json')
-        
+        const fallbackResponse = await fetch('/data/local_economy/seoul_all_districts.json', {
+          cache: 'force-cache' // 정적 데이터는 강제 캐싱
+        })
+
         if (!fallbackResponse.ok) {
           throw new Error('데이터 파일을 찾을 수 없습니다')
         }
-        
+
         const allData = await fallbackResponse.json()
         // 해당 월 데이터만 필터링
-        this.consolidatedData = allData.filter((item: any) => 
+        return allData.filter((item: any) =>
           item.기준일자?.startsWith(yearMonth)
         )
-      } else {
-        this.consolidatedData = await response.json()
       }
-      
-      // 캐시에 저장 (메모리 관리를 위해 최대 3개월까지만 캐시)
-      if (this.monthlyDataCache.size >= 3) {
-        // 가장 오래된 캐시 삭제
-        const firstKey = this.monthlyDataCache.keys().next().value
-        if (firstKey) {
-          this.monthlyDataCache.delete(firstKey)
-        }
-              }
-      
-      if (this.consolidatedData) {
-        this.monthlyDataCache.set(yearMonth, this.consolidatedData)
-      }
-      this.currentMonth = yearMonth
-      
-            return this.consolidatedData || []
-      
+
+      return await response.json()
+
     } catch (error) {
       console.error(`[CardSalesDataLoader] 데이터 로드 실패:`, error)
       return []
     }
+  })
+
+  /**
+   * 월별 통합 데이터 로드 (LRU 캐시 레이어 포함)
+   */
+  private async loadMonthlyData(yearMonth: string): Promise<RawClimateCardSalesData[]> {
+    // LRU 캐시에서 먼저 확인
+    const cached = salesDataCache.get(yearMonth)
+    if (cached) {
+      salesDataCache.recordHit()
+      this.currentMonth = yearMonth
+      this.consolidatedData = cached
+      return cached
+    }
+
+    salesDataCache.recordMiss()
+
+    // React cache()로 래핑된 함수 호출 - 자동으로 중복 요청 제거
+    const data = await this.loadMonthlyDataInternal(yearMonth)
+
+    // LRU 캐시에 저장 (자동으로 크기 관리 및 LRU 제거)
+    if (data && data.length > 0) {
+      // 대략적인 크기 계산 (각 레코드 약 2KB로 추정)
+      const estimatedSize = data.length * 2048
+      salesDataCache.set(yearMonth, data, estimatedSize)
+      this.consolidatedData = data
+      this.currentMonth = yearMonth
+    }
+
+    return data
   }
 
   /**
@@ -335,8 +365,15 @@ export class CardSalesDataLoader {
    */
   clearCache(): void {
     this.consolidatedData = null
-    this.monthlyDataCache.clear()
+    salesDataCache.clear()
     this.currentMonth = null
+  }
+
+  /**
+   * 캐시 통계 가져오기
+   */
+  getCacheStats() {
+    return salesDataCache.getStats()
   }
   
   /**

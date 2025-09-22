@@ -13,7 +13,8 @@ import {
   SkipForward,
   RotateCcw,
   Brain,
-  Calendar
+  Calendar,
+  Pipette
 } from "lucide-react"
 import { Card } from "@/src/shared/components/ui/card"
 import { Label } from "@/src/shared/components/ui/label"
@@ -86,6 +87,7 @@ export default function UnifiedControls({
   isAIPredictionMode = false
 }: UnifiedControlsProps) {
   const [isExpanded, setIsExpanded] = useState(true)
+  const colorInputRef = React.useRef<HTMLInputElement>(null)
 
   return (
     <div className={`fixed bottom-4 z-50 transition-all duration-300`} style={{ left: '64px' }}>
@@ -221,6 +223,31 @@ export default function UnifiedControls({
                         title={name}
                       />
                     ))}
+                    {/* Custom Color Picker Button */}
+                    <button
+                      onClick={() => colorInputRef.current?.click()}
+                      className={`w-4 h-4 rounded border border-gray-700 hover:scale-110 transition-transform flex items-center justify-center ${
+                        !PRESET_MESH_COLORS.some(c => c.color === meshColor) && !useTemperatureColor
+                          ? 'ring-1 ring-cyan-400'
+                          : ''
+                      }`}
+                      style={{
+                        backgroundColor: !PRESET_MESH_COLORS.some(c => c.color === meshColor) ? meshColor : '#4B5563'
+                      }}
+                      title="커스텀 색상 선택"
+                    >
+                      {PRESET_MESH_COLORS.some(c => c.color === meshColor) && (
+                        <Pipette size={10} className="text-gray-300" />
+                      )}
+                    </button>
+                    {/* Hidden Color Input */}
+                    <input
+                      ref={colorInputRef}
+                      type="color"
+                      value={meshColor}
+                      onChange={(e) => onMeshColorChange?.(e.target.value)}
+                      className="hidden"
+                    />
                     <button
                       onClick={() => onUseTemperatureColorChange?.(!useTemperatureColor)}
                       className={`ml-auto text-[9px] px-1.5 py-0.5 rounded transition-colors ${

@@ -198,7 +198,7 @@ export const DISTRICT_UNIQUE_COLORS: Record<string, RGBAColor> = {
   "영등포구": [201, 79, 127, 200]
 }
 
-// Selection and hover state colors
+// Selection and hover state colors - MODERN DESIGN
 export const STATE_COLORS = {
   selected: {
     fill: [59, 130, 246, 180] as RGBAColor,      // Blue highlight
@@ -219,6 +219,62 @@ export const STATE_COLORS = {
   }
 } as const
 
+// Modern border styles for sophisticated visualization
+export const MODERN_BORDER_STYLES = {
+  // 구 경계선 - 테마별 그라데이션 기반
+  gu: {
+    default: {
+      color: [147, 197, 253, 140] as RGBAColor,     // 연한 하늘색, 반투명
+      width: 1.5,
+      opacity: 0.6
+    },
+    hover: {
+      color: [96, 165, 250, 180] as RGBAColor,      // 진한 하늘색
+      width: 2.0,
+      opacity: 0.8
+    },
+    selected: {
+      color: [59, 130, 246, 220] as RGBAColor,      // 선명한 파랑
+      width: 2.5,
+      opacity: 1.0
+    }
+  },
+  // 동 경계선 - 선명하고 뚜렷하게
+  dong: {
+    default: {
+      color: [59, 130, 246, 220] as RGBAColor,      // 선명한 파랑
+      width: 1.5,
+      opacity: 0.9,
+      dashArray: null  // 실선
+    },
+    hover: {
+      color: [96, 165, 250, 240] as RGBAColor,      // 더 밝은 파랑
+      width: 2.0,
+      opacity: 1.0,
+      dashArray: null  // 실선
+    },
+    selected: {
+      color: [37, 99, 235, 255] as RGBAColor,       // 진한 파랑
+      width: 2.5,
+      opacity: 1.0,
+      dashArray: null  // 실선
+    }
+  },
+  // 뉴트럴 색상 팔레트
+  neutral: {
+    light: [226, 232, 240, 100] as RGBAColor,       // 매우 연한 회색
+    medium: [203, 213, 225, 140] as RGBAColor,      // 중간 회색
+    dark: [148, 163, 184, 180] as RGBAColor         // 진한 회색
+  },
+  // 액센트 색상
+  accent: {
+    warm: [251, 191, 36, 160] as RGBAColor,         // 따뜻한 노랑
+    cool: [167, 139, 250, 160] as RGBAColor,        // 시원한 보라
+    nature: [134, 239, 172, 160] as RGBAColor,      // 자연 초록
+    water: [94, 234, 212, 160] as RGBAColor         // 청록색
+  }
+} as const
+
 /**
  * Get gradient color based on district index and theme
  */
@@ -226,7 +282,14 @@ export function getGradientColor(
   districtIndex: number,
   theme: ThemeKey = 'ocean'
 ): RGBAColor {
-  const gradient = DISTRICT_GRADIENTS[theme]
+  // Handle boosted themes by stripping the suffix
+  let actualTheme = theme
+  if (theme.endsWith('_boosted')) {
+    actualTheme = theme.replace('_boosted', '') as ThemeKey
+  }
+
+  // Check if gradient exists, fallback to ocean if not (for custom themes)
+  const gradient = DISTRICT_GRADIENTS[actualTheme] || DISTRICT_GRADIENTS.ocean
   const colorIndex = districtIndex % gradient.colors.length
   const color = [...gradient.colors[colorIndex]] as RGBAColor
   // Add alpha channel
@@ -247,6 +310,11 @@ export function getDistrictFillColor(
   theme: ThemeKey = 'ocean',
   useUniqueColors: boolean = false
 ): RGBAColor {
+  // Handle boosted and custom themes
+  let actualTheme = theme
+  if (theme.endsWith('_boosted')) {
+    actualTheme = theme.replace('_boosted', '') as ThemeKey
+  }
   const guName = properties?.guName ||
                  properties?.SGG_NM ||
                  properties?.SIG_KOR_NM ||
@@ -273,7 +341,7 @@ export function getDistrictFillColor(
     const districtIndex = guName ?
       Object.keys(DISTRICT_UNIQUE_COLORS).indexOf(guName) :
       Math.floor(Math.random() * 25)
-    baseColor = getGradientColor(districtIndex, theme)
+    baseColor = getGradientColor(districtIndex, actualTheme)
   }
 
   // Apply state-based modifications to theme colors
@@ -596,4 +664,146 @@ export function getAmbientShadowColor(
   const shadowB = Math.round(b * 0.3)
 
   return [shadowR, shadowG, shadowB, Math.round(opacity * 255)] as RGBAColor
+}
+
+/**
+ * Convert RGB to HSL
+ */
+function rgbToHsl(r: number, g: number, b: number): [number, number, number] {
+  r /= 255
+  g /= 255
+  b /= 255
+
+  const max = Math.max(r, g, b)
+  const min = Math.min(r, g, b)
+  let h = 0
+  let s = 0
+  const l = (max + min) / 2
+
+  if (max !== min) {
+    const d = max - min
+    s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+
+    switch (max) {
+      case r: h = ((g - b) / d + (g < b ? 6 : 0)) / 6; break
+      case g: h = ((b - r) / d + 2) / 6; break
+      case b: h = ((r - g) / d + 4) / 6; break
+    }
+  }
+
+  return [h * 360, s, l]
+}
+
+/**
+ * Convert HSL to RGB
+ */
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  h /= 360
+
+  let r, g, b
+
+  if (s === 0) {
+    r = g = b = l
+  } else {
+    const hue2rgb = (p: number, q: number, t: number) => {
+      if (t < 0) t += 1
+      if (t > 1) t -= 1
+      if (t < 1/6) return p + (q - p) * 6 * t
+      if (t < 1/2) return q
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6
+      return p
+    }
+
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s
+    const p = 2 * l - q
+    r = hue2rgb(p, q, h + 1/3)
+    g = hue2rgb(p, q, h)
+    b = hue2rgb(p, q, h - 1/3)
+  }
+
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)]
+}
+
+/**
+ * Boost saturation of a color
+ */
+export function boostSaturation(color: RGBAColor, factor: number = 1.5): RGBAColor {
+  const [r, g, b, a = 255] = color
+  const [h, s, l] = rgbToHsl(r, g, b)
+  const boostedS = Math.min(1, s * factor)
+  const [newR, newG, newB] = hslToRgb(h, boostedS, l)
+  return [newR, newG, newB, a] as RGBAColor
+}
+
+/**
+ * Create custom theme from hex color
+ */
+export function createCustomTheme(hexColor: string): typeof DISTRICT_GRADIENTS.ocean {
+  // Convert hex to RGB
+  const hex = hexColor.replace('#', '')
+  const r = parseInt(hex.substring(0, 2), 16)
+  const g = parseInt(hex.substring(2, 4), 16)
+  const b = parseInt(hex.substring(4, 6), 16)
+
+  // Create gradient variations
+  const baseColor: RGBAColor = [r, g, b]
+  const [h, s, l] = rgbToHsl(r, g, b)
+
+  // Generate 5 color variations
+  const colors: RGBAColor[] = []
+
+  // Darker variation
+  colors.push(hslToRgb(h, s, Math.max(0, l - 0.3)) as any)
+  // Slightly darker
+  colors.push(hslToRgb(h, s, Math.max(0, l - 0.15)) as any)
+  // Base color
+  colors.push(baseColor)
+  // Slightly lighter
+  colors.push(hslToRgb(h, s, Math.min(1, l + 0.15)) as any)
+  // Lighter variation
+  colors.push(hslToRgb(h, s, Math.min(1, l + 0.3)) as any)
+
+  return {
+    name: 'Custom',
+    colors
+  }
+}
+
+/**
+ * Get modern border style based on layer type and state
+ */
+export function getModernBorderStyle(
+  layerType: 'gu' | 'dong',
+  isSelected: boolean = false,
+  isHovered: boolean = false,
+  theme?: ThemeKey
+): { color: RGBAColor; width: number; opacity: number; dashArray?: number[] | null } {
+  const styles = MODERN_BORDER_STYLES[layerType]
+
+  if (isSelected) {
+    return styles.selected
+  }
+  if (isHovered) {
+    return styles.hover
+  }
+  return styles.default
+}
+
+/**
+ * Apply gradient effect to border color based on theme
+ */
+export function getBorderGradientColor(
+  baseColor: RGBAColor,
+  theme: ThemeKey,
+  position: 'start' | 'middle' | 'end' = 'middle'
+): RGBAColor {
+  const gradient = DISTRICT_GRADIENTS[theme] || DISTRICT_GRADIENTS.ocean
+  const factor = position === 'start' ? 0.7 : position === 'end' ? 1.3 : 1.0
+
+  return [
+    Math.min(255, Math.round(baseColor[0] * factor)),
+    Math.min(255, Math.round(baseColor[1] * factor)),
+    Math.min(255, Math.round(baseColor[2] * factor)),
+    baseColor[3] || 180
+  ] as RGBAColor
 }

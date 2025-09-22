@@ -24,31 +24,152 @@ export function useDistrictData(): UseDistrictDataResult {
         setIsLoading(true)
         setError(null)
 
-        // Load district boundary data
-        // First try to load the dong data which includes both gu and dong boundaries
-        const dongResponse = await fetch('/data/local_economy/local_economy_dong.geojson')
+        // Check for cached data first
+        const cachedGuData = sessionStorage.getItem('seoul_gu_data')
+        const cachedDongData = sessionStorage.getItem('seoul_dong_data')
 
-        if (!dongResponse.ok) {
-          throw new Error(`Failed to load district data: ${dongResponse.status}`)
+        if (cachedGuData && cachedDongData) {
+          console.log('Loading district data from cache')
+          const guGeoJson = JSON.parse(cachedGuData) as FeatureCollection
+          const dongGeoJson = JSON.parse(cachedDongData) as FeatureCollection
+
+          const normalizedGuGeoJson = normalizeGuFeatures(guGeoJson)
+          const normalizedDongGeoJson = normalizeDongFeatures(dongGeoJson)
+
+          setGuData(normalizedGuGeoJson)
+          setDongData(normalizedDongGeoJson)
+          setIsLoading(false)
+          return
         }
 
-        const dongGeoJson = await dongResponse.json() as FeatureCollection
+        // Load district boundary data separately
+        // Load gu boundaries from seoul_boundary.geojson
+        console.log('Fetching gu boundary data...')
+        const guResponse = await fetch('/seoul_boundary.geojson', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        })
+
+        if (!guResponse.ok) {
+          throw new Error(`Failed to load gu data: ${guResponse.status} ${guResponse.statusText}`)
+        }
+
+        // Validate response before parsing
+        const guContentType = guResponse.headers.get('content-type')
+        const guContentLength = guResponse.headers.get('content-length')
+        console.log('Gu response headers:', {
+          contentType: guContentType,
+          contentLength: guContentLength,
+          status: guResponse.status
+        })
+
+        // Parse JSON with error handling
+        let guGeoJson: FeatureCollection
+        try {
+          const guText = await guResponse.text()
+          if (!guText || guText.trim() === '') {
+            throw new Error('Empty response body for gu data')
+          }
+          console.log(`Gu data loaded: ${guText.length} characters`)
+          guGeoJson = JSON.parse(guText) as FeatureCollection
+        } catch (parseError) {
+          console.error('Failed to parse gu JSON:', parseError)
+          throw new Error(`Failed to parse gu data as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`)
+        }
+
+        // Load dong boundaries from local_economy_dong.geojson
+        console.log('Fetching dong boundary data...')
+        const dongResponse = await fetch('/data/local_economy/local_economy_dong.geojson', {
+          method: 'GET',
+          headers: {
+            'Accept': 'application/json',
+          },
+          signal: AbortSignal.timeout(30000), // 30 second timeout
+        })
+
+        if (!dongResponse.ok) {
+          throw new Error(`Failed to load dong data: ${dongResponse.status} ${dongResponse.statusText}`)
+        }
+
+        // Validate dong response before parsing
+        const dongContentType = dongResponse.headers.get('content-type')
+        const dongContentLength = dongResponse.headers.get('content-length')
+        console.log('Dong response headers:', {
+          contentType: dongContentType,
+          contentLength: dongContentLength,
+          status: dongResponse.status
+        })
+
+        // Parse JSON with error handling
+        let dongGeoJson: FeatureCollection
+        try {
+          const dongText = await dongResponse.text()
+          if (!dongText || dongText.trim() === '') {
+            throw new Error('Empty response body for dong data')
+          }
+          console.log(`Dong data loaded: ${dongText.length} characters`)
+          dongGeoJson = JSON.parse(dongText) as FeatureCollection
+        } catch (parseError) {
+          console.error('Failed to parse dong JSON:', parseError)
+          throw new Error(`Failed to parse dong data as JSON: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`)
+        }
 
         // Normalize property keys so deck.gl layers can access names consistently
+        const normalizedGuGeoJson = normalizeGuFeatures(guGeoJson)
         const normalizedDongGeoJson = normalizeDongFeatures(dongGeoJson)
 
-        // Extract gu boundaries from dong data (aggregated)
-        const guFeatures = extractGuBoundaries(normalizedDongGeoJson)
+        // Cache the data for future use
+        try {
+          sessionStorage.setItem('seoul_gu_data', JSON.stringify(guGeoJson))
+          sessionStorage.setItem('seoul_dong_data', JSON.stringify(dongGeoJson))
+          console.log('District data cached successfully')
+        } catch (cacheError) {
+          console.warn('Failed to cache district data:', cacheError)
+          // Continue even if caching fails
+        }
 
+        setGuData(normalizedGuGeoJson)
         setDongData(normalizedDongGeoJson)
-        setGuData({
-          type: 'FeatureCollection',
-          features: guFeatures
-        })
 
       } catch (err) {
         console.error('Failed to load district data:', err)
-        setError(err instanceof Error ? err : new Error('Unknown error'))
+
+        // Provide more detailed error information
+        let errorMessage = 'Failed to load district data'
+        if (err instanceof Error) {
+          errorMessage = err.message
+          if (err.name === 'AbortError') {
+            errorMessage = 'Request timed out while loading district data. Please check your network connection and try again.'
+          }
+        }
+
+        setError(new Error(errorMessage))
+
+        // Try to load from a fallback if main loading fails
+        console.log('Attempting to load fallback data...')
+        try {
+          // Try loading smaller test data or default boundaries
+          const fallbackGuResponse = await fetch('/data/eda/seoul_gu.geojson')
+          const fallbackDongResponse = await fetch('/data/eda/seoul_dong.geojson')
+
+          if (fallbackGuResponse.ok && fallbackDongResponse.ok) {
+            const fallbackGuData = await fallbackGuResponse.json() as FeatureCollection
+            const fallbackDongData = await fallbackDongResponse.json() as FeatureCollection
+
+            const normalizedGuGeoJson = normalizeGuFeatures(fallbackGuData)
+            const normalizedDongGeoJson = normalizeDongFeatures(fallbackDongData)
+
+            setGuData(normalizedGuGeoJson)
+            setDongData(normalizedDongGeoJson)
+            console.log('Loaded fallback district data successfully')
+            setError(null) // Clear error if fallback succeeds
+          }
+        } catch (fallbackErr) {
+          console.error('Fallback loading also failed:', fallbackErr)
+        }
       } finally {
         setIsLoading(false)
       }
@@ -66,35 +187,40 @@ export function useDistrictData(): UseDistrictDataResult {
 }
 
 /**
- * Extract gu (district) boundaries from dong-level data
+ * Normalize gu features to have consistent property names
  */
-function extractGuBoundaries(dongData: FeatureCollection): any[] {
-  const guMap = new Map<string, any[]>()
+function normalizeGuFeatures(guData: FeatureCollection): FeatureCollection {
+  const normalizedFeatures = guData.features.map((feature: any) => {
+    const properties = feature.properties || {}
 
-  // Group dong features by gu
-  dongData.features.forEach((feature: any) => {
-    const guName = getGuName(feature.properties)
+    // Extract gu name from various possible property keys
+    const guName = properties.SGG_NM?.replace('서울특별시 ', '') ||
+                   properties.SIG_KOR_NM ||
+                   properties.guName ||
+                   properties['자치구'] ||
+                   ''
 
-    if (guName) {
-      if (!guMap.has(guName)) {
-        guMap.set(guName, [])
+    // Extract gu code
+    const guCode = properties.ADM_SECT_C ? parseInt(properties.ADM_SECT_C) : null
+
+    return {
+      ...feature,
+      properties: {
+        ...properties,
+        guName,
+        guCode,
+        SGG_NM: guName,
+        SIG_KOR_NM: guName,
+        ['자치구']: guName,
+        ['자치구코드']: guCode
       }
-      guMap.get(guName)?.push(feature)
     }
   })
 
-  // Create simplified gu boundaries (for now, just use first dong as representative)
-  const guFeatures: any[] = []
-  guMap.forEach((dongFeatures, guName) => {
-    if (dongFeatures.length === 0) return
-
-    const mergedFeature = mergeGuGeometry(dongFeatures, guName)
-    if (mergedFeature) {
-      guFeatures.push(mergedFeature)
-    }
-  })
-
-  return guFeatures
+  return {
+    type: 'FeatureCollection',
+    features: normalizedFeatures
+  }
 }
 
 function normalizeDongFeatures(dongData: FeatureCollection): FeatureCollection {
@@ -103,15 +229,20 @@ function normalizeDongFeatures(dongData: FeatureCollection): FeatureCollection {
     const guName = getGuName(properties)
     const dongName = getDongName(properties)
 
+    // Extract gu code
+    const guCode = properties['자치구코드'] || null
+
     return {
       ...feature,
       properties: {
         ...properties,
         ...(guName ? {
           guName,
+          guCode,
           SGG_NM: properties?.SGG_NM ?? guName,
           SIG_KOR_NM: properties?.SIG_KOR_NM ?? guName,
-          ['자치구']: properties?.['자치구'] ?? guName
+          ['자치구']: properties?.['자치구'] ?? guName,
+          ['자치구코드']: guCode
         } : {}),
         ...(dongName ? {
           dongName,
@@ -145,41 +276,4 @@ function getDongName(properties: any): string | null {
          null
 }
 
-type PolygonFeature = Feature<Polygon | MultiPolygon>
-
-function mergeGuGeometry(features: PolygonFeature[], guName: string): PolygonFeature | null {
-  const polygons: number[][][][] = []
-
-  for (const feature of features) {
-    const geometry = feature.geometry
-    if (!geometry) continue
-
-    if (geometry.type === 'Polygon') {
-      polygons.push(geometry.coordinates)
-    } else if (geometry.type === 'MultiPolygon') {
-      polygons.push(...geometry.coordinates)
-    }
-  }
-
-  if (polygons.length === 0) {
-    return null
-  }
-
-  const baseFeature = features[0]
-  const geometry = polygons.length === 1
-    ? { type: 'Polygon', coordinates: polygons[0] as number[][][] }
-    : { type: 'MultiPolygon', coordinates: polygons as number[][][][] }
-
-  return {
-    type: 'Feature',
-    geometry,
-    properties: {
-      ...baseFeature.properties,
-      guName,
-      SGG_NM: baseFeature.properties?.SGG_NM ?? guName,
-      SIG_KOR_NM: baseFeature.properties?.SIG_KOR_NM ?? guName,
-      ['자치구']: baseFeature.properties?.['자치구'] ?? guName,
-      dongCount: features.length
-    }
-  }
-}
+// Removed mergeGuGeometry function as we now load gu boundaries directly from seoul_boundary.geojson

@@ -1,27 +1,29 @@
 "use client"
 
 import { useState, useEffect, useRef, useCallback, useMemo } from "react"
-import Map from "react-map-gl"
+import { Map } from "react-map-gl"
 import { DeckGL } from "@deck.gl/react"
 import { ScatterplotLayer, LineLayer, SolidPolygonLayer } from "@deck.gl/layers"
 import type { MapViewState } from "@deck.gl/core"
 import "mapbox-gl/dist/mapbox-gl.css"
 import { precomputeBoundaryGrid } from "@/src/features/home/utils/boundaryProcessor"
 import type { SeoulBoundaryData } from "@/src/features/home/utils/boundaryProcessor"
-import { 
-  generateParticlesOptimized, 
-  generateInitialParticles, 
-  createParticleBuffers, 
+import {
+  generateParticlesOptimized,
+  generateInitialParticles,
+  createParticleBuffers,
   animateParticlesSuperFast,
   generateSeoulParticlesWithBoundary,
   updateParticleColors,
   loadSeoulBoundaries,
+  generateDamienHirstPattern,
+  interpolateParticlePatterns,
+  interpolateParticlePatternWithScatter,
+  generateUnifiedParticles,
+  interpolateUnifiedParticles,
   type ParticleData
 } from "../utils/particleGenerator"
-import { loadStaticParticles } from "../utils/particleOptimizer"
 import { initializeParticleMemoryPool } from "@/src/shared/utils/mathHelpers"
-import { useParticleCache } from "../hooks/useParticleCache"
-import { useParticleWorker } from "../hooks/useParticleWorker"
 import useParticleAnimations from "../hooks/useParticleAnimation"
 import type { AnimationConfig } from "../hooks/useParticleAnimation"
 // Removed AnimationControls import - moved to Hero component
@@ -32,19 +34,19 @@ const MAPBOX_TOKEN = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!
 // 성능 설정 - 파티클 개수 1.5배 증가
 const PERFORMANCE_CONFIG = {
   high: {
-    particleCount: 15000,
+    particleCount: 15000,  // 원래 값으로 복원
     connectionCount: 300,
     fps: 60,
     glowLayers: 1,
   },
   medium: {
-    particleCount: 10500,
+    particleCount: 10500,  // 원래 값으로 복원
     connectionCount: 150,
     fps: 30,
     glowLayers: 1,
   },
   low: {
-    particleCount: 6000,
+    particleCount: 6000,  // 원래 값으로 복원
     connectionCount: 50,
     fps: 24,
     glowLayers: 1,
@@ -146,12 +148,16 @@ interface SeoulMapOptimizedProps {
   animationConfig: AnimationConfig
   onAnimationConfigChange: (changes: Partial<AnimationConfig>) => void
   mapStyle: string
+  displayMode?: 'circular' | 'transitioning' | 'map'
+  onDisplayModeChange?: (mode: 'circular' | 'transitioning' | 'map') => void
 }
 
 export function SeoulMapOptimized({
   animationConfig,
   onAnimationConfigChange,
-  mapStyle
+  mapStyle,
+  displayMode: propDisplayMode = 'circular',
+  onDisplayModeChange
 }: SeoulMapOptimizedProps) {
   // 성능 레벨 감지 및 적응형 관리
   const [performanceLevel, setPerformanceLevel] = useState<keyof typeof PERFORMANCE_CONFIG>(() => detectPerformanceLevel())
@@ -170,6 +176,7 @@ export function SeoulMapOptimized({
   const [boundaryData, setBoundaryData] = useState<SeoulBoundaryData | null>(null)
   const [particles, setParticles] = useState<ParticleData[]>([])
   const [animatedData, setAnimatedData] = useState<any[]>([])
+  const particlesRef = useRef<ParticleData[]>([])
   const [connections, setConnections] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState(0)
@@ -177,6 +184,13 @@ export function SeoulMapOptimized({
   const [error, setError] = useState<string | null>(null)
   const [retryCount, setRetryCount] = useState(0)
   const maxRetries = 3
+
+  // Display mode state
+  const [displayMode, setDisplayMode] = useState<'circular' | 'transitioning' | 'map'>(propDisplayMode)
+  const [unifiedParticles, setUnifiedParticles] = useState<ParticleData[]>([]) // Unified particles with both positions
+  const transitionStartTimeRef = useRef<number | null>(null)
+  const transitionDurationRef = useRef<number>(10000) // 10 seconds transition for slower convergence
+  const scatterOffsetsRef = useRef<{ x: number; y: number }[] | null>(null)
   
   // 애니메이션 제어
   const animationFrameRef = useRef<number | undefined>(undefined)
@@ -185,9 +199,9 @@ export function SeoulMapOptimized({
   
   // 자동 회전 제어
   const rotationRef = useRef(0)
-  
+
   // Amplitude animation refs for initial effect
-  const amplitudeAnimationRef = useRef<number>(30.0) // Start at 2x higher amplitude for very dramatic scatter
+  const amplitudeAnimationRef = useRef<number>(0.2) // Start with minimal amplitude for circular pattern
   const animationStartTimeRef = useRef<number | null>(null)
   const animationDurationRef = useRef<number>(10000) // 10 seconds animation for smoother convergence from greater distance
   
@@ -203,6 +217,9 @@ export function SeoulMapOptimized({
     sizes: new Float32Array(0),
     reusableObjects: []
   })
+
+  const loadingInProgressRef = useRef(false)
+  const fallbackInitializedRef = useRef(false)
   
   // Batch processing state
   const batchStateRef = useRef<{
@@ -215,13 +232,13 @@ export function SeoulMapOptimized({
     batchInterval: 16 // ~60fps
   })
   
-  // 초기 뷰 상태 - more top-down view for less narrow feeling
+  // 초기 뷰 상태 - top-down view for circular mode, angled for map mode
   const [viewState, setViewState] = useState<MapViewState>({
     longitude: 126.978,
     latitude: 37.5665,
-    zoom: 10.8, // Adjusted zoom level after removing scale transform
-    pitch: performanceLevel === 'high' ? 55 : 45, // Adjusted pitch angles
-    bearing: 15, // Slight rotation for visual interest
+    zoom: displayMode === 'circular' ? 11.2 : 10.8, // Slightly zoomed out for circular
+    pitch: displayMode === 'circular' ? 0 : (performanceLevel === 'high' ? 55 : 45), // Top-down for circular
+    bearing: displayMode === 'circular' ? 0 : 15, // True north for circular
   })
 
   // Animation configuration now comes from props
@@ -254,168 +271,261 @@ export function SeoulMapOptimized({
     )
   }, [animationConfig])
 
+  // Prime fallback particles so something renders before async load completes
+  useEffect(() => {
+    if (fallbackInitializedRef.current || particlesRef.current.length > 0 || particles.length > 0) {
+      return
+    }
+
+    const fallbackCount = adaptiveConfigRef.current.particleCount
+    const fallbackParticles = generateDamienHirstPattern(fallbackCount)
+    const initialAnimated = animateParticlesBatch(fallbackParticles, 0)
+
+    fallbackInitializedRef.current = true
+    particlesRef.current = fallbackParticles
+    setParticles(fallbackParticles)
+    setAnimatedData(initialAnimated)
+  }, [animateParticlesBatch, particles.length])
+
   // Map style now comes from props
 
   // Animation config and map style changes handled by parent
 
-  // Particle cache hook
-  const { 
-    isReady: cacheReady, 
-    loadParticles: loadCachedParticles, 
-    saveParticles: saveCachedParticles 
-  } = useParticleCache()
-  
-  // Particle worker hook
-  const {
-    generateParticles: generateWithWorker,
-    progress: workerProgress,
-    isGenerating: workerGenerating
-  } = useParticleWorker()
-
-  // Enhanced data loading with optimizations
+  // Handle display mode change
   useEffect(() => {
-    // Initialize amplitude animation immediately (before loading)
-    amplitudeAnimationRef.current = 30.0 // Start with 2x dramatic scatter
-    animationStartTimeRef.current = Date.now() // Animation starts now
-    
-    async function loadDataOptimized(): Promise<void> {
-      try {
-        setIsLoading(true)
-        setError(null)
-        setLoadingProgress(0)
-        
-        // Step 1: Show initial particles immediately with scatter effect
-        const initialParticles = generateInitialParticles(animationConfig.colorTheme)
-        setParticles(initialParticles)
-        // Apply initial scatter using animateParticlesBatch
-        const initialScatteredData = animateParticlesBatch(initialParticles, 0)
-        setAnimatedData(initialScatteredData)
-        setLoadingPhase('Loading optimized data...')
-        setLoadingProgress(5)
-        
-        // Step 2: Try static files first (fastest)
-        try {
-          // Always use high quality particles
-          const staticParticles = await loadStaticParticles('high', animationConfig.colorTheme)
-          
-          setLoadingPhase('Loaded from static data!')
-          setLoadingProgress(100)
-          setParticles(staticParticles)
-          // Apply scatter effect to static particles
-          const staticScatteredData = animateParticlesBatch(staticParticles, 0)
-          setAnimatedData(staticScatteredData)
-          setIsLoading(false)
-          return
-        } catch (staticError) {
-          console.log('Static loading failed, trying cache...', staticError)
+    if (propDisplayMode !== displayMode) {
+      if (propDisplayMode === 'transitioning' && displayMode === 'circular') {
+        // Start transition from circular to map
+        // Make sure unified particles are loaded before transitioning
+        if (unifiedParticles.length > 0) {
+          setDisplayMode('transitioning')
+          transitionStartTimeRef.current = Date.now()
+          amplitudeAnimationRef.current = 0.2 // Start from low amplitude for circular
+          animationStartTimeRef.current = Date.now()
+          animationDurationRef.current = 10000 // 10 seconds for slower transition
+        } else {
+          console.warn('Unified particles not ready for transition, waiting...')
+          // Will retry when unifiedParticles are loaded
         }
-        
-        // Step 3: Try to load from IndexedDB cache (fast)
-        if (cacheReady) {
-          const cached = await loadCachedParticles(config.particleCount, animationConfig.colorTheme)
-          if (cached) {
-            setLoadingPhase('Loaded from cache!')
-            setLoadingProgress(100)
-            setParticles(cached)
-            // Apply scatter effect to cached particles
-            const cachedScatteredData = animateParticlesBatch(cached, 0)
-            setAnimatedData(cachedScatteredData)
-            setIsLoading(false)
-            return
-          }
+      } else if (propDisplayMode === 'map' && displayMode === 'transitioning') {
+        // Transition complete - switch to map positions
+        setDisplayMode('map')
+        // Set particles to use map positions
+        if (unifiedParticles.length > 0) {
+          const mapPositionedParticles = unifiedParticles.map(p => ({
+            ...p,
+            x: p.mapPos![0],
+            y: p.mapPos![1],
+            position: p.mapPos  // Update position array to match x,y coordinates
+          }))
+          setParticles(mapPositionedParticles)
+          particlesRef.current = mapPositionedParticles
         }
-        
-        // Step 4: Load and pre-compute boundary grid (fallback)
-        setLoadingPhase('Optimizing boundaries...')
-        const boundaries = await loadSeoulBoundaries()
-        setBoundaryData(boundaries)
-        setLoadingProgress(20)
-        
-        const grid = await precomputeBoundaryGrid(boundaries)
-        setLoadingProgress(30)
-        
-        // Step 5: Generate particles with optimized algorithm (fallback)
-        setLoadingPhase('Generating particles...')
-        const particlesInSeoul = await generateParticlesOptimized(
-          config.particleCount,
-          grid,
-          animationConfig.colorTheme,
-          (progress) => {
-            const overallProgress = 30 + (progress * 0.6)
-            setLoadingProgress(overallProgress)
-            
-            if (progress < 25) {
-              setLoadingPhase('Analyzing districts...')
-            } else if (progress < 50) {
-              setLoadingPhase('Creating density map...')
-            } else if (progress < 75) {
-              setLoadingPhase('Optimizing layout...')
-            } else {
-              setLoadingPhase('Finalizing...')
-            }
-          }
-        )
-        
-        // Step 5: Create optimized buffers for rendering
-        const buffers = createParticleBuffers(particlesInSeoul)
-        
-        // Step 6: Save to cache for next time
-        if (cacheReady) {
-          saveCachedParticles(particlesInSeoul, animationConfig.colorTheme, buffers)
-        }
-        
-        setLoadingPhase('Ready!')
-        setLoadingProgress(100)
-        setParticles(particlesInSeoul)
-        // Apply scatter effect to generated particles
-        const generatedScatteredData = animateParticlesBatch(particlesInSeoul, 0)
-        setAnimatedData(generatedScatteredData)
-        
-      } catch (error) {
-        console.error('Optimized data loading failed:', error)
-        setError('Using fallback particle generation')
-        
-        // Fallback to original method if optimizations fail
-        try {
-          const boundaries = await loadSeoulBoundaries()
-          const fallbackParticles = await generateSeoulParticlesWithBoundary(
-            config.particleCount,
-            boundaries,
-            animationConfig.colorTheme
-          )
-          setParticles(fallbackParticles)
-          // Apply scatter effect to fallback particles
-          const fallbackScatteredData = animateParticlesBatch(fallbackParticles, 0)
-          setAnimatedData(fallbackScatteredData)
-          setLoadingProgress(100)
-        } catch (fallbackError) {
-          console.error('Fallback also failed:', fallbackError)
-          setError('Unable to generate particles')
-        }
-      } finally {
-        setIsLoading(false)
-        // Amplitude animation already initialized at the beginning
+        amplitudeAnimationRef.current = 0.2 // Maintain small amplitude for continuous movement
+      } else {
+        setDisplayMode(propDisplayMode)
       }
     }
-    
-    // Start the loading process
-    loadDataOptimized()
-  }, [config.particleCount, maxRetries, cacheReady, loadCachedParticles, saveCachedParticles, animationConfig.colorTheme])
+  }, [propDisplayMode, displayMode, unifiedParticles])
 
-  // Separate effect for color theme changes - only update colors, don't reload data
-  const previousColorThemeRef = useRef(animationConfig.colorTheme)
+  // Retry transition when unified particles are loaded
   useEffect(() => {
-    // Only update if color theme actually changed (not on every render)
-    if (previousColorThemeRef.current !== animationConfig.colorTheme && 
-        particles.length > 0) {
-      const updatedParticles = updateParticleColors(particles, animationConfig.colorTheme)
-      setParticles(updatedParticles)
-      previousColorThemeRef.current = animationConfig.colorTheme
-      // Note: animatedData will be updated automatically by the animation loop
-      // which will pick up the new particles with updated colors
-      console.log(`[ColorTheme] Updated particle colors to ${animationConfig.colorTheme} theme`)
+    if (propDisplayMode === 'transitioning' && displayMode === 'circular' && unifiedParticles.length > 0) {
+      console.log('Unified particles loaded, starting transition now')
+      setDisplayMode('transitioning')
+      transitionStartTimeRef.current = Date.now()
+      amplitudeAnimationRef.current = 0.2
+      animationStartTimeRef.current = Date.now()
+      animationDurationRef.current = 8000
     }
-  }, [animationConfig.colorTheme, particles])
+  }, [unifiedParticles, propDisplayMode, displayMode])
+
+  // Update camera view when display mode changes
+  useEffect(() => {
+    if (displayMode === 'circular') {
+      // Top-down view for circular pattern (garden view from true north)
+      setViewState(prev => ({
+        ...prev,
+        zoom: 11.2,
+        pitch: 0,  // Perfect top-down view
+        bearing: 0 // True north orientation
+      }))
+    } else if (displayMode === 'transitioning') {
+      // Enhanced camera animation during transition
+      const startTime = Date.now()
+      const duration = 10000 // Match extended transition duration
+
+      const animateCamera = () => {
+        const elapsed = Date.now() - startTime
+        const progress = Math.min(elapsed / duration, 1)
+
+        // Easing function for smooth camera movement
+        const easeInOutCubic = (t: number) => {
+          return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+        }
+
+        let zoom: number, pitch: number, bearing: number
+
+        if (progress < 0.15) {
+          // Phase 1: Keep camera stable during initial explosion
+          zoom = 11.2
+          pitch = 0
+          bearing = 0
+
+        } else if (progress < 0.6) {
+          // Phase 2: Slow gradual camera movement during scatter
+          const cameraProgress = (progress - 0.15) / 0.45  // 45% of total time (3.6 seconds)
+          const eased = easeInOutCubic(cameraProgress)     // Smooth acceleration/deceleration
+
+          const targetPitch = performanceLevel === 'high' ? 55 : 45
+
+          zoom = 11.2 + (10.8 - 11.2) * eased     // Gradual zoom adjustment
+          pitch = 0 + targetPitch * eased         // Gradual pitch adjustment
+          bearing = 0 + 15 * eased                // Gradual rotation
+
+        } else {
+          // Phase 3: Camera fixed, particles converging to Seoul
+          const targetPitch = performanceLevel === 'high' ? 55 : 45
+
+          zoom = 10.8
+          pitch = targetPitch
+          bearing = 15
+        }
+
+        setViewState(prev => ({
+          ...prev,
+          zoom,
+          pitch,
+          bearing
+        }))
+
+        if (progress < 1) {
+          requestAnimationFrame(animateCamera)
+        }
+      }
+
+      animateCamera()
+    } else if (displayMode === 'map') {
+      // Angled view for map mode
+      setViewState(prev => ({
+        ...prev,
+        zoom: 10.8,
+        pitch: performanceLevel === 'high' ? 55 : 45,
+        bearing: 15
+      }))
+    }
+  }, [displayMode, performanceLevel])
+
+  interface LoadOptions {
+    silent?: boolean
+    allowFallback?: boolean
+  }
+
+  const loadDataOptimized = useCallback(async ({ silent = false, allowFallback = false }: LoadOptions = {}) => {
+    if (loadingInProgressRef.current) {
+      return
+    }
+
+    loadingInProgressRef.current = true
+    amplitudeAnimationRef.current = 0.2
+    animationStartTimeRef.current = Date.now()
+    const shouldShowLoader = !silent
+
+    try {
+      if (shouldShowLoader) {
+        setIsLoading(true)
+        setLoadingProgress(0)
+        setLoadingPhase('Generating unified particles...')
+      }
+
+      if (!silent) {
+        setError(null)
+      }
+
+      const unified = await generateUnifiedParticles()
+      setUnifiedParticles(unified)
+
+      const initialParticles = unified.map(p => ({
+        ...p,
+        x: p.circularPos![0],
+        y: p.circularPos![1]
+      }))
+
+      particlesRef.current = initialParticles
+      setParticles(initialParticles)
+
+      const circularAnimatedData = animateParticlesBatch(initialParticles, 0)
+      setAnimatedData(circularAnimatedData)
+      if (shouldShowLoader) {
+        setLoadingPhase('Particles ready!')
+        setLoadingProgress(100)
+      }
+      setRetryCount(0)
+    } catch (error) {
+      console.error('Unified particle generation failed:', error)
+      setError('Unable to generate unified particles')
+
+      if (allowFallback) {
+        try {
+          const fallbackCircular = generateDamienHirstPattern(config.particleCount)
+          particlesRef.current = fallbackCircular
+          setParticles(fallbackCircular)
+          const fallbackAnimatedData = animateParticlesBatch(fallbackCircular, 0)
+          setAnimatedData(fallbackAnimatedData)
+          if (shouldShowLoader) {
+            setLoadingPhase('Fallback particles ready')
+            setLoadingProgress(100)
+          }
+        } catch (fallbackError) {
+          console.error('Fallback particle generation failed:', fallbackError)
+          setError('Unable to generate particles')
+        }
+      }
+    } finally {
+      if (shouldShowLoader) {
+        setIsLoading(false)
+      }
+      loadingInProgressRef.current = false
+    }
+  }, [animateParticlesBatch, config.particleCount])
+
+  useEffect(() => {
+    if (unifiedParticles.length > 0) {
+      return
+    }
+
+    loadDataOptimized({ allowFallback: true })
+  }, [loadDataOptimized, unifiedParticles.length])
+
+  useEffect(() => {
+    if (particlesRef.current !== particles) {
+      particlesRef.current = particles
+    }
+  }, [particles])
+
+  useEffect(() => {
+    if (!error || retryCount >= maxRetries) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setRetryCount(prev => prev + 1)
+      if (unifiedParticles.length === 0) {
+        setLoadingPhase(`Retrying... (${retryCount + 1}/${maxRetries})`)
+      }
+      loadDataOptimized({
+        silent: unifiedParticles.length > 0,
+        allowFallback: unifiedParticles.length === 0
+      })
+    }, 1500)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [error, retryCount, maxRetries, loadDataOptimized, unifiedParticles.length])
+
+  // Color theme is now forced to damienHirst for optimal vibrancy
+  // Dynamic color switching logic removed to ensure consistent vibrant colors
 
   // Connection pooling for optimized line generation
   const connectionPoolRef = useRef<{
@@ -430,6 +540,54 @@ export function SeoulMapOptimized({
     poolIndex: 0
   })
   
+  // 링 기반 연결선 생성 함수 (원형 패턴용)
+  const createRingConnections = useCallback(
+    (particles: any[]) => {
+      const connections: any[] = []
+
+      // Group particles by ring
+      const rings: Map<number, any[]> = new Map()
+
+      particles.forEach(particle => {
+        if (particle.ringIndex !== undefined) {
+          if (!rings.has(particle.ringIndex)) {
+            rings.set(particle.ringIndex, [])
+          }
+          rings.get(particle.ringIndex)!.push(particle)
+        }
+      })
+
+      // Create connections for each ring
+      rings.forEach((ring, ringIndex) => {
+        // Sort particles by ringPosition to ensure proper ordering
+        ring.sort((a, b) => (a.ringPosition || 0) - (b.ringPosition || 0))
+
+        for (let i = 0; i < ring.length; i++) {
+          const current = ring[i]
+          const next = ring[(i + 1) % ring.length] // Connect last to first
+
+          // Convert color to array format if needed
+          let colorArray: [number, number, number, number]
+          if (Array.isArray(current.color)) {
+            colorArray = [current.color[0], current.color[1], current.color[2], 150] // Higher opacity for ring lines
+          } else {
+            // Parse rgba string if needed (fallback)
+            colorArray = [88, 166, 255, 150] // Default blue with higher opacity
+          }
+
+          connections.push({
+            sourcePosition: [current.position[0], current.position[1]] as [number, number],
+            targetPosition: [next.position[0], next.position[1]] as [number, number],
+            color: colorArray
+          })
+        }
+      })
+
+      return connections
+    },
+    []
+  )
+
   // 연결선 생성 함수 (최적화된 오브젝트 풀링 포함)
   const createConnectionsOptimized = useCallback(
     (particles: any[], maxConnections: number) => {
@@ -529,28 +687,54 @@ export function SeoulMapOptimized({
         const shouldBatch = currentTime - batchState.lastBatchTime >= batchState.batchInterval || batchState.needsUpdate
         
         if (shouldUpdate && shouldBatch) {
-          // Update amplitude animation
-          if (animationStartTimeRef.current !== null) {
+          let updated: any[]
+
+          // Handle different display modes
+          if (displayMode === 'transitioning' && transitionStartTimeRef.current !== null) {
+            // Calculate transition progress
             const now = Date.now()
-            const elapsed = now - animationStartTimeRef.current
-            const progress = Math.min(elapsed / animationDurationRef.current, 1.0)
-            
-            // Use cubic easing out for smooth decay
-            const easedProgress = 1.0 - Math.pow(1.0 - progress, 3)
-            const currentAmplitude = 30.0 - (29.8 * easedProgress) // From 30.0 to 0.2
-            
-            amplitudeAnimationRef.current = currentAmplitude
-            
-            // Animation complete but keep minimum amplitude for continuous movement
-            if (progress >= 1.0) {
-              amplitudeAnimationRef.current = 0.2
-              console.log('Amplitude animation complete, maintaining minimum amplitude of 0.2 for continuous movement')
+            const elapsed = now - transitionStartTimeRef.current
+            const progress = Math.min(elapsed / transitionDurationRef.current, 1.0)
+
+            // Interpolate between circular and map positions using unified particles
+            if (unifiedParticles.length > 0) {
+              // Use unified interpolation function with explosion phases
+              const timeInSeconds = animationState.time * 0.001
+              const interpolatedParticles = interpolateUnifiedParticles(unifiedParticles, progress, {
+                time: timeInSeconds,
+              })
+              particlesRef.current = interpolatedParticles
+              updated = animateParticlesBatch(interpolatedParticles, timeInSeconds)
+
+              // Check if transition is complete
+              if (progress >= 1.0) {
+                setDisplayMode('map')
+                setParticles(interpolatedParticles)
+                particlesRef.current = interpolatedParticles
+                transitionStartTimeRef.current = null
+                amplitudeAnimationRef.current = 0.2 // Maintain small amplitude for continuous movement
+                // No need to reset animationStartTimeRef since we're not using scatter in map mode
+                if (onDisplayModeChange) {
+                  onDisplayModeChange('map')
+                }
+              }
+            } else {
+              // Fallback to current particles if transition data not ready
+              const timeInSeconds = animationState.time * 0.001
+              updated = animateParticlesBatch(particlesRef.current, timeInSeconds)
             }
+          } else if (displayMode === 'circular') {
+            // Animate circular pattern with minimal movement
+            const timeInSeconds = animationState.time * 0.001
+            amplitudeAnimationRef.current = 0.2 // Keep minimal amplitude
+            updated = animateParticlesBatch(particlesRef.current, timeInSeconds)
+          } else {
+            // Map mode - simple animation without scatter effect
+            // amplitude is already set to 0.2 when transition completes
+            const timeInSeconds = animationState.time * 0.001
+            updated = animateParticlesBatch(particlesRef.current, timeInSeconds)
           }
-          
-          // Use optimized batch animation with time in seconds
-          const timeInSeconds = animationState.time * 0.001 // Convert ms to seconds
-          const updated = animateParticlesBatch(particles, timeInSeconds)
+
           setAnimatedData(updated)
           
           // Update batch timing
@@ -558,11 +742,22 @@ export function SeoulMapOptimized({
           batchState.needsUpdate = false
           
           // 연결선 업데이트 (초기화 단계에서는 빈도 낮춤)
-          const baseConnectionUpdateFreq = adaptiveConfigRef.current.fps > 30 ? 10 : 20
-          const connectionUpdateFreq = isInitPhase ? baseConnectionUpdateFreq * 3 : baseConnectionUpdateFreq
-          if (frameCount % connectionUpdateFreq === 0 && adaptiveConfigRef.current.connectionCount > 0) {
-            const nearbyParticles = updated.slice(0, Math.min(100, updated.length))
-            setConnections(createConnectionsOptimized(nearbyParticles, adaptiveConfigRef.current.connectionCount))
+          // Reduced frequency to prevent excessive setState calls
+          const baseConnectionUpdateFreq = adaptiveConfigRef.current.fps > 30 ? 30 : 60
+          const connectionUpdateFreq = isInitPhase ? baseConnectionUpdateFreq * 2 : baseConnectionUpdateFreq
+
+          if (frameCount % connectionUpdateFreq === 0) {
+            // Use ring connections for circular mode, optimized connections for map mode
+            if (displayMode === 'circular') {
+              // Only update if particles have ringIndex
+              const hasRingData = updated.some(p => p.ringIndex !== undefined)
+              if (hasRingData) {
+                setConnections(createRingConnections(updated))
+              }
+            } else if (adaptiveConfigRef.current.connectionCount > 0) {
+              const nearbyParticles = updated.slice(0, Math.min(100, updated.length))
+              setConnections(createConnectionsOptimized(nearbyParticles, adaptiveConfigRef.current.connectionCount))
+            }
           }
           
           // 자동 회전 (초기화 단계에서는 빈도 낮춤)
@@ -575,16 +770,21 @@ export function SeoulMapOptimized({
               bearing: rotationRef.current % 360
             }))
           }
-          
+
           // Breathing effect - subtle zoom animation (지도가 숨쉬는 효과)
-          const breathingSpeed = 0.3 // Slow breathing rate
-          const breathingAmplitude = 0.15 // Subtle zoom change
-          const baseZoom = 10.8 // Updated to match new initial zoom
-          const breathingOffset = Math.sin(timeInSeconds * breathingSpeed) * breathingAmplitude
-          const newZoom = baseZoom + breathingOffset
-          
-          // Apply breathing effect every few frames for smooth animation
-          if (frameCount % 2 === 0) {
+          // DISABLED to prevent infinite setState calls
+          // Breathing effect can cause performance issues and infinite loops
+          // Only enable for specific display modes and reduce frequency
+          const enableBreathing = false // Temporarily disabled
+
+          if (enableBreathing && displayMode === 'map' && frameCount % 60 === 0) {
+            const breathingSpeed = 0.3
+            const breathingAmplitude = 0.15
+            const baseZoom = 10.8
+            const timeInSecondsForBreathing = animationState.time * 0.001
+            const breathingOffset = Math.sin(timeInSecondsForBreathing * breathingSpeed) * breathingAmplitude
+            const newZoom = baseZoom + breathingOffset
+
             setViewState((prev: any) => ({
               ...prev,
               zoom: newZoom
@@ -618,6 +818,12 @@ export function SeoulMapOptimized({
         animationFrameRef.current = undefined
       }
       
+      // Clear batch state to prevent pending updates
+      if (batchStateRef.current) {
+        batchStateRef.current.needsUpdate = false
+        batchStateRef.current.lastBatchTime = 0
+      }
+
       // Clear animation pools and state when layer changes
       animationPoolRef.current = {
         positions: new Float32Array(0),
@@ -635,12 +841,17 @@ export function SeoulMapOptimized({
       // Reset performance monitor
       performanceMonitorRef.current.reset()
     }
-  }, [particles, performanceLevel, animationConfig.autoRotateEnabled, animationConfig.autoRotateSpeed, createConnectionsOptimized, animateParticlesBatch, animationState.time])
+  }, [particles, performanceLevel, animationConfig.autoRotateEnabled, animationConfig.autoRotateSpeed, createConnectionsOptimized, animateParticlesBatch, animationState.time, displayMode, unifiedParticles, onDisplayModeChange])
 
   // 레이어 생성 (성능 레벨에 따라 조정)
   const layers = useMemo(() => {
     const baseLayers = []
-    
+
+    // 심장박동 효과를 위한 scale 계산
+    const breathPhase = animationState.time * 0.0006  // 호흡과 동일한 속도 (밀리초 단위)
+    const breathWave = Math.sin(breathPhase)
+    const heartbeatScale = 0.97 + breathWave * 0.03  // 3% 확장/수축으로 더 부드러운 심장박동
+
     // Dark overlay layer - renders below particles but above map (controlled by blackBackgroundEnabled)
     if (animationConfig.blackBackgroundEnabled) {
       baseLayers.push(
@@ -664,9 +875,9 @@ export function SeoulMapOptimized({
         })
       )
     }
-    
-    // 연결선 레이어 (중간 이상 성능에서만)
-    if (config.connectionCount > 0) {
+
+    // 연결선 레이어 (원형 모드에서는 항상 표시, 맵 모드에서는 성능 설정에 따라)
+    if (displayMode === 'circular' || config.connectionCount > 0) {
       baseLayers.push(
         new LineLayer({
           id: "connection-layer",
@@ -675,8 +886,8 @@ export function SeoulMapOptimized({
           getSourcePosition: (d: any) => d.sourcePosition,
           getTargetPosition: (d: any) => d.targetPosition,
           getColor: (d: any) => d.color,
-          getWidth: 1,
-          opacity: 0.3,
+          getWidth: displayMode === 'circular' ? 2 : 1, // Thicker lines for circular mode
+          opacity: displayMode === 'circular' ? 0.6 : 0.3, // Higher opacity for circular mode
           parameters: {
             depthTest: false,
             blend: true,
@@ -685,19 +896,19 @@ export function SeoulMapOptimized({
         })
       )
     }
-    
+
     // 메인 파티클 레이어
     baseLayers.push(
       new ScatterplotLayer({
         id: "particle-layer",
         data: animatedData,
         pickable: false,
-        opacity: 0.9, // Increased opacity for better visibility
+        opacity: 1.0, // 100% 불투명도로 더 강렬한 색상
         stroked: false,
         filled: true,
-        radiusScale: 1,
-        radiusMinPixels: 2, // Increased for better visibility in pure black mode
-        radiusMaxPixels: performanceLevel === 'high' ? 8 : 6,
+        radiusScale: heartbeatScale * 0.78,  // 심장박동 효과 적용 + 78% 크기 (30% 증가)
+        radiusMinPixels: 1.3, // 30% 증가에 맞춰 조정
+        radiusMaxPixels: performanceLevel === 'high' ? 6.5 : 5.2,  // 30% 증가에 맞춰 조정
         getPosition: (d: any) => d.position,
         getRadius: (d: any) => d.size,
         getFillColor: (d: any) => {
@@ -724,15 +935,15 @@ export function SeoulMapOptimized({
           id: "particle-glow",
           data: animatedData.filter((_, i) => i % 3 === 0),
           pickable: false,
-          opacity: 0.1,
+          opacity: 0.15,  // 글로우 효과도 살짝 강화
           stroked: false,
           filled: true,
-          radiusScale: 1.5,
-          radiusMinPixels: 1,
-          radiusMaxPixels: 8,
+          radiusScale: heartbeatScale * 1.17,  // 글로우 레이어도 78% 크기로 조정 (1.5 * 0.78)
+          radiusMinPixels: 0.65,
+          radiusMaxPixels: 6.5,  // 30% 증가에 맞춰 조정
           getPosition: (d: any) => d.position,
           getRadius: (d: any) => d.size * 1.2,
-          getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 40],
+          getFillColor: (d: any) => [d.color[0], d.color[1], d.color[2], 60],  // 글로우 색상도 더 강하게
           parameters: {
             depthTest: false,
             blend: true,
@@ -743,7 +954,7 @@ export function SeoulMapOptimized({
     }
     
     return baseLayers
-  }, [animatedData, connections, config.connectionCount, config.glowLayers, performanceLevel, boundaryData, animationConfig.blackBackgroundEnabled])
+  }, [animatedData, connections, config.connectionCount, config.glowLayers, performanceLevel, boundaryData, animationConfig.blackBackgroundEnabled, animationState.time, displayMode])
 
   // 뷰 상태 변경 핸들러 (디바운싱 적용)
   const handleViewStateChange = useCallback(({ viewState }: any) => {
@@ -866,40 +1077,36 @@ export function SeoulMapOptimized({
 
   return (
     <div className="relative w-full h-full" id="seoul-map-container" style={{ marginTop: '-10px' }}>
-      {/* Particle layer rendering */}
-      <DeckGL
-        viewState={viewState}
-        controller={false}  // Disable user interaction
-        layers={layers}
-        parameters={{
-          // Parameters for rendering optimization
-        }}
-        // 성능 최적화 옵션
-        getCursor={() => 'default'}  // Default cursor (no grab)
-        getTooltip={() => null}
-      >
-        {/* Render Map with fixed dark theme */}
-        {typeof window !== 'undefined' && MAPBOX_TOKEN && (
-          <Map
+      {/* 1. 지도 레이어 (최하단) */}
+      {typeof window !== 'undefined' && MAPBOX_TOKEN && (
+        <Map
           mapboxAccessToken={MAPBOX_TOKEN}
           mapStyle={mapStyle}
-          style={{ width: '100%', height: '100%' }}
+          viewState={viewState}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            zIndex: 1
+          }}
           interactive={false}  // Disable Mapbox interaction
           reuseMaps={true}
           preserveDrawingBuffer={false}
           attributionControl={false}
           onError={(evt: any) => {
-            console.error('Map error in particle layer:', evt)
+            console.error('Map error:', evt)
           }}
           onLoad={(evt: any) => {
             const map = evt.target
-            
+
             // Ensure the map has initialized properly
             if (!map || !map.getStyle) {
               console.warn('Map not properly initialized')
               return
             }
-            
+
             try {
               // 더 어둡게 스타일 조정
               const layers = map.getStyle()?.layers
@@ -922,18 +1129,44 @@ export function SeoulMapOptimized({
             }
           }}
         />
-        )}
-        
-      </DeckGL>
+      )}
 
-      {/* 간단한 그라데이션 오버레이 */}
-      <div 
+      {/* 2. 어두운 배경 오버레이 (중간) */}
+      <div
         className="absolute inset-0 pointer-events-none"
         style={{
-          background: `radial-gradient(circle at 50% 50%, transparent 40%, rgba(0, 0, 20, 0.4) 100%)`,
+          background: `
+            radial-gradient(circle at 50% 50%,
+              transparent 30%,
+              rgba(0, 0, 0, 0.3) 60%,
+              rgba(0, 0, 0, 0.7) 100%
+            )
+          `,
+          zIndex: 2
         }}
       />
-      
+
+      {/* 3. 파티클 레이어 (최상단) */}
+      <DeckGL
+        viewState={viewState}
+        controller={false}  // Disable user interaction
+        layers={layers}
+        parameters={{
+          // Parameters for rendering optimization
+        }}
+        // 성능 최적화 옵션
+        getCursor={() => 'default'}  // Default cursor (no grab)
+        getTooltip={() => null}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          zIndex: 3
+        }}
+      />
+
     </div>
   )
 }

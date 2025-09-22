@@ -263,7 +263,7 @@ export default function CardSalesDistrictMap() {
   // Separate color states for actual and prediction layers
   const [actualMeshColor, setActualMeshColor] = useState<string>('#FFFFFF')  // Actual data mesh color
   const [predictionMeshColor, setPredictionMeshColor] = useState<string>('#FFD700')  // Prediction mesh color (yellow)
-  const [useActualTemperatureColor, setUseActualTemperatureColor] = useState<boolean>(false)  // Temperature color for actual
+  const [useActualTemperatureColor, setUseActualTemperatureColor] = useState<boolean>(true)  // Temperature color for actual - enabled by default for auto animation
   const [usePredictionTemperatureColor, setUsePredictionTemperatureColor] = useState<boolean>(false)  // Temperature color for prediction
   const [timelineMode, setTimelineMode] = useState<'monthly'|'daily'>('daily')
   const [availableDailyDates, setAvailableDailyDates] = useState<string[]>([])
@@ -372,10 +372,22 @@ export default function CardSalesDistrictMap() {
     setIsAIPredictionMode(prev => {
       const newValue = !prev
       if (newValue) {
-        // AI 모드 진입 시 7월 1일로 초기화
+        // AI 모드 진입 시
+
+        // 1. 애니메이션 중지
+        setDailyAutoPlay(false)
+        setIsActualAnimating(false)
+        setIsPredictionAnimating(false)
+
+        // 2. 7월 1일로 날짜 설정
         setPredictionDate('20240701')
+        setActualDate('20240701')  // 실제 레이어도 7월 1일로
         setSelectedMeshMonth(7)
         setTimelineMode('daily')
+
+        // 3. 온도 필터 설정
+        setUseActualTemperatureColor(false)      // 실제 레이어 온도 필터 해제
+        setUsePredictionTemperatureColor(true)   // 예측 레이어 온도 필터 적용
 
         // 7월 1일 인덱스 찾기 (availableDailyDates가 로드된 경우)
         if (availableDailyDates.length > 0) {
@@ -392,6 +404,11 @@ export default function CardSalesDistrictMap() {
           transitionInterpolator: new FlyToInterpolator({ speed: 1.5 }),
           transitionDuration: 800
         } as MapViewState))
+      } else {
+        // AI 모드 종료 시
+        // 온도 필터를 원래대로 복원
+        setUseActualTemperatureColor(true)       // 실제 레이어 온도 필터 다시 활성화
+        setUsePredictionTemperatureColor(false)  // 예측 레이어 온도 필터 해제
       }
       return newValue
     })
@@ -469,6 +486,29 @@ export default function CardSalesDistrictMap() {
 
     loadYearData()
   }, [])
+
+  // Auto-start animation on page load with temperature filter
+  useEffect(() => {
+    // Only auto-start if not in AI prediction mode
+    if (availableDailyDates.length > 0 && !isAIPredictionMode && !dailyAutoPlay) {
+      // Start animation after a short delay for smooth page load
+      const autoStartTimer = setTimeout(() => {
+        // Set to daily timeline mode (already set by default)
+        setTimelineMode('daily')
+
+        // Temperature color is already enabled by default
+        // Start from the first date
+        setSelectedDailyIndex(0)
+
+        // Start the animation
+        setDailyAutoPlay(true)
+
+        console.log('Auto-starting daily animation with temperature filter')
+      }, 1500) // 1.5 second delay for smooth initial load
+
+      return () => clearTimeout(autoStartTimer)
+    }
+  }, [availableDailyDates.length, isAIPredictionMode])
 
   // Create year temperature graph path
   const yearTempGraphPath = useMemo(() => {
@@ -2121,10 +2161,10 @@ export default function CardSalesDistrictMap() {
       <div
         className="absolute z-10"
         style={{
-          top: '86px',
+          top: isAIPredictionMode ? '86px' : '36px',
           left: isAIPredictionMode ? '25%' : '50%',
           transform: 'translateX(-50%)',
-          transition: 'left 0.3s ease-in-out'
+          transition: 'left 0.3s ease-in-out, top 0.3s ease-in-out'
         }}
       >
         <div

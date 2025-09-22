@@ -67,32 +67,40 @@ export function useDataProcessor(filters?: FilterState): UseDataProcessorReturn 
   // Height interpolation - disabled since polygon layers are removed
   const heightInterpolation = null
   
-  // Load district boundary data
+  // Load district boundary data with optimized parallel fetching
   useEffect(() => {
     const loadBoundaries = async () => {
       try {
         setIsLoadingBoundaries(true)
-        const [sgg, dong, jib] = await Promise.all([
+
+        // Parallel loading of all boundary data including Seoul boundary
+        const boundaryPromises = [
           loadDistrictData('sgg'),
           loadDistrictData('dong'),
-          loadDistrictData('jib')
-        ])
-        
+          loadDistrictData('jib'),
+          // Seoul boundary fetch with proper error handling
+          fetch('/seoul_boundary.geojson', {
+            // @ts-ignore - Next.js specific fetch options
+            next: {
+              tags: ['seoul-boundary'],
+              revalidate: 86400 // 24 hour cache
+            },
+            cache: 'force-cache'
+          }).then(response =>
+            response.ok ? response.json() : null
+          ).catch(() => null)
+        ]
+
+        const [sgg, dong, jib, seoulBoundary] = await Promise.all(boundaryPromises)
+
+        // Update state in batch
         setSggData(sgg)
         setDongData(dong)
         setJibData(jib)
-        
-        // Load Seoul boundary if available
-        try {
-          const response = await fetch('/seoul_boundary.geojson')
-          if (response.ok) {
-            const boundary = await response.json()
-            setSeoulBoundaryData(boundary)
-          }
-        } catch (err) {
-          console.warn('Seoul boundary data not available:', err)
+        if (seoulBoundary) {
+          setSeoulBoundaryData(seoulBoundary)
         }
-        
+
         setIsLoadingBoundaries(false)
       } catch (err) {
         console.error('Error loading district boundaries:', err)
@@ -100,7 +108,7 @@ export function useDataProcessor(filters?: FilterState): UseDataProcessorReturn 
         setIsLoadingBoundaries(false)
       }
     }
-    
+
     loadBoundaries()
   }, [])
   
