@@ -23,10 +23,7 @@ import {
   interpolateUnifiedParticles,
   type ParticleData
 } from "../utils/particleGenerator"
-import { loadStaticParticles } from "../utils/particleOptimizer"
 import { initializeParticleMemoryPool } from "@/src/shared/utils/mathHelpers"
-import { useParticleCache } from "../hooks/useParticleCache"
-import { useParticleWorker } from "../hooks/useParticleWorker"
 import useParticleAnimations from "../hooks/useParticleAnimation"
 import type { AnimationConfig } from "../hooks/useParticleAnimation"
 // Removed AnimationControls import - moved to Hero component
@@ -179,6 +176,7 @@ export function SeoulMapOptimized({
   const [boundaryData, setBoundaryData] = useState<SeoulBoundaryData | null>(null)
   const [particles, setParticles] = useState<ParticleData[]>([])
   const [animatedData, setAnimatedData] = useState<any[]>([])
+  const particlesRef = useRef<ParticleData[]>([])
   const [connections, setConnections] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadingProgress, setLoadingProgress] = useState(0)
@@ -219,6 +217,9 @@ export function SeoulMapOptimized({
     sizes: new Float32Array(0),
     reusableObjects: []
   })
+
+  const loadingInProgressRef = useRef(false)
+  const fallbackInitializedRef = useRef(false)
   
   // Batch processing state
   const batchStateRef = useRef<{
@@ -270,6 +271,22 @@ export function SeoulMapOptimized({
     )
   }, [animationConfig])
 
+  // Prime fallback particles so something renders before async load completes
+  useEffect(() => {
+    if (fallbackInitializedRef.current || particlesRef.current.length > 0 || particles.length > 0) {
+      return
+    }
+
+    const fallbackCount = adaptiveConfigRef.current.particleCount
+    const fallbackParticles = generateDamienHirstPattern(fallbackCount)
+    const initialAnimated = animateParticlesBatch(fallbackParticles, 0)
+
+    fallbackInitializedRef.current = true
+    particlesRef.current = fallbackParticles
+    setParticles(fallbackParticles)
+    setAnimatedData(initialAnimated)
+  }, [animateParticlesBatch, particles.length])
+
   // Map style now comes from props
 
   // Animation config and map style changes handled by parent
@@ -302,6 +319,7 @@ export function SeoulMapOptimized({
             position: p.mapPos  // Update position array to match x,y coordinates
           }))
           setParticles(mapPositionedParticles)
+          particlesRef.current = mapPositionedParticles
         }
         amplitudeAnimationRef.current = 0.2 // Maintain small amplitude for continuous movement
       } else {
@@ -398,84 +416,113 @@ export function SeoulMapOptimized({
     }
   }, [displayMode, performanceLevel])
 
-  // Particle cache hook
-  const { 
-    isReady: cacheReady, 
-    loadParticles: loadCachedParticles, 
-    saveParticles: saveCachedParticles 
-  } = useParticleCache()
-  
-  // Particle worker hook
-  const {
-    generateParticles: generateWithWorker,
-    progress: workerProgress,
-    isGenerating: workerGenerating
-  } = useParticleWorker()
+  interface LoadOptions {
+    silent?: boolean
+    allowFallback?: boolean
+  }
 
-  // Enhanced data loading with optimizations
-  useEffect(() => {
-    // Skip if particles are already loaded - prevent re-initialization
-    if (unifiedParticles.length > 0) {
-      console.log('Particles already loaded, skipping re-initialization')
+  const loadDataOptimized = useCallback(async ({ silent = false, allowFallback = false }: LoadOptions = {}) => {
+    if (loadingInProgressRef.current) {
       return
     }
 
-    // Initialize amplitude animation - always start with minimal movement
-    amplitudeAnimationRef.current = 0.2 // Minimal amplitude for subtle animation
-    animationStartTimeRef.current = Date.now() // Animation starts now
+    loadingInProgressRef.current = true
+    amplitudeAnimationRef.current = 0.2
+    animationStartTimeRef.current = Date.now()
+    const shouldShowLoader = !silent
 
-    async function loadDataOptimized(): Promise<void> {
-      try {
+    try {
+      if (shouldShowLoader) {
         setIsLoading(true)
-        setError(null)
         setLoadingProgress(0)
-
-        // Step 1: Generate unified particles with both circular and map positions
         setLoadingPhase('Generating unified particles...')
-        const unified = await generateUnifiedParticles() // Uses damienHirst theme by default
-        setUnifiedParticles(unified)
+      }
 
-        // Start with circular positions
-        const initialParticles = unified.map(p => ({
-          ...p,
-          x: p.circularPos![0],
-          y: p.circularPos![1]
-        }))
-        setParticles(initialParticles)
+      if (!silent) {
+        setError(null)
+      }
 
-        // Apply minimal animation to circular pattern
-        const circularAnimatedData = animateParticlesBatch(initialParticles, 0)
-        setAnimatedData(circularAnimatedData)
+      const unified = await generateUnifiedParticles()
+      setUnifiedParticles(unified)
+
+      const initialParticles = unified.map(p => ({
+        ...p,
+        x: p.circularPos![0],
+        y: p.circularPos![1]
+      }))
+
+      particlesRef.current = initialParticles
+      setParticles(initialParticles)
+
+      const circularAnimatedData = animateParticlesBatch(initialParticles, 0)
+      setAnimatedData(circularAnimatedData)
+      if (shouldShowLoader) {
         setLoadingPhase('Particles ready!')
         setLoadingProgress(100)
+      }
+      setRetryCount(0)
+    } catch (error) {
+      console.error('Unified particle generation failed:', error)
+      setError('Unable to generate unified particles')
 
-        // Unified particles already contain both circular and map positions
-        // No need to load separate map particles
-        
-      } catch (error) {
-        console.error('Unified particle generation failed:', error)
-        setError('Unable to generate unified particles')
-
-        // Fallback to original circular pattern at least
+      if (allowFallback) {
         try {
-          const fallbackCircular = generateDamienHirstPattern(config.particleCount) // Uses damienHirst theme by default
+          const fallbackCircular = generateDamienHirstPattern(config.particleCount)
+          particlesRef.current = fallbackCircular
           setParticles(fallbackCircular)
           const fallbackAnimatedData = animateParticlesBatch(fallbackCircular, 0)
           setAnimatedData(fallbackAnimatedData)
-          setLoadingProgress(100)
+          if (shouldShowLoader) {
+            setLoadingPhase('Fallback particles ready')
+            setLoadingProgress(100)
+          }
         } catch (fallbackError) {
-          console.error('Fallback also failed:', fallbackError)
+          console.error('Fallback particle generation failed:', fallbackError)
           setError('Unable to generate particles')
         }
-      } finally {
-        setIsLoading(false)
-        // Amplitude animation already initialized at the beginning
       }
+    } finally {
+      if (shouldShowLoader) {
+        setIsLoading(false)
+      }
+      loadingInProgressRef.current = false
     }
-    
-    // Start the loading process
-    loadDataOptimized()
-  }, [config.particleCount, maxRetries, cacheReady, loadCachedParticles, saveCachedParticles, unifiedParticles.length, displayMode])
+  }, [animateParticlesBatch, config.particleCount])
+
+  useEffect(() => {
+    if (unifiedParticles.length > 0) {
+      return
+    }
+
+    loadDataOptimized({ allowFallback: true })
+  }, [loadDataOptimized, unifiedParticles.length])
+
+  useEffect(() => {
+    if (particlesRef.current !== particles) {
+      particlesRef.current = particles
+    }
+  }, [particles])
+
+  useEffect(() => {
+    if (!error || retryCount >= maxRetries) {
+      return
+    }
+
+    const timer = window.setTimeout(() => {
+      setRetryCount(prev => prev + 1)
+      if (unifiedParticles.length === 0) {
+        setLoadingPhase(`Retrying... (${retryCount + 1}/${maxRetries})`)
+      }
+      loadDataOptimized({
+        silent: unifiedParticles.length > 0,
+        allowFallback: unifiedParticles.length === 0
+      })
+    }, 1500)
+
+    return () => {
+      window.clearTimeout(timer)
+    }
+  }, [error, retryCount, maxRetries, loadDataOptimized, unifiedParticles.length])
 
   // Color theme is now forced to damienHirst for optimal vibrancy
   // Dynamic color switching logic removed to ensure consistent vibrant colors
@@ -656,35 +703,36 @@ export function SeoulMapOptimized({
               const interpolatedParticles = interpolateUnifiedParticles(unifiedParticles, progress, {
                 time: timeInSeconds,
               })
+              particlesRef.current = interpolatedParticles
               updated = animateParticlesBatch(interpolatedParticles, timeInSeconds)
 
               // Check if transition is complete
               if (progress >= 1.0) {
                 setDisplayMode('map')
                 setParticles(interpolatedParticles)
+                particlesRef.current = interpolatedParticles
                 transitionStartTimeRef.current = null
                 amplitudeAnimationRef.current = 0.2 // Maintain small amplitude for continuous movement
                 // No need to reset animationStartTimeRef since we're not using scatter in map mode
                 if (onDisplayModeChange) {
                   onDisplayModeChange('map')
                 }
-                console.log('Transition to map complete')
               }
             } else {
               // Fallback to current particles if transition data not ready
               const timeInSeconds = animationState.time * 0.001
-              updated = animateParticlesBatch(particles, timeInSeconds)
+              updated = animateParticlesBatch(particlesRef.current, timeInSeconds)
             }
           } else if (displayMode === 'circular') {
             // Animate circular pattern with minimal movement
             const timeInSeconds = animationState.time * 0.001
             amplitudeAnimationRef.current = 0.2 // Keep minimal amplitude
-            updated = animateParticlesBatch(particles, timeInSeconds)
+            updated = animateParticlesBatch(particlesRef.current, timeInSeconds)
           } else {
             // Map mode - simple animation without scatter effect
             // amplitude is already set to 0.2 when transition completes
             const timeInSeconds = animationState.time * 0.001
-            updated = animateParticlesBatch(particles, timeInSeconds)
+            updated = animateParticlesBatch(particlesRef.current, timeInSeconds)
           }
 
           setAnimatedData(updated)
