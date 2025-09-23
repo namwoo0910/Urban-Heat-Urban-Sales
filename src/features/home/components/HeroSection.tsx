@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
 import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
@@ -77,6 +77,12 @@ export function Hero() {
       // once map particles are loaded
     }
   }
+
+  useEffect(() => {
+    const onRemoteExplore = () => handleExploreClick()
+    window.addEventListener('hero:explore', onRemoteExplore)
+    return () => window.removeEventListener('hero:explore', onRemoteExplore)
+  }, [handleExploreClick])
 
   useGSAP(
     () => {
