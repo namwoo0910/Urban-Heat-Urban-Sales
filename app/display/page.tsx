@@ -1,23 +1,48 @@
 'use client'
 import { useCallback } from 'react'
+import { useRouter } from 'next/navigation'
 import { useWS } from '@shared/hooks/useWS'
 import { Hero } from '@/src/features/home/components/HeroSection'
 
 export default function DisplayPage() {
-  const onAction = useCallback((action: 'explore' | 'view-analytics') => {
-    if (action === 'explore') {
-      // Hero 안의 handleExploreClick()을 직접 호출하는 효과
-      requestAnimationFrame(() => {
-        if (typeof window !== 'undefined') {
-          window.dispatchEvent(new CustomEvent('hero:explore'))
-        }
-      })
+  const router = useRouter()
+
+  // const onAction = useCallback((action: string) => {
+  //   console.log('[Display] onAction', action)
+  //   if (action.startsWith('display:navigate:')) {
+  //     const path = action.replace('display:navigate:', '')
+  //     console.log('[Display] navigating to', path)
+  //     router.push(path)
+  //   }
+  //   if (action === 'explore') {
+  //     requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('hero:explore')))
+  //   }
+  // }, [router])
+  const onAction = useCallback((action: string) => {
+    console.log('[Display] onAction', action)
+    if (action.startsWith('display:navigate:')) {
+      const path = action.replace('display:navigate:', '')
+      router.replace(path)
+      return
     }
-    // view-analytics는 디스플레이에서 무시 (요구사항)
-  }, [])
 
-  useWS({ role: 'display', room: 'main', onAction })
+    // ✅ 컨트롤 업데이트(로컬 이코노미)
+    if (action.startsWith('viz:local-economy:update:')) {
+      const json = action.slice('viz:local-economy:update:'.length)
+      try {
+        const patch = JSON.parse(json)
+        window.dispatchEvent(new CustomEvent('viz:local-economy:update', { detail: patch }))
+      } catch {}
+      return
+    }
 
-  // 디스플레이는 Hero만 렌더 → 내부 상태가 원본 흐름대로 전환됨
+    if (action === 'explore') {
+      requestAnimationFrame(() => window.dispatchEvent(new CustomEvent('hero:explore')))
+    }
+  }, [router])
+
+
+
+  useWS({ role: 'display', room: 'main', onAction /*, url:'ws://localhost:3001/ws'*/ })
   return <Hero />
 }

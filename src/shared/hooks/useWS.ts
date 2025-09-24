@@ -2,7 +2,10 @@
 'use client'
 import { useEffect, useRef, useState, useCallback } from 'react'
 
-export type Action = 'explore' | 'view-analytics'
+export type Action =
+  | 'explore'
+  | 'view-analytics'
+  | `display:navigate:${string}`
 type OnAction = (a: Action, raw?: unknown) => void
 
 type WSStatus = 'idle' | 'connecting' | 'open' | 'closing' | 'closed'
@@ -74,14 +77,17 @@ export function useWS({
         }
         flushQueue()
       })
-
+      console.log('[useWS] status', status)
       ws.addEventListener('message', (e) => {
         try {
           const msg = JSON.parse(e.data as string)
-          if (msg?.type === 'action' && (msg.action === 'explore' || msg.action === 'view-analytics')) {
-            onActionRef.current?.(msg.action, msg)   // 🔴 ref에서 호출
+          console.log('[useWS] incoming message', msg)   // 👈 추가
+          if (msg?.type === 'action' && typeof msg.action === 'string') {
+            onActionRef.current?.(msg.action as any, msg)
           }
-        } catch {}
+        } catch (err) {
+          console.error('[useWS] parse error', err)
+        }
       })
 
       ws.addEventListener('close', () => {

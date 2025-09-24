@@ -30,6 +30,18 @@ import type { FeatureCollection } from 'geojson'
 import "../styles/CardSalesDistrictMap.css"
 import "@/src/shared/styles/districtEffects.css"
 
+type RemotePatch = {
+  // 필요에 따라 확장 가능
+  timelineMode?: 'monthly'|'daily'
+  dayIndex?: number
+  playing?: boolean
+  selectedMeshMonth?: number
+  useTemperatureColor?: boolean
+  colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity' | 'category'
+  selectedGuCode?: number | null
+  selectedDongCode?: number | null
+  // elevationScale 등 layerConfig 필드도 원한다면 여기에 추가
+}
 
 // Simple color function for sales-based visualization
 const convertColorExpressionToRGB = (
@@ -71,7 +83,7 @@ const convertColorExpressionToRGB = (
 }
 
 
-export default function CardSalesDistrictMap() {
+export default function CardSalesDistrictMap({ remote = false }: { remote?: boolean }) {
   const mapRef = useRef<MapRef>(null)
   const mapRefRight = useRef<MapRef>(null)  // Second map ref for AI prediction map
   const cleanupRef = useRef<(() => void)[]>([])
@@ -1844,6 +1856,30 @@ export default function CardSalesDistrictMap() {
     }
   }, [])
 
+  // remote controll
+  useEffect(() => {
+    if (!remote) return
+
+    const onUpdate = (e: Event) => {
+      const detail = (e as CustomEvent<RemotePatch>).detail || {}
+      if (detail.timelineMode) setTimelineMode(detail.timelineMode)
+      if (typeof detail.dayIndex === 'number') {
+        const idx = Math.max(0, Math.min(detail.dayIndex, availableDailyDates.length - 1))
+        setSelectedDailyIndex(idx)
+      }
+      if (typeof detail.playing === 'boolean') setDailyAutoPlay(detail.playing)
+      if (typeof detail.selectedMeshMonth === 'number') setSelectedMeshMonth(detail.selectedMeshMonth)
+      if (typeof detail.useTemperatureColor === 'boolean') setUseActualTemperatureColor(detail.useTemperatureColor)
+      if (detail.colorMode) setColorMode(detail.colorMode)
+      if ('selectedGuCode' in detail) setSelectedGuCode(detail.selectedGuCode ?? null)
+      if ('selectedDongCode' in detail) setSelectedDongCode(detail.selectedDongCode ?? null)
+      // layerConfig 업데이트(예: elevationScale)도 원하면 여기서 setLayerConfig(prev=>({...prev, elevationScale: detail.elevationScale!})) 형태로 추가
+    }
+
+    window.addEventListener('viz:local-economy:update', onUpdate as EventListener)
+    return () => window.removeEventListener('viz:local-economy:update', onUpdate as EventListener)
+  }, [remote, availableDailyDates.length /*, setLayerConfig 등 필요한 의존성*/])
+
   // Layer filter for performance optimization during interaction
   const layerFilter = useCallback(({ layer, viewport }: any) => {
     // During drag, only render essential layers
@@ -2197,36 +2233,37 @@ export default function CardSalesDistrictMap() {
 
 
       {/* 통합 컨트롤 패널 - Always show for AI button and basic controls */}
-      <UnifiedControls
-        // 높이 스케일 props
-        heightScale={heightScale}
-        onHeightScaleChange={setHeightScale}
+      {!remote && (
+        <UnifiedControls
+          // 높이 스케일 props
+          heightScale={heightScale}
+          onHeightScaleChange={setHeightScale}
 
 
-        // Mesh layer props (always on, no toggle)
-        // Wireframe always true - props removed
-        // Mesh resolution fixed at 120 - props removed
-        meshColor={actualMeshColor}
-        onMeshColorChange={setActualMeshColor}
-        useTemperatureColor={useActualTemperatureColor}
-        onUseTemperatureColorChange={setUseActualTemperatureColor}
-        timelineMode={timelineMode}
-        onTimelineModeChange={setTimelineMode}
-        selectedMeshMonth={selectedMeshMonth}
-        onMeshMonthChange={setSelectedMeshMonth}
-        // Daily playback props
-        isDailyPlaybackActive={dailyAutoPlay}
-        currentDayIndex={selectedDailyIndex}
-        totalDays={availableDailyDates.length}
-        currentDate={availableDailyDates[selectedDailyIndex] || ''}
-        onPlayPause={handleDailyPlayPause}
-        onDayChange={handleDailyIndexChange}
-        onSkipToStart={handleDailySkipToStart}
-        onSkipToEnd={handleDailySkipToEnd}
-        // AI Prediction mode - only pass the state for conditional UI
-        isAIPredictionMode={isAIPredictionMode}
-      />
-
+          // Mesh layer props (always on, no toggle)
+          // Wireframe always true - props removed
+          // Mesh resolution fixed at 120 - props removed
+          meshColor={actualMeshColor}
+          onMeshColorChange={setActualMeshColor}
+          useTemperatureColor={useActualTemperatureColor}
+          onUseTemperatureColorChange={setUseActualTemperatureColor}
+          timelineMode={timelineMode}
+          onTimelineModeChange={setTimelineMode}
+          selectedMeshMonth={selectedMeshMonth}
+          onMeshMonthChange={setSelectedMeshMonth}
+          // Daily playback props
+          isDailyPlaybackActive={dailyAutoPlay}
+          currentDayIndex={selectedDailyIndex}
+          totalDays={availableDailyDates.length}
+          currentDate={availableDailyDates[selectedDailyIndex] || ''}
+          onPlayPause={handleDailyPlayPause}
+          onDayChange={handleDailyIndexChange}
+          onSkipToStart={handleDailySkipToStart}
+          onSkipToEnd={handleDailySkipToEnd}
+          // AI Prediction mode - only pass the state for conditional UI
+          isAIPredictionMode={isAIPredictionMode}
+        />
+      )}
       {/* AI 예측 활성화 버튼 - 지도 초기화 버튼 위 */}
       <button
         onClick={handleAIPredictionToggle}
