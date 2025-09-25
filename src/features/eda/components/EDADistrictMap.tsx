@@ -39,7 +39,26 @@ import type { ThemeKey } from '../utils/edaColorPalette'
 // Ambient effects
 import { DEFAULT_AMBIENT_CONFIG } from '../utils/ambientEffects'
 
-export default function EDADistrictMap() {
+type RemoteSelect = { level: 'district' | 'neighborhood'; code: string; name?: string }
+
+type Props = {
+  role?: 'controller' | 'display'            // 기본 'display'
+  interactive?: boolean                      // 컨트롤러에선 true, 디스플레이에선 false
+  showChartPanel?: boolean                   // 컨트롤러 false, 디스플레이 true
+  selected?: RemoteSelect | null             // (선택) 외부에서 하이라이트 주입
+  onRegionClick?: (sel: RemoteSelect) => void// 컨트롤러에서 지역 클릭시 호출
+}
+
+
+
+
+export default function EDADistrictMap({
+  role = 'display',
+  interactive = false,
+  showChartPanel: showChartPanelProp,
+  selected = null,
+  onRegionClick,
+}: Props) {
   // Core refs
   const mapRef = useRef<MapRef>(null)
 
@@ -75,7 +94,10 @@ export default function EDADistrictMap() {
   }, [chartPanelWidth, windowWidth])
 
   // UI state - moved up to use in initial calculation
-  const [showChartPanel, setShowChartPanel] = useState(true) // Track chart panel visibility
+  // 기존: const [showChartPanel, setShowChartPanel] = useState(true)
+  const [showChartPanel, setShowChartPanel] = useState<boolean>(true)
+  const computedShowChartPanel = showChartPanelProp ?? showChartPanel
+
 
   // View state with dynamic center
   const [viewState, setViewState] = useState<MapViewState>({
@@ -209,6 +231,38 @@ export default function EDADistrictMap() {
     setSelectedBusinessType(filters.selectedBusinessType)
   }, [])
 
+  // 컨트롤러에서 보낸 선택(viz:eda:select) 수신 → 내부 필터/하이라이트 갱신
+  useEffect(() => {
+    const onSel = (e: Event) => {
+      const d = (e as CustomEvent<{ level:'district'|'neighborhood'; code:string; name?:string }>).detail
+      if (!d) return
+
+      if (d.level === 'district') {
+        handleFilterChange({
+          selectedGu: d.name ?? null,
+          selectedGuCode: d.code ? Number(d.code) : (d.name ? getDistrictCode(d.name) : null),
+          selectedDong: null,
+          selectedDongCode: null,
+          selectedBusinessType: selectedBusinessType,
+        })
+      } else {
+        // dong 선택: gu가 함께 넘어오면 매핑 정확도↑ (name 없으면 code 기준으로만 처리)
+        handleFilterChange({
+          selectedGu: selectedGu,
+          selectedGuCode: selectedGuCode,
+          selectedDong: d.name ?? null,
+          selectedDongCode: d.code ? Number(d.code) : (selectedGu && d.name ? getDongCode(selectedGu, d.name) : null),
+          selectedBusinessType: selectedBusinessType,
+        })
+      }
+    }
+
+    window.addEventListener('viz:eda:select', onSel as EventListener)
+    return () => window.removeEventListener('viz:eda:select', onSel as EventListener)
+  }, [handleFilterChange, selectedGu, selectedGuCode, selectedBusinessType])
+
+
+
   // Apply preset filters
   const applyPresetFilter = useCallback((preset: 'vulnerable' | 'culture') => {
     if (preset === 'vulnerable') {
@@ -270,6 +324,21 @@ export default function EDADistrictMap() {
 
       // Use the same filter change handler as the filter panel
       handleFilterChange(filterState)
+      if (onRegionClick) {
+        const level = selectionMode === 'gu' ? 'district' : 'neighborhood'
+        const code =
+          level === 'district'
+            ? String(filterState.selectedGuCode ?? '')
+            : String(filterState.selectedDongCode ?? '')
+        const name =
+          level === 'district'
+            ? filterState.selectedGu ?? undefined
+            : filterState.selectedDong ?? undefined
+
+        if (code) onRegionClick({ level, code, name })
+      }
+
+
     }
   }, [getGuName, getDistrictName, selectionMode, selectedBusinessType, handleFilterChange])
 
@@ -329,7 +398,7 @@ export default function EDADistrictMap() {
       }
     } else if (!selectedGu) {
       // Reset to Seoul overview when no district is selected
-      const adjustedLongitude = calculateAdjustedCenter(showChartPanel)
+      const adjustedLongitude = calculateAdjustedCenter(computedShowChartPanel)
       setViewState(prev => ({
         ...DEFAULT_SEOUL_VIEW,
         longitude: adjustedLongitude,
@@ -337,19 +406,19 @@ export default function EDADistrictMap() {
         transitionInterpolator: new FlyToInterpolator()
       }))
     }
-  }, [selectedGu, guData, getGuName, getBounds, calculateAdjustedCenter, showChartPanel])
+  }, [selectedGu, guData, getGuName, getBounds, calculateAdjustedCenter, computedShowChartPanel])
 
   // Update map center when panel width or window size changes
   useEffect(() => {
     // Only adjust center if no district is selected (in overview mode)
     if (!selectedGu) {
-      const newLongitude = calculateAdjustedCenter(showChartPanel)
+      const newLongitude = calculateAdjustedCenter(computedShowChartPanel)
       setViewState(prev => ({
         ...prev,
         longitude: newLongitude
       }))
     }
-  }, [calculateAdjustedCenter, showChartPanel, selectedGu])
+  }, [calculateAdjustedCenter, computedShowChartPanel, selectedGu])
 
   // Handle window resize
   useEffect(() => {
@@ -376,7 +445,7 @@ export default function EDADistrictMap() {
     setSelectedBusinessType(null)
 
     // Reset view to initial state with calculated center
-    const initialLongitude = calculateAdjustedCenter(showChartPanel)
+    const initialLongitude = calculateAdjustedCenter(computedShowChartPanel)
 
     // Smooth transition to initial view
     setViewState({
@@ -385,7 +454,7 @@ export default function EDADistrictMap() {
       transitionDuration: 800,  // 800ms smooth transition
       transitionInterpolator: new FlyToInterpolator()
     })
-  }, [calculateAdjustedCenter, showChartPanel])
+  }, [calculateAdjustedCenter, computedShowChartPanel])
 
   // Create layers
   const layers = useMemo(() => {
@@ -520,7 +589,7 @@ export default function EDADistrictMap() {
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onHover={handleHover}
-        onClick={handleClick}
+        onClick={interactive ? handleClick : undefined} 
         getTooltip={getTooltip}
         mapRef={mapRef}
         isDragging={isDragging}
@@ -593,7 +662,7 @@ export default function EDADistrictMap() {
       )}
 
       {/* Charts panel */}
-      {showChartPanel && (
+      {computedShowChartPanel && (
         <div
           className="absolute top-16 right-0 bottom-0"
           style={{

@@ -5,6 +5,7 @@ import dynamic from 'next/dynamic'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useWS } from '@shared/hooks/useWS'
+import EDADistrictMap from '@/src/features/eda/components/EDADistrictMap'
 
 // Research 섹션 (named export: Research)
 const Research = dynamic(
@@ -67,6 +68,12 @@ export default function ControllerPage() {
     sendAction(`display:navigate:${path}`)
     if (path === '/research/local-economy') openLocalEconomyPanel()
     else closeOverlay()
+    if (path === '/research/eda') {
+      const next = new URLSearchParams(sp)
+      next.set('modal', 'research')
+      next.set('panel', 'eda')       // 👈 컨트롤러에 EDA 패널 오픈
+      router.push(`/controller?${next.toString()}`)
+    }
   }
 
   // ===== Local Economy 패널용 컨트롤 =====
@@ -74,13 +81,13 @@ export default function ControllerPage() {
   const videoSrc = '/0923.mp4' // public/0923.mp4
 
   // ✅ 새로 추가: "카드 데이터 매출 살펴보기" (디스플레이를 바로 /research/local-economy 로)
-  const viewLocalEconomy = () => {
-    sendAction('display:navigate:/research/local-economy?intro=1')
-    setTimeout(() => {
-    sendAction('display:research:landing') // ← 랜딩 화면 강제 복귀
-    }, 150)
-    // 컨트롤러는 계속 패널에 남겨둠(필요 시 유지)
-  }
+  // const viewLocalEconomy = () => {
+  //   sendAction('display:navigate:/research/local-economy?intro=1')
+  //   setTimeout(() => {
+  //   sendAction('display:research:landing') // ← 랜딩 화면 강제 복귀
+  //   }, 150)
+  //   // 컨트롤러는 계속 패널에 남겨둠(필요 시 유지)
+  // }
 
   // ✅ 재생: 오버레이를 즉시 띄우고(재생), 동시에 라우트 이동
   //    - 전역 오버레이이므로 페이지와 무관하게 재생 가능
@@ -203,7 +210,23 @@ export default function ControllerPage() {
                 <Research />
               </div>
             )}
-
+            {panel === 'eda' && (
+              <div className="flex-1 bg-[#0f0f10] p-6">
+                <h3 className="text-lg font-semibold mb-4">EDA – 지도 선택</h3>
+                  <EDADistrictMap
+                    role="controller"
+                    interactive
+                    showChartPanel={false}
+                    onRegionClick={(sel) => {
+                      // 1) 디스플레이로 EDA 페이지 보장
+                      sendAction('display:navigate:/research/eda?noIntro=1')
+                      // 2) 선택 브로드캐스트(이름도 함께 보내주면 디스플레이가 매핑 없이 바로 반영)
+                      const payload = `display:eda:select:${sel.level}:${sel.code}:${encodeURIComponent(sel.name ?? '')}`
+                      sendAction(payload)
+                    }}
+                  />
+              </div>
+            )}
             {panel === 'local-economy' && (
               <div className="flex-1 bg-[#0f0f10] p-6">
                 <div className="max-w-xl mx-auto grid gap-6">

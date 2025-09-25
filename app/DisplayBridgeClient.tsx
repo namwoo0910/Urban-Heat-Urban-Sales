@@ -269,6 +269,22 @@ export default function DisplayBridgeClient() {
     return
     }
 
+    if (action.startsWith('display:navigate:/research/eda')) {
+    const want = '/research/eda?noIntro=1'
+    if (window.location.pathname + window.location.search !== want) {
+        router.replace(want)
+    }
+    return
+    }    
+
+    if (action.startsWith('display:eda:select:')) {
+    const parts = action.split(':') // display:eda:select:<level>:<code>[:<name>]
+    const level = parts[3] as 'district' | 'neighborhood'
+    const code = parts[4] || ''
+    const name = decodeURIComponent(parts[5] || '')
+    window.dispatchEvent(new CustomEvent('viz:eda:select', { detail: { level, code, name } }))
+    return
+    }
 
     }, [router])
 
