@@ -1,24 +1,26 @@
+// app/research/local-economy/page.tsx
 'use client'
+
 import dynamic from 'next/dynamic'
-import { useEffect } from 'react'
+import { useEffect, useRef, useState } from 'react'
+
+declare global {
+  interface Window {
+    __lastVideoCmd?: { cmd: 'play' | 'pause'; src?: string; ts: number }
+  }
+}
 
 const CardSalesDistrictMap = dynamic(
   () => import('@/src/features/card-sales/components/CardSalesDistrictMap'),
-  {
-    ssr: false, // ✅ 클라이언트 전용
-    loading: () => (
-      <div className="absolute inset-0 bg-black flex items-center justify-center">
-        <div className="text-white">시각화 로딩 중...</div>
-      </div>
-    ),
-  }
+  { ssr: false }
 )
+
 
 export default function LocalEconomyPage() {
   useEffect(() => { window.scrollTo(0, 0) }, [])
   return (
-    <div className="relative h-screen">
-      <CardSalesDistrictMap />
+    <div className="relative min-h-screen bg-black">
+      <CardSalesDistrictMap remote />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useState, useCallback, useMemo } from "react"
+import React, { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react"
 import { throttle, debounce } from 'lodash-es'
 import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL } from 'react-map-gl'
@@ -43,6 +43,9 @@ type RemotePatch = {
   // elevationScale 등 layerConfig 필드도 원한다면 여기에 추가
 }
 
+
+
+
 // Simple color function for sales-based visualization
 const convertColorExpressionToRGB = (
   height: number, 
@@ -83,6 +86,8 @@ const convertColorExpressionToRGB = (
 }
 
 
+
+
 export default function CardSalesDistrictMap({ remote = false }: { remote?: boolean }) {
   const mapRef = useRef<MapRef>(null)
   const mapRefRight = useRef<MapRef>(null)  // Second map ref for AI prediction map
@@ -95,6 +100,9 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
   const [isAIPredictionMode, setIsAIPredictionMode] = useState(false)
   const [predictionDate, setPredictionDate] = useState('20240701') // Default July 1, 2024
   const [temperatureScenario, setTemperatureScenario] = useState('t050') // Default T+5°C
+
+
+
 
   // Listen for theme adjustment changes
   useEffect(() => {
@@ -425,6 +433,75 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
       return newValue
     })
   }, [availableDailyDates])
+
+  const noIntro =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).get('noIntro') === '1'
+
+  useEffect(() => {
+    if (noIntro) return        // ← 이전에 if (noIntro || remote)였다면 remote는 제거
+    // 기존 '랜딩 데모/인트로' 시작 로직 호출
+    // startLandingDemo?.() 또는 startActualAnimation('31days') 등
+  }, [noIntro])
+
+  useEffect(() => {
+    const onLanding = () => {
+      // AI 모드/색상 해제
+      setIsAIPredictionMode(false)
+      setUsePredictionTemperatureColor(false)
+      setUseActualTemperatureColor(true)
+
+      // 애니 리셋
+      try { stopPredictionAnimation?.() } catch {}
+      try { stopActualAnimation?.() } catch {}
+    }
+    window.addEventListener('viz:local-economy:landing', onLanding as EventListener)
+    return () => window.removeEventListener('viz:local-economy:landing', onLanding as EventListener)
+  }, [])
+
+  useLayoutEffect(() => {
+  if (!noIntro) return
+  // 첫 렌더 전에 오른쪽 패널 상태를 AI로 고정
+  setIsAIPredictionMode(true)
+  setUseActualTemperatureColor(false)
+  setUsePredictionTemperatureColor(true)
+  // 필요 시 기본 날짜/타임라인도 미리 고정
+  setTimelineMode('daily')
+  setSelectedMeshMonth(7)
+  setPredictionDate('20240701')
+  }, [noIntro])
+
+
+  // (A) 인트로 자동재생을 시작하는 useEffect 의 맨 앞
+  useEffect(() => {
+    if (noIntro || remote) return; // ⬅️ 원격/프리셋 진입이면 인트로 스킵
+    // 기존 인트로 시작 로직… (startActualAnimation 등)
+  }, [noIntro, remote /*, ...*/])
+
+  // props: { remote?: boolean } 라고 가정
+  useEffect(() => {
+    if (!remote) return
+
+    const onAIPredict = () => {
+      console.log('[Map] << viz:local-economy:ai-predict')
+      // 1) 기존 토글 핸들러가 있다면 그대로 호출
+      try {
+        if (typeof handleAIPredictionToggle === 'function') {
+          handleAIPredictionToggle()
+        } else {
+          // 2) 없으면 직접 모드 ON (필요한 상태/요청을 여기서 진행)
+          setIsAIPredictionMode(true)
+          // 필요시 fetch/animation 시작 등
+        }
+      } catch (e) {
+        console.warn('[Map] ai-predict toggle failed', e)
+      }
+    }
+
+    window.addEventListener('viz:local-economy:ai-predict', onAIPredict)
+    return () => window.removeEventListener('viz:local-economy:ai-predict', onAIPredict)
+  }, [remote , handleAIPredictionToggle])
+
 
   // Manual date change handler - syncs both left and right layers
   const handlePredictionDateChange = useCallback((dateStr: string) => {
@@ -1408,6 +1485,56 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
     setPredictionAnimationDay(1)
   }, [])
 
+  useEffect(() => {
+  if (!remote) return
+
+    const mapDeltaToScenario = (d: number) =>
+      d === 5 ? 't050' : d === 10 ? 't100' : d === 15 ? 't150' : 't200'
+
+    const onSetTemp = (e: Event) => {
+      const delta = (e as CustomEvent<{ delta: number }>).detail?.delta ?? 5
+      // AI 모드 보장
+      setIsAIPredictionMode(true)
+      setUseActualTemperatureColor(false)
+      setUsePredictionTemperatureColor(true)
+      setSelectedMeshMonth(7)
+      setTimelineMode('daily')
+      setPredictionDate('20240701')
+      setTemperatureScenario(mapDeltaToScenario(delta))
+
+      if (availableDailyDates.length > 0) {
+        const idx = availableDailyDates.findIndex(d => d === '20240701' || d.includes('0701'))
+        if (idx !== -1) setSelectedDailyIndex(idx)
+      }      
+      console.log('[Map] << ai-set-temp', delta)
+    }
+
+    const onPlay = (e: Event) => {
+      const days = (e as CustomEvent<{ days: number }>).detail?.days ?? 31
+      const type: '7days' | '31days' = days === 31 ? '31days' : '7days'
+      setTimelineMode('daily');
+      setSelectedMeshMonth(7);
+      setPredictionDate('20240701');
+      setActualDate('20240701');
+      // (선택) 둘 다 리셋하고 시작하면 프레임이 맞게 동기화됨
+      try { stopActualAnimation?.() } catch {}
+      try { stopPredictionAnimation?.() } catch {}
+
+      // ✅ 왼쪽(실제) + 오른쪽(예측) 동시 시작
+      startActualAnimation(type)         // ← 추가
+      startPredictionAnimation(type)     // 기존 호출 유지
+
+      console.log('[Map] << ai-play', days)
+    }
+
+    window.addEventListener('viz:local-economy:ai-set-temp', onSetTemp as EventListener)
+    window.addEventListener('viz:local-economy:ai-play', onPlay as EventListener)
+    return () => {
+      window.removeEventListener('viz:local-economy:ai-set-temp', onSetTemp as EventListener)
+      window.removeEventListener('viz:local-economy:ai-play', onPlay as EventListener)
+    }
+  }, [remote, startPredictionAnimation])
+
   // Clean up animations on unmount
   useEffect(() => {
     return () => {
@@ -2265,29 +2392,30 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
         />
       )}
       {/* AI 예측 활성화 버튼 - 지도 초기화 버튼 위 */}
-      <button
-        onClick={handleAIPredictionToggle}
-        className={`absolute z-30 transition-all duration-300 px-4 py-2 rounded-lg shadow-2xl backdrop-blur-md text-sm font-medium ${
-          isAIPredictionMode
-            ? 'bg-purple-900/50 hover:bg-purple-900/60 text-purple-200 border border-purple-500/30'
-            : 'bg-black/90 hover:bg-gray-900/90 text-gray-200 border border-gray-800/50'
-        }`}
-        style={{
-          bottom: '70px',
-          left: '50%',
-          transform: 'translateX(-50%)'
-        }}
-      >
-        <span className="flex items-center gap-2 pointer-events-none">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
-            <path d="M9 12l2 2 4-4"/>
-          </svg>
-          <span>AI 예측</span>
-          {isAIPredictionMode && <span className="text-xs opacity-75">(활성화)</span>}
-        </span>
-      </button>
-
+      {!remote && (
+        <button
+          onClick={handleAIPredictionToggle}
+          className={`absolute z-30 transition-all duration-300 px-4 py-2 rounded-lg shadow-2xl backdrop-blur-md text-sm font-medium ${
+            isAIPredictionMode
+              ? 'bg-purple-900/50 hover:bg-purple-900/60 text-purple-200 border border-purple-500/30'
+              : 'bg-black/90 hover:bg-gray-900/90 text-gray-200 border border-gray-800/50'
+          }`}
+          style={{
+            bottom: '70px',
+            left: '50%',
+            transform: 'translateX(-50%)'
+          }}
+        >
+          <span className="flex items-center gap-2 pointer-events-none">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
+              <path d="M9 12l2 2 4-4"/>
+            </svg>
+            <span>AI 예측</span>
+            {isAIPredictionMode && <span className="text-xs opacity-75">(활성화)</span>}
+          </span>
+        </button>
+      )}
       {/* 지도 초기화 버튼 */}
       <button
         onClick={handleFullReset}
