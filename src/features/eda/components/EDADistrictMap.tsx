@@ -384,9 +384,19 @@ export default function EDADistrictMap({
           else if (maxDiff > 0.1) zoom = 12
           else if (maxDiff < 0.05) zoom = 13
 
+          // Adjust longitude to move selected area away from chart panel
+          let adjustedLongitude = bounds.center[0]
+          if (computedShowChartPanel) {
+            // Calculate offset to move selected area to the left of chart panel
+            const degreesPerPixel = 360 / (256 * Math.pow(2, zoom))
+            const pixelOffset = chartPanelWidth * 0.3  // 30% of panel width for better spacing
+            const longitudeOffset = pixelOffset * degreesPerPixel
+            adjustedLongitude = bounds.center[0] - longitudeOffset
+          }
+
           setViewState(prev => ({
             ...prev,
-            longitude: bounds.center[0],
+            longitude: adjustedLongitude,
             latitude: bounds.center[1],
             zoom: zoom,
             pitch: 0,

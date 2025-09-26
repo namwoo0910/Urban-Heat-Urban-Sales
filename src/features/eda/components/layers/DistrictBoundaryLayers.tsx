@@ -162,16 +162,16 @@ export function createDistrictBoundaryLayers({
           // When a gu is selected
           if (selectedGuCode) {
             if (guCode === selectedGuCode) {
-              // 선택된 구는 파란색 파스텔 톤으로 하이라이트
-              fillColor = [173, 216, 250, 220] as RGBAColor  // Pastel blue - slightly transparent
+              // 선택된 구는 아름다운 에메랄드 톤으로 하이라이트
+              fillColor = [34, 197, 94, 240] as RGBAColor  // Beautiful emerald highlight
             } else {
               // 선택되지 않은 구는 투명하게
               fillColor = [0, 0, 0, 0] as RGBAColor  // Fully transparent
             }
           } else if (guName === hoveredDistrict) {
             // Check if this gu is hovered (but not selected)
-            // Use a light blue for hover state
-            fillColor = [173, 216, 230, 180] as RGBAColor  // Light blue
+            // Use beautiful amber for hover state
+            fillColor = [251, 191, 36, 180] as RGBAColor  // Golden amber hover
           } else {
             // When dong boundaries are not shown (normal gu mode)
             // Make non-selected gu more transparent when one is selected
@@ -308,12 +308,12 @@ export function createDistrictBoundaryLayers({
 
           // If this dong is selected, make it highly visible with contrasting color
           if (dongName && dongName === selectedDong) {
-            // Use a darker blue fill for selected dong (완전 불투명)
-            fillColor = [70, 130, 200, 255] as RGBAColor  // Darker blue - fully opaque
+            // Use beautiful vibrant blue for selected dong
+            fillColor = [59, 130, 246, 255] as RGBAColor  // Beautiful blue - fully opaque
           } else if (selectionMode === 'dong' && dongName && dongName === hoveredDistrict) {
             // If in dong mode and this dong is hovered
-            // Lighter blue for hover
-            fillColor = [156, 163, 175, 160] as RGBAColor
+            // Beautiful amber for hover
+            fillColor = [251, 191, 36, 180] as RGBAColor
           } else {
             // Non-selected dongs in the selected gu - transparent fill to show gu color
             fillColor = [0, 0, 0, 0] as RGBAColor  // Fully transparent

@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef, useState, useCallback, useMemo, useLayoutEffect } from "react"
+import React, { useEffect, useRef, useState, useCallback, useMemo, useImperativeHandle, forwardRef } from "react"
 import { throttle, debounce } from 'lodash-es'
 import { DeckGL } from '@deck.gl/react'
 import { Map as MapGL } from 'react-map-gl'
@@ -29,21 +29,6 @@ import { getAvailableDailyDates } from "../utils/loadStaticMesh"
 import type { FeatureCollection } from 'geojson'
 import "../styles/CardSalesDistrictMap.css"
 import "@/src/shared/styles/districtEffects.css"
-
-type RemotePatch = {
-  // 필요에 따라 확장 가능
-  timelineMode?: 'monthly'|'daily'
-  dayIndex?: number
-  playing?: boolean
-  selectedMeshMonth?: number
-  useTemperatureColor?: boolean
-  colorMode?: 'sales' | 'temperature' | 'temperatureGroup' | 'discomfort' | 'humidity' | 'category'
-  selectedGuCode?: number | null
-  selectedDongCode?: number | null
-  // elevationScale 등 layerConfig 필드도 원한다면 여기에 추가
-}
-
-
 
 
 // Simple color function for sales-based visualization
@@ -86,9 +71,28 @@ const convertColorExpressionToRGB = (
 }
 
 
+interface CardSalesDistrictMapProps {
+  initialAIPredictionMode?: boolean
+  temperatureScenario?: string
+  predictionDate?: string
+}
 
+export interface CardSalesDistrictMapHandle {
+  startBothAnimations: (type: '7days' | '31days') => void
+  stopBothAnimations: () => void
+  getAnimationState: () => {
+    isAnimating: boolean;
+    animationType: '7days' | '31days' | null;
+    animationDay: number;
+    currentDate: string;
+  }
+}
 
-export default function CardSalesDistrictMap({ remote = false }: { remote?: boolean }) {
+const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDistrictMapProps>(({
+  initialAIPredictionMode = false,
+  temperatureScenario: externalTemperatureScenario,
+  predictionDate: externalPredictionDate
+}: CardSalesDistrictMapProps = {}, ref) => {
   const mapRef = useRef<MapRef>(null)
   const mapRefRight = useRef<MapRef>(null)  // Second map ref for AI prediction map
   const cleanupRef = useRef<(() => void)[]>([])
@@ -97,12 +101,22 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
   const [themeAdjustments, setThemeAdjustments] = useState({ opacity: 100, brightness: 0, saturation: 0, contrast: 0 })
 
   // AI Prediction Mode State
-  const [isAIPredictionMode, setIsAIPredictionMode] = useState(false)
-  const [predictionDate, setPredictionDate] = useState('20240701') // Default July 1, 2024
-  const [temperatureScenario, setTemperatureScenario] = useState('t050') // Default T+5°C
+  const [isAIPredictionMode, setIsAIPredictionMode] = useState(initialAIPredictionMode)
+  const [predictionDate, setPredictionDate] = useState(externalPredictionDate || '20240701') // Default July 1, 2024
+  const [temperatureScenario, setTemperatureScenario] = useState(externalTemperatureScenario || 't050') // Default T+5°C
 
+  // Sync external props with internal state
+  useEffect(() => {
+    if (externalPredictionDate) {
+      setPredictionDate(externalPredictionDate)
+    }
+  }, [externalPredictionDate])
 
-
+  useEffect(() => {
+    if (externalTemperatureScenario) {
+      setTemperatureScenario(externalTemperatureScenario)
+    }
+  }, [externalTemperatureScenario])
 
   // Listen for theme adjustment changes
   useEffect(() => {
@@ -283,7 +297,9 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
   // Separate color states for actual and prediction layers
   const [actualMeshColor, setActualMeshColor] = useState<string>('#FFFFFF')  // Actual data mesh color
   const [predictionMeshColor, setPredictionMeshColor] = useState<string>('#FFD700')  // Prediction mesh color (yellow)
-  const [useActualTemperatureColor, setUseActualTemperatureColor] = useState<boolean>(true)  // Temperature color for actual - enabled by default for auto animation
+  const [useActualTemperatureColor, setUseActualTemperatureColor] = useState<boolean>(
+    !initialAIPredictionMode  // false for prediction page, true for main page
+  )
   const [usePredictionTemperatureColor, setUsePredictionTemperatureColor] = useState<boolean>(false)  // Temperature color for prediction
   const [timelineMode, setTimelineMode] = useState<'monthly'|'daily'>('daily')
   const [availableDailyDates, setAvailableDailyDates] = useState<string[]>([])
@@ -291,7 +307,9 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
   const [dailyAutoPlay, setDailyAutoPlay] = useState<boolean>(false)
   const [dailyPlaySpeed, setDailyPlaySpeed] = useState<number>(0.8)
   const [transitionMs, setTransitionMs] = useState<number>(400)
-  const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(1)  // Default to January (1-12)
+  const [selectedMeshMonth, setSelectedMeshMonth] = useState<number>(
+    initialAIPredictionMode ? 7 : 1  // July for prediction page, January for main page
+  )
 
   // Top-center overlay: date + average temperature + total sales
   const [overlayDateLabel, setOverlayDateLabel] = useState<string>('')
@@ -387,121 +405,8 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
     }
   }, [])
 
-  // AI Prediction Toggle Handler (defined after state declarations to avoid initialization errors)
-  const handleAIPredictionToggle = useCallback(() => {
-    setIsAIPredictionMode(prev => {
-      const newValue = !prev
-      if (newValue) {
-        // AI 모드 진입 시
-
-        // 1. 애니메이션 중지
-        setDailyAutoPlay(false)
-        setIsActualAnimating(false)
-        setIsPredictionAnimating(false)
-
-        // 2. 7월 1일로 날짜 설정
-        setPredictionDate('20240701')
-        setActualDate('20240701')  // 실제 레이어도 7월 1일로
-        setSelectedMeshMonth(7)
-        setTimelineMode('daily')
-
-        // 3. 온도 필터 설정
-        setUseActualTemperatureColor(false)      // 실제 레이어 온도 필터 해제
-        setUsePredictionTemperatureColor(true)   // 예측 레이어 온도 필터 적용
-
-        // 7월 1일 인덱스 찾기 (availableDailyDates가 로드된 경우)
-        if (availableDailyDates.length > 0) {
-          const july1Index = availableDailyDates.findIndex(d => d === '20240701' || d.includes('0701'))
-          if (july1Index !== -1) {
-            setSelectedDailyIndex(july1Index)
-          }
-        }
-
-        // AI 모드 진입 시 한 단계 줌아웃
-        setViewState(prev => ({
-          ...prev,
-          zoom: Math.max(prev.zoom - 0.3, 8), // 0.3 단계 줌아웃, 최소 줌 레벨 8
-          transitionInterpolator: new FlyToInterpolator({ speed: 1.5 }),
-          transitionDuration: 800
-        } as MapViewState))
-      } else {
-        // AI 모드 종료 시
-        // 온도 필터를 원래대로 복원
-        setUseActualTemperatureColor(true)       // 실제 레이어 온도 필터 다시 활성화
-        setUsePredictionTemperatureColor(false)  // 예측 레이어 온도 필터 해제
-      }
-      return newValue
-    })
-  }, [availableDailyDates])
-
-  const noIntro =
-    typeof window !== 'undefined' &&
-    new URLSearchParams(window.location.search).get('noIntro') === '1'
-
-  useEffect(() => {
-    if (noIntro) return        // ← 이전에 if (noIntro || remote)였다면 remote는 제거
-    // 기존 '랜딩 데모/인트로' 시작 로직 호출
-    // startLandingDemo?.() 또는 startActualAnimation('31days') 등
-  }, [noIntro])
-
-  useEffect(() => {
-    const onLanding = () => {
-      // AI 모드/색상 해제
-      setIsAIPredictionMode(false)
-      setUsePredictionTemperatureColor(false)
-      setUseActualTemperatureColor(true)
-
-      // 애니 리셋
-      try { stopPredictionAnimation?.() } catch {}
-      try { stopActualAnimation?.() } catch {}
-    }
-    window.addEventListener('viz:local-economy:landing', onLanding as EventListener)
-    return () => window.removeEventListener('viz:local-economy:landing', onLanding as EventListener)
-  }, [])
-
-  useLayoutEffect(() => {
-  if (!noIntro) return
-  // 첫 렌더 전에 오른쪽 패널 상태를 AI로 고정
-  setIsAIPredictionMode(true)
-  setUseActualTemperatureColor(false)
-  setUsePredictionTemperatureColor(true)
-  // 필요 시 기본 날짜/타임라인도 미리 고정
-  setTimelineMode('daily')
-  setSelectedMeshMonth(7)
-  setPredictionDate('20240701')
-  }, [noIntro])
-
-
-  // (A) 인트로 자동재생을 시작하는 useEffect 의 맨 앞
-  useEffect(() => {
-    if (noIntro || remote) return; // ⬅️ 원격/프리셋 진입이면 인트로 스킵
-    // 기존 인트로 시작 로직… (startActualAnimation 등)
-  }, [noIntro, remote /*, ...*/])
-
-  // props: { remote?: boolean } 라고 가정
-  useEffect(() => {
-    if (!remote) return
-
-    const onAIPredict = () => {
-      console.log('[Map] << viz:local-economy:ai-predict')
-      // 1) 기존 토글 핸들러가 있다면 그대로 호출
-      try {
-        if (typeof handleAIPredictionToggle === 'function') {
-          handleAIPredictionToggle()
-        } else {
-          // 2) 없으면 직접 모드 ON (필요한 상태/요청을 여기서 진행)
-          setIsAIPredictionMode(true)
-          // 필요시 fetch/animation 시작 등
-        }
-      } catch (e) {
-        console.warn('[Map] ai-predict toggle failed', e)
-      }
-    }
-
-    window.addEventListener('viz:local-economy:ai-predict', onAIPredict)
-    return () => window.removeEventListener('viz:local-economy:ai-predict', onAIPredict)
-  }, [remote , handleAIPredictionToggle])
-
+  // AI Prediction Toggle Handler 제거 - 메인 페이지에서는 AI 예측 모드 진입 불가
+  // PredictionPage는 initialAIPredictionMode={true}로 시작하여 자동으로 AI 모드 활성화
 
   // Manual date change handler - syncs both left and right layers
   const handlePredictionDateChange = useCallback((dateStr: string) => {
@@ -675,10 +580,17 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
       .then(list => {
         const sorted = (list || []).sort()
         setAvailableDailyDates(sorted)
-        setSelectedDailyIndex(0)
+
+        // For prediction page, find and select July 1st
+        if (initialAIPredictionMode && sorted.length > 0) {
+          const july1Index = sorted.findIndex(d => d === '20240701')
+          setSelectedDailyIndex(july1Index !== -1 ? july1Index : 0)
+        } else {
+          setSelectedDailyIndex(0)
+        }
       })
       .catch(() => {})
-  }, [])
+  }, [initialAIPredictionMode])
 
   // Load temperature index (daily + monthly) once
   const [tempIndex, setTempIndex] = useState<{ daily: Record<string, number>; monthly: Record<string, number> } | null>(null)
@@ -1485,55 +1397,29 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
     setPredictionAnimationDay(1)
   }, [])
 
-  useEffect(() => {
-  if (!remote) return
+  // Combined animation control for center controls
+  const startBothAnimations = useCallback((type: '7days' | '31days') => {
+    // Start both actual and prediction animations simultaneously
+    startActualAnimation(type)
+    startPredictionAnimation(type)
+  }, [startActualAnimation, startPredictionAnimation])
 
-    const mapDeltaToScenario = (d: number) =>
-      d === 5 ? 't050' : d === 10 ? 't100' : d === 15 ? 't150' : 't200'
+  const stopBothAnimations = useCallback(() => {
+    stopActualAnimation()
+    stopPredictionAnimation()
+  }, [stopActualAnimation, stopPredictionAnimation])
 
-    const onSetTemp = (e: Event) => {
-      const delta = (e as CustomEvent<{ delta: number }>).detail?.delta ?? 5
-      // AI 모드 보장
-      setIsAIPredictionMode(true)
-      setUseActualTemperatureColor(false)
-      setUsePredictionTemperatureColor(true)
-      setSelectedMeshMonth(7)
-      setTimelineMode('daily')
-      setPredictionDate('20240701')
-      setTemperatureScenario(mapDeltaToScenario(delta))
-
-      if (availableDailyDates.length > 0) {
-        const idx = availableDailyDates.findIndex(d => d === '20240701' || d.includes('0701'))
-        if (idx !== -1) setSelectedDailyIndex(idx)
-      }      
-      console.log('[Map] << ai-set-temp', delta)
-    }
-
-    const onPlay = (e: Event) => {
-      const days = (e as CustomEvent<{ days: number }>).detail?.days ?? 31
-      const type: '7days' | '31days' = days === 31 ? '31days' : '7days'
-      setTimelineMode('daily');
-      setSelectedMeshMonth(7);
-      setPredictionDate('20240701');
-      setActualDate('20240701');
-      // (선택) 둘 다 리셋하고 시작하면 프레임이 맞게 동기화됨
-      try { stopActualAnimation?.() } catch {}
-      try { stopPredictionAnimation?.() } catch {}
-
-      // ✅ 왼쪽(실제) + 오른쪽(예측) 동시 시작
-      startActualAnimation(type)         // ← 추가
-      startPredictionAnimation(type)     // 기존 호출 유지
-
-      console.log('[Map] << ai-play', days)
-    }
-
-    window.addEventListener('viz:local-economy:ai-set-temp', onSetTemp as EventListener)
-    window.addEventListener('viz:local-economy:ai-play', onPlay as EventListener)
-    return () => {
-      window.removeEventListener('viz:local-economy:ai-set-temp', onSetTemp as EventListener)
-      window.removeEventListener('viz:local-economy:ai-play', onPlay as EventListener)
-    }
-  }, [remote, startPredictionAnimation])
+  // Expose animation controls via ref
+  useImperativeHandle(ref, () => ({
+    startBothAnimations,
+    stopBothAnimations,
+    getAnimationState: () => ({
+      isAnimating: isActualAnimating || isPredictionAnimating,
+      animationType: actualAnimationType || predictionAnimationType,
+      animationDay: Math.max(actualAnimationDay, predictionAnimationDay),
+      currentDate: actualDate || predictionDate
+    })
+  }), [startBothAnimations, stopBothAnimations, isActualAnimating, isPredictionAnimating, actualAnimationType, predictionAnimationType, actualAnimationDay, predictionAnimationDay, actualDate, predictionDate])
 
   // Clean up animations on unmount
   useEffect(() => {
@@ -1983,30 +1869,6 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
     }
   }, [])
 
-  // remote controll
-  useEffect(() => {
-    if (!remote) return
-
-    const onUpdate = (e: Event) => {
-      const detail = (e as CustomEvent<RemotePatch>).detail || {}
-      if (detail.timelineMode) setTimelineMode(detail.timelineMode)
-      if (typeof detail.dayIndex === 'number') {
-        const idx = Math.max(0, Math.min(detail.dayIndex, availableDailyDates.length - 1))
-        setSelectedDailyIndex(idx)
-      }
-      if (typeof detail.playing === 'boolean') setDailyAutoPlay(detail.playing)
-      if (typeof detail.selectedMeshMonth === 'number') setSelectedMeshMonth(detail.selectedMeshMonth)
-      if (typeof detail.useTemperatureColor === 'boolean') setUseActualTemperatureColor(detail.useTemperatureColor)
-      if (detail.colorMode) setColorMode(detail.colorMode)
-      if ('selectedGuCode' in detail) setSelectedGuCode(detail.selectedGuCode ?? null)
-      if ('selectedDongCode' in detail) setSelectedDongCode(detail.selectedDongCode ?? null)
-      // layerConfig 업데이트(예: elevationScale)도 원하면 여기서 setLayerConfig(prev=>({...prev, elevationScale: detail.elevationScale!})) 형태로 추가
-    }
-
-    window.addEventListener('viz:local-economy:update', onUpdate as EventListener)
-    return () => window.removeEventListener('viz:local-economy:update', onUpdate as EventListener)
-  }, [remote, availableDailyDates.length /*, setLayerConfig 등 필요한 의존성*/])
-
   // Layer filter for performance optimization during interaction
   const layerFilter = useCallback(({ layer, viewport }: any) => {
     // During drag, only render essential layers
@@ -2141,57 +2003,13 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
           <div className="relative w-1/2 transition-all duration-500">
             {/* Label for AI prediction map with temperature scenario - centered */}
             <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm rounded-lg px-4 py-2.5 border border-purple-500/30 shadow-lg">
-              <div className="flex items-center gap-3">
-                <div className="text-center">
-                  <div className="text-white text-sm font-bold tracking-wide">AI 예측 값</div>
-                  <div className="text-[10px] text-purple-200 mt-0.5">온도 변화 시뮬레이션</div>
-                </div>
-                <div className="text-xl font-bold text-white animate-pulse">
-                  {temperatureScenario === 't050' && '+5°C'}
-                  {temperatureScenario === 't100' && '+10°C'}
-                  {temperatureScenario === 't150' && '+15°C'}
-                  {temperatureScenario === 't200' && '+20°C'}
-                </div>
+              <div className="text-center">
+                <div className="text-white text-sm font-bold tracking-wide">AI 예측 값</div>
+                <div className="text-[10px] text-purple-200 mt-0.5">온도 변화 시뮬레이션</div>
               </div>
             </div>
 
-            {/* Prediction overlay: date + temperature + sales */}
-            <div
-              className="absolute z-10"
-              style={{
-                top: '86px',
-                left: '50%',
-                transform: 'translateX(-50%)',
-                transition: 'left 0.3s ease-in-out'
-              }}
-            >
-              <div
-                className="rounded-xl px-6 py-4"
-                style={{ margin: '5px' }}
-              >
-                {/* Date, Temperature and Total Sales for Prediction */}
-                <div className="flex flex-col items-center gap-2">
-                  <div className="text-white text-3xl font-bold">
-                    {predictionOverlayDateLabel || '—'}
-                  </div>
-                  <div
-                    className="text-3xl font-bold"
-                    style={{ color: getTemperatureColor(predictionOverlayTemp) }}
-                  >
-                    {predictionOverlayTemp !== null ? `${predictionOverlayTemp.toFixed(1)}°C` : '—'}
-                  </div>
-                  {/* Prediction Sales in billions KRW */}
-                  <div className="text-purple-300 text-3xl font-bold mt-2">
-                    {predictionOverlaySales !== null
-                      ? `${(predictionOverlaySales / 100000000).toLocaleString('ko-KR', {
-                          maximumFractionDigits: 0,
-                          minimumFractionDigits: 0
-                        })}억원`
-                      : '—'}
-                  </div>
-                </div>
-              </div>
-            </div>
+            {/* Prediction overlay removed - now consolidated in central display */}
 
             {/* Second DeckGL instance for AI predictions */}
             <DeckGL
@@ -2320,102 +2138,152 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
         )}
       </div>
 
-      {/* Left-top overlay: date + average temperature + total sales */}
-      <div
-        className="absolute z-10"
-        style={{
-          top: isAIPredictionMode ? '86px' : '36px',
-          left: isAIPredictionMode ? '25%' : '50%',
-          transform: 'translateX(-50%)',
-          transition: 'left 0.3s ease-in-out, top 0.3s ease-in-out'
-        }}
-      >
+      {/* Central display at boundary when in AI prediction mode */}
+      {isAIPredictionMode ? (
         <div
-          className={isAIPredictionMode ? "rounded-xl px-6 py-4" : "rounded-xl px-8 py-6"}
-          style={{ margin: '5px' }}
+          className="absolute z-40"
+          style={{
+            top: '100px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
         >
-          {/* Date, Temperature and Total Sales */}
-          <div className="flex flex-col items-center gap-2">
-            <div className={isAIPredictionMode ? "text-white text-3xl font-bold" : "text-white text-5xl font-bold"}>
-              {overlayDateLabel || '—'}
+          <div className="bg-black/90 backdrop-blur-xl rounded-2xl border border-gray-700/50 shadow-2xl px-8 py-6">
+            {/* Date - shared between both layers */}
+            <div className="text-center mb-4">
+              <div className="text-white text-4xl font-bold">
+                {overlayDateLabel || '—'}
+              </div>
             </div>
-            <div
-              className={isAIPredictionMode ? "text-3xl font-bold" : "text-5xl font-bold"}
-              style={{ color: getTemperatureColor(overlayAvgTemp) }}
-            >
-              {overlayLoading ? '…' : (overlayAvgTemp !== null ? `${overlayAvgTemp.toFixed(1)}°C` : '—')}
+
+            {/* Actual vs Prediction comparison */}
+            <div className="flex gap-8">
+              {/* Actual Data (Left) */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="text-gray-400 text-sm font-medium mb-1">실제</div>
+                <div
+                  className="text-3xl font-bold"
+                  style={{ color: getTemperatureColor(overlayAvgTemp) }}
+                >
+                  {overlayLoading ? '…' : (overlayAvgTemp !== null ? `${overlayAvgTemp.toFixed(1)}°C` : '—')}
+                </div>
+                <div className="text-yellow-300 text-3xl font-bold">
+                  {overlayTotalSales !== null
+                    ? `${(overlayTotalSales / 100000000).toLocaleString('ko-KR', {
+                        maximumFractionDigits: 0,
+                        minimumFractionDigits: 0
+                      })}억원`
+                    : '—'}
+                </div>
+              </div>
+
+              {/* Divider */}
+              <div className="w-[1px] bg-gray-600/50 self-stretch"></div>
+
+              {/* Prediction Data (Right) */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="text-gray-400 text-sm font-medium mb-1">예측</div>
+                <div
+                  className="text-3xl font-bold"
+                  style={{ color: getTemperatureColor(predictionOverlayTemp) }}
+                >
+                  {predictionOverlayTemp !== null ? `${predictionOverlayTemp.toFixed(1)}°C` : '—'}
+                </div>
+                <div className="text-purple-300 text-3xl font-bold">
+                  {predictionOverlaySales !== null
+                    ? `${(predictionOverlaySales / 100000000).toLocaleString('ko-KR', {
+                        maximumFractionDigits: 0,
+                        minimumFractionDigits: 0
+                      })}억원`
+                    : '—'}
+                </div>
+              </div>
             </div>
-            {/* Total Sales in billions KRW */}
-            <div className={isAIPredictionMode ? "text-yellow-300 text-3xl font-bold mt-2" : "text-yellow-300 text-5xl font-bold mt-2"}>
-              {overlayTotalSales !== null
-                ? `${(overlayTotalSales / 100000000).toLocaleString('ko-KR', {
-                    maximumFractionDigits: 0,
-                    minimumFractionDigits: 0
-                  })}억원`
-                : '—'}
+
+            {/* Temperature Scenario - centered below with large text */}
+            <div className="mt-6 flex justify-center">
+              <div className="px-8 py-4 rounded-2xl border-2 border-purple-400/60 shadow-lg bg-purple-900/20">
+                <div className="text-center">
+                  <div className="text-purple-300 text-sm font-medium mb-2">Temperature Scenario</div>
+                  <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-pink-300 to-purple-300 animate-pulse drop-shadow-lg">
+                    {temperatureScenario === 't050' && '+5°C'}
+                    {temperatureScenario === 't100' && '+10°C'}
+                    {temperatureScenario === 't150' && '+15°C'}
+                    {temperatureScenario === 't200' && '+20°C'}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ) : (
+        /* Original single overlay when not in AI prediction mode */
+        <div
+          className="absolute z-10"
+          style={{
+            top: '36px',
+            left: '50%',
+            transform: 'translateX(-50%)',
+          }}
+        >
+          <div className="rounded-xl px-8 py-6" style={{ margin: '5px' }}>
+            <div className="flex flex-col items-center gap-2">
+              <div className="text-white text-5xl font-bold">
+                {overlayDateLabel || '—'}
+              </div>
+              <div
+                className="text-5xl font-bold"
+                style={{ color: getTemperatureColor(overlayAvgTemp) }}
+              >
+                {overlayLoading ? '…' : (overlayAvgTemp !== null ? `${overlayAvgTemp.toFixed(1)}°C` : '—')}
+              </div>
+              <div className="text-yellow-300 text-5xl font-bold mt-2">
+                {overlayTotalSales !== null
+                  ? `${(overlayTotalSales / 100000000).toLocaleString('ko-KR', {
+                      maximumFractionDigits: 0,
+                      minimumFractionDigits: 0
+                    })}억원`
+                  : '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
 
       {/* 통합 컨트롤 패널 - Always show for AI button and basic controls */}
-      {!remote && (
-        <UnifiedControls
-          // 높이 스케일 props
-          heightScale={heightScale}
-          onHeightScaleChange={setHeightScale}
+      <UnifiedControls
+        // 높이 스케일 props
+        heightScale={heightScale}
+        onHeightScaleChange={setHeightScale}
 
 
-          // Mesh layer props (always on, no toggle)
-          // Wireframe always true - props removed
-          // Mesh resolution fixed at 120 - props removed
-          meshColor={actualMeshColor}
-          onMeshColorChange={setActualMeshColor}
-          useTemperatureColor={useActualTemperatureColor}
-          onUseTemperatureColorChange={setUseActualTemperatureColor}
-          timelineMode={timelineMode}
-          onTimelineModeChange={setTimelineMode}
-          selectedMeshMonth={selectedMeshMonth}
-          onMeshMonthChange={setSelectedMeshMonth}
-          // Daily playback props
-          isDailyPlaybackActive={dailyAutoPlay}
-          currentDayIndex={selectedDailyIndex}
-          totalDays={availableDailyDates.length}
-          currentDate={availableDailyDates[selectedDailyIndex] || ''}
-          onPlayPause={handleDailyPlayPause}
-          onDayChange={handleDailyIndexChange}
-          onSkipToStart={handleDailySkipToStart}
-          onSkipToEnd={handleDailySkipToEnd}
-          // AI Prediction mode - only pass the state for conditional UI
-          isAIPredictionMode={isAIPredictionMode}
-        />
-      )}
-      {/* AI 예측 활성화 버튼 - 지도 초기화 버튼 위 */}
-      {!remote && (
-        <button
-          onClick={handleAIPredictionToggle}
-          className={`absolute z-30 transition-all duration-300 px-4 py-2 rounded-lg shadow-2xl backdrop-blur-md text-sm font-medium ${
-            isAIPredictionMode
-              ? 'bg-purple-900/50 hover:bg-purple-900/60 text-purple-200 border border-purple-500/30'
-              : 'bg-black/90 hover:bg-gray-900/90 text-gray-200 border border-gray-800/50'
-          }`}
-          style={{
-            bottom: '70px',
-            left: '50%',
-            transform: 'translateX(-50%)'
-          }}
-        >
-          <span className="flex items-center gap-2 pointer-events-none">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
-              <path d="M9 12l2 2 4-4"/>
-            </svg>
-            <span>AI 예측</span>
-            {isAIPredictionMode && <span className="text-xs opacity-75">(활성화)</span>}
-          </span>
-        </button>
-      )}
+        // Mesh layer props (always on, no toggle)
+        // Wireframe always true - props removed
+        // Mesh resolution fixed at 120 - props removed
+        meshColor={actualMeshColor}
+        onMeshColorChange={setActualMeshColor}
+        useTemperatureColor={useActualTemperatureColor}
+        onUseTemperatureColorChange={setUseActualTemperatureColor}
+        timelineMode={timelineMode}
+        onTimelineModeChange={setTimelineMode}
+        selectedMeshMonth={selectedMeshMonth}
+        onMeshMonthChange={setSelectedMeshMonth}
+        // Daily playback props
+        isDailyPlaybackActive={dailyAutoPlay}
+        currentDayIndex={selectedDailyIndex}
+        totalDays={availableDailyDates.length}
+        currentDate={availableDailyDates[selectedDailyIndex] || ''}
+        onPlayPause={handleDailyPlayPause}
+        onDayChange={handleDailyIndexChange}
+        onSkipToStart={handleDailySkipToStart}
+        onSkipToEnd={handleDailySkipToEnd}
+        // AI Prediction mode - only pass the state for conditional UI
+        isAIPredictionMode={isAIPredictionMode}
+      />
+
+      {/* AI 예측 버튼 제거 - 메인 카드 매출 페이지에서는 표시하지 않음 */}
+
       {/* 지도 초기화 버튼 */}
       <button
         onClick={handleFullReset}
@@ -2446,4 +2314,8 @@ export default function CardSalesDistrictMap({ remote = false }: { remote?: bool
       )}
     </div>
   )
-}
+})
+
+CardSalesDistrictMap.displayName = 'CardSalesDistrictMap'
+
+export default CardSalesDistrictMap

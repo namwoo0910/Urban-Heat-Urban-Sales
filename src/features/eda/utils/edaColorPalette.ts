@@ -149,73 +149,73 @@ export const DISTRICT_GRADIENTS = {
       [188, 234, 234],    // Cool mint
       [224, 255, 255]     // Light cyan
     ] as RGBAColor[]
-  }
+  },
 } as const
 
 export type ThemeKey = keyof typeof DISTRICT_GRADIENTS
 
-// Individual district colors for unique identification
+// Individual district colors for unique identification - BEAUTIFUL MODERN PALETTE
 export const DISTRICT_UNIQUE_COLORS: Record<string, RGBAColor> = {
-  // Cool Blues - Business districts
-  "강남구": [41, 128, 185, 200],
-  "서초구": [52, 152, 219, 200],
-  "송파구": [46, 134, 193, 200],
+  // Vibrant Blues - Premium business districts
+  "강남구": [30, 144, 255, 220],   // Dodger blue - vibrant and premium
+  "서초구": [65, 105, 225, 220],   // Royal blue - elegant and sophisticated
+  "송파구": [72, 118, 255, 220],   // Medium slate blue - tech-forward
 
-  // Warm Purples - Historic center
-  "종로구": [142, 68, 173, 200],
-  "중구": [155, 89, 182, 200],
-  "용산구": [165, 105, 189, 200],
+  // Rich Purples - Historic center with royal colors
+  "종로구": [138, 43, 226, 220],   // Blue violet - historical depth
+  "중구": [147, 112, 219, 220],    // Medium purple - cultural richness
+  "용산구": [123, 104, 238, 220],  // Medium slate blue - elegant purple
 
-  // Teals/Cyans - Western districts
-  "마포구": [26, 188, 156, 200],
-  "서대문구": [22, 160, 133, 200],
-  "은평구": [17, 140, 123, 200],
+  // Emerald Teals - Modern western districts
+  "마포구": [0, 206, 209, 220],    // Cyan - vibrant and modern
+  "서대문구": [26, 188, 156, 220], // Turquoise - fresh and clean
+  "은평구": [64, 224, 208, 220],   // Turquoise - bright residential
 
-  // Soft Greens - Northern districts
-  "노원구": [46, 204, 113, 200],
-  "도봉구": [39, 174, 96, 200],
-  "강북구": [32, 155, 84, 200],
+  // Fresh Greens - Northern nature-connected districts
+  "노원구": [50, 205, 50, 220],    // Lime green - vibrant nature
+  "도봉구": [60, 179, 113, 220],   // Medium sea green - forest-like
+  "강북구": [46, 204, 113, 220],   // Emerald - fresh and natural
 
-  // Coral/Salmon - Western industrial
-  "강서구": [231, 76, 60, 200],
-  "양천구": [230, 126, 83, 200],
-  "구로구": [211, 84, 66, 200],
+  // Warm Corals - Western dynamic areas
+  "강서구": [255, 99, 71, 220],    // Tomato - vibrant and energetic
+  "양천구": [255, 127, 80, 220],   // Coral - warm and welcoming
+  "구로구": [255, 69, 0, 220],     // Orange red - industrial energy
 
-  // Indigo/Navy - Eastern districts
-  "강동구": [41, 47, 102, 200],
-  "광진구": [52, 73, 128, 200],
-  "성동구": [63, 81, 145, 200],
+  // Deep Blues - Eastern districts with depth
+  "강동구": [25, 25, 112, 220],    // Midnight blue - deep and stable
+  "광진구": [65, 105, 225, 220],   // Royal blue - sophisticated east
+  "성동구": [30, 144, 255, 220],   // Dodger blue - dynamic riverside
 
-  // Amber/Gold - Southern districts
-  "동작구": [243, 156, 18, 200],
-  "관악구": [230, 126, 34, 200],
-  "금천구": [211, 117, 42, 200],
+  // Golden Ambers - Southern warm districts
+  "동작구": [255, 215, 0, 220],    // Gold - prestigious and bright
+  "관악구": [255, 185, 15, 220],   // Golden rod - educational warmth
+  "금천구": [255, 165, 0, 220],    // Orange - innovative and bright
 
-  // Rose/Mauve - Mixed areas
-  "성북구": [192, 57, 112, 200],
-  "동대문구": [178, 93, 139, 200],
-  "중랑구": [189, 114, 152, 200],
-  "영등포구": [201, 79, 127, 200]
+  // Vibrant Magentas - Mixed creative areas
+  "성북구": [199, 21, 133, 220],   // Medium violet red - creative energy
+  "동대문구": [218, 112, 214, 220], // Orchid - fashion-forward
+  "중랑구": [186, 85, 211, 220],    // Medium orchid - artistic flair
+  "영등포구": [255, 20, 147, 220]   // Deep pink - commercial vibrancy
 }
 
-// Selection and hover state colors - MODERN DESIGN
+// Selection and hover state colors
 export const STATE_COLORS = {
   selected: {
-    fill: [59, 130, 246, 180] as RGBAColor,      // Blue highlight
-    border: [37, 99, 235, 255] as RGBAColor,     // Darker blue border
-    glow: [59, 130, 246, 60] as RGBAColor        // Blue glow
+    fill: [255, 255, 0, 150] as RGBAColor,       // Yellow highlight
+    border: [255, 255, 0, 255] as RGBAColor,     // Yellow border
+    glow: [255, 255, 0, 80] as RGBAColor         // Yellow glow
   },
   hover: {
-    fill: [156, 163, 175, 120] as RGBAColor,     // Gray hover
-    border: [107, 114, 128, 255] as RGBAColor,   // Dark gray border
-    glow: [156, 163, 175, 40] as RGBAColor       // Gray glow
+    fill: [255, 165, 0, 150] as RGBAColor,       // Orange hover
+    border: [255, 140, 0, 255] as RGBAColor,     // Dark orange border
+    glow: [255, 165, 0, 60] as RGBAColor         // Orange glow
   },
   adjacent: {
-    fill: [220, 225, 235, 100] as RGBAColor,     // Light gray
-    border: [156, 163, 175, 200] as RGBAColor    // Medium gray border
+    fill: [147, 197, 253, 100] as RGBAColor,     // Soft blue adjacent
+    border: [59, 130, 246, 200] as RGBAColor     // Blue border for adjacent
   },
   default: {
-    border: [209, 213, 219, 180] as RGBAColor    // Light border
+    border: [148, 163, 184, 200] as RGBAColor    // Elegant slate border
   }
 } as const
 

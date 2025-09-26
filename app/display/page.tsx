@@ -12,18 +12,6 @@ declare global {
   }
 }
 
-/** 간단 랜딩 (프로젝트의 실제 Hero로 교체 가능) */
-function LandingFallback() {
-  return (
-    <main className="min-h-screen bg-black text-white flex items-center justify-center">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold">데이터로 보는 서울</h1>
-        <p className="opacity-70 mt-2">컨트롤러 조작에 따라 이 화면이 전환됩니다.</p>
-      </div>
-    </main>
-  )
-}
-
 export default function DisplayPage() {
   const router = useRouter()
 

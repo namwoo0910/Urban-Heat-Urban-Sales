@@ -54,15 +54,16 @@ export default function DisplayBridgeClient() {
   const router = useRouter()
   const pathname = usePathname()
 
-  // 🚫 컨트롤러 경로에선 비활성화 (컨트롤러가 자기 자신을 이동시키지 않도록)
-  if (pathname.startsWith('/controller')) {
-    // 디버그
-    useEffect(() => { console.log('[Bridge] disabled on /controller') }, [])
-    return null
-  }
+  // Check if should be disabled, but don't return early (hooks must be called consistently)
+  const isControllerPath = pathname.startsWith('/controller')
 
   // 1) DOM 오버레이를 항상 준비 + 이벤트 리스너 연결
   useEffect(() => {
+    // Skip if on controller path
+    if (isControllerPath) {
+      console.log('[Bridge] disabled on /controller')
+      return
+    }
     // 오버레이 DOM 생성/보장
     const root = ensureOverlay()
     const video = getVideoEl()
@@ -116,7 +117,8 @@ export default function DisplayBridgeClient() {
       if (cmd === 'pause') {
         console.log('[OverlayDOM] << remote-video:pause')
         video.pause()
-        hideOverlay()
+        // Keep overlay visible to show paused frame
+        // hideOverlay()
         dump('after pause')
         return
       }
@@ -159,10 +161,15 @@ export default function DisplayBridgeClient() {
       // root.remove()
       console.log('[OverlayDOM] listener removed')
     }
-  }, [pathname])
+  }, [pathname, isControllerPath])
 
   // 2) WS → 어디서든 수신
   const onAction = useCallback((action: string) => {
+    // Skip if on controller path
+    if (isControllerPath) {
+      return
+    }
+    
     console.log('[Bridge] onAction ->', action)
 
     if (action.startsWith('display:navigate:')) {
@@ -172,8 +179,16 @@ export default function DisplayBridgeClient() {
       return
     }
 
-    if (action.startsWith('display:video:play:')) {
-      const src = action.slice('display:video:play:'.length)
+    if (action.startsWith('display:video:play')) {
+      let src = ''
+      if (action.includes(';src=')) {
+        // Handle format: display:video:play;src=/path/to/video.mp4
+        const srcPart = action.split(';src=')[1]
+        src = srcPart ? decodeURIComponent(srcPart) : ''
+      } else if (action.startsWith('display:video:play:')) {
+        // Handle format: display:video:play:/path/to/video.mp4
+        src = action.slice('display:video:play:'.length)
+      }
       const cmd = { cmd: 'play' as const, src, ts: Date.now() }
       console.log('[Bridge] dispatch remote-video', cmd)
       window.dispatchEvent(new CustomEvent('remote-video', { detail: cmd }))
@@ -283,6 +298,26 @@ export default function DisplayBridgeClient() {
     const code = parts[4] || ''
     const name = decodeURIComponent(parts[5] || '')
     window.dispatchEvent(new CustomEvent('viz:eda:select', { detail: { level, code, name } }))
+    return
+    }
+
+    if (action.startsWith('display:ai:set-temp-scenario:')) {
+    const scenario = action.slice('display:ai:set-temp-scenario:'.length)
+    console.log('[Bridge] ai:set-temp-scenario', scenario)
+    window.dispatchEvent(new CustomEvent('viz:prediction:temp-scenario', { detail: { scenario } }))
+    return
+    }
+
+    if (action.startsWith('display:ai:start-animation:')) {
+    const type = action.slice('display:ai:start-animation:'.length) as '7days' | '31days'
+    console.log('[Bridge] ai:start-animation', type)
+    window.dispatchEvent(new CustomEvent('viz:prediction:start-animation', { detail: { type } }))
+    return
+    }
+
+    if (action === 'display:ai:stop-animation') {
+    console.log('[Bridge] ai:stop-animation')
+    window.dispatchEvent(new CustomEvent('viz:prediction:stop-animation'))
     return
     }
 
