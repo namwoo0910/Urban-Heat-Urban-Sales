@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 export type Action =
   | 'explore'
   | 'view-analytics'
+  | 'display:disableScreenSaver'
   | `display:navigate:${string}`
 type OnAction = (a: Action, raw?: unknown) => void
 

@@ -37,6 +37,8 @@ export default function ControllerPage() {
 
   const handleExplore = useCallback(() => {
     sendAction('explore')
+    // Also broadcast to display to disable screen saver
+    sendAction('display:disableScreenSaver')
     setHasExplored(true)
   }, [sendAction])
 
