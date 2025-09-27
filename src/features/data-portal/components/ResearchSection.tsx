@@ -8,20 +8,20 @@ import TransitionLink from "@/src/shared/components/navigation/TransitionLink"
 
 const projects = [
   {
-    title: "When Sales Become Landscapes, Forecasts, and Sounds",
-    description: "기온에 따른 매출 변화를 체험하세요.",
+    title: "Visuals and Sound of Data",
+    // description: "기온에 따른 매출 변화를 체험하세요.",
     imgSrc: "/images/seoul_economy.webp",
     href: "/research/local-economy",
   },
   {
-    title: "AI-based Forecasting",
-    description: "AI 기반 예측 모델로 미래 매출을 예측하세요.",
+    title: "Impact of Temperature on Sales",
+    // description: "AI 기반 예측 모델로 미래 매출을 예측하세요.",
     imgSrc: "/images/seoul_economy.webp",
     href: "/research/prediction",
   },
   {
     title: "Zooming into Local Sales",
-    description: "자치구, 행정동별 데이터를 탐색하세요.",
+    // description: "자치구, 행정동별 데이터를 탐색하세요.",
     imgSrc: "/images/eda.webp",
     href: "/research/eda",
   },
@@ -58,8 +58,8 @@ export function Research() {
     <div id="research" className="relative h-screen px-4 sm:px-6 lg:px-8 flex flex-col justify-center -translate-y-24">
       {/* Main title section with proper spacing for fixed header */}
       <div className="text-center mb-6">
-        <h2 className="text-8xl font-bold mb-4 text-white">
-          데이터로 보는 서울
+        <h2 className="text-6xl font-bold mb-4 text-white">
+          Select one of the following options
         </h2>
 
       </div>

@@ -18,6 +18,7 @@ interface MapContainerProps {
   onViewStateChange: (params: { viewState: MapViewState }) => void
   onHover?: (info: PickingInfo) => void
   onClick?: (info: PickingInfo) => void
+  onDoubleClick?: (info: PickingInfo) => void
   onDragStart?: () => void
   onDragEnd?: () => void
   getTooltip?: (info: PickingInfo) => object | null
@@ -31,6 +32,7 @@ export const MapContainer = React.memo(({
   onViewStateChange,
   onHover,
   onClick,
+  onDoubleClick,
   onDragStart,
   onDragEnd,
   getTooltip,
@@ -44,6 +46,7 @@ export const MapContainer = React.memo(({
       onViewStateChange={onViewStateChange as any}
       onHover={onHover}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
       controller={true}

@@ -1,7 +1,7 @@
 // src/features/controller/AIPredictionPanel.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { actions, WsSend } from "@/src/shared/ws/ctrlActions";
 import { cn } from "@/src/shared/utils/cn";
 
@@ -13,12 +13,46 @@ export default function AIPredictionPanel({
   sendAction: WsSend;
 }) {
   const disabled = wsStatus !== "open";
+  const [predictionStatus, setPredictionStatus] = useState<'stopped' | 'playing' | 'paused'>('stopped');
 
-  const onAiRoute = () => {
-    // 디스플레이 페이지 이동(컨트롤러는 그대로)
-    sendAction(actions.navigate("/research/prediction"));
+  const onTogglePrediction = () => {
+    if (disabled) return;
+
+    if (predictionStatus === 'playing') {
+      // If currently playing, pause the animation
+      sendAction(actions.ai.stopAnimation());
+      setPredictionStatus('paused');
+    } else if (predictionStatus === 'paused') {
+      // If paused, resume the animation
+      sendAction(actions.ai.startAnimation());
+      setPredictionStatus('playing');
+    } else {
+      // If stopped, navigate and start fresh
+      sendAction(actions.navigate("/research/prediction"));
+      setTimeout(() => {
+        sendAction(actions.ai.startAnimation());
+        setPredictionStatus('playing');
+      }, 500);
+    }
   };
 
+  // Listen for prediction animation events from display
+  useEffect(() => {
+    const handleAnimationStart = () => {
+      setPredictionStatus('playing');
+    };
+    const handleAnimationStop = () => {
+      setPredictionStatus('stopped');
+    };
+
+    window.addEventListener('viz:prediction:start-animation', handleAnimationStart);
+    window.addEventListener('viz:prediction:stop-animation', handleAnimationStop);
+
+    return () => {
+      window.removeEventListener('viz:prediction:start-animation', handleAnimationStart);
+      window.removeEventListener('viz:prediction:stop-animation', handleAnimationStop);
+    };
+  }, []);
 
   // Temperature scenario state
   const [tempScenario, setTempScenario] = useState('t050')
@@ -70,21 +104,32 @@ export default function AIPredictionPanel({
             <span>🤖</span>
             <span>AI Prediction Controls</span>
           </h3>
-          <div className="text-lg text-pink-200/80 mb-6 text-center">
+          {/* <div className="text-lg text-pink-200/80 mb-6 text-center">
             Advanced AI-powered temperature impact predictions with 31-day simulation
-          </div>
+          </div> */}
 
           {/* Main AI Prediction Button */}
           <button
+            disabled={disabled}
             className={cn(
               "w-full py-5 px-8 rounded-2xl bg-gradient-to-r from-pink-600 via-purple-600 to-pink-700 text-white font-bold text-lg shadow-xl transform transition-all duration-300 hover:scale-105 hover:shadow-pink-500/30 border border-white/10 mb-8",
               disabled && "pointer-events-none opacity-50 grayscale"
             )}
-            onClick={onAiRoute}
+            onClick={onTogglePrediction}
           >
             <span className="text-3xl flex items-center justify-center gap-3">
-              <span>🚀 Launch AI Prediction</span>
-              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              <span>
+                {predictionStatus === 'playing' ? '⏸️' :
+                 predictionStatus === 'paused' ? '▶️' : '🚀'}
+                {predictionStatus === 'playing' ? 'Pause' :
+                 predictionStatus === 'paused' ? 'Resume' : 'Show'} Prediction
+              </span>
+              <div className={cn(
+                "w-2 h-2 rounded-full transition-all duration-300",
+                predictionStatus === 'playing' ? "bg-red-400 animate-pulse" :
+                predictionStatus === 'paused' ? "bg-yellow-400 animate-pulse" :
+                "bg-white animate-ping"
+              )}></div>
             </span>
           </button>
 
@@ -95,7 +140,7 @@ export default function AIPredictionPanel({
             </div>
             <TempDeltaButtons />
             <div className="text-sm text-pink-300/80 mt-4 text-center p-3 rounded-xl bg-pink-900/20 border border-pink-500/20">
-              💡 31-day animation runs automatically • Select scenario to see climate impact
+              💡 31-day animation runs automatically • Select scenario to see heat impact
             </div>
           </div>
         </div>

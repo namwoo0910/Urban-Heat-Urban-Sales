@@ -287,6 +287,25 @@ export default function EDADistrictMap({
   }, [handleFilterChange])
 
   // Handle click with district code mapping - unified with filter logic
+  // Double-click handler disabled - using single-click for selection
+  const handleDoubleClick = useCallback((info: PickingInfo) => {
+    // Prevent default double-click zoom behavior by doing nothing
+    // Selection is handled by single-click now
+  }, [])
+
+  // Track click timeout for tap-to-show-tooltip
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (clickTimeoutRef.current) {
+        clearTimeout(clickTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  // Single-click handler for immediate selection (works on both desktop and touch)
   const handleClick = useCallback((info: PickingInfo) => {
     if (info.object) {
       const properties = info.object.properties || info.object
@@ -337,10 +356,8 @@ export default function EDADistrictMap({
 
         if (code) onRegionClick({ level, code, name })
       }
-
-
     }
-  }, [getGuName, getDistrictName, selectionMode, selectedBusinessType, handleFilterChange])
+  }, [getGuName, getDistrictName, selectionMode, selectedBusinessType, handleFilterChange, onRegionClick])
 
   // Handle theme change
   const [customThemeColor, setCustomThemeColor] = useState<string>('#2980B9')
@@ -484,6 +501,7 @@ export default function EDADistrictMap({
       viewState,
       onHover: handleHover,
       onClick: handleClick,
+      onDoubleClick: handleDoubleClick,
       theme: currentTheme,
       useUniqueColors,
       selectionMode,  // Use actual selection mode for proper interaction
@@ -512,6 +530,7 @@ export default function EDADistrictMap({
     viewState,
     handleHover,
     handleClick,
+    handleDoubleClick,
     currentTheme,
     useUniqueColors,
     selectionMode,
@@ -599,57 +618,13 @@ export default function EDADistrictMap({
         onDragStart={handleDragStart}
         onDragEnd={handleDragEnd}
         onHover={handleHover}
-        onClick={interactive ? handleClick : undefined} 
+        onClick={interactive ? handleClick : undefined}
+        onDoubleClick={interactive ? handleDoubleClick : undefined}
         getTooltip={getTooltip}
         mapRef={mapRef}
         isDragging={isDragging}
       />
 
-      {/* Preset Filter Buttons */}
-      <div className="fixed z-50 flex flex-col gap-2" style={{ top: '76px', left: '26px' }}>
-        <motion.button
-          onClick={() => applyPresetFilter('vulnerable')}
-          className="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 backdrop-blur-sm
-                     rounded-lg shadow-lg hover:shadow-xl hover:scale-105 hover:bg-gray-200
-                     transition-all duration-200"
-          whileHover={{ x: 2 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <span className="text-lg">🌡️</span>
-          <div className="text-left">
-            <div className="text-sm font-semibold text-gray-900">
-              폭염/한파에 취약한 전통상권
-            </div>
-          </div>
-        </motion.button>
-
-        <motion.button
-          onClick={() => applyPresetFilter('culture')}
-          className="group flex items-center gap-2 px-4 py-2.5 bg-gray-100 backdrop-blur-sm
-                     rounded-lg shadow-lg hover:shadow-xl hover:scale-105 hover:bg-gray-200
-                     transition-all duration-200"
-          whileHover={{ x: 2 }}
-          whileTap={{ scale: 0.98 }}
-        >
-          <span className="text-lg">🎭</span>
-          <div className="text-left">
-            <div className="text-sm font-semibold text-gray-900">
-              폭염 속에서 찾는 예술 문화
-            </div>
-          </div>
-        </motion.button>
-      </div>
-
-      {/* Filter panel */}
-      <LocalEconomyFilterPanel
-        onFilterChange={handleFilterChange}
-        onThemeChange={handleThemeChange}
-        currentTheme={currentTheme}
-        externalSelectedGu={selectedGu}
-        externalSelectedDong={selectedDong}
-        externalSelectedBusinessType={selectedBusinessType}
-        className="fixed bottom-4 left-4 z-50"
-      />
 
       {/* Info Panel */}
       {(selectedGu || selectedDong) && (

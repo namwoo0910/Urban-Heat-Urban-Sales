@@ -25,20 +25,33 @@ const HeroSection = dynamic(
 )
 
 export default function HomePage() {
-  const { isScreenSaverActive, disableScreenSaver } = useScreenSaver()
+  const { isScreenSaverActive, disableScreenSaver, enableScreenSaver } = useScreenSaver()
 
-  // WebSocket connection to listen for controller actions
+  // WebSocket connection to listen for screen saver actions
   const { sendAction, isConnected } = useWS({
     role: 'display',
     room: 'main',
     onAction: (action) => {
-      if (action === 'explore' || action === 'display:disableScreenSaver') {
+      if (action === 'display:disableScreenSaver') {
         disableScreenSaver()
-        // Also trigger hero explore animation
-        window.dispatchEvent(new CustomEvent('hero:explore'))
       }
+      // Note: 'explore' action is now handled by DisplayBridgeClient globally
     },
   })
+
+  // Listen for reset events to re-enable screen saver
+  useEffect(() => {
+    const handleEnableScreenSaver = () => {
+      console.log('[HomePage] Enabling screen saver due to reset')
+      enableScreenSaver()
+    }
+
+    window.addEventListener('display:enableScreenSaver', handleEnableScreenSaver)
+
+    return () => {
+      window.removeEventListener('display:enableScreenSaver', handleEnableScreenSaver)
+    }
+  }, [enableScreenSaver])
 
   return (
     <div className="relative min-h-screen">

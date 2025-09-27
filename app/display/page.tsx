@@ -49,15 +49,7 @@ export default function DisplayPage() {
         return
       }
 
-      // 4) Explore: 항상 /display로 돌아와서 영웅 화면이 이벤트를 받을 수 있게 함
-      if (action === 'explore') {
-        console.log('[Display] explore -> navigate /display, then fire hero:explore')
-        router.replace('/display')
-        setTimeout(() => {
-          window.dispatchEvent(new CustomEvent('hero:explore'))
-        }, 150)
-        return
-      }
+      // 4) Explore: handled by DisplayBridgeClient.tsx globally - removed duplicate handler
     },
     [router]
   )

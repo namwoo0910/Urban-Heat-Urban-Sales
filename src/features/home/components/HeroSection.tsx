@@ -1,11 +1,10 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
-import { TransitionLink } from "@/src/shared/components/navigation/TransitionLink"
 import { ArrowRight, Circle, Map } from "lucide-react"
 
 // 동적으로 파티클 맵 로드 (SSR 비활성화) - 최적화된 버전 사용
@@ -68,20 +67,60 @@ export function Hero() {
   const mapStyle = "mapbox://styles/mapbox/dark-v11"
 
   // Handle explore button click
-  const handleExploreClick = () => {
-    if (displayMode === 'circular') {
+  const handleExploreClick = useCallback(() => {
+    console.log('[Hero] handleExploreClick triggered, current displayMode:', displayMode)
+    console.log('[Hero] About to trigger scattering animation')
+    // Always trigger the particle scattering animation regardless of current state
+    if (displayMode === 'map') {
+      // If already in map mode, reset to circular first, then transition
+      console.log('[Hero] Resetting from map to circular')
+      setDisplayMode('circular')
+      setShowCenterText(true)
+      setShowTopText(false)
+
+      // Small delay to allow circular mode to render, then trigger transition
+      setTimeout(() => {
+        console.log('[Hero] Starting transition from circular after reset')
+        console.log('[Hero] Setting displayMode to transitioning')
+        setDisplayMode('transitioning')
+        setHasExplored(true)
+        setShowCenterText(false)
+      }, 100)
+    } else if (displayMode === 'circular') {
+      console.log('[Hero] Starting transition from circular')
+      console.log('[Hero] Setting displayMode to transitioning')
       setDisplayMode('transitioning')
       setHasExplored(true)
-      setShowCenterText(false) // Hide center text when transitioning
-      // The ParticleMapSeoul component will handle the actual transition
-      // once map particles are loaded
+      setShowCenterText(false)
+    } else if (displayMode === 'transitioning') {
+      // If currently transitioning, reset to circular and restart
+      console.log('[Hero] Resetting from transitioning to circular')
+      setDisplayMode('circular')
+      setShowCenterText(true)
+      setShowTopText(false)
+
+      setTimeout(() => {
+        console.log('[Hero] Starting transition from circular after transitioning reset')
+        setDisplayMode('transitioning')
+        setHasExplored(true)
+        setShowCenterText(false)
+      }, 100)
     }
-  }
+    // The ParticleMapSeoul component will handle the actual transition
+    // once map particles are loaded
+  }, [displayMode])
 
   useEffect(() => {
-    const onRemoteExplore = () => handleExploreClick()
+    const onRemoteExplore = () => {
+      console.log('[Hero] hero:explore event received! Calling handleExploreClick')
+      handleExploreClick()
+    }
     window.addEventListener('hero:explore', onRemoteExplore)
-    return () => window.removeEventListener('hero:explore', onRemoteExplore)
+    console.log('[Hero] hero:explore listener added')
+    return () => {
+      window.removeEventListener('hero:explore', onRemoteExplore)
+      console.log('[Hero] hero:explore listener removed')
+    }
   }, [handleExploreClick])
 
   useGSAP(
@@ -179,6 +218,7 @@ export function Hero() {
           mapStyle={mapStyle}
           displayMode={displayMode}
           onDisplayModeChange={(mode) => {
+            console.log('[Hero] Display mode changing to:', mode)
             setDisplayMode(mode)
             if (mode === 'map') {
               // Show top text when map is fully formed
@@ -216,43 +256,28 @@ export function Hero() {
         </div>
       )}
       
-      {/* Bottom button */}
+      {/* Display-only mode: No interactive buttons, only controller-driven */}
       <div className="absolute left-0 right-0 z-10 flex justify-center px-4" style={{ bottom: 'calc(5rem - 5px)' }}>
-        {!hasExplored ? (
-          <motion.button
-            onClick={handleExploreClick}
-            className="hero-button flex items-center gap-2 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-2 px-4 rounded-full transition-all duration-300 text-sm uppercase tracking-wide border border-white/20"
-            whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
-            whileTap={{ scale: 0.95 }}
-            disabled={displayMode === 'transitioning'}
-          >
-            {displayMode === 'circular' && (
-              <>
-                <Circle size={16} className="animate-pulse" />
-                EXPLORE SEOUL
-                <ArrowRight size={16} />
-              </>
-            )}
-            {displayMode === 'transitioning' && (
-              <>
-                TRANSITIONING...
-                <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin ml-2" />
-              </>
-            )}
-          </motion.button>
-        ) : (
-          <TransitionLink href="/research-section">
-            <motion.button
-              className="hero-button flex items-center gap-2 bg-black/80 hover:bg-black text-white font-['Montserrat'] font-medium py-2 px-4 rounded-full transition-all duration-300 text-sm uppercase tracking-wide border border-white/20"
-              whileHover={{ scale: 1.05, transition: { type: "spring", stiffness: 300 } }}
-              whileTap={{ scale: 0.95 }}
-            >
+        <div className="hero-button flex items-center gap-2 bg-black/40 text-white/60 font-['Montserrat'] font-medium py-2 px-4 rounded-full text-sm uppercase tracking-wide border border-white/10 pointer-events-none">
+          {displayMode === 'circular' && (
+            <>
+              <Circle size={16} className="animate-pulse" />
+              Use Controller to Navigate
+            </>
+          )}
+          {displayMode === 'transitioning' && (
+            <>
+              TRANSITIONING...
+              <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin ml-2" />
+            </>
+          )}
+          {displayMode === 'map' && (
+            <>
               <Map size={16} />
-              VIEW ANALYTICS
-              <ArrowRight size={16} />
-            </motion.button>
-          </TransitionLink>
-        )}
+              Controlled Remotely
+            </>
+          )}
+        </div>
       </div>
 
       {/* 애니메이션 스타일 */}

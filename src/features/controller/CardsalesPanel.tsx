@@ -1,7 +1,7 @@
 // src/features/controller/CardsalesPanel.tsx
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { actions, WsSend } from "@/src/shared/ws/ctrlActions";
 import { cn } from "@/src/shared/utils/cn";
 
@@ -13,23 +13,98 @@ export default function CardsalesPanel({
   sendAction: WsSend;
 }) {
   const disabled = wsStatus !== "open";
+  const [animationStatus, setAnimationStatus] = useState<'stopped' | 'playing' | 'paused'>('stopped');
+  const [videoStatus, setVideoStatus] = useState<'stopped' | 'playing' | 'paused' | 'error'>('stopped');
+  const [showAudioDialog, setShowAudioDialog] = useState(false);
 
   const onShowViz = () => {
-    sendAction(actions.navigate("/research/local-economy"));
+    if (disabled) return;
+
+    if (animationStatus === 'playing') {
+      // If currently playing, pause the animation
+      sendAction(actions.animation.toggleDaily());
+      setAnimationStatus('paused');
+    } else if (animationStatus === 'paused') {
+      // If paused, resume the animation
+      sendAction(actions.animation.toggleDaily());
+      setAnimationStatus('playing');
+    } else {
+      // If stopped, start fresh
+      sendAction(actions.navigate("/research/local-economy"));
+      setTimeout(() => {
+        sendAction(actions.animation.toggleDaily());
+        setAnimationStatus('playing');
+      }, 300);
+    }
   };
 
-  const onPlayMovie = () => {
-    // First ensure we're on the local-economy page, then play video
-    sendAction(actions.navigate("/research/local-economy"));
-    // Small delay to ensure page loads before playing video
-    setTimeout(() => {
-      sendAction(actions.video.playSrc("/0923.mp4"));
-    }, 300);
+  const onToggleVideo = () => {
+    if (disabled) return;
+
+    if (videoStatus === 'playing') {
+      // If currently playing, pause the video (stay on current page)
+      sendAction(actions.video.pause());
+      setVideoStatus('paused');
+    } else if (videoStatus === 'paused') {
+      // If paused, resume playback without resetting src
+      sendAction(actions.video.play()); // Resume without src parameter
+      setVideoStatus('playing');
+    } else {
+      // If stopped, show audio dialog first
+      setShowAudioDialog(true);
+    }
   };
 
-  const onPauseMovie = () => {
-    sendAction(actions.video.pause());
+  const handleAudioPermission = (allowAudio: boolean) => {
+    setShowAudioDialog(false);
+
+    if (allowAudio) {
+      // Navigate to video page and start playing with audio permission
+      sendAction(actions.navigate("/video-experience"));
+
+      // Start video playback after delay
+      setTimeout(() => {
+        sendAction(actions.video.playSrc("/0923.mp4"));
+        setVideoStatus('playing');
+
+        // Don't try to unmute immediately - let user click on display to enable audio
+        // This avoids cross-page user gesture issues
+      }, 1200);
+    }
   };
+
+  // Listen for video status events from display
+  useEffect(() => {
+    const handleVideoStatus = (event: Event) => {
+      const eventType = event.type;
+      switch (eventType) {
+        case 'video:status:playing':
+          setVideoStatus('playing');
+          break;
+        case 'video:status:paused':
+          setVideoStatus('paused');
+          break;
+        case 'video:status:stopped':
+          setVideoStatus('stopped');
+          break;
+        case 'video:status:error':
+          setVideoStatus('error');
+          break;
+      }
+    };
+
+    window.addEventListener('video:status:playing', handleVideoStatus);
+    window.addEventListener('video:status:paused', handleVideoStatus);
+    window.addEventListener('video:status:stopped', handleVideoStatus);
+    window.addEventListener('video:status:error', handleVideoStatus);
+
+    return () => {
+      window.removeEventListener('video:status:playing', handleVideoStatus);
+      window.removeEventListener('video:status:paused', handleVideoStatus);
+      window.removeEventListener('video:status:stopped', handleVideoStatus);
+      window.removeEventListener('video:status:error', handleVideoStatus);
+    };
+  }, []);
 
 
 
@@ -40,8 +115,8 @@ export default function CardsalesPanel({
         <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-purple-500/5 to-cyan-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
         <div className="relative z-10">
           <h3 className="text-4xl font-bold mb-4 text-white flex items-center gap-3">
-            <span>💳</span>
-            <span>Card Sales Visualization</span>
+            <span>🖼️</span>
+            <span>Visuals of Data</span>
           </h3>
           <button
             className={cn(
@@ -51,12 +126,26 @@ export default function CardsalesPanel({
             onClick={onShowViz}
           >
             <span className="text-3xl flex items-center justify-center gap-3">
-              <span>🚀 Launch Visualization</span>
-              <div className="w-2 h-2 bg-white rounded-full animate-ping"></div>
+              <span>
+                {animationStatus === 'playing' ? '⏸️' :
+                 animationStatus === 'paused' ? '▶️' : '▶️'}
+                {animationStatus === 'playing' ? 'Pause' :
+                 animationStatus === 'paused' ? 'Resume' : 'Play'}
+              </span>
+              <div className={cn(
+                "w-2 h-2 rounded-full transition-all duration-300",
+                animationStatus === 'playing' ? "bg-red-400 animate-pulse" :
+                animationStatus === 'paused' ? "bg-yellow-400 animate-pulse" :
+                "bg-white animate-ping"
+              )}></div>
             </span>
           </button>
           <div className="text-sm text-purple-200/80 mt-3 text-center">
-            Navigate display to interactive card sales data visualization
+            {animationStatus === 'playing'
+              ? "Pause the daily animation on display"
+              : animationStatus === 'paused'
+              ? "Resume the daily animation on display"
+              : "Navigate display and start daily animation"}
           </div>
         </div>
       </div>
@@ -66,70 +155,80 @@ export default function CardsalesPanel({
         <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-cyan-500/5 to-purple-500/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
         <div className="relative z-10">
           <h3 className="text-4xl font-bold mb-4 text-white flex items-center gap-3">
-            <span>🎬</span>
-            <span>Experience Card Sales</span>
+            <span>🎧</span>
+            <span>Sounds of Data</span>
           </h3>
 
-          {/* Main Play/Pause Controls */}
-          <div className="flex gap-4 mb-6">
+          {/* Video Toggle Control */}
+          <div className="mb-6">
             <button
+              disabled={disabled}
               className={cn(
-                "flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-bold shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-cyan-500/30",
-                disabled && "pointer-events-none opacity-50 grayscale"
+                "w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-bold shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-cyan-500/30",
+                disabled && "opacity-50 grayscale cursor-not-allowed"
               )}
-              onClick={onPlayMovie}
+              onClick={() => {
+                if (disabled) return;
+                onToggleVideo();
+              }}
             >
-              <span className="text-3xl flex items-center justify-center gap-2">
-                <span>▶</span>
-                <span>Play Experience</span>
+              <span className="text-3xl flex items-center justify-center gap-3">
+                <span>
+                  {videoStatus === 'playing' ? '⏸️' :
+                   videoStatus === 'paused' ? '▶️' : '▶️'}
+                  {videoStatus === 'playing' ? 'Pause' :
+                   videoStatus === 'paused' ? 'Resume' : 'Play'} 
+                </span>
+                <div className={cn(
+                  "w-2 h-2 rounded-full transition-all duration-300",
+                  videoStatus === 'playing' ? "bg-red-400 animate-pulse" :
+                  videoStatus === 'paused' ? "bg-yellow-400 animate-pulse" :
+                  "bg-white animate-ping"
+                )}></div>
               </span>
             </button>
-            <button
-              className={cn(
-                "flex-1 py-4 px-6 rounded-2xl bg-gradient-to-r from-slate-600 to-slate-700 text-white font-bold shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-slate-500/30",
-                disabled && "pointer-events-none opacity-50 grayscale"
-              )}
-              onClick={onPauseMovie}
-            >
-              <span className="text-3xl flex items-center justify-center gap-2">
-                <span>⏸</span>
-                <span>Pause</span>
-              </span>
-            </button>
+
+            {/* Video Status Description */}
+            <div className="text-sm text-cyan-200/80 mt-3 text-center">
+              {videoStatus === 'playing'
+                ? "Pause video playback"
+                : videoStatus === 'paused'
+                ? "Resume video playback"
+                : "Navigate to dedicated sound experience page"}
+            </div>
           </div>
 
-          {/* Additional controls */}
-          <div className="flex justify-center gap-3">
-            <button
-              className={cn("px-4 py-3 rounded-xl bg-slate-700/60 border border-white/20 text-sm hover:bg-slate-600/60 transition-colors backdrop-blur-sm", disabled && "pointer-events-none opacity-50")}
-              onClick={() => sendAction(actions.video.muteOff())}
-            >
-              <span className="flex items-center gap-2">
-                <span>🔊</span>
-                <span>Unmute</span>
-              </span>
-            </button>
-            <button
-              className={cn("px-4 py-3 rounded-xl bg-slate-700/60 border border-white/20 text-sm hover:bg-slate-600/60 transition-colors backdrop-blur-sm", disabled && "pointer-events-none opacity-50")}
-              onClick={() => sendAction(actions.video.muteOn())}
-            >
-              <span className="flex items-center gap-2">
-                <span>🔇</span>
-                <span>Mute</span>
-              </span>
-            </button>
-            <button
-              className={cn("px-4 py-3 rounded-xl bg-red-600/70 border border-red-500/40 text-sm hover:bg-red-600/90 transition-colors backdrop-blur-sm", disabled && "pointer-events-none opacity-50")}
-              onClick={() => sendAction(actions.video.close())}
-            >
-              <span className="flex items-center gap-2">
-                <span>✕</span>
-                <span>Close</span>
-              </span>
-            </button>
-          </div>
         </div>
       </div>
+
+      {/* Audio Permission Dialog */}
+      {showAudioDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-8 border border-cyan-500/30 shadow-2xl max-w-md w-full mx-4">
+            <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
+              <span>🔊</span>
+              <span>Audio Permission</span>
+            </h3>
+            <p className="text-slate-300 mb-6">
+              Audio will play during the video experience. Click "OK" to enable sound and start the video.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => handleAudioPermission(false)}
+                className="flex-1 py-3 px-6 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleAudioPermission(true)}
+                className="flex-1 py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-bold hover:from-cyan-500 hover:to-purple-500 transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </section>
   );

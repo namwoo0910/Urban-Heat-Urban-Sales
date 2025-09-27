@@ -7,6 +7,10 @@ export type Action =
   | 'view-analytics'
   | 'display:disableScreenSaver'
   | `display:navigate:${string}`
+  | 'sync:request-state'
+  | `sync:state:${string}`
+  | `display:state:explored`
+  | `display:state:page:${string}`
 type OnAction = (a: Action, raw?: unknown) => void
 
 type WSStatus = 'idle' | 'connecting' | 'open' | 'closing' | 'closed'
@@ -14,7 +18,7 @@ type WSStatus = 'idle' | 'connecting' | 'open' | 'closing' | 'closed'
 type UseWSOpts = {
   room?: string
   role?: 'controller' | 'display'
-  url?: string                 // ex) ws://192.168.0.6:3001/ws
+  url?: string                 // ex) ws://192.168.0.6:3003/ws
   heartBeatMs?: number         // default 15s
   reconnect?: boolean
   onAction: OnAction
@@ -42,9 +46,9 @@ export function useWS({
     if (url) return url
     if (typeof window !== 'undefined') {
       const host = window.location.hostname // iPad에서도 PC IP 자동
-      return `ws://${host}:3001/ws`
+      return `ws://${host}:3003/ws`
     }
-    return `ws://localhost:3001/ws`
+    return `ws://localhost:3003/ws`
   }, [url])
 
   useEffect(() => {

@@ -30,7 +30,7 @@ wss.on('connection', (ws, req) => {
   ;(ws as any).isAlive = true
   ws.on('pong', () => ((ws as any).isAlive = true))
 
-  // 1) 쿼리로 room 지정 (ws://host:3001/ws?room=main)
+  // 1) 쿼리로 room 지정 (ws://host:3003/ws?room=main)
   const { query } = parse(req.url || '', true)
   if (query?.room) joinRoom(ws, String(query.room))
   else joinRoom(ws, 'main')
@@ -84,7 +84,7 @@ setInterval(() => {
   }
 }, 30_000)
 
-const PORT = Number(process.env.WS_PORT || 3001)
+const PORT = Number(process.env.WS_PORT || 3003)
 const HOST = process.env.WS_HOST || '0.0.0.0'
 server.listen(PORT, HOST, () => {
   console.log(`WS server listening on ws://${HOST}:${PORT}/ws`)

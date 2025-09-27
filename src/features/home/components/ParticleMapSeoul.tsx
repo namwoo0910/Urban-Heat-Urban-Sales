@@ -293,19 +293,53 @@ export function SeoulMapOptimized({
 
   // Handle display mode change
   useEffect(() => {
+    console.log('[ParticleMap] Display mode change triggered')
+    console.log('[ParticleMap] Current state:', {
+      propDisplayMode,
+      displayMode,
+      unifiedParticlesCount: unifiedParticles.length,
+      particlesCount: particles.length
+    })
+
     if (propDisplayMode !== displayMode) {
+      console.log('[ParticleMap] Mode change detected:', displayMode, '->', propDisplayMode)
+
       if (propDisplayMode === 'transitioning' && displayMode === 'circular') {
         // Start transition from circular to map
-        // Make sure unified particles are loaded before transitioning
+        console.log('[ParticleMap] Preparing transition from circular to map')
+
         if (unifiedParticles.length > 0) {
+          console.log('[ParticleMap] Starting transition with', unifiedParticles.length, 'unified particles')
           setDisplayMode('transitioning')
           transitionStartTimeRef.current = Date.now()
           amplitudeAnimationRef.current = 0.2 // Start from low amplitude for circular
           animationStartTimeRef.current = Date.now()
           animationDurationRef.current = 10000 // 10 seconds for slower transition
         } else {
-          console.warn('Unified particles not ready for transition, waiting...')
-          // Will retry when unifiedParticles are loaded
+          console.log('[ParticleMap] Unified particles not ready (count:', unifiedParticles.length, '), forcing immediate load...')
+
+          // Force immediate generation of unified particles
+          loadDataOptimized({ allowFallback: false, silent: false }).then(() => {
+            console.log('[ParticleMap] Particles loaded after forced load, starting transition')
+            setDisplayMode('transitioning')
+            transitionStartTimeRef.current = Date.now()
+            amplitudeAnimationRef.current = 0.2
+            animationStartTimeRef.current = Date.now()
+            animationDurationRef.current = 10000
+          }).catch(error => {
+            console.error('[ParticleMap] Failed to load particles:', error)
+            // Fallback: use current particles for transition if available
+            if (particles.length > 0) {
+              console.log('[ParticleMap] Using current particles as fallback for transition')
+              setDisplayMode('transitioning')
+              transitionStartTimeRef.current = Date.now()
+              amplitudeAnimationRef.current = 0.2
+              animationStartTimeRef.current = Date.now()
+              animationDurationRef.current = 10000
+            } else {
+              console.error('[ParticleMap] No particles available for transition')
+            }
+          })
         }
       } else if (propDisplayMode === 'map' && displayMode === 'transitioning') {
         // Transition complete - switch to map positions
@@ -323,22 +357,40 @@ export function SeoulMapOptimized({
         }
         amplitudeAnimationRef.current = 0.2 // Maintain small amplitude for continuous movement
       } else {
+        console.log('[ParticleMap] Direct mode change to:', propDisplayMode)
         setDisplayMode(propDisplayMode)
       }
+    } else {
+      console.log('[ParticleMap] No mode change needed, modes match:', displayMode)
     }
   }, [propDisplayMode, displayMode, unifiedParticles])
 
   // Retry transition when unified particles are loaded
   useEffect(() => {
-    if (propDisplayMode === 'transitioning' && displayMode === 'circular' && unifiedParticles.length > 0) {
-      console.log('Unified particles loaded, starting transition now')
-      setDisplayMode('transitioning')
-      transitionStartTimeRef.current = Date.now()
-      amplitudeAnimationRef.current = 0.2
-      animationStartTimeRef.current = Date.now()
-      animationDurationRef.current = 8000
+    console.log('[ParticleMap] useEffect triggered - propDisplayMode:', propDisplayMode, 'displayMode:', displayMode, 'unifiedParticles:', unifiedParticles.length)
+  console.log('[ParticleMap] Transition conditions check:', {
+    propIsTransitioning: propDisplayMode === 'transitioning',
+    currentModeIsCircular: displayMode === 'circular',
+    hasParticles: unifiedParticles.length > 0
+  })
+
+    if (propDisplayMode === 'transitioning') {
+      if (displayMode === 'circular') {
+        if (unifiedParticles.length > 0) {
+          console.log('Unified particles loaded, starting transition now')
+          setDisplayMode('transitioning')
+          transitionStartTimeRef.current = Date.now()
+          amplitudeAnimationRef.current = 0.2
+          animationStartTimeRef.current = Date.now()
+          animationDurationRef.current = 8000
+        } else {
+          console.log('[ParticleMap] Unified particles not ready (count:', unifiedParticles.length, '), will be handled by the Promise.then() above')
+          // This case is now handled by the Promise.then() logic above (lines 322-342)
+          // Don't start transition immediately - wait for particles to load
+        }
+      }
     }
-  }, [unifiedParticles, propDisplayMode, displayMode])
+  }, [unifiedParticles.length, propDisplayMode, displayMode])
 
   // Update camera view when display mode changes
   useEffect(() => {
@@ -442,8 +494,46 @@ export function SeoulMapOptimized({
         setError(null)
       }
 
-      const unified = await generateUnifiedParticles()
-      setUnifiedParticles(unified)
+      console.log('[ParticleMap] Starting to generate unified particles...')
+      let unified: ParticleData[] = []
+
+      try {
+        unified = await generateUnifiedParticles()
+        console.log('[ParticleMap] Generated', unified.length, 'unified particles')
+
+        if (unified.length === 0) {
+          throw new Error('Generated 0 unified particles')
+        }
+
+        setUnifiedParticles(unified)
+      } catch (unifiedError) {
+        console.error('[ParticleMap] Failed to generate unified particles:', unifiedError)
+
+        if (allowFallback) {
+          console.log('[ParticleMap] Attempting fallback particle generation...')
+          try {
+            // Fallback to basic particle generation
+            const basicParticles = generateInitialParticles(config.particleCount, config.particleCount)
+            console.log('[ParticleMap] Generated', basicParticles.length, 'basic fallback particles')
+
+            // Create fake unified particles with basic data
+            unified = basicParticles.map((p, i) => ({
+              ...p,
+              circularPos: [p.x, p.y] as [number, number],
+              mapPos: [p.x + Math.random() * 0.001, p.y + Math.random() * 0.001] as [number, number],
+              id: i
+            }))
+
+            setUnifiedParticles(unified)
+            console.log('[ParticleMap] Created', unified.length, 'fallback unified particles')
+          } catch (fallbackError) {
+            console.error('[ParticleMap] Fallback particle generation also failed:', fallbackError)
+            throw fallbackError
+          }
+        } else {
+          throw unifiedError
+        }
+      }
 
       const initialParticles = unified.map(p => ({
         ...p,
@@ -490,12 +580,21 @@ export function SeoulMapOptimized({
   }, [animateParticlesBatch, config.particleCount])
 
   useEffect(() => {
+    console.log('[ParticleMap] Initial loading useEffect triggered, unifiedParticles.length:', unifiedParticles.length)
+
     if (unifiedParticles.length > 0) {
+      console.log('[ParticleMap] Particles already loaded, skipping initial load')
       return
     }
 
-    loadDataOptimized({ allowFallback: true })
-  }, [loadDataOptimized, unifiedParticles.length])
+    console.log('[ParticleMap] Starting initial particle load...')
+    loadDataOptimized({ allowFallback: true, silent: false })
+  }, [])
+
+  // Separate effect to monitor particle loading progress
+  useEffect(() => {
+    console.log('[ParticleMap] Particle count changed:', unifiedParticles.length)
+  }, [unifiedParticles.length])
 
   useEffect(() => {
     if (particlesRef.current !== particles) {
@@ -522,7 +621,7 @@ export function SeoulMapOptimized({
     return () => {
       window.clearTimeout(timer)
     }
-  }, [error, retryCount, maxRetries, loadDataOptimized, unifiedParticles.length])
+  }, [error, retryCount, maxRetries, unifiedParticles.length])
 
   // Color theme is now forced to damienHirst for optimal vibrancy
   // Dynamic color switching logic removed to ensure consistent vibrant colors
@@ -696,13 +795,18 @@ export function SeoulMapOptimized({
             const elapsed = now - transitionStartTimeRef.current
             const progress = Math.min(elapsed / transitionDurationRef.current, 1.0)
 
+            console.log('[ParticleMap] Transition progress:', progress, 'displayMode:', displayMode, 'particles:', unifiedParticles.length)
+            console.log('[ParticleMap] Animation frame - elapsed:', elapsed, 'transitionStart:', transitionStartTimeRef.current)
+
             // Interpolate between circular and map positions using unified particles
             if (unifiedParticles.length > 0) {
               // Use unified interpolation function with explosion phases
               const timeInSeconds = animationState.time * 0.001
               const interpolatedParticles = interpolateUnifiedParticles(unifiedParticles, progress, {
                 time: timeInSeconds,
+                useScatter: true
               })
+              console.log('[ParticleMap] Interpolated particles for scattering:', interpolatedParticles.length, 'progress:', progress)
               particlesRef.current = interpolatedParticles
               updated = animateParticlesBatch(interpolatedParticles, timeInSeconds)
 
@@ -712,7 +816,7 @@ export function SeoulMapOptimized({
                 setParticles(interpolatedParticles)
                 particlesRef.current = interpolatedParticles
                 transitionStartTimeRef.current = null
-                amplitudeAnimationRef.current = 0.2 // Maintain small amplitude for continuous movement
+                amplitudeAnimationRef.current = 0.01 // Very small amplitude for subtle map movement
                 // No need to reset animationStartTimeRef since we're not using scatter in map mode
                 if (onDisplayModeChange) {
                   onDisplayModeChange('map')
@@ -729,9 +833,12 @@ export function SeoulMapOptimized({
             amplitudeAnimationRef.current = 0.2 // Keep minimal amplitude
             updated = animateParticlesBatch(particlesRef.current, timeInSeconds)
           } else {
-            // Map mode - simple animation without scatter effect
-            // amplitude is already set to 0.2 when transition completes
+            // Map mode - minimal animation after transition completes
             const timeInSeconds = animationState.time * 0.001
+            amplitudeAnimationRef.current = 0.01 // Very subtle movement for map mode
+
+            // Optional: Stop animation completely after being in map mode for a while
+            // For now, keep very subtle animation to show it's alive
             updated = animateParticlesBatch(particlesRef.current, timeInSeconds)
           }
 

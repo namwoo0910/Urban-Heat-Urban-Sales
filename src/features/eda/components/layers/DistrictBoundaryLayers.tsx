@@ -54,6 +54,7 @@ interface BoundaryLayerProps {
   viewState: MapViewState
   onHover?: (info: PickingInfo) => void
   onClick?: (info: PickingInfo) => void
+  onDoubleClick?: (info: PickingInfo) => void
   theme?: ThemeKey
   useUniqueColors?: boolean
   selectionMode?: 'gu' | 'dong'
@@ -79,6 +80,7 @@ export function createDistrictBoundaryLayers({
   viewState,
   onHover,
   onClick,
+  onDoubleClick,
   theme = 'ocean',
   useUniqueColors = true,
   selectionMode = 'gu',
@@ -169,35 +171,11 @@ export function createDistrictBoundaryLayers({
               fillColor = [0, 0, 0, 0] as RGBAColor  // Fully transparent
             }
           } else if (guName === hoveredDistrict) {
-            // Check if this gu is hovered (but not selected)
-            // Use beautiful amber for hover state
-            fillColor = [251, 191, 36, 180] as RGBAColor  // Golden amber hover
+            // Sophisticated hover effect: 40% lighter fill (light gray with transparency)
+            fillColor = [209, 213, 219, 100] as RGBAColor  // Light gray-300 with 40% opacity
           } else {
-            // When dong boundaries are not shown (normal gu mode)
-            // Make non-selected gu more transparent when one is selected
-            if (selectedGu && guName !== selectedGu) {
-              const baseColor = getDistrictFillColor(
-                d.properties,
-                null,
-                null,
-                null,
-                actualTheme,
-                useUniqueColors
-              )
-              // Reduce opacity significantly for non-selected areas
-              fillColor = [baseColor[0], baseColor[1], baseColor[2], 80] as RGBAColor
-            } else {
-              // Default: return base theme color
-              const baseColor = getDistrictFillColor(
-                d.properties,
-                null,
-                null,
-                null,
-                actualTheme,
-                useUniqueColors
-              )
-              fillColor = [baseColor[0], baseColor[1], baseColor[2], 180] as RGBAColor
-            }
+            // Default: No fill (transparent)
+            fillColor = [0, 0, 0, 0] as RGBAColor  // Fully transparent
           }
 
           // Apply saturation boost if enabled
@@ -213,30 +191,23 @@ export function createDistrictBoundaryLayers({
                          d.properties?.SIG_KOR_NM ||
                          d.properties?.['자치구']
 
-          const isSelected = selectedGuCode &&
-                            (d.properties?.guCode ||
-                             (d.properties?.ADM_SECT_C ? parseInt(d.properties.ADM_SECT_C) : null) ||
-                             d.properties?.['자치구코드']) === selectedGuCode
+          const guCode = d.properties?.guCode ||
+                         (d.properties?.ADM_SECT_C ? parseInt(d.properties.ADM_SECT_C) : null) ||
+                         d.properties?.['자치구코드']
+
+          const isSelected = selectedGuCode && guCode === selectedGuCode
           const isHovered = guName === hoveredDistrict
 
-          // Use modern border styles
-          const borderStyle = getModernBorderStyle('gu', isSelected, isHovered, actualTheme)
-
-          // Apply gradient effect based on theme
-          if (!isSelected && !isHovered) {
-            const fillColor = getDistrictFillColor(
-              d.properties,
-              null,
-              null,
-              null,
-              actualTheme,
-              useUniqueColors
-            )
-            // Create subtle gradient border based on fill color
-            return getBorderGradientColor(fillColor as RGBAColor, actualTheme, 'start')
+          if (isSelected) {
+            // Selected districts keep emerald outline
+            return [16, 185, 129, 255] as RGBAColor  // Emerald-600
+          } else if (isHovered) {
+            // Sophisticated hover effect: Use what was originally the fill color (gray-300)
+            return [209, 213, 219, 255] as RGBAColor  // Gray-300 outline on hover
+          } else {
+            // Default: Light gray boundary that's clearly visible
+            return [156, 163, 175, 255] as RGBAColor  // Gray-400 outline (visible but subtle)
           }
-
-          return borderStyle.color
         },
         getLineWidth: (d: any) => {
           const guName = d.properties?.guName ||
@@ -244,23 +215,33 @@ export function createDistrictBoundaryLayers({
                          d.properties?.SIG_KOR_NM ||
                          d.properties?.['자치구']
 
-          const isSelected = selectedGuCode &&
-                            (d.properties?.guCode ||
-                             (d.properties?.ADM_SECT_C ? parseInt(d.properties.ADM_SECT_C) : null) ||
-                             d.properties?.['자치구코드']) === selectedGuCode
+          const guCode = d.properties?.guCode ||
+                         (d.properties?.ADM_SECT_C ? parseInt(d.properties.ADM_SECT_C) : null) ||
+                         d.properties?.['자치구코드']
+
+          const isSelected = selectedGuCode && guCode === selectedGuCode
           const isHovered = guName === hoveredDistrict
 
-          const borderStyle = getModernBorderStyle('gu', isSelected, isHovered)
-          return borderStyle.width
+          if (isSelected) {
+            // Selected districts get thicker emerald outline
+            return 5
+          } else if (isHovered) {
+            // Sophisticated hover effect: Increase thickness a bit
+            return 4
+          } else {
+            // Default: Much more prominent gray boundary (3x original thickness)
+            return 4.5
+          }
         },
         lineWidthMinPixels: 1,
-        lineWidthMaxPixels: 3,
+        lineWidthMaxPixels: 6,
         lineCapRounded: true,
         lineJointRounded: true,
         autoHighlight: selectionMode === 'gu',
         highlightColor: [59, 130, 246, 80],
         onHover: selectionMode === 'gu' ? onHover : undefined,
-        onClick: selectionMode === 'gu' ? onClick : undefined,
+        onClick: selectionMode === 'gu' ? onClick : undefined, // Single tap shows tooltip
+        onDoubleClick: selectionMode === 'gu' ? onDoubleClick : undefined,
         updateTriggers: {
           getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors, fillEnabled, saturationScale],
           getLineColor: [selectedGu, selectedDong, hoveredDistrict, fillEnabled, theme, useUniqueColors, saturationScale],
@@ -311,11 +292,10 @@ export function createDistrictBoundaryLayers({
             // Use beautiful vibrant blue for selected dong
             fillColor = [59, 130, 246, 255] as RGBAColor  // Beautiful blue - fully opaque
           } else if (selectionMode === 'dong' && dongName && dongName === hoveredDistrict) {
-            // If in dong mode and this dong is hovered
-            // Beautiful amber for hover
-            fillColor = [251, 191, 36, 180] as RGBAColor
+            // Sophisticated hover effect: 40% lighter fill (light gray with transparency)
+            fillColor = [209, 213, 219, 100] as RGBAColor  // Light gray-300 with 40% opacity
           } else {
-            // Non-selected dongs in the selected gu - transparent fill to show gu color
+            // Default: No fill (transparent)
             fillColor = [0, 0, 0, 0] as RGBAColor  // Fully transparent
           }
 
@@ -335,9 +315,16 @@ export function createDistrictBoundaryLayers({
           const isSelected = dongName && dongName === selectedDong
           const isHovered = selectionMode === 'dong' && dongName && dongName === hoveredDistrict
 
-          // Use modern border styles for dong
-          const borderStyle = getModernBorderStyle('dong', isSelected, isHovered)
-          return borderStyle.color
+          if (isSelected) {
+            // Selected dong keeps blue outline
+            return [37, 99, 235, 255] as RGBAColor  // Blue-600
+          } else if (isHovered) {
+            // Sophisticated hover effect: Use what was originally the fill color (gray-300)
+            return [209, 213, 219, 255] as RGBAColor  // Gray-300 outline on hover
+          } else {
+            // Default: Light gray boundary that's clearly visible
+            return [156, 163, 175, 255] as RGBAColor  // Gray-400 outline (visible but subtle)
+          }
         },
         getLineWidth: (d: any) => {
           const dongName = d.properties?.ADM_DR_NM ||
@@ -348,8 +335,16 @@ export function createDistrictBoundaryLayers({
           const isSelected = dongName && dongName === selectedDong
           const isHovered = selectionMode === 'dong' && dongName && dongName === hoveredDistrict
 
-          const borderStyle = getModernBorderStyle('dong', isSelected, isHovered)
-          return borderStyle.width
+          if (isSelected) {
+            // Selected dong gets thicker blue outline
+            return 5
+          } else if (isHovered) {
+            // Sophisticated hover effect: Increase thickness a bit
+            return 4
+          } else {
+            // Default: Much more prominent gray boundary (3x original thickness)
+            return 3
+          }
         },
         getDashArray: (d: any) => {
           const dongName = d.properties?.ADM_DR_NM ||
@@ -364,13 +359,14 @@ export function createDistrictBoundaryLayers({
           return borderStyle.dashArray || []
         },
         lineWidthMinPixels: 1,
-        lineWidthMaxPixels: 3,
+        lineWidthMaxPixels: 6,
         lineCapRounded: true,
         lineJointRounded: true,
         autoHighlight: selectionMode === 'dong',
         highlightColor: [59, 130, 246, 60],
         onHover: selectionMode === 'dong' ? onHover : undefined,
-        onClick: selectionMode === 'dong' ? onClick : undefined,
+        onClick: selectionMode === 'dong' ? onClick : undefined, // Single tap shows tooltip
+        onDoubleClick: selectionMode === 'dong' ? onDoubleClick : undefined,
         updateTriggers: {
           getFillColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors, fillEnabled],
           getLineColor: [selectedGu, selectedDong, hoveredDistrict, theme, useUniqueColors, fillEnabled],
@@ -389,7 +385,7 @@ export function createDistrictBoundaryLayers({
 
   // Enhanced text labels with modern styling
   if (showLabels) {
-    // Gu labels with sophisticated styling - only show when no gu is selected
+    // Gu labels - only show when no gu is selected
     if (showGuBoundaries && guData && viewState.zoom >= 10 && !selectedGuCode) {
       const guLabels = guData.features.map(feature => {
         const name = feature.properties?.guName ||

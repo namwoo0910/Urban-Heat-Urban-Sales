@@ -91,7 +91,8 @@ export interface CardSalesDistrictMapHandle {
 const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDistrictMapProps>(({
   initialAIPredictionMode = false,
   temperatureScenario: externalTemperatureScenario,
-  predictionDate: externalPredictionDate
+  predictionDate: externalPredictionDate,
+  remote = false
 }: CardSalesDistrictMapProps = {}, ref) => {
   const mapRef = useRef<MapRef>(null)
   const mapRefRight = useRef<MapRef>(null)  // Second map ref for AI prediction map
@@ -1243,7 +1244,7 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
         selectedGu,
         selectedDong,
         hoveredDistrict,
-        onClick: handleDistrictLabelClick,
+        onClick: remote ? undefined : handleDistrictLabelClick,
         onHover: (info) => {
           if (info.object) {
             setHoveredDistrict(info.object.nameKr)
@@ -1274,7 +1275,7 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
             selectedGu,
             selectedDong,
             viewState,
-            onClick: (dongName) => {
+            onClick: remote ? undefined : (dongName) => {
               handleDongClick(dongName)
             },
             onHover: (info) => {
@@ -1322,15 +1323,8 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
       // Move to next frame
       currentDay++
       if (currentDay > maxDays) {
-        // Animation complete - stop instead of looping
-        if (actualAnimationRef.current) {
-          clearTimeout(actualAnimationRef.current)
-          actualAnimationRef.current = null
-        }
-        setIsActualAnimating(false)
-        setActualAnimationType(null)
-        setActualAnimationDay(1)
-        return
+        // Loop back to day 1 for continuous playback
+        currentDay = 1
       }
 
       // Continue animation
@@ -1359,15 +1353,8 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
       // Move to next frame
       currentDay++
       if (currentDay > maxDays) {
-        // Animation complete - stop instead of looping
-        if (predictionAnimationRef.current) {
-          clearTimeout(predictionAnimationRef.current)
-          predictionAnimationRef.current = null
-        }
-        setIsPredictionAnimating(false)
-        setPredictionAnimationType(null)
-        setPredictionAnimationDay(1)
-        return
+        // Loop back to day 1 for continuous playback
+        currentDay = 1
       }
 
       // Continue animation
@@ -1735,9 +1722,17 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
     
     // Listen for theme change events
     window.addEventListener('themeChanged', handleThemeChange)
-    
+
+    // Listen for animation toggle events from controller
+    const handleAnimationToggle = () => {
+      setDailyAutoPlay(prev => !prev)
+    }
+
+    window.addEventListener('viz:local-economy:toggle-daily-animation', handleAnimationToggle)
+
     return () => {
       window.removeEventListener('themeChanged', handleThemeChange)
+      window.removeEventListener('viz:local-economy:toggle-daily-animation', handleAnimationToggle)
     }
   }, [])
 
@@ -1838,8 +1833,6 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
           features: features
         }
         
-        features.forEach((f, idx) => {
-        })
         
         setSelectedDistrictData(selectedFeatureData)
       } else {
@@ -1897,13 +1890,7 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
       <div className={`relative flex w-full h-full ${isAIPredictionMode ? 'gap-1' : ''}`}>
         {/* Left Map (Current Sales) */}
         <div className={`relative transition-all duration-500 ${isAIPredictionMode ? 'w-1/2' : 'w-full'}`}>
-          {/* Label for actual values - centered */}
-          {isAIPredictionMode && (
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 bg-gradient-to-r from-blue-600/80 to-cyan-600/80 backdrop-blur-sm rounded-lg px-4 py-2.5 border border-blue-500/30 shadow-lg text-center">
-              <div className="text-white text-sm font-bold tracking-wide">실제 값</div>
-              <div className="text-[10px] text-blue-200 mt-0.5">2024년 실측 데이터</div>
-            </div>
-          )}
+          {/* Label for actual values - hidden for controller mode */}
 
           {/* DeckGL + Mapbox 통합 (Official deck.gl pattern) */}
           <DeckGL
@@ -2001,13 +1988,7 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
         {/* Right Map (AI Prediction) - Only shown when AI mode is active */}
         {isAIPredictionMode && (
           <div className="relative w-1/2 transition-all duration-500">
-            {/* Label for AI prediction map with temperature scenario - centered */}
-            <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-20 bg-gradient-to-r from-purple-600/80 to-pink-600/80 backdrop-blur-sm rounded-lg px-4 py-2.5 border border-purple-500/30 shadow-lg">
-              <div className="text-center">
-                <div className="text-white text-sm font-bold tracking-wide">AI 예측 값</div>
-                <div className="text-[10px] text-purple-200 mt-0.5">온도 변화 시뮬레이션</div>
-              </div>
-            </div>
+            {/* Label for AI prediction map - hidden for controller mode */}
 
             {/* Prediction overlay removed - now consolidated in central display */}
 
@@ -2072,8 +2053,8 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
               </MapGL>
             </DeckGL>
 
-            {/* Dual Layer Controls - Show instead of unified panel when AI prediction is active */}
-            <DualLayerControls
+            {/* Dual Layer Controls - Hide in prediction page mode */}
+            {!remote && !initialAIPredictionMode && <DualLayerControls
               // Actual layer props
               isActualAnimating={isActualAnimating}
               actualAnimationType={actualAnimationType}
@@ -2127,7 +2108,7 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
               }}
               temperatureScenario={temperatureScenario}
               onTemperatureScenarioChange={setTemperatureScenario}
-            />
+            />}
 
           </div>
         )}
@@ -2251,8 +2232,8 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
       )}
 
 
-      {/* 통합 컨트롤 패널 - Always show for AI button and basic controls */}
-      <UnifiedControls
+      {/* 통합 컨트롤 패널 - Hide in remote/display mode and prediction page */}
+      {!remote && !initialAIPredictionMode && <UnifiedControls
         // 높이 스케일 props
         heightScale={heightScale}
         onHeightScaleChange={setHeightScale}
@@ -2280,17 +2261,19 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
         onSkipToEnd={handleDailySkipToEnd}
         // AI Prediction mode - only pass the state for conditional UI
         isAIPredictionMode={isAIPredictionMode}
-      />
+      />}
 
       {/* AI 예측 버튼 제거 - 메인 카드 매출 페이지에서는 표시하지 않음 */}
 
-      {/* 지도 초기화 버튼 */}
-      <button
-        onClick={handleFullReset}
-        className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[31] bg-black/90 hover:bg-gray-900/50 backdrop-blur-md text-gray-200 text-sm font-medium px-4 py-2 rounded-lg border border-gray-800/50 transition-all duration-200 shadow-2xl"
-      >
-        지도 초기화
-      </button>
+      {/* 지도 초기화 버튼 - Hide in remote/display mode and prediction page */}
+      {!remote && !initialAIPredictionMode && (
+        <button
+          onClick={handleFullReset}
+          className="absolute bottom-6 left-1/2 transform -translate-x-1/2 z-[31] bg-black/90 hover:bg-gray-900/50 backdrop-blur-md text-gray-200 text-sm font-medium px-4 py-2 rounded-lg border border-gray-800/50 transition-all duration-200 shadow-2xl"
+        >
+          지도 초기화
+        </button>
+      )}
 
       {false && (
         <div className="absolute bottom-4 right-4 info-panel glow-effect transition-all duration-1000 opacity-90 hover:opacity-100 z-10">

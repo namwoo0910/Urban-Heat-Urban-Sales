@@ -13,6 +13,11 @@ export function Header() {
   const router = useRouter()
   const pathname = usePathname()
 
+  // Hide header on controller page
+  if (pathname === '/controller') {
+    return null
+  }
+
   useGSAP(() => {
     gsap.from(headerRef.current, {
       y: -100,
@@ -68,7 +73,7 @@ export function Header() {
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
-                데이터로 보는 서울
+                {/* 데이터로 보는 서울 */}
               </motion.button>
             </TransitionLink>
           </div>
