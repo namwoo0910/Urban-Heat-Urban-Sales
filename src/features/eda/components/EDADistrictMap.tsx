@@ -18,6 +18,7 @@ import { motion } from 'framer-motion'
 import { MapContainer } from './MapContainer'
 import LocalEconomyFilterPanel from '@/src/features/card-sales/components/LocalEconomyFilterPanel'
 import type { FilterState } from '@/src/features/card-sales/components/LocalEconomyFilterPanel'
+import { DistrictGridSelector } from './DistrictGridSelector'
 
 // Lazy load heavy components
 const DefaultChartsPanel = lazy(() => import('@/src/features/card-sales/components/charts/DefaultChartsPanel'))
@@ -97,6 +98,9 @@ export default function EDADistrictMap({
   // 기존: const [showChartPanel, setShowChartPanel] = useState(true)
   const [showChartPanel, setShowChartPanel] = useState<boolean>(true)
   const computedShowChartPanel = showChartPanelProp ?? showChartPanel
+
+  // Grid selector state
+  const [showGridSelector, setShowGridSelector] = useState<boolean>(false)
 
 
   // View state with dynamic center
@@ -358,6 +362,37 @@ export default function EDADistrictMap({
       }
     }
   }, [getGuName, getDistrictName, selectionMode, selectedBusinessType, handleFilterChange, onRegionClick])
+
+  // Grid selector handlers
+  const handleGridDistrictSelect = useCallback((guName: string, guCode: number) => {
+    const filterState: FilterState = {
+      selectedGu: guName,
+      selectedGuCode: guCode,
+      selectedDong: null,
+      selectedDongCode: null,
+      selectedBusinessType: selectedBusinessType
+    }
+    handleFilterChange(filterState)
+
+    if (onRegionClick) {
+      onRegionClick({ level: 'district', code: String(guCode), name: guName })
+    }
+  }, [handleFilterChange, selectedBusinessType, onRegionClick])
+
+  const handleGridNeighborhoodSelect = useCallback((guName: string, guCode: number, dongName: string, dongCode: number) => {
+    const filterState: FilterState = {
+      selectedGu: guName,
+      selectedGuCode: guCode,
+      selectedDong: dongName,
+      selectedDongCode: dongCode,
+      selectedBusinessType: selectedBusinessType
+    }
+    handleFilterChange(filterState)
+
+    if (onRegionClick) {
+      onRegionClick({ level: 'neighborhood', code: String(dongCode), name: dongName })
+    }
+  }, [handleFilterChange, selectedBusinessType, onRegionClick])
 
   // Handle theme change
   const [customThemeColor, setCustomThemeColor] = useState<string>('#2980B9')
@@ -683,17 +718,56 @@ export default function EDADistrictMap({
         </div>
       )}
 
-      {/* Map Reset Button - Always visible */}
-      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30">
+      {/* District Grid Selector Toggle - Top left */}
+      <div className="absolute top-4 left-4 z-30">
         <button
-          onClick={handleReset}
-          className="flex items-center gap-2 px-4 py-2 bg-white/95 hover:bg-blue-50/95 text-slate-700 hover:text-blue-700 rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-blue-100/50 hover:border-blue-200/70 font-medium"
+          onClick={() => setShowGridSelector(!showGridSelector)}
+          className={`
+            flex items-center gap-2 px-4 py-2 rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border font-medium
+            ${showGridSelector
+              ? 'bg-blue-500 text-white border-blue-400'
+              : 'bg-white/95 hover:bg-blue-50/95 text-slate-700 hover:text-blue-700 border-blue-100/50 hover:border-blue-200/70'
+            }
+          `}
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
           </svg>
-          <span>지도 초기화</span>
+          <span>구 선택</span>
         </button>
+      </div>
+
+      {/* District Grid Selector */}
+      {showGridSelector && (
+        <motion.div
+          className="absolute top-20 left-4 z-30 w-80"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -20 }}
+          transition={{ duration: 0.2 }}
+        >
+          <DistrictGridSelector
+            selectedGu={selectedGu}
+            selectedDong={selectedDong}
+            onDistrictSelect={handleGridDistrictSelect}
+            onNeighborhoodSelect={handleGridNeighborhoodSelect}
+          />
+        </motion.div>
+      )}
+
+      {/* Map Reset Button - Always visible */}
+      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 z-30">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleReset}
+            className="flex items-center gap-2 px-4 py-2 bg-white/95 hover:bg-blue-50/95 text-slate-700 hover:text-blue-700 rounded-lg shadow-lg transition-all duration-200 backdrop-blur-sm border border-blue-100/50 hover:border-blue-200/70 font-medium"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <span>지도 초기화</span>
+          </button>
+        </div>
       </div>
 
       {/* CSS Animation Keyframes */}
