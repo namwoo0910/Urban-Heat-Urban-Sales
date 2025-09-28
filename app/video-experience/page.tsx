@@ -37,30 +37,56 @@ export default function VideoExperiencePage() {
       console.log('[VideoPage] Video playing event received')
       setVideoStatus('playing')
 
-      // Check if video is muted and show unmute prompt
+      // Check if video is muted and show unmute prompt as fallback
       setTimeout(() => {
         const video = document.getElementById('global-video-overlay-video') as HTMLVideoElement | null
         if (video && video.muted && !video.paused) {
+          console.log('[VideoPage] Video still muted after delay, showing fallback unmute prompt')
           setShowUnmutePrompt(true)
         }
-      }, 1000) // Give video time to start
+      }, 3000) // Wait longer - controller should handle unmuting via user permission
     }
     const handleVideoStopped = () => {
       console.log('[VideoPage] Video stopped event received')
       setVideoStatus('stopped')
+      setShowUnmutePrompt(false) // Hide unmute prompt when video stops
+    }
+    const handleVideoPaused = () => {
+      console.log('[VideoPage] Video paused event received')
+      setVideoStatus('paused')
+      setShowUnmutePrompt(false) // Hide unmute prompt when video pauses
     }
     const handleVideoEnded = () => {
       console.log('[VideoPage] Video ended event received')
       setVideoStatus('stopped')
+      setShowUnmutePrompt(false) // Hide unmute prompt when video ends
+    }
+
+    // Listen for video unmute events to hide prompt
+    const handleVideoUnmuted = () => {
+      console.log('[VideoPage] Video unmuted, hiding prompt')
+      setShowUnmutePrompt(false)
     }
 
     window.addEventListener('video:status:playing', handleVideoPlaying)
+    window.addEventListener('video:status:paused', handleVideoPaused)
     window.addEventListener('video:status:stopped', handleVideoStopped)
     window.addEventListener('video:status:ended', handleVideoEnded)
 
+    // Listen for video element changes to detect unmuting
+    const checkUnmute = () => {
+      const video = document.getElementById('global-video-overlay-video') as HTMLVideoElement | null
+      if (video && !video.muted && showUnmutePrompt) {
+        handleVideoUnmuted()
+      }
+    }
+    const unmuteCheckInterval = setInterval(checkUnmute, 500)
+
     // Clean up video when component unmounts
     return () => {
+      clearInterval(unmuteCheckInterval)
       window.removeEventListener('video:status:playing', handleVideoPlaying)
+      window.removeEventListener('video:status:paused', handleVideoPaused)
       window.removeEventListener('video:status:stopped', handleVideoStopped)
       window.removeEventListener('video:status:ended', handleVideoEnded)
 
@@ -78,6 +104,15 @@ export default function VideoExperiencePage() {
       video.muted = false
       video.volume = 1
       console.log('[VideoPage] Video unmuted successfully')
+
+      // If video was paused due to autoplay policy, try to resume playback
+      if (video.paused) {
+        console.log('[VideoPage] Video is paused, attempting to resume playback')
+        video.play().catch(err => {
+          console.warn('[VideoPage] Failed to resume playback after unmute:', err)
+        })
+      }
+
       setShowUnmutePrompt(false)
     }
   }

@@ -108,8 +108,7 @@ export function DistrictGridSelector({
                 layout
               >
                 <div className="text-center">
-                  {guName.replace('구', '')}
-                  <div className="text-xs opacity-75 mt-1">구</div>
+                  {guName}
                 </div>
 
                 {isSelected && (

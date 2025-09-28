@@ -65,7 +65,7 @@ export default function EDADistrictMap({
 
   // Track panel and window dimensions for dynamic centering
   const [chartPanelWidth, setChartPanelWidth] = useState<number>(
-    typeof window !== 'undefined' ? window.innerWidth * 0.4 : 600
+    typeof window !== 'undefined' ? window.innerWidth * 0.5 : 750
   )
   const [windowWidth, setWindowWidth] = useState<number>(
     typeof window !== 'undefined' ? window.innerWidth : 1920
@@ -431,19 +431,31 @@ export default function EDADistrictMap({
           const maxDiff = Math.max(latDiff, lngDiff)
 
           // Adjust zoom based on district size (Seoul districts vary in size)
-          let zoom = 12.5
-          if (maxDiff > 0.15) zoom = 11.5
-          else if (maxDiff > 0.1) zoom = 12
-          else if (maxDiff < 0.05) zoom = 13
+          // Fixed zoom level for consistent viewing experience
+          let zoom = 12
+          if (maxDiff > 0.15) zoom = 10.5
+          else if (maxDiff > 0.1) zoom = 11
+          else if (maxDiff < 0.05) zoom = 11.5
 
-          // Adjust longitude to move selected area away from chart panel
+          // If a dong is selected, zoom in one more level for better detail
+          if (selectedDong) {
+            zoom += 0.6
+          }
+
+          // Adjust longitude to position selected area in left-center of view
           let adjustedLongitude = bounds.center[0]
+          const degreesPerPixel = 360 / (256 * Math.pow(2, zoom))
+
           if (computedShowChartPanel) {
-            // Calculate offset to move selected area to the left of chart panel
-            const degreesPerPixel = 360 / (256 * Math.pow(2, zoom))
-            const pixelOffset = chartPanelWidth * 0.3  // 30% of panel width for better spacing
+            // Position to the left - add offset to move west (left)
+            const pixelOffset = chartPanelWidth * 0.2  // 40% of panel width
             const longitudeOffset = pixelOffset * degreesPerPixel
-            adjustedLongitude = bounds.center[0] - longitudeOffset
+            adjustedLongitude = bounds.center[0] + longitudeOffset // Changed from - to + to go left (west)
+          } else {
+            // Position to the left even without chart panel
+            const pixelOffset = 200  // Fixed offset for left positioning
+            const longitudeOffset = pixelOffset * degreesPerPixel
+            adjustedLongitude = bounds.center[0] + longitudeOffset // Changed from - to + to go left (west)
           }
 
           setViewState(prev => ({
@@ -468,7 +480,7 @@ export default function EDADistrictMap({
         transitionInterpolator: new FlyToInterpolator()
       }))
     }
-  }, [selectedGu, guData, getGuName, getBounds, calculateAdjustedCenter, computedShowChartPanel])
+  }, [selectedGu, selectedDong, guData, getGuName, getBounds, calculateAdjustedCenter, computedShowChartPanel])
 
   // Update map center when panel width or window size changes
   useEffect(() => {

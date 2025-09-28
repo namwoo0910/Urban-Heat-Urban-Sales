@@ -67,8 +67,11 @@ export default function CardsalesPanel({
         sendAction(actions.video.playSrc("/0923.mp4"));
         setVideoStatus('playing');
 
-        // Don't try to unmute immediately - let user click on display to enable audio
-        // This avoids cross-page user gesture issues
+        // Since user clicked "OK", we have permission to unmute
+        setTimeout(() => {
+          sendAction(actions.video.muteOff());
+          console.log('[Controller] Sent unmute command with user permission');
+        }, 800); // Wait for video to start before unmuting
       }, 1200);
     }
   };

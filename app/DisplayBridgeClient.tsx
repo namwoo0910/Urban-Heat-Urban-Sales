@@ -231,37 +231,19 @@ export default function DisplayBridgeClient() {
             const p = currentVideo.play()
             if (p && typeof p.then === 'function') {
               p.then(() => {
-                console.log('[OverlayDOM] play() resolved, unmuting since user gave permission')
-                // User clicked "OK" button which gives us gesture permission to unmute
-                setTimeout(() => {
-                  try {
-                    currentVideo.muted = false
-                    currentVideo.volume = 1
-                    console.log('[OverlayDOM] Video unmuted with user permission')
-                  } catch (err) {
-                    console.warn('[OverlayDOM] Failed to unmute:', err)
-                  }
-                }, 500) // Shorter delay since we have user permission
+                console.log('[OverlayDOM] play() resolved, keeping video muted for autoplay compliance')
+                // Keep video muted - user will need to click the unmute button on the display
                 window.dispatchEvent(new CustomEvent('video:status:playing'))
               })
                .catch(err => {
-                 console.warn('[OverlayDOM] play() rejected', err)
+                 console.warn('[OverlayDOM] play() rejected, this may be due to autoplay policy:', err)
                  currentVideo.setAttribute('controls', 'true')
-                 console.log('[OverlayDOM] play rejected; controls shown')
+                 console.log('[OverlayDOM] play rejected; controls shown for manual interaction')
                  window.dispatchEvent(new CustomEvent('video:status:error'))
                })
             } else {
-              console.log('[OverlayDOM] play() called (no promise), unmuting with user permission')
-              // User clicked "OK" button which gives us gesture permission to unmute
-              setTimeout(() => {
-                try {
-                  currentVideo.muted = false
-                  currentVideo.volume = 1
-                  console.log('[OverlayDOM] Video unmuted with user permission')
-                } catch (err) {
-                  console.warn('[OverlayDOM] Failed to unmute:', err)
-                }
-              }, 500) // Shorter delay since we have user permission
+              console.log('[OverlayDOM] play() called (no promise), keeping video muted for autoplay compliance')
+              // Keep video muted - user will need to click the unmute button on the display
               window.dispatchEvent(new CustomEvent('video:status:playing'))
             }
           }

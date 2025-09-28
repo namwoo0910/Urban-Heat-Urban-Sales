@@ -201,9 +201,9 @@ export const DISTRICT_UNIQUE_COLORS: Record<string, RGBAColor> = {
 // Selection and hover state colors
 export const STATE_COLORS = {
   selected: {
-    fill: [255, 255, 0, 150] as RGBAColor,       // Yellow highlight
-    border: [255, 255, 0, 255] as RGBAColor,     // Yellow border
-    glow: [255, 255, 0, 80] as RGBAColor         // Yellow glow
+    fill: [59, 130, 246, 150] as RGBAColor,      // Blue-500 like controller panel
+    border: [59, 130, 246, 255] as RGBAColor,    // Blue-500 border like controller panel
+    glow: [59, 130, 246, 80] as RGBAColor        // Blue-500 glow
   },
   hover: {
     fill: [255, 165, 0, 150] as RGBAColor,       // Orange hover

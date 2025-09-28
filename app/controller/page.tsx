@@ -5,7 +5,8 @@ import dynamic from 'next/dynamic'
 import React, { useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useWS } from '@shared/hooks/useWS'
-import EDADistrictMap from '@/src/features/eda/components/EDADistrictMap'
+import { DistrictGridSelector } from '@/src/features/eda/components/DistrictGridSelector'
+import { getDistrictCode, getDongCode } from '@/src/features/card-sales/data/districtCodeMappings'
 import CardsalesPanel from '@/src/features/controller/CardsalesPanel'
 import AIPredictionPanel from '@/src/features/controller/AIPredictionPanel'
 import Image from 'next/image'
@@ -30,6 +31,10 @@ export default function ControllerPage() {
   // State to track if exploration has been triggered
   const [hasExplored, setHasExplored] = useState(false)
   const [showContactModal, setShowContactModal] = useState(false)
+
+  // EDA selection state
+  const [selectedGu, setSelectedGu] = useState<string | null>(null)
+  const [selectedDong, setSelectedDong] = useState<string | null>(null)
 
   const [displayState, setDisplayState] = useState({
     currentPage: '/display',
@@ -138,6 +143,31 @@ export default function ControllerPage() {
     // Reset display to initial state (screen saver)
     sendAction('display:reset:all')
   }, [router, sendAction])
+
+  // EDA selection handlers
+  const handleDistrictSelect = useCallback((guName: string, guCode: number) => {
+    setSelectedGu(guName)
+    setSelectedDong(null) // Reset dong selection when gu changes
+
+    // Navigate display to EDA page
+    sendAction('display:navigate:/research/eda?noIntro=1')
+
+    // Send district selection to display
+    const payload = `display:eda:select:district:${guCode}:${encodeURIComponent(guName)}`
+    sendAction(payload)
+  }, [sendAction])
+
+  const handleNeighborhoodSelect = useCallback((guName: string, guCode: number, dongName: string, dongCode: number) => {
+    setSelectedGu(guName)
+    setSelectedDong(dongName)
+
+    // Navigate display to EDA page (if not already there)
+    sendAction('display:navigate:/research/eda?noIntro=1')
+
+    // Send neighborhood selection to display
+    const payload = `display:eda:select:neighborhood:${dongCode}:${encodeURIComponent(dongName)}`
+    sendAction(payload)
+  }, [sendAction])
 
   // Research 카드 클릭을 가로채 Display만 네비게이션
   const onOverlayClickCapture: React.MouseEventHandler<HTMLDivElement> = (e) => {
@@ -324,25 +354,18 @@ export default function ControllerPage() {
                     <span>🗺️</span>
                     <span>EDA – District Selection</span>
                   </h3>
-                  <div className="rounded-2xl overflow-hidden border border-white/10 shadow-lg bg-white">
-                    <div className="w-full h-96 relative">
-                      <EDADistrictMap
-                        role="controller"
-                        interactive
-                        showChartPanel={false}
-                        onRegionClick={(sel) => {
-                          // 1) 디스플레이로 EDA 페이지 보장
-                          sendAction('display:navigate:/research/eda?noIntro=1')
-                          // 2) 선택 브로드캐스트(이름도 함께 보내주면 디스플레이가 매핑 없이 바로 반영)
-                          const payload = `display:eda:select:${sel.level}:${sel.code}:${encodeURIComponent(sel.name ?? '')}`
-                          sendAction(payload)
-                        }}
-                      />
-                    </div>
+                  <div className="rounded-2xl overflow-hidden border border-white/10 shadow-lg">
+                    <DistrictGridSelector
+                      selectedGu={selectedGu}
+                      selectedDong={selectedDong}
+                      onDistrictSelect={handleDistrictSelect}
+                      onNeighborhoodSelect={handleNeighborhoodSelect}
+                      className="rounded-none border-none shadow-none bg-white"
+                    />
                   </div>
                   <div className="mt-6 p-4 rounded-2xl bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-500/20">
                     <p className="text-sm text-slate-300 text-center">
-                      💡 Click on any district to analyze specific regional data
+                      💡 Click on any district in the 5×5 grid to see neighborhoods, then select a specific area for analysis
                     </p>
                   </div>
                 </div>

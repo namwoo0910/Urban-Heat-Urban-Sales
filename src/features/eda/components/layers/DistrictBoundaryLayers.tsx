@@ -164,8 +164,8 @@ export function createDistrictBoundaryLayers({
           // When a gu is selected
           if (selectedGuCode) {
             if (guCode === selectedGuCode) {
-              // 선택된 구는 아름다운 에메랄드 톤으로 하이라이트
-              fillColor = [34, 197, 94, 240] as RGBAColor  // Beautiful emerald highlight
+              // 선택된 구는 컨트롤러 패널과 같은 파란색으로 하이라이트 (훨씬 연하게)
+              fillColor = [59, 130, 246, 60] as RGBAColor  // Blue-500 like controller panel (much lighter)
             } else {
               // 선택되지 않은 구는 투명하게
               fillColor = [0, 0, 0, 0] as RGBAColor  // Fully transparent
@@ -199,8 +199,8 @@ export function createDistrictBoundaryLayers({
           const isHovered = guName === hoveredDistrict
 
           if (isSelected) {
-            // Selected districts keep emerald outline
-            return [16, 185, 129, 255] as RGBAColor  // Emerald-600
+            // Selected districts use blue outline to match controller panel (lighter)
+            return [59, 130, 246, 180] as RGBAColor  // Blue-500 like controller panel (lighter)
           } else if (isHovered) {
             // Sophisticated hover effect: Use what was originally the fill color (gray-300)
             return [209, 213, 219, 255] as RGBAColor  // Gray-300 outline on hover
@@ -233,8 +233,8 @@ export function createDistrictBoundaryLayers({
             return 4.5
           }
         },
-        lineWidthMinPixels: 1,
-        lineWidthMaxPixels: 6,
+        lineWidthMinPixels: 3,
+        lineWidthMaxPixels: 25,
         lineCapRounded: true,
         lineJointRounded: true,
         autoHighlight: selectionMode === 'gu',
@@ -289,8 +289,8 @@ export function createDistrictBoundaryLayers({
 
           // If this dong is selected, make it highly visible with contrasting color
           if (dongName && dongName === selectedDong) {
-            // Use beautiful vibrant blue for selected dong
-            fillColor = [59, 130, 246, 255] as RGBAColor  // Beautiful blue - fully opaque
+            // Use emerald color to match controller panel background (lighter)
+            fillColor = [16, 185, 129, 120] as RGBAColor  // Emerald-500 like controller panel - lighter
           } else if (selectionMode === 'dong' && dongName && dongName === hoveredDistrict) {
             // Sophisticated hover effect: 40% lighter fill (light gray with transparency)
             fillColor = [209, 213, 219, 100] as RGBAColor  // Light gray-300 with 40% opacity
@@ -381,6 +381,65 @@ export function createDistrictBoundaryLayers({
         }
       })
     )
+  }
+
+  // Selected district highlight layer - always on top
+  if (selectedGuCode && guData) {
+    const selectedGuFeatures = guData.features.filter((f: any) => {
+      const guCode = f.properties?.guCode ||
+                     (f.properties?.ADM_SECT_C ? parseInt(f.properties.ADM_SECT_C) : null) ||
+                     f.properties?.['자치구코드']
+      return guCode === selectedGuCode
+    })
+
+    if (selectedGuFeatures.length > 0) {
+      layers.push(
+        new GeoJsonLayer({
+          id: 'selected-gu-highlight',
+          data: { type: 'FeatureCollection', features: selectedGuFeatures },
+          pickable: false,
+          stroked: true,
+          filled: false,
+          getLineColor: [59, 130, 246, 255], // Bright blue border for selected district
+          getLineWidth: 6, // Thicker border to make it stand out
+          lineWidthMinPixels: 4,
+          lineWidthMaxPixels: 8,
+          lineCapRounded: true,
+          lineJointRounded: true
+        })
+      )
+    }
+  }
+
+  // Selected neighborhood highlight layer - always on top
+  if (selectedDong && dongData && selectedGuCode) {
+    const selectedDongFeatures = dongData.features.filter((f: any) => {
+      const dongName = f.properties?.ADM_DR_NM ||
+                       f.properties?.dongName ||
+                       f.properties?.DONG_NM ||
+                       f.properties?.['행정동']
+      const guCode = f.properties?.guCode ||
+                     f.properties?.['자치구코드']
+      return dongName === selectedDong && guCode === selectedGuCode
+    })
+
+    if (selectedDongFeatures.length > 0) {
+      layers.push(
+        new GeoJsonLayer({
+          id: 'selected-dong-highlight',
+          data: { type: 'FeatureCollection', features: selectedDongFeatures },
+          pickable: false,
+          stroked: true,
+          filled: false,
+          getLineColor: [16, 185, 129, 255], // Bright emerald border for selected neighborhood
+          getLineWidth: 5, // Thicker border to make it stand out
+          lineWidthMinPixels: 3,
+          lineWidthMaxPixels: 7,
+          lineCapRounded: true,
+          lineJointRounded: true
+        })
+      )
+    }
   }
 
   // Enhanced text labels with modern styling
