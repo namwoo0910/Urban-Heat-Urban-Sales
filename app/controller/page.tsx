@@ -140,8 +140,8 @@ export default function ControllerPage() {
     const next = new URLSearchParams()
     router.push('/controller')
 
-    // Reset display to initial state (screen saver)
-    sendAction('display:reset:all')
+    // Reset display to display page with Explore Seoul button
+    sendAction('display:navigate:/display')
   }, [router, sendAction])
 
   // EDA selection handlers

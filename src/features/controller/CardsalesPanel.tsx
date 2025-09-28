@@ -16,6 +16,7 @@ export default function CardsalesPanel({
   const [animationStatus, setAnimationStatus] = useState<'stopped' | 'playing' | 'paused'>('stopped');
   const [videoStatus, setVideoStatus] = useState<'stopped' | 'playing' | 'paused' | 'error'>('stopped');
   const [showAudioDialog, setShowAudioDialog] = useState(false);
+  const [canPauseVideo, setCanPauseVideo] = useState(false);
 
   const onShowViz = () => {
     if (disabled) return;
@@ -42,38 +43,53 @@ export default function CardsalesPanel({
     if (disabled) return;
 
     if (videoStatus === 'playing') {
+      // Only allow pause if 10 seconds have passed
+      if (!canPauseVideo) {
+        console.log('[Controller] Pause blocked - waiting for initialization to complete (10s)');
+        return;
+      }
       // If currently playing, pause the video (stay on current page)
       sendAction(actions.video.pause());
       setVideoStatus('paused');
+      setCanPauseVideo(false); // Reset pause availability
     } else if (videoStatus === 'paused') {
       // If paused, resume playback without resetting src
       sendAction(actions.video.play()); // Resume without src parameter
       setVideoStatus('playing');
+      // Set 10-second timer before allowing pause again
+      setTimeout(() => {
+        setCanPauseVideo(true);
+        console.log('[Controller] Pause button now available after resume');
+      }, 10000);
     } else {
-      // If stopped, show audio dialog first
-      setShowAudioDialog(true);
-    }
-  };
-
-  const handleAudioPermission = (allowAudio: boolean) => {
-    setShowAudioDialog(false);
-
-    if (allowAudio) {
-      // Navigate to video page and start playing with audio permission
+      // If stopped, start video muted and show sound popup
       sendAction(actions.navigate("/video-experience"));
 
-      // Start video playback after delay
       setTimeout(() => {
         sendAction(actions.video.playSrc("/0923.mp4"));
         setVideoStatus('playing');
 
-        // Since user clicked "OK", we have permission to unmute
+        // Show audio dialog with user gesture
+        setShowAudioDialog(true);
+
+        // Enable pause after 10 seconds
         setTimeout(() => {
-          sendAction(actions.video.muteOff());
-          console.log('[Controller] Sent unmute command with user permission');
-        }, 800); // Wait for video to start before unmuting
+          setCanPauseVideo(true);
+          console.log('[Controller] Pause button now available after 10 seconds');
+        }, 10000);
       }, 1200);
     }
+  };
+
+  const handleAudioPermission = (option: 'cancel' | 'muted' | 'sound') => {
+    setShowAudioDialog(false);
+
+    if (option === 'sound') {
+      // Video is already playing muted, just unmute it
+      sendAction(actions.video.muteOff());
+      console.log('[Controller] Sent unmute command from popup');
+    }
+    // If 'muted' or 'cancel', do nothing - video continues muted
   };
 
   // Listen for video status events from display
@@ -89,9 +105,11 @@ export default function CardsalesPanel({
           break;
         case 'video:status:stopped':
           setVideoStatus('stopped');
+          setCanPauseVideo(false); // Reset pause availability
           break;
         case 'video:status:error':
           setVideoStatus('error');
+          setCanPauseVideo(false); // Reset pause availability
           break;
       }
     };
@@ -165,10 +183,10 @@ export default function CardsalesPanel({
           {/* Video Toggle Control */}
           <div className="mb-6">
             <button
-              disabled={disabled}
+              disabled={disabled || (videoStatus === 'playing' && !canPauseVideo)}
               className={cn(
                 "w-full py-4 px-6 rounded-2xl bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-bold shadow-lg transform transition-all duration-300 hover:scale-105 hover:shadow-cyan-500/30",
-                disabled && "opacity-50 grayscale cursor-not-allowed"
+                (disabled || (videoStatus === 'playing' && !canPauseVideo)) && "opacity-50 grayscale cursor-not-allowed"
               )}
               onClick={() => {
                 if (disabled) return;
@@ -177,9 +195,9 @@ export default function CardsalesPanel({
             >
               <span className="text-3xl flex items-center justify-center gap-3">
                 <span>
-                  {videoStatus === 'playing' ? '⏸️' :
+                  {videoStatus === 'playing' ? (canPauseVideo ? '⏸️' : '⏸️') :
                    videoStatus === 'paused' ? '▶️' : '▶️'}
-                  {videoStatus === 'playing' ? 'Pause' :
+                  {videoStatus === 'playing' ? (canPauseVideo ? 'Pause' : 'Wait...') :
                    videoStatus === 'paused' ? 'Resume' : 'Play'} 
                 </span>
                 <div className={cn(
@@ -194,7 +212,7 @@ export default function CardsalesPanel({
             {/* Video Status Description */}
             <div className="text-sm text-cyan-200/80 mt-3 text-center">
               {videoStatus === 'playing'
-                ? "Pause video playback"
+                ? (canPauseVideo ? "Pause video playback" : "Pause available in a few seconds...")
                 : videoStatus === 'paused'
                 ? "Resume video playback"
                 : "Navigate to dedicated sound experience page"}
@@ -213,20 +231,26 @@ export default function CardsalesPanel({
               <span>Audio Permission</span>
             </h3>
             <p className="text-slate-300 mb-6">
-              Audio will play during the video experience. Click "OK" to enable sound and start the video.
+              Video is now playing muted. Choose Sound to enable audio with your permission, or continue watching muted.
             </p>
-            <div className="flex gap-3">
+            <div className="flex flex-col gap-3">
               <button
-                onClick={() => handleAudioPermission(false)}
-                className="flex-1 py-3 px-6 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-colors"
+                onClick={() => handleAudioPermission('sound')}
+                className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold hover:from-green-500 hover:to-emerald-500 transition-colors flex items-center justify-center gap-2"
               >
-                Cancel
+                🔊 Sound
               </button>
               <button
-                onClick={() => handleAudioPermission(true)}
-                className="flex-1 py-3 px-6 rounded-xl bg-gradient-to-r from-cyan-600 to-purple-600 text-white font-bold hover:from-cyan-500 hover:to-purple-500 transition-colors"
+                onClick={() => handleAudioPermission('muted')}
+                className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-medium hover:from-blue-500 hover:to-cyan-500 transition-colors flex items-center justify-center gap-2"
               >
-                OK
+                🔇 Muted
+              </button>
+              <button
+                onClick={() => handleAudioPermission('cancel')}
+                className="w-full py-3 px-4 rounded-xl bg-slate-700 text-slate-300 font-medium hover:bg-slate-600 transition-colors"
+              >
+                Cancel
               </button>
             </div>
           </div>

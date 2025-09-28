@@ -225,20 +225,19 @@ export default function DisplayBridgeClient() {
               return
             }
 
-            // Start muted to ensure playback starts
+            // Always start muted for reliable autoplay
             currentVideo.muted = true
             console.log('[OverlayDOM] Attempting to play video...')
             const p = currentVideo.play()
             if (p && typeof p.then === 'function') {
               p.then(() => {
-                console.log('[OverlayDOM] play() resolved, keeping video muted for autoplay compliance')
-                // Keep video muted - user will need to click the unmute button on the display
+                console.log('[OverlayDOM] Muted video playback started successfully')
                 window.dispatchEvent(new CustomEvent('video:status:playing'))
               })
                .catch(err => {
-                 console.warn('[OverlayDOM] play() rejected, this may be due to autoplay policy:', err)
+                 console.error('[OverlayDOM] Even muted playback failed:', err)
                  currentVideo.setAttribute('controls', 'true')
-                 console.log('[OverlayDOM] play rejected; controls shown for manual interaction')
+                 console.log('[OverlayDOM] Playback failed; controls shown for manual interaction')
                  window.dispatchEvent(new CustomEvent('video:status:error'))
                })
             } else {

@@ -416,28 +416,55 @@ export default function EDADistrictMap({
   // Zoom to selected district when selectedGu changes
   useEffect(() => {
     if (selectedGu && guData) {
-      // Find the selected district feature
-      const selectedFeature = guData.features.find((feature: any) => {
-        const name = getGuName(feature.properties)
-        return name === selectedGu
-      })
+      let selectedFeature: any = null
+      let bounds: any = null
+
+      // If a dong is selected, find the dong feature and center on it
+      if (selectedDong && dongData) {
+        selectedFeature = dongData.features.find((feature: any) => {
+          const dongName = feature.properties?.ADM_DR_NM ||
+                          feature.properties?.dongName ||
+                          feature.properties?.DONG_NM ||
+                          feature.properties?.['행정동']
+          const guCode = feature.properties?.guCode ||
+                        feature.properties?.['자치구코드']
+
+          // Find the selected gu code to match
+          const selectedGuFeature = guData.features.find((guFeature: any) => {
+            const name = getGuName(guFeature.properties)
+            return name === selectedGu
+          })
+          const selectedGuCodeValue = selectedGuFeature?.properties?.guCode ||
+                                    (selectedGuFeature?.properties?.ADM_SECT_C ? parseInt(selectedGuFeature.properties.ADM_SECT_C) : null) ||
+                                    selectedGuFeature?.properties?.['자치구코드']
+
+          return dongName === selectedDong && guCode === selectedGuCodeValue
+        })
+      }
+
+      // If no dong selected or dong not found, use gu feature
+      if (!selectedFeature) {
+        selectedFeature = guData.features.find((feature: any) => {
+          const name = getGuName(feature.properties)
+          return name === selectedGu
+        })
+      }
 
       if (selectedFeature) {
-        const bounds = getBounds(selectedFeature.geometry)
+        bounds = getBounds(selectedFeature.geometry)
         if (bounds) {
-          // Calculate appropriate zoom level based on district size
+          // Calculate appropriate zoom level based on area size
           const latDiff = bounds.maxLat - bounds.minLat
           const lngDiff = bounds.maxLng - bounds.minLng
           const maxDiff = Math.max(latDiff, lngDiff)
 
-          // Adjust zoom based on district size (Seoul districts vary in size)
-          // Fixed zoom level for consistent viewing experience
+          // Adjust zoom based on area size
           let zoom = 12
           if (maxDiff > 0.15) zoom = 10.5
           else if (maxDiff > 0.1) zoom = 11
           else if (maxDiff < 0.05) zoom = 11.5
 
-          // If a dong is selected, zoom in one more level for better detail
+          // If a dong is selected, zoom in more for better detail
           if (selectedDong) {
             zoom += 0.6
           }
@@ -480,7 +507,7 @@ export default function EDADistrictMap({
         transitionInterpolator: new FlyToInterpolator()
       }))
     }
-  }, [selectedGu, selectedDong, guData, getGuName, getBounds, calculateAdjustedCenter, computedShowChartPanel])
+  }, [selectedGu, selectedDong, guData, dongData, getGuName, getBounds, calculateAdjustedCenter, computedShowChartPanel])
 
   // Update map center when panel width or window size changes
   useEffect(() => {
@@ -711,7 +738,7 @@ export default function EDADistrictMap({
           }>
             <ResizablePanel
               initialWidth={chartPanelWidth}
-              minWidth={300}
+              minWidth={windowWidth * 0.4}
               maxWidth={windowWidth * 0.6}
               onResize={handleChartPanelResize}
               className="h-full bg-transparent shadow-lg"
