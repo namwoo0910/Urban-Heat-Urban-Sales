@@ -20,6 +20,10 @@ export const actions = {
     predict: (deltaC: number) => `display:ai:predict;delta=${deltaC}`,
     /** 31일 예측 애니메이션 시작 */
     startAnimation: () => `display:ai:start-animation:31days`,
+    /** 예측 애니메이션 일시정지 */
+    pauseAnimation: () => `display:ai:pause-animation`,
+    /** 예측 애니메이션 재개 */
+    resumeAnimation: () => `display:ai:resume-animation`,
     /** 예측 애니메이션 정지 */
     stopAnimation: () => `display:ai:stop-animation`,
   },

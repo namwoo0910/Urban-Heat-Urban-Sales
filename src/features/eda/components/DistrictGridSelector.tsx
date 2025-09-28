@@ -17,6 +17,7 @@ interface DistrictGridSelectorProps {
   selectedDong?: string | null
   onDistrictSelect: (guName: string, guCode: number) => void
   onNeighborhoodSelect: (guName: string, guCode: number, dongName: string, dongCode: number) => void
+  mapLoaded?: boolean
   className?: string
 }
 
@@ -25,6 +26,7 @@ export function DistrictGridSelector({
   selectedDong,
   onDistrictSelect,
   onNeighborhoodSelect,
+  mapLoaded = false,
   className = ''
 }: DistrictGridSelectorProps) {
   const [showNeighborhoodPopup, setShowNeighborhoodPopup] = useState(false)
@@ -56,6 +58,8 @@ export function DistrictGridSelector({
   }, [])
 
   const handleDistrictClick = (guName: string) => {
+    if (!mapLoaded) return
+
     const guCode = districtCodes[guName]
     setSelectedDistrictForPopup(guName)
     setShowNeighborhoodPopup(true)
@@ -88,6 +92,15 @@ export function DistrictGridSelector({
       <div className={`bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-6 ${className}`}>
         <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">서울특별시 자치구 선택</h3>
 
+        {!mapLoaded && (
+          <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div className="flex items-center gap-2 text-yellow-800 text-sm">
+              <div className="w-4 h-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin"></div>
+              <span>지도를 로드하는 중입니다... 잠시만 기다려주세요.</span>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-5 gap-2">
           {sortedDistricts.map((guName, index) => {
             const isSelected = selectedGu === guName
@@ -95,16 +108,19 @@ export function DistrictGridSelector({
               <motion.button
                 key={guName}
                 onClick={() => handleDistrictClick(guName)}
+                disabled={!mapLoaded}
                 className={`
                   relative p-3 rounded-lg text-sm font-medium transition-all duration-200
-                  ${isSelected
+                  ${!mapLoaded
+                    ? 'bg-gray-200 text-gray-400 cursor-not-allowed opacity-50'
+                    : isSelected
                     ? 'bg-blue-500 text-white shadow-lg ring-2 ring-blue-300'
                     : 'bg-gray-50 hover:bg-blue-50 text-gray-700 hover:text-blue-700 hover:shadow-md'
                   }
-                  active:scale-95 touch-manipulation
+                  ${mapLoaded ? 'active:scale-95 touch-manipulation' : ''}
                 `}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={mapLoaded ? { scale: 1.02 } : {}}
+                whileTap={mapLoaded ? { scale: 0.98 } : {}}
                 layout
               >
                 <div className="text-center">

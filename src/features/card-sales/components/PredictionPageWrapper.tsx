@@ -43,6 +43,18 @@ export default function PredictionPageWrapper() {
     setAnimationDay(1)
   }, [])
 
+  const handlePauseAnimation = useCallback(() => {
+    mapRef.current?.pauseBothAnimations()
+    setIsAnimating(false)
+    console.log('[PredictionWrapper] Animation paused')
+  }, [])
+
+  const handleResumeAnimation = useCallback(() => {
+    mapRef.current?.resumeBothAnimations()
+    setIsAnimating(true)
+    console.log('[PredictionWrapper] Animation resumed')
+  }, [])
+
   // WebSocket event listeners for controller commands
   useEffect(() => {
     const handleTempScenario = (e: CustomEvent<{ scenario: string }>) => {
@@ -60,16 +72,30 @@ export default function PredictionPageWrapper() {
       handleStopAnimation()
     }
 
+    const handlePauseAnimationEvent = () => {
+      console.log('[PredictionWrapper] pause animation')
+      handlePauseAnimation()
+    }
+
+    const handleResumeAnimationEvent = () => {
+      console.log('[PredictionWrapper] resume animation')
+      handleResumeAnimation()
+    }
+
     window.addEventListener('viz:prediction:temp-scenario', handleTempScenario as EventListener)
     window.addEventListener('viz:prediction:start-animation', handleStartAnimationEvent as EventListener)
+    window.addEventListener('viz:prediction:pause-animation', handlePauseAnimationEvent as EventListener)
+    window.addEventListener('viz:prediction:resume-animation', handleResumeAnimationEvent as EventListener)
     window.addEventListener('viz:prediction:stop-animation', handleStopAnimationEvent as EventListener)
 
     return () => {
       window.removeEventListener('viz:prediction:temp-scenario', handleTempScenario as EventListener)
       window.removeEventListener('viz:prediction:start-animation', handleStartAnimationEvent as EventListener)
+      window.removeEventListener('viz:prediction:pause-animation', handlePauseAnimationEvent as EventListener)
+      window.removeEventListener('viz:prediction:resume-animation', handleResumeAnimationEvent as EventListener)
       window.removeEventListener('viz:prediction:stop-animation', handleStopAnimationEvent as EventListener)
     }
-  }, [handleStartAnimation, handleStopAnimation])
+  }, [handleStartAnimation, handleStopAnimation, handlePauseAnimation, handleResumeAnimation])
 
   // Auto-start 31-day animation on mount
   useEffect(() => {

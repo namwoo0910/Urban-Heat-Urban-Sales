@@ -31,10 +31,12 @@ export default function ControllerPage() {
   // State to track if exploration has been triggered
   const [hasExplored, setHasExplored] = useState(false)
   const [showContactModal, setShowContactModal] = useState(false)
+  const [canExplore, setCanExplore] = useState(false) // Reset Demo를 눌렀을 때만 true
 
   // EDA selection state
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
+  const [mapLoaded, setMapLoaded] = useState(false)
 
   const [displayState, setDisplayState] = useState({
     currentPage: '/display',
@@ -50,18 +52,20 @@ export default function ControllerPage() {
       // Handle display state updates
       if (action.startsWith('display:state:page:')) {
         const page = action.replace('display:state:page:', '')
-        setDisplayState(prev => ({ 
-          ...prev, 
+        setDisplayState(prev => ({
+          ...prev,
           currentPage: page,
-          // Reset exploration state if user navigates back to home
-          hasExplored: page === '/display' ? prev.hasExplored : false
+          // Reset exploration state if user navigates back to home or root
+          hasExplored: (page === '/display' || page === '/') ? false : prev.hasExplored
         }))
-        
-        // Also reset local state when navigating away from display
-        if (page !== '/display') {
+
+        // Also reset local state when navigating to home pages
+        if (page === '/display' || page === '/') {
           setHasExplored(false)
         }
-        
+
+        // EDA page navigation is handled by panel useEffect
+
         console.log('[Controller] Display page synced:', page)
       }
       
@@ -69,6 +73,16 @@ export default function ControllerPage() {
         setDisplayState(prev => ({ ...prev, hasExplored: true }))
         setHasExplored(true) // Also update local state for backward compatibility
         console.log('[Controller] Display exploration state synced')
+      }
+
+      // Handle map loading status (optional - now using timer instead)
+      if (action === 'display:map:loaded') {
+        setMapLoaded(true)
+        console.log('[Controller] Map loaded on display')
+      }
+
+      if (action === 'display:map:loading') {
+        console.log('[Controller] Map loading on display (using timer instead)')
       }
     },
   })
@@ -86,11 +100,26 @@ export default function ControllerPage() {
     }
   }, [isConnected, sendAction])
 
+  // EDA map loading timer - start 5 second timer when EDA panel opens
+  useEffect(() => {
+    if (panel === 'eda') {
+      console.log('[Controller] EDA panel opened, starting 5 second map loading timer')
+      setMapLoaded(false) // Reset to show loading state
+      const timerId = setTimeout(() => {
+        setMapLoaded(true)
+        console.log('[Controller] Map loading timeout completed - buttons enabled')
+      }, 5000)
+
+      return () => clearTimeout(timerId)
+    }
+  }, [panel])
+
   const handleExplore = useCallback(() => {
     sendAction('explore')
     // Also broadcast to display to disable screen saver
     sendAction('display:disableScreenSaver')
     setHasExplored(true)
+    setCanExplore(false) // Explore를 누르면 다시 reset demo를 눌러야 함
   }, [sendAction])
 
   const openOverlay = useCallback(() => {
@@ -131,8 +160,9 @@ export default function ControllerPage() {
   const handleReset = useCallback(() => {
     // Reset controller state
     setHasExplored(false)
+    setCanExplore(true) // Reset Demo를 누르면 Explore Seoul 버튼 활성화
     setDisplayState({
-      currentPage: '/display',
+      currentPage: '/',
       hasExplored: false
     })
 
@@ -140,7 +170,7 @@ export default function ControllerPage() {
     const next = new URLSearchParams()
     router.push('/controller')
 
-    // Reset display to display page with Explore Seoul button
+    // Reset display to display page (localhost:3000/display)
     sendAction('display:navigate:/display')
   }, [router, sendAction])
 
@@ -214,6 +244,21 @@ export default function ControllerPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 text-white relative">
+      {/* Top Left Corner - Screen Saver Button (Controller Only) */}
+      {!isOpen && (
+        <div className="fixed top-4 left-6 z-[150] pointer-events-auto">
+          <button
+            onClick={() => sendAction('display:navigate:/')}
+            className="group px-3 py-1.5 rounded-lg bg-slate-700/80 hover:bg-slate-600/90 border border-white/20 backdrop-blur-sm transition-all duration-300 transform hover:scale-105"
+          >
+            <span className="flex items-center gap-2 text-white text-sm font-medium">
+              <span>💤</span>
+              <span>Screen Saver</span>
+            </span>
+          </button>
+        </div>
+      )}
+
       {/* Top Right Corner - Contact Button & Logo */}
       <div className="fixed top-4 right-6 z-[150] flex items-center gap-3 pointer-events-auto">
         {/* Contact Button */}
@@ -275,18 +320,24 @@ export default function ControllerPage() {
           </div>
 
           <div className="flex flex-col gap-4 w-full max-w-md">
-            {!displayState.hasExplored && (
+            {/* Main Action Button - Changes from Explore Seoul to View Analytics */}
+            {!displayState.hasExplored ? (
               <button
-                onClick={handleExplore}
-                className="text-4xl group py-4 px-8 rounded-2xl bg-gradient-to-r from-slate-700/80 to-slate-600/80 hover:from-cyan-600/80 hover:to-blue-600/80 text-white font-semibold transition-all duration-300 border border-white/10 backdrop-blur-sm transform hover:scale-105 shadow-lg hover:shadow-cyan-500/20"
+                onClick={canExplore ? handleExplore : undefined}
+                disabled={!canExplore}
+                className={`text-4xl group py-4 px-8 rounded-2xl bg-gradient-to-r text-white font-semibold transition-all duration-300 border border-white/10 backdrop-blur-sm ${
+                  canExplore
+                    ? 'from-slate-700/80 to-slate-600/80 hover:from-cyan-600/80 hover:to-blue-600/80 transform hover:scale-105 shadow-lg hover:shadow-cyan-500/20 cursor-pointer'
+                    : 'from-slate-800/50 to-slate-700/50 opacity-50 cursor-not-allowed'
+                }`}
               >
                 <span className="flex items-center justify-center gap-3">
                   <span>🚀</span>
                   <span>Explore Seoul</span>
+                  {!canExplore && <span className="text-xs opacity-60">(Reset Demo first)</span>}
                 </span>
               </button>
-            )}
-            {displayState.hasExplored && (
+            ) : (
               <button
                 onClick={openOverlay}
                 className="text-4xl group py-4 px-8 rounded-2xl bg-gradient-to-r from-slate-700/80 to-slate-600/80 hover:from-purple-600/80 hover:to-pink-600/80 text-white font-semibold transition-all duration-300 border border-white/10 backdrop-blur-sm transform hover:scale-105 shadow-lg hover:shadow-purple-500/20"
@@ -306,14 +357,15 @@ export default function ControllerPage() {
             <div className="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-white/10">
               Display: {displayState.currentPage} {displayState.hasExplored ? '✅ explored' : '⭕ not explored'}
             </div>
-            {displayState.hasExplored && (
-              <button
-                onClick={handleReset}
-                className="w-full px-3 py-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 border border-red-400/30 text-white text-xs font-medium transition-colors"
-              >
-                🔄 Reset Demo
-              </button>
-            )}
+            <div className="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-white/10">
+              Explore: {canExplore ? '✅ available' : '⭕ reset demo first'}
+            </div>
+            <button
+              onClick={handleReset}
+              className="w-full px-3 py-1.5 rounded-lg bg-red-600/80 hover:bg-red-600 border border-red-400/30 text-white text-xs font-medium transition-colors"
+            >
+              🔄 Reset Demo
+            </button>
           </div>
         </div>
       )}
@@ -360,6 +412,7 @@ export default function ControllerPage() {
                       selectedDong={selectedDong}
                       onDistrictSelect={handleDistrictSelect}
                       onNeighborhoodSelect={handleNeighborhoodSelect}
+                      mapLoaded={mapLoaded}
                       className="rounded-none border-none shadow-none bg-white"
                     />
                   </div>

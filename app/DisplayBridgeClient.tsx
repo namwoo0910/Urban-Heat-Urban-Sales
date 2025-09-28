@@ -156,7 +156,7 @@ export default function DisplayBridgeClient() {
 
         // If video is paused and no new src, just resume
         if (!src && currentVideo.src && currentVideo.paused && currentVideo.currentTime > 0) {
-          console.log('[OverlayDOM] Resuming paused video')
+          console.log('[OverlayDOM] Resuming paused video at time:', currentVideo.currentTime)
           try {
             const p = currentVideo.play()
             if (p && typeof p.then === 'function') {
@@ -181,7 +181,7 @@ export default function DisplayBridgeClient() {
         // Starting fresh or new video
         if (src) {
           const abs = src.startsWith('/') ? src : `/${src}`
-          console.log('[OverlayDOM] Setting video src:', abs)
+          console.log('[OverlayDOM] Starting fresh video with src:', abs)
           console.log('[OverlayDOM] Video element state before:', {
             src: currentVideo.src,
             readyState: currentVideo.readyState,
@@ -384,8 +384,8 @@ export default function DisplayBridgeClient() {
     if (isControllerPath) {
       return
     }
-    
-    console.log('[Bridge] onAction ->', action)
+
+    console.log('🔄 [BRIDGE] ACTION:', action)
 
     // Handle state synchronization requests
     if (action === 'sync:request-state') {
@@ -431,7 +431,7 @@ export default function DisplayBridgeClient() {
         src = action.slice('display:video:play:'.length)
       }
       const cmd = { cmd: 'play' as const, src, ts: Date.now() }
-      console.log('[Bridge] dispatch remote-video', cmd)
+      console.log('[Bridge] 🎬 VIDEO COMMAND:', action, '→', cmd)
       window.dispatchEvent(new CustomEvent('remote-video', { detail: cmd }))
       return
     }
@@ -517,23 +517,47 @@ export default function DisplayBridgeClient() {
         const v = document.getElementById('global-video-overlay-video') as HTMLVideoElement | null
         if (!v) return
 
-        console.log('[Bridge] Attempting to unmute video with user gesture')
+        const wasPlaying = !v.paused
+        console.log('🔊 [VIDEO] UNMUTE START:', {
+          currentTime: v.currentTime,
+          paused: v.paused,
+          muted: v.muted,
+          wasPlaying,
+          readyState: v.readyState
+        })
+
         // ⬇️ 오디오 언락 시도 (should work since this is triggered by user gesture)
         v.muted = false
         v.volume = 1
 
-        // Only try to play if video is paused (don't interrupt if already playing)
-        if (v.paused) {
-          try {
-            v.play()?.catch((err) => {
-              console.warn('[Bridge] Play after unmute failed:', err)
-            })
-          } catch (err) {
-            console.warn('[Bridge] Play after unmute threw:', err)
-          }
-        }
+        // Check if unmuting caused the video to pause (autoplay policy)
+        setTimeout(() => {
+          console.log('🔊 [VIDEO] UNMUTE RESULT:', {
+            wasPlaying,
+            currentPaused: v.paused,
+            currentTime: v.currentTime,
+            muted: v.muted,
+            volume: v.volume
+          })
 
-        console.log('[Bridge] Video unmuted, muted:', v.muted, 'volume:', v.volume)
+          if (wasPlaying && v.paused && v.currentTime > 0) {
+            console.log('🔊 [VIDEO] RECOVERY: Video paused after unmuting, attempting resume')
+            const playPromise = v.play()
+            if (playPromise) {
+              playPromise.then(() => {
+                console.log('🔊 [VIDEO] RECOVERY SUCCESS: Video resumed after unmuting')
+              }).catch((err) => {
+                console.error('🔊 [VIDEO] RECOVERY FAILED:', err)
+              })
+            }
+          } else if (wasPlaying && !v.paused) {
+            console.log('🔊 [VIDEO] SUCCESS: Video continues playing after unmuting')
+          } else {
+            console.log('🔊 [VIDEO] INFO: No recovery needed', { wasPlaying, currentPaused: v.paused })
+          }
+        }, 50)
+
+        console.log('🔊 [VIDEO] UNMUTE COMPLETE: muted =', v.muted, 'volume =', v.volume)
         return
     }
 
@@ -607,6 +631,18 @@ export default function DisplayBridgeClient() {
     return
     }
 
+    if (action === 'display:ai:pause-animation') {
+    console.log('🤖 [AI] PAUSE COMMAND RECEIVED')
+    window.dispatchEvent(new CustomEvent('viz:prediction:pause-animation'))
+    return
+    }
+
+    if (action === 'display:ai:resume-animation') {
+    console.log('🤖 [AI] RESUME COMMAND RECEIVED')
+    window.dispatchEvent(new CustomEvent('viz:prediction:resume-animation'))
+    return
+    }
+
     if (action === 'display:ai:stop-animation') {
     console.log('[Bridge] ai:stop-animation')
     window.dispatchEvent(new CustomEvent('viz:prediction:stop-animation'))
@@ -616,6 +652,12 @@ export default function DisplayBridgeClient() {
     if (action === 'display:animation:toggle-daily') {
     console.log('[Bridge] animation:toggle-daily')
     window.dispatchEvent(new CustomEvent('viz:local-economy:toggle-daily-animation'))
+    return
+    }
+
+    if (action === 'display:enableScreenSaver') {
+    console.log('[Bridge] enabling screen saver')
+    window.dispatchEvent(new CustomEvent('display:enableScreenSaver'))
     return
     }
 

@@ -80,6 +80,8 @@ interface CardSalesDistrictMapProps {
 export interface CardSalesDistrictMapHandle {
   startBothAnimations: (type: '7days' | '31days') => void
   stopBothAnimations: () => void
+  pauseBothAnimations: () => void
+  resumeBothAnimations: () => void
   getAnimationState: () => {
     isAnimating: boolean;
     animationType: '7days' | '31days' | null;
@@ -1295,13 +1297,13 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
       unifiedLayers, layerConfig, dongData])  // REMOVED: is3DMode, dongData3D, createDong3DPolygonLayersOptimized dependencies
   
   // Separate animation control functions for actual and prediction layers
-  const startActualAnimation = useCallback((type: '7days' | '31days') => {
+  const startActualAnimation = useCallback((type: '7days' | '31days', fromDay: number = 1) => {
     setIsActualAnimating(true)
     setActualAnimationType(type)
-    setActualAnimationDay(1)
+    setActualAnimationDay(fromDay)
 
     const maxDays = type === '7days' ? 7 : 31
-    let currentDay = 1
+    let currentDay = fromDay
 
     const animate = () => {
       // Update actual data date
@@ -1334,13 +1336,13 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
     animate()
   }, [availableDailyDates, setSelectedDailyIndex, setSelectedMeshMonth])
 
-  const startPredictionAnimation = useCallback((type: '7days' | '31days') => {
+  const startPredictionAnimation = useCallback((type: '7days' | '31days', fromDay: number = 1) => {
     setIsPredictionAnimating(true)
     setPredictionAnimationType(type)
-    setPredictionAnimationDay(1)
+    setPredictionAnimationDay(fromDay)
 
     const maxDays = type === '7days' ? 7 : 31
-    let currentDay = 1
+    let currentDay = fromDay
 
     const animate = () => {
       // Update prediction date
@@ -1386,27 +1388,84 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
 
   // Combined animation control for center controls
   const startBothAnimations = useCallback((type: '7days' | '31days') => {
-    // Start both actual and prediction animations simultaneously
-    startActualAnimation(type)
-    startPredictionAnimation(type)
-  }, [startActualAnimation, startPredictionAnimation])
+    // Stop any existing animations first to prevent overlap
+    stopActualAnimation()
+    stopPredictionAnimation()
+    setPausedState(null) // Clear paused state
+
+    // Small delay then start fresh
+    setTimeout(() => {
+      startActualAnimation(type)
+      startPredictionAnimation(type)
+    }, 100)
+  }, [startActualAnimation, startPredictionAnimation, stopActualAnimation, stopPredictionAnimation])
 
   const stopBothAnimations = useCallback(() => {
     stopActualAnimation()
     stopPredictionAnimation()
   }, [stopActualAnimation, stopPredictionAnimation])
 
+  // Pause/resume state tracking
+  const [pausedState, setPausedState] = useState<{
+    type: '7days' | '31days' | null;
+    day: number;
+    date: string;
+  } | null>(null)
+
+  const pauseBothAnimations = useCallback(() => {
+    // Save current state before stopping
+    const currentState = {
+      type: actualAnimationType || predictionAnimationType,
+      day: Math.max(actualAnimationDay, predictionAnimationDay),
+      date: actualDate || predictionDate
+    }
+
+    console.log('[CardSalesMap] pauseBothAnimations called', {
+      isActualAnimating,
+      isPredictionAnimating,
+      actualAnimationType,
+      predictionAnimationType,
+      currentState
+    })
+
+    // Always try to pause - save state and stop animations
+    setPausedState(currentState.type ? currentState : { type: '31days', day: 1, date: '20240701' })
+    stopActualAnimation()
+    stopPredictionAnimation()
+    console.log('[CardSalesMap] Animations paused - forced stop all animations')
+  }, [isActualAnimating, isPredictionAnimating, actualAnimationType, predictionAnimationType, actualAnimationDay, predictionAnimationDay, actualDate, predictionDate, stopActualAnimation, stopPredictionAnimation])
+
+  const resumeBothAnimations = useCallback(() => {
+    if (pausedState?.type) {
+      console.log('[CardSalesMap] Resuming animations from day', pausedState.day)
+      // First stop any existing animations to prevent duplicates
+      stopActualAnimation()
+      stopPredictionAnimation()
+
+      // Small delay to ensure cleanup, then resume from paused day
+      setTimeout(() => {
+        startActualAnimation(pausedState.type!, pausedState.day)
+        startPredictionAnimation(pausedState.type!, pausedState.day)
+        setPausedState(null)
+      }, 100)
+    } else {
+      console.log('[CardSalesMap] No paused state to resume')
+    }
+  }, [pausedState, startActualAnimation, startPredictionAnimation, stopActualAnimation, stopPredictionAnimation])
+
   // Expose animation controls via ref
   useImperativeHandle(ref, () => ({
     startBothAnimations,
     stopBothAnimations,
+    pauseBothAnimations,
+    resumeBothAnimations,
     getAnimationState: () => ({
       isAnimating: isActualAnimating || isPredictionAnimating,
       animationType: actualAnimationType || predictionAnimationType,
       animationDay: Math.max(actualAnimationDay, predictionAnimationDay),
       currentDate: actualDate || predictionDate
     })
-  }), [startBothAnimations, stopBothAnimations, isActualAnimating, isPredictionAnimating, actualAnimationType, predictionAnimationType, actualAnimationDay, predictionAnimationDay, actualDate, predictionDate])
+  }), [startBothAnimations, stopBothAnimations, pauseBothAnimations, resumeBothAnimations, isActualAnimating, isPredictionAnimating, actualAnimationType, predictionAnimationType, actualAnimationDay, predictionAnimationDay, actualDate, predictionDate])
 
   // Clean up animations on unmount
   useEffect(() => {
@@ -2141,7 +2200,7 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
             <div className="flex gap-8">
               {/* Actual Data (Left) */}
               <div className="flex flex-col items-center gap-2">
-                <div className="text-gray-400 text-sm font-medium mb-1">실제</div>
+                <div className="text-gray-400 text-4xl font-bold mb-3">Nominal</div>
                 <div
                   className="text-3xl font-bold"
                   style={{ color: getTemperatureColor(overlayAvgTemp) }}
@@ -2163,7 +2222,12 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
 
               {/* Prediction Data (Right) */}
               <div className="flex flex-col items-center gap-2">
-                <div className="text-gray-400 text-sm font-medium mb-1">예측</div>
+                <div className="text-gray-400 text-4xl font-bold mb-3">
+                  {temperatureScenario === 't050' && '+5°C'}
+                  {temperatureScenario === 't100' && '+10°C'}
+                  {temperatureScenario === 't150' && '+15°C'}
+                  {temperatureScenario === 't200' && '+20°C'}
+                </div>
                 <div
                   className="text-3xl font-bold"
                   style={{ color: getTemperatureColor(predictionOverlayTemp) }}
@@ -2181,20 +2245,6 @@ const CardSalesDistrictMap = forwardRef<CardSalesDistrictMapHandle, CardSalesDis
               </div>
             </div>
 
-            {/* Temperature Scenario - centered below with large text */}
-            <div className="mt-6 flex justify-center">
-              <div className="px-8 py-4 rounded-2xl border-2 border-purple-400/60 shadow-lg bg-purple-900/20">
-                <div className="text-center">
-                  <div className="text-purple-300 text-sm font-medium mb-2">Temperature Scenario</div>
-                  <div className="text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-purple-300 via-pink-300 to-purple-300 animate-pulse drop-shadow-lg">
-                    {temperatureScenario === 't050' && '+5°C'}
-                    {temperatureScenario === 't100' && '+10°C'}
-                    {temperatureScenario === 't150' && '+15°C'}
-                    {temperatureScenario === 't200' && '+20°C'}
-                  </div>
-                </div>
-              </div>
-            </div>
           </div>
         </div>
       ) : (

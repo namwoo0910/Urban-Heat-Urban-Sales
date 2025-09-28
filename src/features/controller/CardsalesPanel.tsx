@@ -17,24 +17,42 @@ export default function CardsalesPanel({
   const [videoStatus, setVideoStatus] = useState<'stopped' | 'playing' | 'paused' | 'error'>('stopped');
   const [showAudioDialog, setShowAudioDialog] = useState(false);
   const [canPauseVideo, setCanPauseVideo] = useState(false);
+  const [canPauseAnimation, setCanPauseAnimation] = useState(false);
 
   const onShowViz = () => {
     if (disabled) return;
 
     if (animationStatus === 'playing') {
+      // Only allow pause if 5 seconds have passed
+      if (!canPauseAnimation) {
+        console.log('[Controller] Animation pause blocked - waiting for initialization to complete (10s)');
+        return;
+      }
       // If currently playing, pause the animation
       sendAction(actions.animation.toggleDaily());
       setAnimationStatus('paused');
+      setCanPauseAnimation(false); // Reset pause availability
     } else if (animationStatus === 'paused') {
       // If paused, resume the animation
       sendAction(actions.animation.toggleDaily());
       setAnimationStatus('playing');
+      // Set 5-second timer before allowing pause again
+      setTimeout(() => {
+        setCanPauseAnimation(true);
+        console.log('[Controller] Animation pause button now available after resume');
+      }, 5000);
     } else {
       // If stopped, start fresh
       sendAction(actions.navigate("/research/local-economy"));
       setTimeout(() => {
         sendAction(actions.animation.toggleDaily());
         setAnimationStatus('playing');
+
+        // Enable pause after 5 seconds
+        setTimeout(() => {
+          setCanPauseAnimation(true);
+          console.log('[Controller] Animation pause button now available after 5 seconds');
+        }, 5000);
       }, 300);
     }
   };
@@ -43,9 +61,9 @@ export default function CardsalesPanel({
     if (disabled) return;
 
     if (videoStatus === 'playing') {
-      // Only allow pause if 10 seconds have passed
+      // Only allow pause if 5 seconds have passed
       if (!canPauseVideo) {
-        console.log('[Controller] Pause blocked - waiting for initialization to complete (10s)');
+        console.log('[Controller] Pause blocked - waiting for initialization to complete (5s)');
         return;
       }
       // If currently playing, pause the video (stay on current page)
@@ -56,11 +74,11 @@ export default function CardsalesPanel({
       // If paused, resume playback without resetting src
       sendAction(actions.video.play()); // Resume without src parameter
       setVideoStatus('playing');
-      // Set 10-second timer before allowing pause again
+      // Set 5-second timer before allowing pause again
       setTimeout(() => {
         setCanPauseVideo(true);
         console.log('[Controller] Pause button now available after resume');
-      }, 10000);
+      }, 5000);
     } else {
       // If stopped, start video muted and show sound popup
       sendAction(actions.navigate("/video-experience"));
@@ -72,22 +90,24 @@ export default function CardsalesPanel({
         // Show audio dialog with user gesture
         setShowAudioDialog(true);
 
-        // Enable pause after 10 seconds
+        // Enable pause after 5 seconds
         setTimeout(() => {
           setCanPauseVideo(true);
-          console.log('[Controller] Pause button now available after 10 seconds');
-        }, 10000);
+          console.log('[Controller] Pause button now available after 5 seconds');
+        }, 5000);
       }, 1200);
     }
   };
 
   const handleAudioPermission = (option: 'cancel' | 'muted' | 'sound') => {
+    console.log('🎛️ [CONTROLLER] Audio permission:', option);
     setShowAudioDialog(false);
 
     if (option === 'sound') {
       // Video is already playing muted, just unmute it
+      console.log('🎛️ [CONTROLLER] Sending unmute command...');
       sendAction(actions.video.muteOff());
-      console.log('[Controller] Sent unmute command from popup');
+      console.log('🎛️ [CONTROLLER] Unmute command sent');
     }
     // If 'muted' or 'cancel', do nothing - video continues muted
   };
@@ -114,16 +134,26 @@ export default function CardsalesPanel({
       }
     };
 
+    const handleAnimationStatus = (event: Event) => {
+      const eventType = event.type;
+      if (eventType === 'animation:status:stopped') {
+        setAnimationStatus('stopped');
+        setCanPauseAnimation(false); // Reset pause availability
+      }
+    };
+
     window.addEventListener('video:status:playing', handleVideoStatus);
     window.addEventListener('video:status:paused', handleVideoStatus);
     window.addEventListener('video:status:stopped', handleVideoStatus);
     window.addEventListener('video:status:error', handleVideoStatus);
+    window.addEventListener('animation:status:stopped', handleAnimationStatus);
 
     return () => {
       window.removeEventListener('video:status:playing', handleVideoStatus);
       window.removeEventListener('video:status:paused', handleVideoStatus);
       window.removeEventListener('video:status:stopped', handleVideoStatus);
       window.removeEventListener('video:status:error', handleVideoStatus);
+      window.removeEventListener('animation:status:stopped', handleAnimationStatus);
     };
   }, []);
 
@@ -140,17 +170,18 @@ export default function CardsalesPanel({
             <span>Visuals of Data</span>
           </h3>
           <button
+            disabled={disabled || (animationStatus === 'playing' && !canPauseAnimation)}
             className={cn(
               "w-full py-5 px-8 rounded-2xl bg-gradient-to-r from-purple-600 via-cyan-600 to-purple-700 text-white font-bold text-lg shadow-xl transform transition-all duration-300 hover:scale-105 hover:shadow-purple-500/30 border border-white/10",
-              disabled && "pointer-events-none opacity-50 grayscale"
+              (disabled || (animationStatus === 'playing' && !canPauseAnimation)) && "pointer-events-none opacity-50 grayscale"
             )}
             onClick={onShowViz}
           >
             <span className="text-3xl flex items-center justify-center gap-3">
               <span>
-                {animationStatus === 'playing' ? '⏸️' :
+                {animationStatus === 'playing' ? (canPauseAnimation ? '⏸️' : '⏸️') :
                  animationStatus === 'paused' ? '▶️' : '▶️'}
-                {animationStatus === 'playing' ? 'Pause' :
+                {animationStatus === 'playing' ? (canPauseAnimation ? 'Pause' : 'Wait...') :
                  animationStatus === 'paused' ? 'Resume' : 'Play'}
               </span>
               <div className={cn(
@@ -163,7 +194,7 @@ export default function CardsalesPanel({
           </button>
           <div className="text-sm text-purple-200/80 mt-3 text-center">
             {animationStatus === 'playing'
-              ? "Pause the daily animation on display"
+              ? (canPauseAnimation ? "Pause the daily animation on display" : "Pause available in 5 seconds...")
               : animationStatus === 'paused'
               ? "Resume the daily animation on display"
               : "Navigate display and start daily animation"}
@@ -177,7 +208,7 @@ export default function CardsalesPanel({
         <div className="relative z-10">
           <h3 className="text-4xl font-bold mb-4 text-white flex items-center gap-3">
             <span>🎧</span>
-            <span>Sounds of Data</span>
+            <span>Sound of Data</span>
           </h3>
 
           {/* Video Toggle Control */}
@@ -212,7 +243,7 @@ export default function CardsalesPanel({
             {/* Video Status Description */}
             <div className="text-sm text-cyan-200/80 mt-3 text-center">
               {videoStatus === 'playing'
-                ? (canPauseVideo ? "Pause video playback" : "Pause available in a few seconds...")
+                ? (canPauseVideo ? "Pause video playback" : "Pause available in 5 seconds...")
                 : videoStatus === 'paused'
                 ? "Resume video playback"
                 : "Navigate to dedicated sound experience page"}
