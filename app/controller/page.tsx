@@ -31,15 +31,15 @@ export default function ControllerPage() {
   // State to track if exploration has been triggered
   const [hasExplored, setHasExplored] = useState(false)
   const [showContactModal, setShowContactModal] = useState(false)
-  const [canExplore, setCanExplore] = useState(false) // Reset Demo를 눌렀을 때만 true
 
   // EDA selection state
   const [selectedGu, setSelectedGu] = useState<string | null>(null)
   const [selectedDong, setSelectedDong] = useState<string | null>(null)
   const [mapLoaded, setMapLoaded] = useState(false)
 
-  const [displayState, setDisplayState] = useState({
-    currentPage: '/display',
+  // 단방향 데이터 플로우: displayState는 참고용으로만 사용
+  const [displayState] = useState({
+    currentPage: '/display', // 초기값만 설정, 실시간 동기화 안함
     hasExplored: false
   })
 
@@ -48,57 +48,23 @@ export default function ControllerPage() {
     room: 'main',
     onAction: (action) => {
       console.log('[Controller] received action:', action)
-      
-      // Handle display state updates
-      if (action.startsWith('display:state:page:')) {
-        const page = action.replace('display:state:page:', '')
-        setDisplayState(prev => ({
-          ...prev,
-          currentPage: page,
-          // Reset exploration state if user navigates back to home or root
-          hasExplored: (page === '/display' || page === '/') ? false : prev.hasExplored
-        }))
 
-        // Also reset local state when navigating to home pages
-        if (page === '/display' || page === '/') {
-          setHasExplored(false)
-        }
+      // 단방향 데이터 플로우: Display → Controller 상태 동기화 제거
+      // Controller는 상태의 소유자, Display는 명령 수신자
 
-        // EDA page navigation is handled by panel useEffect
-
-        console.log('[Controller] Display page synced:', page)
-      }
-      
-      if (action === 'display:state:explored') {
-        setDisplayState(prev => ({ ...prev, hasExplored: true }))
-        setHasExplored(true) // Also update local state for backward compatibility
-        console.log('[Controller] Display exploration state synced')
+      // 필요시 연결 상태나 에러만 처리
+      if (action.startsWith('display:error:')) {
+        console.warn('[Controller] Display error:', action)
       }
 
-      // Handle map loading status (optional - now using timer instead)
-      if (action === 'display:map:loaded') {
-        setMapLoaded(true)
-        console.log('[Controller] Map loaded on display')
-      }
-
-      if (action === 'display:map:loading') {
-        console.log('[Controller] Map loading on display (using timer instead)')
+      if (action === 'display:connected') {
+        console.log('[Controller] Display connected')
       }
     },
   })
 
-  // Request state sync when connected (reduced frequency to fix connection issues)
-  useEffect(() => {
-    if (isConnected) {
-      console.log('[Controller] Connected, will request display state sync after delay')
-      // Longer delay and less frequent syncing to prevent connection drops
-      const timeoutId = setTimeout(() => {
-        sendAction('sync:request-state')
-      }, 2000) // Increased to 2 seconds
-      
-      return () => clearTimeout(timeoutId)
-    }
-  }, [isConnected, sendAction])
+  // 단방향 데이터 플로우: 상태 동기화 요청 제거
+  // Controller가 상태 소유자이므로 Display에서 상태를 가져올 필요 없음
 
   // EDA map loading timer - start 5 second timer when EDA panel opens
   useEffect(() => {
@@ -118,8 +84,7 @@ export default function ControllerPage() {
     sendAction('explore')
     // Also broadcast to display to disable screen saver
     sendAction('display:disableScreenSaver')
-    setHasExplored(true)
-    setCanExplore(false) // Explore를 누르면 다시 reset demo를 눌러야 함
+    setHasExplored(true) // Explore를 누르면 View Analytics로 변경
   }, [sendAction])
 
   const openOverlay = useCallback(() => {
@@ -158,19 +123,14 @@ export default function ControllerPage() {
   }, [router, sp])
 
   const handleReset = useCallback(() => {
-    // Reset controller state
+    // Controller 상태만 리셋 (단방향 데이터 플로우)
     setHasExplored(false)
-    setCanExplore(true) // Reset Demo를 누르면 Explore Seoul 버튼 활성화
-    setDisplayState({
-      currentPage: '/',
-      hasExplored: false
-    })
 
     // Close any modals
     const next = new URLSearchParams()
     router.push('/controller')
 
-    // Reset display to display page (localhost:3000/display)
+    // Display에 명령만 전송 (상태 동기화 없음)
     sendAction('display:navigate:/display')
   }, [router, sendAction])
 
@@ -321,20 +281,14 @@ export default function ControllerPage() {
 
           <div className="flex flex-col gap-4 w-full max-w-md">
             {/* Main Action Button - Changes from Explore Seoul to View Analytics */}
-            {!displayState.hasExplored ? (
+            {!hasExplored ? (
               <button
-                onClick={canExplore ? handleExplore : undefined}
-                disabled={!canExplore}
-                className={`text-4xl group py-4 px-8 rounded-2xl bg-gradient-to-r text-white font-semibold transition-all duration-300 border border-white/10 backdrop-blur-sm ${
-                  canExplore
-                    ? 'from-slate-700/80 to-slate-600/80 hover:from-cyan-600/80 hover:to-blue-600/80 transform hover:scale-105 shadow-lg hover:shadow-cyan-500/20 cursor-pointer'
-                    : 'from-slate-800/50 to-slate-700/50 opacity-50 cursor-not-allowed'
-                }`}
+                onClick={handleExplore}
+                className="text-4xl group py-4 px-8 rounded-2xl bg-gradient-to-r from-slate-700/80 to-slate-600/80 hover:from-cyan-600/80 hover:to-blue-600/80 text-white font-semibold transition-all duration-300 border border-white/10 backdrop-blur-sm transform hover:scale-105 shadow-lg hover:shadow-cyan-500/20 cursor-pointer"
               >
                 <span className="flex items-center justify-center gap-3">
                   <span>🚀</span>
                   <span>Explore Seoul</span>
-                  {!canExplore && <span className="text-xs opacity-60">(Reset Demo first)</span>}
                 </span>
               </button>
             ) : (
@@ -355,10 +309,7 @@ export default function ControllerPage() {
               WS: {isConnected ? '🟢 connected' : '🔴 disconnected'} ({status})
             </div>
             <div className="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-white/10">
-              Display: {displayState.currentPage} {displayState.hasExplored ? '✅ explored' : '⭕ not explored'}
-            </div>
-            <div className="px-3 py-1.5 rounded-lg bg-slate-800/50 border border-white/10">
-              Explore: {canExplore ? '✅ available' : '⭕ reset demo first'}
+              Status: {hasExplored ? '✅ explored' : '⭕ ready to explore'}
             </div>
             <button
               onClick={handleReset}
