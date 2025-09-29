@@ -13,24 +13,26 @@ export function Header() {
   const router = useRouter()
   const pathname = usePathname()
 
-  // Hide header on controller page
-  if (pathname === '/controller') {
-    return null
-  }
-
   useGSAP(() => {
-    gsap.from(headerRef.current, {
-      y: -100,
-      opacity: 0,
-      duration: 1,
-      ease: "power3.out",
-      delay: 2,
-    })
+    if (headerRef.current) {
+      gsap.from(headerRef.current, {
+        y: -100,
+        opacity: 0,
+        duration: 1,
+        ease: "power3.out",
+        delay: 2,
+      })
+    }
   }, [])
 
   // Smart prefetching for main page when user shows intent to navigate home
   const handleHomeHover = () => {
     router.prefetch('/')
+  }
+
+  // Hide header on controller page
+  if (pathname === '/controller') {
+    return null
   }
 
   return (

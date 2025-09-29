@@ -6,6 +6,7 @@ import { motion } from "framer-motion"
 import { useGSAP } from "@gsap/react"
 import gsap from "gsap"
 import { ArrowRight, Circle, Map } from "lucide-react"
+import { useTranslation } from "@/src/shared/hooks/useTranslation"
 
 // 동적으로 파티클 맵 로드 (SSR 비활성화) - 최적화된 버전 사용
 const SeoulMapOptimized = dynamic(
@@ -58,6 +59,7 @@ const FIXED_ANIMATION_CONFIG = {
 
 export function Hero() {
   const container = useRef(null)
+  const { t } = useTranslation()
   const [displayMode, setDisplayMode] = useState<'circular' | 'transitioning' | 'map'>('circular')
   const [hasExplored, setHasExplored] = useState(false)
   const [showCenterText, setShowCenterText] = useState(true)
@@ -233,9 +235,9 @@ export function Hero() {
         <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
           <div className="text-white text-center">
             <div className="flex flex-col items-center space-y-6">
-              <span className="center-word font-['Montserrat'] font-bold text-3xl md:text-4xl lg:text-5xl tracking-wider bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">SEOUL</span>
+              <span className="center-word font-['Montserrat'] font-bold text-3xl md:text-4xl lg:text-5xl tracking-wider bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent">{t('hero.seoul')}</span>
               <span className="center-word font-['Montserrat'] font-light text-3xl md:text-4xl lg:text-5xl tracking-wider text-white/70">X</span>
-              <span className="center-word font-['Montserrat'] font-bold text-3xl md:text-4xl lg:text-5xl tracking-wider bg-gradient-to-r from-teal-400 to-cyan-600 bg-clip-text text-transparent">URBAN AI</span>
+              <span className="center-word font-['Montserrat'] font-bold text-3xl md:text-4xl lg:text-5xl tracking-wider bg-gradient-to-r from-teal-400 to-cyan-600 bg-clip-text text-transparent">{t('hero.urbanAI')}</span>
             </div>
           </div>
         </div>
@@ -262,19 +264,19 @@ export function Hero() {
           {displayMode === 'circular' && (
             <>
               <Circle size={16} className="animate-pulse" />
-              Use Controller to Navigate
+              {t('hero.useController')}
             </>
           )}
           {displayMode === 'transitioning' && (
             <>
-              TRANSITIONING...
+              {t('hero.transitioning')}
               <div className="w-4 h-4 border-2 border-white/50 border-t-white rounded-full animate-spin ml-2" />
             </>
           )}
           {displayMode === 'map' && (
             <>
               <Map size={16} />
-              Controlled Remotely
+              {t('hero.controlledRemotely')}
             </>
           )}
         </div>

@@ -4,24 +4,26 @@ import { motion } from "framer-motion"
 import { useRouter } from "next/navigation"
 import { geoJSONLoader } from "@/src/shared/utils/geoJSONLoader"
 import TransitionLink from "@/src/shared/components/navigation/TransitionLink"
-
-const projects = [
-  {
-    title: "Visuals and Sound of Data",
-    href: "/research/local-economy",
-  },
-  {
-    title: "Impact of Temperature on Sales",
-    href: "/research/prediction",
-  },
-  {
-    title: "Zooming into Local Sales",
-    href: "/research/eda",
-  },
-]
+import { useTranslation } from "@/src/shared/hooks/useTranslation"
 
 export function Research() {
   const router = useRouter()
+  const { t } = useTranslation()
+
+  const projects = [
+    {
+      title: t('researchModal.visualsAndSound'),
+      href: "/research/local-economy",
+    },
+    {
+      title: t('researchModal.tempImpact'),
+      href: "/research/prediction",
+    },
+    {
+      title: t('researchModal.zoomingLocal'),
+      href: "/research/eda",
+    },
+  ]
 
   // Prefetch pages on hover
   const handleEDAHover = () => {
@@ -51,7 +53,7 @@ export function Research() {
       {/* Main title section with proper spacing for fixed header */}
       <div className="text-center mb-6">
         <h2 className="text-6xl font-bold mb-4 text-white">
-          Select one of the following options
+          {t('researchModal.selectOption')}
         </h2>
 
       </div>

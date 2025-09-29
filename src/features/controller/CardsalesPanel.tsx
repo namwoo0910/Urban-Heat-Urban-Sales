@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { actions, WsSend } from "@/src/shared/ws/ctrlActions";
 import { cn } from "@/src/shared/utils/cn";
+import { useTranslation } from "@/src/shared/hooks/useTranslation";
 
 export default function CardsalesPanel({
   wsStatus,
@@ -12,6 +13,7 @@ export default function CardsalesPanel({
   wsStatus?: "idle" | "connecting" | "open" | "closing" | "closed";
   sendAction: WsSend;
 }) {
+  const { t } = useTranslation();
   const disabled = wsStatus !== "open";
   const [animationStatus, setAnimationStatus] = useState<'stopped' | 'playing' | 'paused'>('stopped');
   const [videoStatus, setVideoStatus] = useState<'stopped' | 'playing' | 'paused' | 'error'>('stopped');
@@ -167,7 +169,7 @@ export default function CardsalesPanel({
         <div className="relative z-10">
           <h3 className="text-4xl font-bold mb-4 text-white flex items-center gap-3">
             <span>🖼️</span>
-            <span>Visuals of Data</span>
+            <span>{t('panels.visualsOfData')}</span>
           </h3>
           <button
             disabled={disabled || (animationStatus === 'playing' && !canPauseAnimation)}
@@ -181,8 +183,8 @@ export default function CardsalesPanel({
               <span>
                 {animationStatus === 'playing' ? (canPauseAnimation ? '⏸️' : '⏸️') :
                  animationStatus === 'paused' ? '▶️' : '▶️'}
-                {animationStatus === 'playing' ? (canPauseAnimation ? 'Pause' : 'Wait...') :
-                 animationStatus === 'paused' ? 'Resume' : 'Play'}
+                {animationStatus === 'playing' ? (canPauseAnimation ? t('common.pause') : t('panels.wait')) :
+                 animationStatus === 'paused' ? t('common.play') : t('common.play')}
               </span>
               <div className={cn(
                 "w-2 h-2 rounded-full transition-all duration-300",
@@ -194,10 +196,10 @@ export default function CardsalesPanel({
           </button>
           <div className="text-sm text-purple-200/80 mt-3 text-center">
             {animationStatus === 'playing'
-              ? (canPauseAnimation ? "Pause the daily animation on display" : "Pause available in 5 seconds...")
+              ? (canPauseAnimation ? t('panels.pauseDaily') : t('panels.pauseAvailable'))
               : animationStatus === 'paused'
-              ? "Resume the daily animation on display"
-              : "Navigate display and start daily animation"}
+              ? t('panels.resumeDaily')
+              : t('panels.navigateDaily')}
           </div>
         </div>
       </div>
@@ -208,7 +210,7 @@ export default function CardsalesPanel({
         <div className="relative z-10">
           <h3 className="text-4xl font-bold mb-4 text-white flex items-center gap-3">
             <span>🎧</span>
-            <span>Sound of Data</span>
+            <span>{t('panels.soundOfData')}</span>
           </h3>
 
           {/* Video Toggle Control */}
@@ -228,8 +230,8 @@ export default function CardsalesPanel({
                 <span>
                   {videoStatus === 'playing' ? (canPauseVideo ? '⏸️' : '⏸️') :
                    videoStatus === 'paused' ? '▶️' : '▶️'}
-                  {videoStatus === 'playing' ? (canPauseVideo ? 'Pause' : 'Wait...') :
-                   videoStatus === 'paused' ? 'Resume' : 'Play'} 
+                  {videoStatus === 'playing' ? (canPauseVideo ? t('common.pause') : t('panels.wait')) :
+                   videoStatus === 'paused' ? t('common.play') : t('common.play')} 
                 </span>
                 <div className={cn(
                   "w-2 h-2 rounded-full transition-all duration-300",
@@ -243,10 +245,10 @@ export default function CardsalesPanel({
             {/* Video Status Description */}
             <div className="text-sm text-cyan-200/80 mt-3 text-center">
               {videoStatus === 'playing'
-                ? (canPauseVideo ? "Pause video playback" : "Pause available in 5 seconds...")
+                ? (canPauseVideo ? t('panels.pauseVideo') : t('panels.pauseAvailable'))
                 : videoStatus === 'paused'
-                ? "Resume video playback"
-                : "Navigate to dedicated sound experience page"}
+                ? t('panels.resumeVideo')
+                : t('panels.navigateVideo')}
             </div>
           </div>
 
@@ -259,29 +261,29 @@ export default function CardsalesPanel({
           <div className="bg-gradient-to-br from-slate-800 to-slate-900 rounded-3xl p-8 border border-cyan-500/30 shadow-2xl max-w-md w-full mx-4">
             <h3 className="text-2xl font-bold text-white mb-4 flex items-center gap-3">
               <span>🔊</span>
-              <span>Audio Permission</span>
+              <span>{t('panels.audioPermission')}</span>
             </h3>
             <p className="text-slate-300 mb-6">
-              Video is now playing muted. Choose Sound to enable audio with your permission, or continue watching muted.
+              {t('panels.audioPermissionDesc')}
             </p>
             <div className="flex flex-col gap-3">
               <button
                 onClick={() => handleAudioPermission('sound')}
                 className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-green-600 to-emerald-600 text-white font-bold hover:from-green-500 hover:to-emerald-500 transition-colors flex items-center justify-center gap-2"
               >
-                🔊 Sound
+                🔊 {t('panels.sound')}
               </button>
               <button
                 onClick={() => handleAudioPermission('muted')}
                 className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-blue-600 to-cyan-600 text-white font-medium hover:from-blue-500 hover:to-cyan-500 transition-colors flex items-center justify-center gap-2"
               >
-                🔇 Muted
+                🔇 {t('panels.muted')}
               </button>
               <button
                 onClick={() => handleAudioPermission('cancel')}
                 className="w-full py-3 px-4 rounded-xl bg-slate-700 text-slate-300 font-medium hover:bg-slate-600 transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
             </div>
           </div>

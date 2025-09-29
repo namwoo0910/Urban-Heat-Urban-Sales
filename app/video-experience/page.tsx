@@ -1,8 +1,10 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
+import { useTranslation } from '@/src/shared/hooks/useTranslation'
 
 export default function VideoExperiencePage() {
+  const { t } = useTranslation()
   const [isVideoReady, setIsVideoReady] = useState(false)
   const [videoStatus, setVideoStatus] = useState<'loading' | 'playing' | 'stopped'>('loading')
   const [showUnmutePrompt, setShowUnmutePrompt] = useState(false)
@@ -129,7 +131,7 @@ export default function VideoExperiencePage() {
       {videoStatus === 'loading' && (
         <div className="absolute inset-0 flex items-center justify-center z-10">
           <div className="text-white text-2xl font-light animate-pulse">
-            Preparing video experience...
+            {t('video.preparing')}
           </div>
         </div>
       )}
@@ -139,8 +141,8 @@ export default function VideoExperiencePage() {
         <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 z-20">
           <div className="text-white/60 text-sm text-center bg-black/30 px-4 py-2 rounded-lg backdrop-blur-sm">
             {videoStatus === 'playing'
-              ? "🎬 Video playing - Use controller to stop"
-              : "⏹️ Video ready - Use controller to play"}
+              ? t('video.videoPlaying')
+              : t('video.videoReady')}
           </div>
         </div>
       )}
@@ -154,7 +156,7 @@ export default function VideoExperiencePage() {
           >
             <div className="flex items-center gap-3">
               <span>🔊</span>
-              <span>Click to Enable Audio</span>
+              <span>{t('video.clickToEnableAudio')}</span>
             </div>
           </button>
         </div>
@@ -163,10 +165,10 @@ export default function VideoExperiencePage() {
       {/* Seoul SAIF branding */}
       <div className="absolute top-8 left-8 z-20">
         <div className="text-white/80 text-lg font-light">
-          Seoul SAIF Visualization
+          {t('video.seoulSAIF')}
         </div>
         <div className="text-white/60 text-sm">
-          Card Sales Data Experience
+          {t('video.cardSalesExperience')}
         </div>
       </div>
     </div>

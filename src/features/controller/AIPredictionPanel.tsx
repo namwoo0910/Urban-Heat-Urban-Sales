@@ -4,6 +4,7 @@
 import { useState, useEffect } from "react";
 import { actions, WsSend } from "@/src/shared/ws/ctrlActions";
 import { cn } from "@/src/shared/utils/cn";
+import { useTranslation } from "@/src/shared/hooks/useTranslation";
 
 export default function AIPredictionPanel({
   wsStatus,
@@ -12,6 +13,7 @@ export default function AIPredictionPanel({
   wsStatus?: "idle" | "connecting" | "open" | "closing" | "closed";
   sendAction: WsSend;
 }) {
+  const { t } = useTranslation();
   const disabled = wsStatus !== "open";
   const [predictionStatus, setPredictionStatus] = useState<'stopped' | 'playing' | 'paused'>('stopped');
   const [canPausePrediction, setCanPausePrediction] = useState(false);
@@ -113,10 +115,10 @@ export default function AIPredictionPanel({
         <div className="relative z-10">
           <h3 className="text-4xl font-bold mb-4 text-white flex items-center gap-3">
             <span>🤖</span>
-            <span>Impact of Temperature on Sales</span>
+            <span>{t('panels.impactOfTemp')}</span>
           </h3>
           <div className="text-lg text-pink-200/80 mb-6 text-center">
-            How do increasing temperatures affect sales?
+            {t('panels.howTempAffects')}
           </div>
 
           {/* Main AI Prediction Button */}
@@ -132,8 +134,8 @@ export default function AIPredictionPanel({
               <span>
                 {predictionStatus === 'playing' ? (canPausePrediction ? '⏸️' : '⏸️') :
                  predictionStatus === 'paused' ? '▶️' : '🚀'}
-                {predictionStatus === 'playing' ? (canPausePrediction ? 'Pause' : 'Wait...') :
-                 predictionStatus === 'paused' ? 'Resume' : 'Play'}
+                {predictionStatus === 'playing' ? (canPausePrediction ? t('common.pause') : t('panels.wait')) :
+                 predictionStatus === 'paused' ? t('common.play') : t('common.play')}
               </span>
               <div className={cn(
                 "w-2 h-2 rounded-full transition-all duration-300",
@@ -147,11 +149,11 @@ export default function AIPredictionPanel({
           {/* Temperature Scenario Selection */}
           <div className="bg-gradient-to-r from-pink-800/30 to-purple-800/30 rounded-2xl p-6 border border-pink-500/20">
             <div className="text-2xl font-semibold mb-4 text-center text-white">
-              🌡️ Temperature Scenarios
+              🌡️ {t('panels.tempScenarios')}
             </div>
             <TempDeltaButtons />
             <div className="text-sm text-pink-300/80 mt-4 text-center p-3 rounded-xl bg-pink-900/20 border border-pink-500/20">
-              💡 31-day animation runs automatically • Select scenario to see heat impact
+              💡 {t('panels.animationTip')}
             </div>
           </div>
         </div>

@@ -49,7 +49,20 @@ export default function DisplayPage() {
         return
       }
 
-      // 4) Explore: handled by DisplayBridgeClient.tsx globally - removed duplicate handler
+      // 4) 언어 설정
+      if (action.startsWith('display:language:')) {
+        if (action === 'display:language:toggle') {
+          console.log('[Display] Language toggle')
+          window.dispatchEvent(new CustomEvent('remote-language-toggle'))
+        } else if (action.startsWith('display:language:set:')) {
+          const lang = action.split(':')[3] as 'ko' | 'en'
+          console.log('[Display] Language set to:', lang)
+          window.dispatchEvent(new CustomEvent('remote-language-set', { detail: lang }))
+        }
+        return
+      }
+
+      // 5) Explore: handled by DisplayBridgeClient.tsx globally - removed duplicate handler
     },
     [router]
   )

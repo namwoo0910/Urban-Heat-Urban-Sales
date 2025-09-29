@@ -5,17 +5,24 @@ import dynamic from 'next/dynamic'
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { useWS } from '@shared/hooks/useWS'
+import { useTranslation } from '@/src/shared/hooks/useTranslation'
 
 // ✅ named export인 Research를 가져옴 (중요!)
+// Create a separate loading component to avoid hooks in dynamic loading
+const ResearchLoading = () => {
+  const { t } = useTranslation()
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      {t('loading.loadingResearch')}
+    </div>
+  )
+}
+
 const Research = dynamic(
   () => import('@/src/features/data-portal/components/ResearchSection').then(m => m.Research),
   {
     ssr: true,
-    loading: () => (
-      <div className="min-h-screen flex items-center justify-center">
-        Loading research...
-      </div>
-    ),
+    loading: () => <ResearchLoading />,
   }
 )
 
@@ -27,6 +34,7 @@ const CardsalesPanel = dynamic(
 export default function ResearchSectionOverlay() {
   const router = useRouter()
   const sp = useSearchParams()
+  const { t } = useTranslation()
   const { sendAction, status } = useWS({ role: 'controller', room: 'main', onAction: () => {} })
   const [selectedOption, setSelectedOption] = useState<string | null>(null)
 
@@ -70,12 +78,12 @@ export default function ResearchSectionOverlay() {
               onClick={() => setSelectedOption(null)}
               className="px-4 py-2 rounded-lg bg-white/10 hover:bg-white/20 transition-colors"
             >
-              ← Back
+              ← {t('navigation.back')}
             </button>
-            <h1 className="text-2xl font-semibold">Card Sales Controls</h1>
+            <h1 className="text-2xl font-semibold">{t('navigation.cardSalesControls')}</h1>
           </div>
-          
-          <CardsalesPanel 
+
+          <CardsalesPanel
             wsStatus={status}
             sendAction={sendAction}
           />
@@ -89,13 +97,13 @@ export default function ResearchSectionOverlay() {
     return (
       <div className="min-h-screen bg-black text-white flex flex-col items-center justify-center p-8">
         <div className="text-center">
-          <h1 className="text-2xl font-semibold mb-4">EDA Controls</h1>
-          <p className="text-neutral-400 mb-8">Display has been navigated to EDA page</p>
+          <h1 className="text-2xl font-semibold mb-4">{t('navigation.edaControls')}</h1>
+          <p className="text-neutral-400 mb-8">{t('navigation.displayNavigated')}</p>
           <button
             onClick={() => setSelectedOption(null)}
             className="px-6 py-3 rounded-lg bg-white text-black font-semibold"
           >
-            Back to Selection
+            {t('navigation.backToSelection')}
           </button>
         </div>
       </div>

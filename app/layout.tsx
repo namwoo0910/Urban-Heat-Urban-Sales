@@ -7,6 +7,7 @@ import DisplayBridgeClient from './DisplayBridgeClient'
 import { Header } from "@/src/shared/components/layout/AppHeader"
 import { GsapProvider } from "@/src/shared/providers/GSAPProvider"
 import { TransitionProvider } from "@/src/shared/providers/TransitionProvider"
+import { LanguageProvider } from "@/src/shared/contexts/LanguageContext"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -30,12 +31,14 @@ export default function RootLayout({
         <link rel="preconnect" href="https://tiles.mapbox.com" crossOrigin="anonymous" />
       </head>
       <body className="bg-[#0a0a0a] text-white">
-        <GsapProvider>
-          <TransitionProvider>
-            <Header />
-            <main>{children}</main>
-          </TransitionProvider>
-        </GsapProvider>
+        <LanguageProvider>
+          <GsapProvider>
+            <TransitionProvider>
+              <Header />
+              <main>{children}</main>
+            </TransitionProvider>
+          </GsapProvider>
+        </LanguageProvider>
         
         {/* ✅ 전역 WS 브릿지 + 비디오 오버레이 (항상 마운트 / 어떤 라우트에서도 동작) */}
         <DisplayBridgeClient />

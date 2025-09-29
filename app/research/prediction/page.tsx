@@ -2,11 +2,14 @@
 
 import { lazy, Suspense } from "react"
 import { useEffect } from "react"
+import { useTranslation } from "@/src/shared/hooks/useTranslation"
 
 // Dynamic imports for better performance - using PredictionPageWrapper for split-screen mode
 const PredictionPageWrapper = lazy(() => import("@/src/features/card-sales/components/PredictionPageWrapper"))
 
 const PredictionPage = () => {
+  const { t } = useTranslation()
+
   // Scroll to top when page loads
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -17,7 +20,7 @@ const PredictionPage = () => {
       {/* Visualization Layer with Suspense - starts in AI prediction split-screen mode */}
       <Suspense fallback={
         <div className="absolute inset-0 bg-black flex items-center justify-center">
-          <div className="text-white">AI 예측 시뮬레이션 로딩 중...</div>
+          <div className="text-white">{t('loading.loadingAIPrediction')}</div>
         </div>
       }>
         <PredictionPageWrapper />

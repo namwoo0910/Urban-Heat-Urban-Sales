@@ -49,6 +49,13 @@ export const actions = {
     /** 전체 시스템 리셋 (컨트롤러 + 디스플레이) */
     all: () => `system:reset:all`,
   },
+  /** 언어 설정 */
+  language: {
+    /** 언어 설정 */
+    setLanguage: (lang: 'ko' | 'en') => `display:language:set:${lang}`,
+    /** 언어 토글 */
+    toggleLanguage: () => `display:language:toggle`,
+  },
 } as const;
 
 export type WsSend = (action: string) => void;

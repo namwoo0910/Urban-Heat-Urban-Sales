@@ -11,6 +11,7 @@ import React, { useState, useMemo } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { districtCodes, dongCodes } from '@/src/features/card-sales/data/districtCodeMappings'
+import { useTranslation } from '@/src/shared/hooks/useTranslation'
 
 interface DistrictGridSelectorProps {
   selectedGu?: string | null
@@ -29,6 +30,7 @@ export function DistrictGridSelector({
   mapLoaded = false,
   className = ''
 }: DistrictGridSelectorProps) {
+  const { t, getDistrict, getDong } = useTranslation()
   const [showNeighborhoodPopup, setShowNeighborhoodPopup] = useState(false)
   const [selectedDistrictForPopup, setSelectedDistrictForPopup] = useState<string | null>(null)
 
@@ -90,13 +92,13 @@ export function DistrictGridSelector({
     <>
       {/* 5x5 District Grid */}
       <div className={`bg-white/95 backdrop-blur-sm rounded-lg shadow-lg p-6 ${className}`}>
-        <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">서울특별시 자치구 선택</h3>
+        <h3 className="text-lg font-bold text-gray-800 mb-4 text-center">{t('edaPanel.selectDistrict')}</h3>
 
         {!mapLoaded && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
             <div className="flex items-center gap-2 text-yellow-800 text-sm">
               <div className="w-4 h-4 border-2 border-yellow-600 border-t-transparent rounded-full animate-spin"></div>
-              <span>지도를 로드하는 중입니다... 잠시만 기다려주세요.</span>
+              <span>{t('edaPanel.mapLoading')}</span>
             </div>
           </div>
         )}
@@ -124,7 +126,7 @@ export function DistrictGridSelector({
                 layout
               >
                 <div className="text-center">
-                  {guName}
+                  {getDistrict(guName)}
                 </div>
 
                 {isSelected && (
@@ -142,11 +144,11 @@ export function DistrictGridSelector({
         {selectedGu && (
           <div className="mt-4 p-3 bg-blue-50 rounded-lg">
             <div className="text-sm text-blue-800">
-              <span className="font-semibold">선택된 구:</span> {selectedGu}
+              <span className="font-semibold">{t('edaPanel.selectedGu')}:</span> {getDistrict(selectedGu)}
               {selectedDong && (
                 <>
                   <span className="mx-2">•</span>
-                  <span className="font-semibold">선택된 동:</span> {selectedDong}
+                  <span className="font-semibold">{t('edaPanel.selectedDong')}:</span> {getDong(selectedDong)}
                 </>
               )}
             </div>
@@ -178,7 +180,7 @@ export function DistrictGridSelector({
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-gray-200 bg-gray-50">
                 <h2 className="text-xl font-bold text-gray-800">
-                  {selectedDistrictForPopup} 행정동 선택
+                  {getDistrict(selectedDistrictForPopup)} {t('edaPanel.selectNeighborhood')}
                 </h2>
                 <button
                   onClick={closePopup}
@@ -208,7 +210,7 @@ export function DistrictGridSelector({
                         whileHover={{ scale: 1.02 }}
                         whileTap={{ scale: 0.98 }}
                       >
-                        {dongName}
+                        {getDong(dongName)}
                       </motion.button>
                     )
                   })}
