@@ -10,7 +10,6 @@ import {
   Legend,
   ResponsiveContainer,
   ErrorBar,
-  Line,
   Tooltip
 } from '@/src/shared/components/ui/chart'
 import {
@@ -147,13 +146,6 @@ const CustomBoxPlot = (props: any) => {
         strokeWidth={3}
       />
       
-      {/* 평균값 다이아몬드 */}
-      <polygon
-        points={`${centerX},${yMean - 4} ${centerX + 4},${yMean} ${centerX},${yMean + 4} ${centerX - 4},${yMean}`}
-        fill="white"
-        stroke={color}
-        strokeWidth={2}
-      />
     </g>
   )
 }
@@ -652,7 +644,7 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
             data={processedData}
             margin={{ top: 10, right: 20, bottom: 10, left: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#E5E7EB" />
+            <CartesianGrid horizontal={false} vertical={false} />
             
             <XAxis 
               dataKey="temperatureGroup" 
@@ -697,30 +689,6 @@ export function SalesBoxPlotChart({ selectedBusinessType, selectedGuCode, select
               }}
             />
             
-            {/* 중앙값 연결선 */}
-            <Line 
-              type="monotone" 
-              dataKey="median" 
-              stroke={
-                hoveredGroup === '한파' ? '#2563EB' :
-                hoveredGroup === '온화' ? '#059669' :
-                hoveredGroup === '폭염' ? '#DC2626' :
-                '#6B7280'
-              }
-              strokeWidth={hoveredGroup ? 1.75 : 1.5}
-              strokeOpacity={1}
-              strokeDasharray="5 5"
-              dot={{
-                fill: hoveredGroup === '한파' ? '#2563EB' :
-                      hoveredGroup === '온화' ? '#059669' :
-                      hoveredGroup === '폭염' ? '#DC2626' :
-                      '#6B7280',
-                r: hoveredGroup ? 6 : 5,
-                filter: 'drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1))'
-              }}
-              connectNulls
-              name="중앙값 연결선"
-            />
           </ComposedChart>
         </ResponsiveContainer>
     </div>

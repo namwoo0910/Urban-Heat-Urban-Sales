@@ -164,7 +164,7 @@ export function MonthlySalesChart({
             data={chartData}
             margin={{ top: 10, right: 20, bottom: 5, left: 20 }}
           >
-            <CartesianGrid strokeDasharray="3 3" opacity={0.15} stroke="#E5E7EB" />
+            <CartesianGrid horizontal={false} vertical={false} />
             
             <XAxis 
               dataKey="monthIndex"
@@ -216,7 +216,7 @@ export function MonthlySalesChart({
               stroke="#3B82F6"
               strokeOpacity={1}
               strokeWidth={3}
-              dot={{ fill: '#3B82F6', fillOpacity: 1, strokeWidth: 2, r: 4, filter: 'drop-shadow(0 2px 4px rgba(59, 130, 246, 0.3))' }}
+              dot={false}
               activeDot={{ r: 6, stroke: '#3B82F6', strokeWidth: 2, fill: '#fff', filter: 'drop-shadow(0 2px 8px rgba(59, 130, 246, 0.5))' }}
             />
           </LineChart>
